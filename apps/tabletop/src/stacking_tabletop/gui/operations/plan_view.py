@@ -39,6 +39,7 @@ class PlanView(QWidget):
 
         overview = QGroupBox("Planning attempt")
         form = QFormLayout(overview)
+        self.step_selector = QComboBox()
         self.attempt_selector = QComboBox()
         self.status = QLabel("No plan recorded")
         self.object_id = QLabel("—")
@@ -47,6 +48,7 @@ class PlanView(QWidget):
         self.place_pose = QLabel("—")
         for label in (self.pick_pose, self.place_pose):
             label.setWordWrap(True)
+        form.addRow("Step", self.step_selector)
         form.addRow("Attempt", self.attempt_selector)
         form.addRow("Status", self.status)
         form.addRow("Object", self.object_id)
@@ -85,6 +87,7 @@ class PlanView(QWidget):
         layout.addWidget(self.details)
         layout.addStretch()
 
+        self.step_selector.currentIndexChanged.connect(self._step_changed)
         self.attempt_selector.currentIndexChanged.connect(
             self._attempt_changed
         )
@@ -118,6 +121,16 @@ class PlanView(QWidget):
         self._stop_playback()
         self._updating = True
         try:
+            self.step_selector.clear()
+            artifact = self.controller.artifact
+            if artifact is not None:
+                motion_steps = {record.step for record in self.controller.planning_records
+                                if record.result.segments}
+                for step in artifact.steps:
+                    status = "motion recorded" if step.step in motion_steps else "no motion recorded"
+                    self.step_selector.addItem(f"Step {step.step} — {status}", step.step)
+                self.step_selector.setCurrentIndex(self.controller.step_index)
+            self.step_selector.setEnabled(self.step_selector.count() > 0)
             plans = self.controller.current_plans
             self.attempt_selector.clear()
             for record in plans:
@@ -170,7 +183,7 @@ class PlanView(QWidget):
             )
             self.segments.addItem(
                 f"{segment.name} · {segment.positions.shape[0]} samples · "
-                f"{segment.positions.shape[1]} joints · {timing}{opening}"
+                f"{segment.positions.shape[1]} joints · {segment.mode or 'mode not recorded'} · {timing}{opening}"
             )
         if result.segments:
             self.segments.setCurrentRow(
@@ -188,6 +201,15 @@ class PlanView(QWidget):
             self.details.setText(
                 f"{result.reason} · retryable={'yes' if retryable else 'no'}"
             )
+
+    def _step_changed(self, index: int) -> None:
+        if self._updating or index < 0:
+            return
+        self._stop_playback()
+        self.controller.select_step(index)
+        self.controller.request_camera_reset()
+        self.refresh()
+        self.state_changed.emit()
 
     def _attempt_changed(self, index: int) -> None:
         if self._updating or index < 0:

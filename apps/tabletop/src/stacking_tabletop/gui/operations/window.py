@@ -1,6 +1,7 @@
 """Main window for tabletop planning, search inspection, and execution."""
 
 from pathlib import Path
+from dataclasses import replace
 import os
 import tempfile
 
@@ -32,6 +33,7 @@ from .execution_view import ExecutionView
 from .plan_view import PlanView
 from .scene_view import OperationsSceneView
 from .search_inspector import SearchInspector
+from .environment import planning_scene_boxes
 
 
 class StackingOperationsWindow(QMainWindow):
@@ -57,6 +59,8 @@ class StackingOperationsWindow(QMainWindow):
             )
         )
         self.setWindowTitle("Tabletop Stacking Operations Console")
+        self._default_projector = self.controller.trajectory_projector
+        self._recorded_projectors = {}
         self.setMinimumSize(900, 600)
         self.resize(1500, 900)
         self._build_ui()
@@ -138,6 +142,14 @@ class StackingOperationsWindow(QMainWindow):
         self.object_geometry_selector.addItem("PLY mesh", "ply")
         self.object_geometry_selector.currentIndexChanged.connect(self._object_geometry_changed)
         rendering.addWidget(self.object_geometry_selector)
+        rendering.addWidget(QLabel("Robot / gripper: "))
+        self.robot_geometry_selector = QComboBox()
+        plan_selector = self.plan_view.robot_geometry_selector
+        for index in range(plan_selector.count()):
+            self.robot_geometry_selector.addItem(plan_selector.itemText(index), plan_selector.itemData(index))
+        self.robot_geometry_selector.currentIndexChanged.connect(plan_selector.setCurrentIndex)
+        plan_selector.currentIndexChanged.connect(self.robot_geometry_selector.setCurrentIndex)
+        rendering.addWidget(self.robot_geometry_selector)
 
     def _object_geometry_changed(self, _index):
         self.scene_view.set_object_geometry_mode(self.object_geometry_selector.currentData())
@@ -242,6 +254,32 @@ class StackingOperationsWindow(QMainWindow):
         if filename:
             self.open_artifact(filename)
 
+    def _planning_frame(self):
+        projector = self.controller.trajectory_projector
+        if projector is None:
+            return self.controller.planning_frame()
+        record = self.controller.current_plan
+        digest = record.context_sha256 if record is not None else None
+        if digest is not None and self._artifact_path is not None:
+            key = (self._artifact_path, digest)
+            if key not in self._recorded_projectors:
+                from stacking_tabletop.execution.saved_plan import recorded_planning_profile
+                context = StackRunStore.load_run_context(self._artifact_path, digest)
+                planning = recorded_planning_profile(context)
+                self._recorded_projectors[key] = TabletopRobotTrajectoryProjector(planning, self.repository)
+            projector = self._recorded_projectors[key]
+        else:
+            projector = self._default_projector
+        self.controller.trajectory_projector = projector
+        frame = self.controller.planning_frame()
+        if record is not None and self.controller.current_plan_segment is None:
+            frame = replace(frame, robot_parts=projector.project(
+                projector.planning.robot.home_positions,
+                projector.planning.robot.gripper_opening,
+                geometry_mode=self.controller.robot_geometry_mode))
+        return replace(frame,
+                       environment_boxes=planning_scene_boxes(projector.planning))
+
     def _refresh_scene(self, *_args) -> None:
         if self._video_exporting:
             return
@@ -253,7 +291,7 @@ class StackingOperationsWindow(QMainWindow):
             return
         execution = getattr(self, "execution_view", None)
         if execution is not None and self.tabs.currentWidget() is execution and execution.scene is not None:
-            self.scene_view.render_frame(execution.scene.frame(),
+            self.scene_view.render_frame(execution.scene.frame(geometry_mode=self.controller.robot_geometry_mode),
                 reset_camera=self.controller.consume_camera_reset_request(),
                 environment_visibility={"support": True, "obstacle": True})
             self.statusBar().showMessage("Execution · measured robot · estimated object pose · translucent blue saved placement")
@@ -264,7 +302,7 @@ class StackingOperationsWindow(QMainWindow):
         )
         self.scene_view.render_frame(
             (
-                self.controller.planning_frame()
+                self._planning_frame()
                 if showing_plan
                 else self.controller.frame()
             ),
@@ -283,6 +321,8 @@ class StackingOperationsWindow(QMainWindow):
                     f"{self.controller.plan_sample_index + 1}/"
                     f"{self.controller.plan_sample_count}"
                 )
+            else:
+                trajectory = " · no motion trajectory · robot at profile home"
             self.statusBar().showMessage(
                 f"Step {step.step} · plan attempt {plan.attempt} · "
                 f"{plan.result.status.value} · {plan.problem.frame_id} frame"
@@ -462,4 +502,7 @@ class StackingOperationsWindow(QMainWindow):
     def _tab_changed(self, *_args) -> None:
         if self.tabs.currentWidget() is not self.plan_view:
             self.plan_view._stop_playback()
+        if self.tabs.currentWidget() is self.search_inspector:
+            self.search_inspector.refresh()
+        self.controller.request_camera_reset()
         self._refresh_scene()

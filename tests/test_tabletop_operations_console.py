@@ -74,7 +74,7 @@ def test_tabletop_visualization_profile_preserves_environment_layers() -> None:
 
     assert profile.layer_visibility == {
         "ground": True,
-        "support": False,
+        "support": True,
         "obstacle": False,
     }
     assert set(boxes) == {

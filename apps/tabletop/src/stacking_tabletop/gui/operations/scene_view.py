@@ -273,7 +273,7 @@ class OperationsSceneView(QtInteractor):
         preview = value.part_id.startswith('scan_preview/')
         mesh = self._robot_mesh(value.mesh_path, value.geometry_kind).copy()
         mesh.scale(value.mesh_scale, inplace=True)
-        appearance = {"color": "#ffb347" if collision else value.color}
+        appearance = {"color": "#ffb347" if collision and not preview else value.color}
         if not collision and not preview and not value.part_id.startswith("gripper/"):
             for name in ("RGBA", "RGB"):
                 if name in mesh.point_data:

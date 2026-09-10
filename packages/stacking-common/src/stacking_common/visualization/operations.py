@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from collections.abc import Mapping
 import json
 from pathlib import Path
 
 import numpy as np
+
+from stacking_common.planning import compose_poses, inverse_pose
 
 from stacking_common.artifacts import (
     PlacementPlanRecord,
@@ -389,7 +391,8 @@ class OperationsController:
         segment = self.current_plan_segment
         scene_objects = (
             problem.pick_scene_objects
-            if segment is None or segment.name.startswith("pick_")
+            if segment is None or segment.scene_phase == "pick"
+            or (segment.scene_phase is None and segment.name.startswith("pick_"))
             else problem.place_scene_objects
         )
         placed = tuple(
@@ -438,6 +441,24 @@ class OperationsController:
                     # but never synthesize a joint path across a discontinuity.
                     opening = float((1.0 - fraction) * segment.openings[sample]
                                     + fraction * next_segment.openings[0])
+            target_pose = None if segment.target_poses is None else segment.target_poses[sample]
+            if target_pose is not None:
+                if segment.mode == "attached":
+                    # Keep the saved object-to-tool transform rigid even between
+                    # samples: interpolating world poses would cut across the
+                    # arc followed by a rotating wrist.
+                    tool_pose = self.trajectory_projector.tool_pose
+                    tool_from_object = compose_poses(
+                        inverse_pose(tool_pose(segment.positions[sample])), target_pose)
+                    target_pose = compose_poses(tool_pose(positions), tool_from_object)
+                overlays = tuple(replace(value, opacity=0.2) for value in overlays) + (
+                    RenderObject(
+                        instance_id=f"plan/object/{problem.action.object_id}",
+                        object_id=problem.action.object_id,
+                        pose=target_pose,
+                        layer="trajectory",
+                    ),
+                )
             robot_parts = tuple(
                 self.trajectory_projector.project(
                     positions,

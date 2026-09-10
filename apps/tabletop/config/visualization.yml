@@ -1,13 +1,12 @@
 # Tabletop-owned reference geometry for the Operations Console. The ground
-# matches the stacking-core plane at z=0. Table and exclusion bounds preserve
-# the commissioned legacy tabletop layout and start hidden to avoid changing
-# the default search-focused view.
+# matches the stacking-core plane at z=0. These reference boxes are in the
+# search frame; Plan and Execution use the resolved world-frame planning boxes.
 units: si
 
 environment:
   default_layers:
     ground: true
-    support: false
+    support: true
     obstacle: false
 
   boxes:

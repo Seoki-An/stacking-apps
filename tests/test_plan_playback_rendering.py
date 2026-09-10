@@ -109,6 +109,91 @@ def test_changed_step_stops_playback_but_geometry_selection_does_not():
         app.processEvents()
 
 
+def test_tabletop_plan_step_selector_replays_later_steps_and_syncs_tabs(monkeypatch):
+    from dataclasses import replace
+    from PySide6.QtWidgets import QWidget
+    import stacking_tabletop.gui.operations.window as windows
+
+    app = QApplication.instance() or QApplication([])
+    source = _controller((2, 2))
+    artifact = replace(source.artifact, steps=tuple(
+        replace(source.artifact.steps[0], step=step) for step in range(1, 7)))
+    records = tuple(replace(source.current_plan, step=step,
+        result=replace(source.current_plan.result, segments=tuple(
+            replace(segment, positions=segment.positions + step * .01)
+            for segment in source.current_plan.result.segments))) for step in range(1, 6))
+
+    class View(QWidget):
+        def __init__(self, parent, *args):
+            super().__init__(parent)
+            self.frames = []
+
+        def render_frame(self, frame, **kwargs):
+            self.frames.append(frame)
+
+        def show_empty(self):
+            pass
+
+    monkeypatch.setattr(windows, "OperationsSceneView", View)
+    window = windows.StackingOperationsWindow(ROOT)
+    try:
+        window.controller.set_artifact(artifact, planning_records=records)
+        window.search_inspector.refresh()
+        window.tabs.setCurrentWidget(window.plan_view)
+        view = window.plan_view
+        assert view.step_selector.count() == 6
+        for step in range(1, 6):
+            view.step_selector.setCurrentIndex(view.step_selector.findData(step))
+            assert window.controller.current_plan.step == step
+            assert view.step_selector.currentText() == f"Step {step} — motion recorded"
+            assert view.segments.count() == 2
+            assert view.play_button.isEnabled()
+            np.testing.assert_allclose(window.controller.current_plan_segment.positions, step * .01)
+            view.play_button.click()
+            assert view.playback_timer.isActive()
+            view._last_tick -= 10
+            view._advance_playback()
+            assert not view.playback_timer.isActive()
+            assert view.sample_slider.value() == view.sample_slider.maximum()
+            assert window.scene_view.frames[-1].step == step
+            assert window.scene_view.frames[-1].robot_parts
+            window.tabs.setCurrentWidget(window.search_inspector)
+            assert window.search_inspector.step_selector.currentData() == step
+            window.tabs.setCurrentWidget(view)
+
+        view.play_button.click()
+        window.robot_geometry_selector.setCurrentIndex(1)
+        assert view.robot_geometry_selector.currentData() == "collision"
+        assert window.controller.robot_geometry_mode == "collision"
+        assert {part.geometry_kind for part in window.scene_view.frames[-1].robot_parts} == {"collision"}
+        assert view.playback_timer.isActive()
+        view.robot_geometry_selector.setCurrentIndex(2)
+        assert window.robot_geometry_selector.currentData() == "visual_collision"
+        assert {part.geometry_kind for part in window.scene_view.frames[-1].robot_parts} == {"visual", "collision"}
+        assert view.playback_timer.isActive()
+
+        window.tabs.setCurrentWidget(window.search_inspector)
+        window.search_inspector.step_selector.setCurrentIndex(1)
+        window.tabs.setCurrentWidget(view)
+        assert view.step_selector.currentData() == 2
+        assert view.sample_slider.value() == 0
+        view.play_button.click()
+        view.step_selector.setCurrentIndex(3)
+        assert not view.playback_timer.isActive()
+        assert window.controller.current_plan.step == 4
+        assert view.sample_slider.value() == 0
+
+        view.step_selector.setCurrentIndex(5)
+        assert view.step_selector.currentText() == "Step 6 — no motion recorded"
+        assert not view.play_button.isEnabled()
+        assert not view.sample_slider.isEnabled()
+        assert view.segments.count() == 0
+        assert not window.scene_view.frames[-1].robot_parts
+    finally:
+        window.close()
+        app.processEvents()
+
+
 def test_whole_step_slider_scrubs_across_segments_and_segment_mode_stops_locally():
     app = QApplication.instance() or QApplication([])
     window = PlaybackWindow(_controller((3, 4, 2)))
@@ -161,6 +246,119 @@ def test_projector_uses_visual_origins_and_keeps_collision_geometry_separate():
     tip_collision = next(part for part in collision if "left_finger_tip" in part.part_id)
     assert not np.allclose(tip_visual.pose[3:], tip_collision.pose[3:])
     np.testing.assert_allclose(tip_visual.pose[:3], tip_collision.pose[:3])
+
+
+def test_carried_stone_follows_wrist_rotation_and_stays_after_release():
+    from dataclasses import replace
+    from stacking_common.planning import compose_poses, inverse_pose
+
+    planning = TabletopApplication.from_repository(ROOT).planning_profile
+    projector = TabletopRobotTrajectoryProjector(planning, ROOT)
+    q0 = planning.robot.home_positions.copy()
+    q1 = q0.copy()
+    q1[0] += 1.2
+    attachment = np.array([.03, -.02, .08, 0., 0., 0., 1.])
+    pick = compose_poses(projector.tool_pose(q0), attachment)
+    place = compose_poses(projector.tool_pose(q1), attachment)
+    segments = (
+        MotionPlanSegment("approach", np.array([q1, q0]), mode="free",
+                          target_poses=(pick, pick), scene_phase="pick"),
+        MotionPlanSegment("carry", np.array([q0, q1]), mode="attached",
+                          target_poses=(pick, place), scene_phase="transfer"),
+        MotionPlanSegment("retreat", np.array([q1, q0]), mode="free",
+                          target_poses=(place, place), scene_phase="place"),
+    )
+    controller = _controller()
+    record = controller.current_plan
+    controller.set_artifact(controller.artifact, planning_records=(replace(record,
+        problem=replace(record.problem, pick_pose=pick, place_pose=place),
+        result=PlacementPlanningResult("success", segments)),))
+    controller.trajectory_projector = projector
+    # Scrubbing backwards and directly into a segment must not depend on a
+    # previous playback frame or attach/release callbacks.
+    for segment_index in (1, 2, 0, 1):
+        controller.select_plan_segment(segment_index)
+        controller.set_plan_interpolation(.5)
+        frame = controller.planning_frame()
+        stone = next(value for value in frame.overlays if value.layer == "trajectory")
+        assert stone.opacity == 1.0
+        assert all(value.opacity == .2 for value in frame.overlays[:-1])
+        if segment_index == 1:
+            tool = projector.tool_pose((q0 + q1) / 2)
+            np.testing.assert_allclose(compose_poses(inverse_pose(tool), stone.pose), attachment, atol=1e-10)
+            assert not np.allclose(stone.pose[:3], (pick[:3] + place[:3]) / 2)
+        else:
+            np.testing.assert_allclose(stone.pose, place if segment_index == 2 else pick)
+    np.testing.assert_array_equal(segments[1].target_poses[0], pick)
+
+
+def test_plan_tables_use_recorded_world_bounds_and_support_visibility(monkeypatch, tmp_path):
+    from dataclasses import replace
+    from types import SimpleNamespace
+    from stacking_common.artifacts import StackRunStore
+    from stacking_common.artifacts.planning_context import _values
+
+    app = QApplication.instance() or QApplication([])
+    planning = TabletopApplication.from_repository(ROOT).planning_profile
+    recorded = replace(planning, obstacles=tuple(
+        replace(box, maximum=box.maximum + [0, 0, .03])
+        if box.obstacle_id == "pick_table" else box for box in planning.obstacles))
+    controller = _controller()
+    controller.set_artifact(controller.artifact, planning_records=(replace(
+        controller.current_plan, context_sha256="a" * 64),))
+    window = PlaybackWindow(controller)
+    try:
+        window.repository = ROOT
+        window._artifact_path = tmp_path / "recorded.stack"
+        window._default_projector = TabletopRobotTrajectoryProjector(planning, ROOT)
+        window._recorded_projectors = {}
+        controller.trajectory_projector = window._default_projector
+        load = Mock(return_value=SimpleNamespace(profiles={"planning_profile": _values(recorded)}))
+        monkeypatch.setattr(StackRunStore, "load_run_context", load)
+        frame = window._planning_frame()
+        boxes = {box.component_id: box for box in frame.environment_boxes}
+        assert boxes["pick_table"].maximum[2] == pytest.approx(.13)
+        np.testing.assert_allclose(boxes["place_table"].minimum, [-.84, -.336, 0])
+        assert boxes["pick_table"].layer == boxes["place_table"].layer == "support"
+        assert boxes["pick_table"].opacity == boxes["place_table"].opacity == 1.0
+        assert boxes["third_view_camera"].layer == "obstacle"
+        window._planning_frame()
+        load.assert_called_once_with(window._artifact_path, "a" * 64)
+        # Failed attempts still expose robot collision geometry for inspection.
+        controller.set_artifact(controller.artifact, planning_records=(replace(
+            controller.current_plan, result=PlacementPlanningResult("infeasible", reason="no grasp")),))
+        controller.set_robot_geometry_mode("collision")
+        failed = window._planning_frame()
+        assert len(failed.robot_parts) == 14
+        assert all(part.geometry_kind == "collision" for part in failed.robot_parts)
+        assert not controller.current_plan.result.segments
+    finally:
+        window.close()
+        app.processEvents()
+
+
+@pytest.mark.parametrize("mode,count", [("visual", 12), ("collision", 14), ("visual_collision", 26)])
+def test_execution_and_scan_preview_honor_robot_geometry_mode(mode, count):
+    from types import SimpleNamespace
+    from stacking_tabletop.gui.operations.execution_scene import ExecutionScene
+
+    planning = TabletopApplication.from_repository(ROOT).planning_profile
+    projector = TabletopRobotTrajectoryProjector(planning, ROOT)
+    pose = np.array([.1, .2, .3, 0., 0., 0., 1.])
+    scene = SimpleNamespace(
+        plan=_controller().current_plan, released={}, saved=SimpleNamespace(planning=planning),
+        projector=projector, boxes=(), mesh_paths={},
+        telemetry={"joints": planning.robot.home_positions, "gripper_raw": 500., "object_pose": pose},
+        scan_preview=planning.robot.home_positions + .01,
+    )
+    frame = ExecutionScene.frame(scene, geometry_mode=mode)
+    assert len(frame.robot_parts) == 2 * count
+    preview = [part for part in frame.robot_parts if part.part_id.startswith("scan_preview/")]
+    assert len(preview) == count
+    assert all(part.color == "#1ad9ff" for part in preview)
+    assert {part.geometry_kind for part in preview} == (
+        {"visual", "collision"} if mode == "visual_collision" else {mode})
+    np.testing.assert_array_equal(frame.overlays[-1].pose, pose)
 
 
 def test_playback_interpolates_timed_joints_and_opening_without_changing_record(monkeypatch):

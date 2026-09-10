@@ -4,10 +4,10 @@ import numpy as np
 from dataclasses import replace
 
 from stacking_common.artifacts import StackRunStore
-from stacking_tabletop.config.visualization import TabletopSceneBox
 from stacking_tabletop.planning import TabletopRobotTrajectoryProjector
 
 from .controller import OperationsFrame, RenderObject
+from .environment import planning_scene_boxes
 
 
 class ExecutionScene:
@@ -20,9 +20,7 @@ class ExecutionScene:
         checkpoint = StackRunStore.load_execution_checkpoint(saved.path)
         step = next(iter(checkpoint.pending_steps), saved.plans[-1].step)
         self.plan = next(plan for plan in saved.plans if plan.step == step)
-        self.boxes = tuple(TabletopSceneBox(
-            box.obstacle_id, "support", box.minimum, box.maximum, (.4, .45, .5), .4,
-        ) for box in saved.planning.obstacles)
+        self.boxes = planning_scene_boxes(saved.planning)
         self.mesh_paths = {int(role.split("/")[1]): path
                            for role, path in saved.assets.items() if role.startswith("object/")}
 
@@ -36,7 +34,7 @@ class ExecutionScene:
             plan = next(plan for plan in self.saved.plans if plan.step == event.diagnostics["step"])
             self.released[plan.problem.action.object_id] = np.asarray(pose)
 
-    def frame(self):
+    def frame(self, *, geometry_mode="visual"):
         problem = self.plan.problem
         target = problem.action.object_id
         scene = {item.object_id: item.pose for item in (*problem.pick_scene_objects, *problem.place_scene_objects)}
@@ -59,9 +57,9 @@ class ExecutionScene:
             opening = np.clip((state["gripper_raw"] - 91.) / (1500. - 91.) * .9,
                               self.saved.planning.gripper.opening_lower,
                               self.saved.planning.gripper.opening_upper)
-            parts = tuple(self.projector.project(state["joints"], float(opening), geometry_mode="visual"))
+            parts = tuple(self.projector.project(state["joints"], float(opening), geometry_mode=geometry_mode))
             if self.scan_preview is not None:
                 parts += tuple(replace(part, part_id=f'scan_preview/{part.part_id}', color='#1ad9ff')
-                    for part in self.projector.project(self.scan_preview, float(opening), geometry_mode='visual'))
+                    for part in self.projector.project(self.scan_preview, float(opening), geometry_mode=geometry_mode))
         return OperationsFrame(self.plan.step, placed, overlays, (), (), None, None,
             self.plan.candidate_id, 0, 0, parts, self.boxes, self.mesh_paths)

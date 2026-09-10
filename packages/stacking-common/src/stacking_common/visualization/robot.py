@@ -131,12 +131,6 @@ class RobotTrajectoryProjector:
     ) -> tuple[RobotGeometryPose, ...]:
         if geometry_mode not in {"visual", "collision", "visual_collision"}:
             raise ValueError(f"unknown robot geometry mode: {geometry_mode}")
-        positions = np.asarray(positions, dtype=float)
-        expected = self.robot_urdf.kinematics.dof_count
-        if positions.shape != (expected,) or not np.all(np.isfinite(positions)):
-            raise ValueError(
-                f"robot trajectory sample must contain {expected} finite joints"
-            )
         resolved_opening = (
             self.planning.robot.gripper_opening
             if opening is None
@@ -144,9 +138,7 @@ class RobotTrajectoryProjector:
         )
         if not np.isfinite(resolved_opening):
             raise ValueError("robot trajectory gripper opening must be finite")
-        self.robot_state.positions = positions
-        tool_pose = compose_poses(
-            self.robot_state.link_pose(self.tool_link), self.planning.robot.link_from_tool)
+        tool_pose = self.tool_pose(positions)
         root_pose = compose_poses(
             tool_pose,
             self.planning.gripper.grasp_from_root,
@@ -168,6 +160,18 @@ class RobotTrajectoryProjector:
             for spec in self.gripper_geometry
             if geometry_mode == "visual_collision" or spec.geometry_kind == geometry_mode
         )
+
+    def tool_pose(self, positions: np.ndarray) -> np.ndarray:
+        """Return the planning grasp frame using the same FK as the meshes."""
+        positions = np.asarray(positions, dtype=float)
+        expected = self.robot_urdf.kinematics.dof_count
+        if positions.shape != (expected,) or not np.all(np.isfinite(positions)):
+            raise ValueError(
+                f"robot trajectory sample must contain {expected} finite joints"
+            )
+        self.robot_state.positions = positions
+        return compose_poses(
+            self.robot_state.link_pose(self.tool_link), self.planning.robot.link_from_tool)
 
     def _project_spec(self, state, spec: _GeometrySpec) -> RobotGeometryPose:
         return RobotGeometryPose(

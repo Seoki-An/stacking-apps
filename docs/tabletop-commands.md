@@ -96,6 +96,34 @@ Open the Operations Console and replay the run:
 stacking-tabletop-operations . --run /tmp/tabletop-planning.stack
 ```
 
+In **Plan → Step**, select a step marked **motion recorded**, select a successful
+attempt, and click **Play**, or scrub the
+whole-step slider. The solid stone follows the gripper during attached motion
+and stays at its recorded pose after release. Faint pickup and placement stones
+remain as reference markers. This requires a trajectory with recorded target
+poses; failed attempts have no motion to replay.
+The Step selection is shared with Search Inspector. Changing steps stops
+playback and resets the motion slider; steps without saved motions are labeled
+**no motion recorded** and have playback disabled.
+
+The **Rendering** toolbar offers the same mesh choices as excavator:
+
+- **Objects: DSF surface / PLY mesh** selects the stone surface representation.
+- **Robot / gripper: Visual meshes / Collision meshes / Visual + collision
+  wireframe** selects robot and gripper geometry. The combined mode overlays
+  orange collision wireframes on the visual meshes.
+
+The robot choice is synchronized with the Plan tab and also applies to measured
+Execution poses and cyan scan previews. Changing it preserves playback position.
+Failed planning attempts show the robot at the recorded profile's home pose
+for geometry inspection; this is not a planned motion or measured robot state.
+Motion segment labels include **free** or **attached** when recorded.
+
+Pickup and placement tables are visible by default. Plan and Execution use
+the saved world-frame planning bounds, including the measured pickup height;
+Search Inspector uses its search-frame reference geometry. The **Support**
+layer checkbox in Search Inspector controls table visibility in Plan and Search.
+
 Opening a run does not command hardware. The synthetic smoke scene is for
 software checks; physical execution needs a plan matching the actual scene.
 
