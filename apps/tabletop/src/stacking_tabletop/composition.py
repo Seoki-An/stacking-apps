@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+from stacking_common.actions.orientation import PrincipalAxisOrientationProvider
 
 from stacking_common.actions import (
     CorePosegenProfile,
@@ -409,7 +410,8 @@ class TabletopApplication(StackingSearchApplication):
         return TabletopPlacementSafety(inventory)
 
     def build_orientation_provider(self):
-        return ScanAlignedOrientationProvider()
+        return (ScanAlignedOrientationProvider() if self.action_generation_profile.pose_from_scan
+                else PrincipalAxisOrientationProvider((0., np.pi)))
 
     def build_orientation_filters(self, floor_policy):
-        return (ScanOrientationFilter(floor_policy),)
+        return (ScanOrientationFilter(floor_policy),) if self.action_generation_profile.pose_from_scan else ()

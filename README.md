@@ -199,7 +199,18 @@ focused compatibility entry points.
 
 The Stacking Operations Console is the shared tabletop application surface for
 plan visualization, Search Inspector diagnostics, trajectory replay, and live
-execution integration. Open a versioned stacking run with:
+execution integration. Run `stacking-tabletop-operations .` and choose
+**File → New planning run…** (`Ctrl+N`, also on the toolbar) to select a profile,
+output file, optional pickup poses/object IDs, step count, and run time limit.
+Full grasp/motion planning is enabled unless **Placement search only** is checked.
+**Pose from scan override** selects **On**, **Off**, or **Use configuration**
+for placement orientations without editing YAML. Off uses model principal axes;
+recorded pickup poses remain available for grasp planning in either mode.
+The dialog provides live logs, Stop, and Open resulting run, without commanding
+hardware. Blank pickup/ID fields retain the profile values; if no pickup file is
+configured, the planner uses the synthetic pickup scene.
+
+Open an existing versioned stacking run with:
 
 ```bash
 stacking-tabletop-operations . --run path/to/tabletop-mcts.stack

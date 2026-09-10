@@ -110,6 +110,12 @@ class StackingOperationsWindow(QMainWindow):
         self.setCentralWidget(splitter)
 
         file_menu = self.menuBar().addMenu("File")
+        new_action = QAction("New planning run…", self)
+        new_action.setShortcut("Ctrl+N")
+        new_action.triggered.connect(self._new_planning)
+        file_menu.addAction(new_action)
+        planning_toolbar = self.addToolBar("Planning")
+        planning_toolbar.addAction(new_action)
         open_action = QAction("Open stacking run…", self)
         open_action.setShortcut("Ctrl+O")
         open_action.triggered.connect(self._choose_artifact)
@@ -174,8 +180,24 @@ class StackingOperationsWindow(QMainWindow):
             return
         self.statusBar().showMessage(f"Summary exported: {path}")
 
+    def _new_planning(self):
+        if self.execution_running or self._video_exporting:
+            return
+        if self._planning_dialog is not None and self._planning_dialog.running:
+            self._planning_dialog.show()
+            self._planning_dialog.raise_()
+            return
+        if self._planning_dialog is not None:
+            self._planning_dialog.close()
+            self._planning_dialog.deleteLater()
+        from .planning_run import PlanningRunDialog
+        self._planning_dialog = PlanningRunDialog(self.repository, parent=self)
+        self._planning_dialog.can_start = lambda: not self.execution_running and not self._video_exporting
+        self._planning_dialog.run_available.connect(self.open_artifact)
+        self._planning_dialog.show()
+
     def _resume_planning(self):
-        if self.execution_running:
+        if self.execution_running or self._video_exporting:
             return
         if self._planning_dialog is not None and self._planning_dialog.running:
             self._planning_dialog.show()
@@ -201,10 +223,10 @@ class StackingOperationsWindow(QMainWindow):
         destination = Path(filename)
         if not destination.suffix:
             destination = destination.with_suffix(".stack")
-        if destination.exists():
-            QMessageBox.warning(self, "Choose a new path", "Existing runs are never overwritten by resume.")
-            return
         from .planning_run import PlanningRunDialog
+        if self._planning_dialog is not None:
+            self._planning_dialog.close()
+            self._planning_dialog.deleteLater()
         self._planning_dialog = PlanningRunDialog(self.repository, self._artifact_path,
                                                   destination, config, self)
         self._planning_dialog.run_available.connect(self.open_artifact)

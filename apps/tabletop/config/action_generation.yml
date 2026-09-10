@@ -2,6 +2,10 @@
 # planner. Physical distances are resolved directly in SI units.
 units: si
 
+orientation:
+  # true: scan-aligned pickup orientation; false: model principal axes with 0/180° rolls.
+  pose_from_scan: true
+
 initialization:
   height_clearance: 0.015
   xy_padding: 0.012

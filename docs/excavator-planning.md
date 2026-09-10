@@ -83,6 +83,14 @@ true/false passes your selection as a CLI override without changing the
 configuration file. Resume displays the recorded value and preserves it;
 start a new run to choose a different value.
 
+The planning dialog also offers **Overwrite existing run on successful
+completion**. Check it to reuse an existing `.stack` filename. Planning writes
+to a separate `*-pending-*.stack` file and replaces the chosen destination only
+after successful completion. Failure or Stop preserves the old file and leaves
+the partial result available through **Open resulting run** and the logged path.
+Resume can replace a different output file, but cannot overwrite its source.
+CLI output paths still must be new.
+
 For example, append `--pose-from-scan` to a planning command with
 `--pick-pose-data /path/to/pose_data.pkl` and a new `--save-run` destination.
 

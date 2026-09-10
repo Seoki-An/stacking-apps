@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 import signal
+import sqlite3
 import sys
 
 from PySide6.QtCore import QProcess, QProcessEnvironment, Signal
@@ -11,6 +12,7 @@ from PySide6.QtWidgets import (
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QVBoxLayout, QWidget,
 )
 from stacking_common.artifacts import StackRunStore
+from stacking_common.workflows.planning_output import PlanningRunOutput
 from stacking_excavator import ExcavatorApplication
 from stacking_excavator.planning.resume import load_resume_checkpoint
 
@@ -23,6 +25,7 @@ class PlanningRunDialog(QDialog):
         self.repository = Path(repository).resolve()
         self.source = None if source is None else Path(source)
         self.destination = None
+        self._run_output = None
         self.setWindowTitle("Resume excavator planning" if source else "New excavator planning run")
         self.resize(850, 650)
         layout = QVBoxLayout(self)
@@ -39,6 +42,8 @@ class PlanningRunDialog(QDialog):
         else:
             self._file_row(form, "Recorded pickup poses", self.pick_path, "Pickup poses (*.json *.pkl *.pickle)")
         self._file_row(form, "Save new run", self.output_path, "Stacking run (*.stack)", save=True)
+        self.overwrite = QCheckBox("Overwrite existing run on successful completion")
+        form.addRow(self.overwrite)
         self._file_row(form, "MCTS profile", self.config_path, "YAML (*.yml *.yaml)")
         self.steps = QSpinBox()
         self.steps.setRange(1, 1000)
@@ -122,13 +127,12 @@ class PlanningRunDialog(QDialog):
         destination = Path(self.output_path.text()).expanduser().resolve()
         if destination.suffix != ".stack":
             destination = destination.with_suffix(".stack")
-        if destination.exists():
-            raise FileExistsError("Choose a new output path; existing runs are preserved")
+        output = PlanningRunOutput(destination, overwrite=self.overwrite.isChecked(), source=self.source)
         config = Path(self.config_path.text()).expanduser().resolve()
         if not config.is_file():
             raise ValueError("Choose an existing MCTS YAML profile")
         arguments = ["-u", "-m", "stacking_excavator.planning.cli",
-            "--repository", str(self.repository), "--save-run", str(destination),
+            "--repository", str(self.repository), "--save-run", str(output.path),
             "--config", str(config), "--steps", str(self.steps.value()),
             "--max-run-time", str(self.wall_seconds.value())]
         if self.source:
@@ -149,7 +153,8 @@ class PlanningRunDialog(QDialog):
                 raise ValueError("Choose recorded pickup poses before starting")
             if self.search_only.isChecked():
                 arguments.append("--search-only")
-        self.destination = destination
+        self._run_output = output
+        self.destination = output.path
         return arguments
 
     def start(self):
@@ -161,6 +166,8 @@ class PlanningRunDialog(QDialog):
             QMessageBox.warning(self, "Cannot start planning", str(error))
             return
         self.log.clear()
+        if self._run_output is not None and self._run_output.path != self._run_output.destination:
+            self.log.appendPlainText(f"Existing run retained until success. Working output: {self.destination}")
         self.inputs.setEnabled(False)
         self.start_button.setEnabled(False)
         self.open_button.setEnabled(False)
@@ -178,10 +185,16 @@ class PlanningRunDialog(QDialog):
         self.start_button.setEnabled(True)
         self.stop_button.setText("Close")
         self.stop_button.setEnabled(True)
+        if self._run_output is not None:
+            try:
+                self.destination = self._run_output.finish(code == 0 and status != QProcess.ExitStatus.CrashExit)
+            except (OSError, ValueError, sqlite3.Error) as error:
+                self.log.appendPlainText(f"Could not replace existing run: {error}")
+            self.log.appendPlainText(f"Result path: {self.destination}")
         if self.destination and self.destination.is_file():
             try:
                 StackRunStore.info(self.destination)
-            except (OSError, ValueError):
+            except (OSError, ValueError, sqlite3.Error):
                 return
             self.open_button.setEnabled(True)
 

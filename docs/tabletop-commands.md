@@ -1,8 +1,9 @@
 # Tabletop command reference
 
 Run commands from the repository root using the project Python 3.12 environment.
-Replace `/path/to/...`, `YOUR_UR5E_IP`, and `SESSION_ID` with local values. Use new
-paths for `.stack` runs, summary exports, and capture output directories.
+Replace `/path/to/...`, `YOUR_UR5E_IP`, and `SESSION_ID` with local values. CLI run
+paths, summary exports, and capture output directories must be new; the planning
+GUI also supports explicit overwrite as described below.
 
 ## Setup
 
@@ -24,6 +25,42 @@ source ~/ros2_ws/install/setup.bash
 ```
 
 ## Offline planning and replay
+
+To create a plan from the GUI, open the console without a run:
+
+```bash
+stacking-tabletop-operations .
+```
+
+Choose **File → New planning run…** (`Ctrl+N`) or the toolbar button. Select
+the MCTS profile and a new output `.stack` file, optionally supply trusted pickup
+poses and object IDs, and set the step count and whole-run time limit. Leave
+**Placement search only** unchecked to include grasp and motion planning.
+Click **Start planning**, then **Open resulting run** to inspect/replay the
+saved results. **Stop planning** preserves committed records. Blank pickup/ID
+fields use profile values; an unset profile pickup path uses a synthetic scene.
+This workflow computes plans offline and sends no hardware commands.
+
+To reuse an existing `.stack` filename, check **Overwrite existing run on
+successful completion**. The old file stays intact while planning runs and is
+replaced only after successful completion. Failed/stopped results remain in a
+separate `*-pending-*.stack` file shown in the log and available through
+**Open resulting run**. A resumed run cannot overwrite its source. When selecting
+an existing destination for tabletop resume, review this option and click Start.
+
+**Pose from scan override** has three choices:
+
+- **Use configuration (no override)**: use `orientation.pose_from_scan` in
+  `apps/tabletop/config/action_generation.yml` (default: `true`).
+- **On**: use scan-aligned pickup orientations and the scan-orientation filter.
+- **Off**: use model principal-axis orientations with 0°/180° roll variants,
+  without the scan-orientation filter.
+
+This setting controls placement orientation proposals. Recorded pickup poses
+still supply the grasp-planning pickup geometry in either mode; without a pickup
+file, the existing synthetic-scene behavior remains. The override does not edit
+YAML. Resume preserves the recorded setting. Equivalent CLI flags are
+`--pose-from-scan` and `--no-pose-from-scan`; omit both to use configuration.
 
 Run MCTS with the current profile:
 

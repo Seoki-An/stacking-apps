@@ -237,7 +237,8 @@ def test_ctrl_c_reaches_supervisor_while_worker_ignores_interrupts():
             process.wait()
 
 
-def test_debug_cli_captures_and_resumes_planning_checkpoint(monkeypatch, tmp_path):
+@pytest.mark.parametrize('scan_enabled', [True, False])
+def test_debug_cli_captures_and_resumes_planning_checkpoint(monkeypatch, tmp_path, scan_enabled):
     import importlib.util
     from stacking_tabletop.planning.coordinator import TabletopPlanningCoordinator
     from types import SimpleNamespace
@@ -275,13 +276,21 @@ def test_debug_cli_captures_and_resumes_planning_checkpoint(monkeypatch, tmp_pat
     common = ["mcts.py", "--config", str(ROOT / "apps/tabletop/config/mcts.yml")]
     monkeypatch.setattr(sys, "argv", [*common, "--object-ids", "1", "3", "--steps", "1",
         "--iterations", "2", "--pose-solver", "passthrough", "--transition-backend", "kinematic",
-        "--plan-motion", "--save-run", str(source)])
+        "--plan-motion", "--save-run", str(source),
+        "--pose-from-scan" if scan_enabled else "--no-pose-from-scan"])
     module.main()
     checkpoint = StackRunStore.load_planning_checkpoint(source)
     assert checkpoint.step == 1
+    recorded = StackRunStore.load_run_context(source, checkpoint.context_sha256)
+    assert recorded.profiles['action_generation_profile'].get('pose_from_scan', True) is scan_enabled
     assert "5" in checkpoint.state.action_history[0].diagnostics["posegen_contact_forces"]
     assert StackRunStore.load_committed_placement_plans(source)[0].context_sha256 == checkpoint.context_sha256
     before = hashlib.sha256(source.read_bytes()).hexdigest()
+    monkeypatch.setattr(sys, "argv", [*common, "--resume-run", str(source), "--save-run", str(destination),
+        "--no-pose-from-scan" if scan_enabled else "--pose-from-scan"])
+    with pytest.raises(ValueError, match='preserves recorded pose_from_scan'):
+        module.main()
+    assert not destination.exists()
     monkeypatch.setattr(sys, "argv", [*common, "--resume-run", str(source), "--save-run", str(destination), "--steps", "1"])
     module.main()
     assert StackRunStore.load_planning_checkpoint(destination).step == 2

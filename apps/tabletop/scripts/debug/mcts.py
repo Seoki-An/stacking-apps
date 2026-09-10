@@ -38,6 +38,7 @@ from stacking_common.workflows.mcts_reporting import (
     tree_statistics as _tree_statistics,
 )
 from stacking_tabletop import TabletopApplication
+from stacking_tabletop.config.action import resolve_pose_from_scan
 from stacking_tabletop.config import (
     load_mcts_profile,
     planning_profile_with_pick_height,
@@ -199,6 +200,15 @@ def main() -> int | None:
         TabletopApplication.from_repository(repository),
         mcts_profile=mcts_profile,
     )
+    recorded_scan = None
+    if checkpoint is not None:
+        context = StackRunStore.load_run_context(args.resume_run, checkpoint.context_sha256)
+        recorded_scan = context.profiles["action_generation_profile"].get("pose_from_scan", True)
+    scan_enabled = resolve_pose_from_scan(application.action_generation_profile.pose_from_scan,
+                                         args.pose_from_scan, recorded_scan)
+    application = replace(application, action_generation_profile=replace(
+        application.action_generation_profile, pose_from_scan=scan_enabled))
+    print(f"pose_from_scan: {str(scan_enabled).lower()}", flush=True)
     pick_scene = None
     if checkpoint is not None:
         if object_ids != tuple(checkpoint.state.object_ids):
@@ -397,6 +407,7 @@ def main() -> int | None:
                         "seed": seed,
                         "workers": worker_count,
                         "plan_motion": plan_motion,
+                        "pose_from_scan": scan_enabled,
                         "max_planning_attempts_per_step": max_planning_attempts,
                         "planning_pick_position": (
                             None
@@ -689,6 +700,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--pose-solver", choices=("passthrough", "native"))
     parser.add_argument("--initial-yaw-degrees", type=float)
     parser.add_argument("--seed", type=int)
+    parser.add_argument("--pose-from-scan", action=argparse.BooleanOptionalAction, default=None,
+                        help="Override orientation.pose_from_scan; --no-pose-from-scan uses model-derived "
+                             "placement orientations. Recorded pickup poses remain available for grasp planning.")
     parser.add_argument(
         "--plan-motion",
         action=argparse.BooleanOptionalAction,
