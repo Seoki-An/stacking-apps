@@ -1,0 +1,501 @@
+{
+  "source_project": "stacking-planner",
+  "assets": {
+    "assets/excavator_3/EX_CX_Lower.stl": {
+      "source": "assets/excavator_3/EX_CX_Lower.stl",
+      "source_sha256": "e4431f1b418dff29918e2f749fd2d05caccffdc9435ddc306d0e80f307f83300"
+    },
+    "assets/excavator_3/EX_CX_Body.stl": {
+      "source": "assets/excavator_3/EX_CX_Body.stl",
+      "source_sha256": "f81bbcec2ae986eb34bb45503b06fdf814d9d5f8dd9164430383fcf0fa672caa"
+    },
+    "assets/excavator_3/EX_CX_CoverA.stl": {
+      "source": "assets/excavator_3/EX_CX_CoverA.stl",
+      "source_sha256": "1df13a24379257ecf7dfd3e9290b5d54ac0683a6f5560e071e21a6c51989f252"
+    },
+    "assets/excavator_3/EX_CX_CoverB.stl": {
+      "source": "assets/excavator_3/EX_CX_CoverB.stl",
+      "source_sha256": "419962e58c7362fd48ad9b270ad654c7f3de4ef0d7d6a7ed3cd06996598c6fd5"
+    },
+    "assets/excavator_3/EX_CX_Boom.stl": {
+      "source": "assets/excavator_3/EX_CX_Boom.stl",
+      "source_sha256": "55b1823ac877d6ade66c6d2bb59806e0caadc6919938a78e02bdb621dad671cc"
+    },
+    "assets/excavator_3/EX_CX_Arm.stl": {
+      "source": "assets/excavator_3/EX_CX_Arm.stl",
+      "source_sha256": "44371027b4f68194dbb793bde6baa81cea0c973d74f18f5384bc8cdccc683ded"
+    },
+    "assets/excavator_3/EX_CX_TR_Upper.stl": {
+      "source": "assets/excavator_3/EX_CX_TR_Upper.stl",
+      "source_sha256": "1711cd901ebc1f8ea6074f2d124cda5628cc89b9160296da8ec8417380a7dfbc"
+    },
+    "assets/excavator_3/EX_CX_TR_Mid.stl": {
+      "source": "assets/excavator_3/EX_CX_TR_Mid.stl",
+      "source_sha256": "c9a9479f714c14dc4e4835eb048e853adb11b3c6eedb1a78ba98c518590544d3"
+    },
+    "assets/excavator_3/EX_CX_TR_Lower.stl": {
+      "source": "assets/excavator_3/EX_CX_TR_Lower.stl",
+      "source_sha256": "352b909252896fbc64672afbdf159c0764dd907fc1637a5ed0ae71ff23c37499"
+    },
+    "assets/excavator_3/StoneGrab_Body.stl": {
+      "source": "assets/excavator_3/StoneGrab_Body.stl",
+      "source_sha256": "1ec63bcbab6efb765cb6621d89a9697147b83d512025eba96fd54428f4def886"
+    },
+    "assets/excavator_3/vdk23_cx_ik.urdf": {
+      "source": "assets/excavator_3/vdk23_cx_ik.urdf",
+      "source_sha256": "f468d9a6f1ea637a584e52ba1ebb2afb0f666b3a30647219bf8babbf4bb438fe"
+    },
+    "assets/stone_grab_3/StoneGrab_Body.stl": {
+      "source": "assets/stone_grab_3/StoneGrab_Body.stl",
+      "source_sha256": "1ec63bcbab6efb765cb6621d89a9697147b83d512025eba96fd54428f4def886"
+    },
+    "assets/stone_grab_3/StoneGrab_Body_dsf.obj": {
+      "source": "assets/stone_grab_3/StoneGrab_Body_dsf.obj",
+      "source_sha256": "77ef326e5ec9d37cdd10f69770baab28d4a1cd92d5a41cad916c97aedb8640a2"
+    },
+    "assets/stone_grab_3/StoneGrab_Left_with_Teeth.stl": {
+      "source": "assets/stone_grab_3/StoneGrab_Left_with_Teeth.stl",
+      "source_sha256": "eaa627ba94da5f07046d937f0f51404280cd75df10ed48eb715cdf55cfdd68f6"
+    },
+    "assets/stone_grab_3/StoneGrab_Left_dsf1.obj": {
+      "source": "assets/stone_grab_3/StoneGrab_Left_dsf1.obj",
+      "source_sha256": "b577545fcc4c85527b947949990b9484d856d4bb34a68c9d51287e6c0f0a0bfd"
+    },
+    "assets/stone_grab_3/StoneGrab_Left_dsf2.obj": {
+      "source": "assets/stone_grab_3/StoneGrab_Left_dsf2.obj",
+      "source_sha256": "68240422286f42e1c14bb212c02a9d3f5b75853a27052dd96c53d8e6ee5ad711"
+    },
+    "assets/stone_grab_3/StoneGrab_Left_Teeth_dsf1.obj": {
+      "source": "assets/stone_grab_3/StoneGrab_Left_Teeth_dsf1.obj",
+      "source_sha256": "582332c4fe629fc9a1a10f26000946e3c42cca8750e5c819630bbca617b5b310"
+    },
+    "assets/stone_grab_3/StoneGrab_Left_Teeth_dsf2.obj": {
+      "source": "assets/stone_grab_3/StoneGrab_Left_Teeth_dsf2.obj",
+      "source_sha256": "858014e7b119893b2174911f5901000439a2810e89992ff26826377a09472d81"
+    },
+    "assets/stone_grab_3/StoneGrab_Left_Teeth_dsf3.obj": {
+      "source": "assets/stone_grab_3/StoneGrab_Left_Teeth_dsf3.obj",
+      "source_sha256": "0911e4a10aae1703e7ff470c806378f8571a15c34394318f094bc274e2d8e049"
+    },
+    "assets/stone_grab_3/StoneGrab_Right_with_Teeth.stl": {
+      "source": "assets/stone_grab_3/StoneGrab_Right_with_Teeth.stl",
+      "source_sha256": "8155bf8e588309bf7d990a73a588d027433b3ade8c2526238dda97c87707ad28"
+    },
+    "assets/stone_grab_3/StoneGrab_Right_dsf1.obj": {
+      "source": "assets/stone_grab_3/StoneGrab_Right_dsf1.obj",
+      "source_sha256": "38615c9a580af2b34443dbf41b07e4ca8b16cf1457d07b7674e60805432cf167"
+    },
+    "assets/stone_grab_3/StoneGrab_Right_dsf2.obj": {
+      "source": "assets/stone_grab_3/StoneGrab_Right_dsf2.obj",
+      "source_sha256": "2c449a6358743307c106db4db2916025d53daffc27adcc03bca553b5df4c6bc9"
+    },
+    "assets/stone_grab_3/StoneGrab_Right_Teeth_dsf1.obj": {
+      "source": "assets/stone_grab_3/StoneGrab_Right_Teeth_dsf1.obj",
+      "source_sha256": "c4109f977782bb866422135e3c033e239c47c0f8f45aa143faff3b35a5e1cbd5"
+    },
+    "assets/stone_grab_3/StoneGrab_Right_Teeth_dsf2.obj": {
+      "source": "assets/stone_grab_3/StoneGrab_Right_Teeth_dsf2.obj",
+      "source_sha256": "4e738d07ee0d9556e6786f55db2a53d4a5b6687a7d7672eaf432892c81440c74"
+    },
+    "assets/stone_grab_3/StoneGrab_Right_Teeth_dsf3.obj": {
+      "source": "assets/stone_grab_3/StoneGrab_Right_Teeth_dsf3.obj",
+      "source_sha256": "6991893074f6e0dabc61d79d8ddbdf21091158cf0b733faa5553105eafba2bd3"
+    },
+    "assets/stone_grab_3/stone_grab.urdf": {
+      "source": "assets/stone_grab_3/stone_grab.urdf",
+      "source_sha256": "e1a7bcba11ee91865348e901b71fa1294a1132332a5c7303165b6496cce75069"
+    },
+    "assets/objects/model_1.obj": {
+      "source": "assets/stone/model_1.obj",
+      "source_sha256": "8ab82ddcec3f036de170a3b1ca188fdb0b0ad56bc869d7e68a178b21276ab294"
+    },
+    "assets/objects/model_10.obj": {
+      "source": "assets/stone/model_10.obj",
+      "source_sha256": "e47ee4f8d4ea18509bd7e5d51679def4398f214e212f2a4fdee7bf21ddbde3dc"
+    },
+    "assets/objects/model_11.obj": {
+      "source": "assets/stone/model_11.obj",
+      "source_sha256": "786135f18f7ef5d919e4dd152c67d788495d45d9e4ff0cf8fb4e3632255e037d"
+    },
+    "assets/objects/model_12.obj": {
+      "source": "assets/stone/model_12.obj",
+      "source_sha256": "8c324b25e872d49e4049fa81434a998af23a9aa3f6966ab5c6c0a3f26a9750a5"
+    },
+    "assets/objects/model_13.obj": {
+      "source": "assets/stone/model_13.obj",
+      "source_sha256": "f4ab3fb8ee5ee84b19f4af0b0d31c35d2536da76af2a285a00f73dbd251b3bae"
+    },
+    "assets/objects/model_14.obj": {
+      "source": "assets/stone/model_14.obj",
+      "source_sha256": "0bf5ef63dc2e792dc0c69100a0f78425b87bb79ca3314de9875e498741eea2e0"
+    },
+    "assets/objects/model_15.obj": {
+      "source": "assets/stone/model_15.obj",
+      "source_sha256": "f659069a8d774112c6c37344c336af06e92baeffc9b64c185397ad76493b4d61"
+    },
+    "assets/objects/model_17.obj": {
+      "source": "assets/stone/model_17.obj",
+      "source_sha256": "c430e593110c8f650f8c1846ed7a6f291340379c4037c94c76fbb0a0d8664473"
+    },
+    "assets/objects/model_18.obj": {
+      "source": "assets/stone/model_18.obj",
+      "source_sha256": "b5f4684979031e97559acd164b9a0d7674aa87828e814b08f1b237069f6f729f"
+    },
+    "assets/objects/model_19.obj": {
+      "source": "assets/stone/model_19.obj",
+      "source_sha256": "76f863ba21642eb7756bf65b9ef630a23012debe63f74f419581a0d47afdb4b2"
+    },
+    "assets/objects/model_2.obj": {
+      "source": "assets/stone/model_2.obj",
+      "source_sha256": "7ae5a1c646481175e07420d632c0bcf076345edc023463500ee0ab26d5b0d665"
+    },
+    "assets/objects/model_20.obj": {
+      "source": "assets/stone/model_20.obj",
+      "source_sha256": "85c5194acb41f8676471943b04abf809a21cb2b0e59a367fd713e06b874cfa54"
+    },
+    "assets/objects/model_21.obj": {
+      "source": "assets/stone/model_21.obj",
+      "source_sha256": "1e8b233203cd4461c3f5f1df033984445c424c7863102473507f22b76b8906d9"
+    },
+    "assets/objects/model_3.obj": {
+      "source": "assets/stone/model_3.obj",
+      "source_sha256": "7e3aebe78086914b7d49b37ae9507a67a846eebdd7c44583b240d0749450a266"
+    },
+    "assets/objects/model_30.obj": {
+      "source": "assets/stone/model_30.obj",
+      "source_sha256": "1a7eaf39fb88f6547cd66054942ba760facb0903cff198047f3540bba755f0f7"
+    },
+    "assets/objects/model_31.obj": {
+      "source": "assets/stone/model_31.obj",
+      "source_sha256": "749ed708c5e758f4cf3514f9c94f53c745f6a983a253d811b3a400f75671086f"
+    },
+    "assets/objects/model_32.obj": {
+      "source": "assets/stone/model_32.obj",
+      "source_sha256": "f382cad0cf214284b277ce90376f7c92f1f8dc7012f5b15b54194159932494b3"
+    },
+    "assets/objects/model_33.obj": {
+      "source": "assets/stone/model_33.obj",
+      "source_sha256": "b5e5d7b5385119f321926ba484661781db87d2bec01cb4bf66b66c883b2d9085"
+    },
+    "assets/objects/model_34.obj": {
+      "source": "assets/stone/model_34.obj",
+      "source_sha256": "b74cf872db3106714a6a7964580bbb1e335f6e3b6f3e670e2ccedf3e4e4ee701"
+    },
+    "assets/objects/model_35.obj": {
+      "source": "assets/stone/model_35.obj",
+      "source_sha256": "0291ea9b80674e63b53c8bd8a56f672bb1bba6424bc714ea5d9f5c4ddebda3c8"
+    },
+    "assets/objects/model_36.obj": {
+      "source": "assets/stone/model_36.obj",
+      "source_sha256": "12656b94b37e8febc89f0da65a3a51ad8dba714bdf45ef294c5e37a06eb35a6e"
+    },
+    "assets/objects/model_37.obj": {
+      "source": "assets/stone/model_37.obj",
+      "source_sha256": "e696bafc78979b77ab13e78ff68cf2c9dbd02d895ef0a202543768adf649907f"
+    },
+    "assets/objects/model_38.obj": {
+      "source": "assets/stone/model_38.obj",
+      "source_sha256": "24f431436f14b85473ac5898eef827299c1bab5266ad510888eb397792950e6b"
+    },
+    "assets/objects/model_39.obj": {
+      "source": "assets/stone/model_39.obj",
+      "source_sha256": "fd8e284ca6ebd56dea8b6e2d528730ac16e75e36bf3d44616d118ea5b49a742d"
+    },
+    "assets/objects/model_4.obj": {
+      "source": "assets/stone/model_4.obj",
+      "source_sha256": "baed707d16d93b9b1896818412eb9a8a9ca0b29aa6cf89fd402ecf65fa9160fb"
+    },
+    "assets/objects/model_40.obj": {
+      "source": "assets/stone/model_40.obj",
+      "source_sha256": "dcc6055009e1576be804c7b86f199923822dff2f4acd4423cc4fe770ae3cf893"
+    },
+    "assets/objects/model_41.obj": {
+      "source": "assets/stone/model_41.obj",
+      "source_sha256": "feaa0925c22aeab51aa60ff81b53ae14f7686cec6370c9e769c09c40200d6656"
+    },
+    "assets/objects/model_42.obj": {
+      "source": "assets/stone/model_42.obj",
+      "source_sha256": "49e5d87f21701f45d406270d2b4324cef5fa87593e3efee63b1ee8f9b2fafc39"
+    },
+    "assets/objects/model_43.obj": {
+      "source": "assets/stone/model_43.obj",
+      "source_sha256": "78c76de80a36740eb8ff0543d9902c614eaa600352c4b62ffecb57ab1d6df910"
+    },
+    "assets/objects/model_44.obj": {
+      "source": "assets/stone/model_44.obj",
+      "source_sha256": "be2415d2c265a563a7896f2b6893ed2827e462ff08d03717caea1f6b605db86a"
+    },
+    "assets/objects/model_45.obj": {
+      "source": "assets/stone/model_45.obj",
+      "source_sha256": "e57dc484b72d44c71c632da16cdbc6884c545b713fda610d0d455e1b272fa687"
+    },
+    "assets/objects/model_46.obj": {
+      "source": "assets/stone/model_46.obj",
+      "source_sha256": "01dfb718ea6b9642c64ddceaeb22cc893a7d6807e5175e8449d5a1890bb51a52"
+    },
+    "assets/objects/model_47.obj": {
+      "source": "assets/stone/model_47.obj",
+      "source_sha256": "aa52a1831eb1d4eafa797375be754b4c7c970caaf26469e60800217f3415c9d5"
+    },
+    "assets/objects/model_48.obj": {
+      "source": "assets/stone/model_48.obj",
+      "source_sha256": "d866f28793b821cca280c75cb8922df23f22f80549f78b913254da2fbbba0566"
+    },
+    "assets/objects/model_49.obj": {
+      "source": "assets/stone/model_49.obj",
+      "source_sha256": "1f5bd695782e56bef1264b8b2245dd3db58f59e13ebbbe21004829c6a1dc7a46"
+    },
+    "assets/objects/model_5.obj": {
+      "source": "assets/stone/model_5.obj",
+      "source_sha256": "2e1af3d7bd8130351757627d3f951db3e89a5646fdb69dddcb5bd4a8144208a7"
+    },
+    "assets/objects/model_50.obj": {
+      "source": "assets/stone/model_50.obj",
+      "source_sha256": "3f511b1553ef85b835efb140754953e8193f3fa33936b1d0a1df699691e59647"
+    },
+    "assets/objects/model_51.obj": {
+      "source": "assets/stone/model_51.obj",
+      "source_sha256": "ad5ccfbc504edea72dbb1b06044a4ebbc0b81ebad735dc1aedb57c3082fe4788"
+    },
+    "assets/objects/model_52.obj": {
+      "source": "assets/stone/model_52.obj",
+      "source_sha256": "82233c64171eba37b9056a3f3309ac522f4da508e3eab956b90c0151d0cc6a61"
+    },
+    "assets/objects/model_53.obj": {
+      "source": "assets/stone/model_53.obj",
+      "source_sha256": "3ab9445b7347035ad5ce79c90250babb0c0ccf8e2ded1ee164c7b20d5fa988fa"
+    },
+    "assets/objects/model_54.obj": {
+      "source": "assets/stone/model_54.obj",
+      "source_sha256": "87884e8cb32d89015a5ae461495509a09b584ab4316c4b92c849a9ee91400175"
+    },
+    "assets/objects/model_55.obj": {
+      "source": "assets/stone/model_55.obj",
+      "source_sha256": "2efa1c0513e02ccd51770cfbef7cd5a240c7e3a7230aa41e4508ab4dd23a8a18"
+    },
+    "assets/objects/model_56.obj": {
+      "source": "assets/stone/model_56.obj",
+      "source_sha256": "6bc38ffdc5fb44ae250ccc793091f74a70a2314cb35cbfc6f79265304432e01f"
+    },
+    "assets/objects/model_57.obj": {
+      "source": "assets/stone/model_57.obj",
+      "source_sha256": "b82559621bcb04b560994290100daedc40591f980d952c04f896d7f49300c14d"
+    },
+    "assets/objects/model_58.obj": {
+      "source": "assets/stone/model_58.obj",
+      "source_sha256": "931c51f8686e3233edad2a2044c7712cd24f7a6c92512bd420b62d7a76d6fc46"
+    },
+    "assets/objects/model_6.obj": {
+      "source": "assets/stone/model_6.obj",
+      "source_sha256": "95aec6f7c2f91092f928f6233993cc8ab765ca9dd039f73c50829fc4e6d7851c"
+    },
+    "assets/objects/model_7.obj": {
+      "source": "assets/stone/model_7.obj",
+      "source_sha256": "2d8b7168414a618e1e9389069766b8ec4e8039324e1c22e1b19198adc5d72fd3"
+    },
+    "assets/objects/model_8.obj": {
+      "source": "assets/stone/model_8.obj",
+      "source_sha256": "977d972434b5c06ef62090f17aa7a5818653e5bce204629ed12f6af61a4b3fdb"
+    },
+    "assets/objects/model_9.obj": {
+      "source": "assets/stone/model_9.obj",
+      "source_sha256": "d546b456c68736e37dcf8ac8527235d28050b89c2531526799e2fe599cd41b5c"
+    },
+    "assets/objects/model_1_mesh.ply": {
+      "source": "assets/stone/model_1_mesh.ply",
+      "source_sha256": "88f9f8aeef9825e96cbca2d18ddb363a6ec11b84232d52bced8b4c2cfd64c8e3"
+    },
+    "assets/objects/model_10_mesh.ply": {
+      "source": "assets/stone/model_10_mesh.ply",
+      "source_sha256": "6091100171d04aafcd815f074fe3a8b4d552f71a6e205e473e16cd38a901eda5"
+    },
+    "assets/objects/model_11_mesh.ply": {
+      "source": "assets/stone/model_11_mesh.ply",
+      "source_sha256": "da95da79f066bd753bdb7f93a9a1a2cf46aba8475ab5b0ca6a5058547c22b920"
+    },
+    "assets/objects/model_12_mesh.ply": {
+      "source": "assets/stone/model_12_mesh.ply",
+      "source_sha256": "08e400ce3915247dc8f3131d5bfb456539b7bc3549ad87050764bb3358afe75e"
+    },
+    "assets/objects/model_13_mesh.ply": {
+      "source": "assets/stone/model_13_mesh.ply",
+      "source_sha256": "b33af6d28adeccd32383c694bdfd985f25427fec5278dde783c626007c0ba82c"
+    },
+    "assets/objects/model_14_mesh.ply": {
+      "source": "assets/stone/model_14_mesh.ply",
+      "source_sha256": "b1cd6b6987a32553f66e4eb6481935b3d022e288f699949c17297f2435de69d5"
+    },
+    "assets/objects/model_15_mesh.ply": {
+      "source": "assets/stone/model_15_mesh.ply",
+      "source_sha256": "7e4ab2aa11779733f6faf74230adf5c5ef653c54903fe26fd1872bc0599f20c4"
+    },
+    "assets/objects/model_17_mesh.ply": {
+      "source": "assets/stone/model_17_mesh.ply",
+      "source_sha256": "5115e38ae93146610f9e88265230e139dc69177d4a456e334a6bf0fe19c18457"
+    },
+    "assets/objects/model_18_mesh.ply": {
+      "source": "assets/stone/model_18_mesh.ply",
+      "source_sha256": "9fc36d69a90d7e602c1c79a9d21c0f04e30bde623399c15ac09f48b54788706e"
+    },
+    "assets/objects/model_19_mesh.ply": {
+      "source": "assets/stone/model_19_mesh.ply",
+      "source_sha256": "2e294408c30db013cb014e5a81533fef435c0ba10fc48d269ec256042f32bad1"
+    },
+    "assets/objects/model_2_mesh.ply": {
+      "source": "assets/stone/model_2_mesh.ply",
+      "source_sha256": "d7f04190f79656b12d3ae724eb2f0e8aec0d85c4cbaf07be779e7acfee133ef4"
+    },
+    "assets/objects/model_20_mesh.ply": {
+      "source": "assets/stone/model_20_mesh.ply",
+      "source_sha256": "abf072cac0f01dd5d02c3c4513f6715538d45812057de7c9976349b1f2435143"
+    },
+    "assets/objects/model_21_mesh.ply": {
+      "source": "assets/stone/model_21_mesh.ply",
+      "source_sha256": "d1b62b09c0ebab68cc147e9e7c55721848537d7907277b54d65d28d69f05ae0a"
+    },
+    "assets/objects/model_3_mesh.ply": {
+      "source": "assets/stone/model_3_mesh.ply",
+      "source_sha256": "693a6a89851fd14743719ef14c5a753c884038bd8f4205f1e2c9750c37eec276"
+    },
+    "assets/objects/model_30_mesh.ply": {
+      "source": "assets/stone/model_30_mesh.ply",
+      "source_sha256": "82fcba5df9bc1fdf98e29b1eb053ec9f31587a1ab4fdc04006ae58044ef99317"
+    },
+    "assets/objects/model_31_mesh.ply": {
+      "source": "assets/stone/model_31_mesh.ply",
+      "source_sha256": "c2d2008b2bc1bb5b82f9c937ede8548181f44c2fd18af402afb9f5f141bb98ad"
+    },
+    "assets/objects/model_32_mesh.ply": {
+      "source": "assets/stone/model_32_mesh.ply",
+      "source_sha256": "3926b5cc1095239251bd4fb10c83cfd93fbbbd8cbcb7f502c17c3fa297520fcc"
+    },
+    "assets/objects/model_33_mesh.ply": {
+      "source": "assets/stone/model_33_mesh.ply",
+      "source_sha256": "cb3bca9f805fb1f747fe874a0ef1bfffbdcba9a6fff4af93b151e2b7f255a0d0"
+    },
+    "assets/objects/model_34_mesh.ply": {
+      "source": "assets/stone/model_34_mesh.ply",
+      "source_sha256": "98e92da14340184364930ad85cb4e175b476c8d81f9ca0da3dfabfc66bcaced8"
+    },
+    "assets/objects/model_35_mesh.ply": {
+      "source": "assets/stone/model_35_mesh.ply",
+      "source_sha256": "e862fc33fe490e0bee255159889dbf6c0efc42ed55681a7dba44a25a34c9626b"
+    },
+    "assets/objects/model_36_mesh.ply": {
+      "source": "assets/stone/model_36_mesh.ply",
+      "source_sha256": "d5cc0441a8aa02f6571aa10ea6132873de792277c8f09e1fe06c581d4433f7ca"
+    },
+    "assets/objects/model_37_mesh.ply": {
+      "source": "assets/stone/model_37_mesh.ply",
+      "source_sha256": "70f3e38b88f937d3967bad79cb26744ef6eedad59f7a86e6b3a72b73f3451cb0"
+    },
+    "assets/objects/model_38_mesh.ply": {
+      "source": "assets/stone/model_38_mesh.ply",
+      "source_sha256": "03e7987e1158a72918e7a9abf949802fa20de54b67f52902aff6a40f672f5f1a"
+    },
+    "assets/objects/model_39_mesh.ply": {
+      "source": "assets/stone/model_39_mesh.ply",
+      "source_sha256": "777ddfca232de7fb65fe52db3fb1d438ec5a3ca2928f365e75aca907412dab48"
+    },
+    "assets/objects/model_4_mesh.ply": {
+      "source": "assets/stone/model_4_mesh.ply",
+      "source_sha256": "e01d92da02383042a5932e240c160b7bde9028f2e0bc12664a5bd004091f28e6"
+    },
+    "assets/objects/model_40_mesh.ply": {
+      "source": "assets/stone/model_40_mesh.ply",
+      "source_sha256": "4c4d726e3f498b81fffcb31ae2b59389388e68c7aa22fcdceadf0a3ad1db6838"
+    },
+    "assets/objects/model_41_mesh.ply": {
+      "source": "assets/stone/model_41_mesh.ply",
+      "source_sha256": "2ef5855702669f657aeccdacb615eedd1db87e3432883bbe51ef2b2f70d55096"
+    },
+    "assets/objects/model_42_mesh.ply": {
+      "source": "assets/stone/model_42_mesh.ply",
+      "source_sha256": "8b77e224a36e0a14d73a7616708ab8289af1361ed95c843d9975e0c36eb44682"
+    },
+    "assets/objects/model_43_mesh.ply": {
+      "source": "assets/stone/model_43_mesh.ply",
+      "source_sha256": "961ee3b781ba9f124572306481cddac331216f914e7578c25dcc925ff9a51103"
+    },
+    "assets/objects/model_44_mesh.ply": {
+      "source": "assets/stone/model_44_mesh.ply",
+      "source_sha256": "292ec626c931af93117c9c09fad73f95e65b1a26c932fac68eb87ac01e20da11"
+    },
+    "assets/objects/model_45_mesh.ply": {
+      "source": "assets/stone/model_45_mesh.ply",
+      "source_sha256": "b365e0013cf8e8f1b96e1cd5bc7dd0b1cdef1891556177febee70a63a106b2c6"
+    },
+    "assets/objects/model_46_mesh.ply": {
+      "source": "assets/stone/model_46_mesh.ply",
+      "source_sha256": "02c57b6b49830b5e428b31a0a77359962101e04ef50bb610fb9c36f70c2a27d7"
+    },
+    "assets/objects/model_47_mesh.ply": {
+      "source": "assets/stone/model_47_mesh.ply",
+      "source_sha256": "8d03bc3f40bb95481aa95f3271157a5fa65ccb4f4b700ad5d24e35c94686d640"
+    },
+    "assets/objects/model_48_mesh.ply": {
+      "source": "assets/stone/model_48_mesh.ply",
+      "source_sha256": "1e1cb0dcfc0a1749e7e67ef15a940350b9e4b3f65e234dfae3852ae9f3046b08"
+    },
+    "assets/objects/model_49_mesh.ply": {
+      "source": "assets/stone/model_49_mesh.ply",
+      "source_sha256": "fa0514ca6f540347c7fd4feff4b7f78d18889924dd6b95817869cf97afcbb53f"
+    },
+    "assets/objects/model_5_mesh.ply": {
+      "source": "assets/stone/model_5_mesh.ply",
+      "source_sha256": "df1df1013575bf9930e5695f42090777314187af3cf7b6083331b726babac1f9"
+    },
+    "assets/objects/model_50_mesh.ply": {
+      "source": "assets/stone/model_50_mesh.ply",
+      "source_sha256": "016fa087e5dd0fe97a27f894c547c44f1b89dad32aae7f44cd60a4897b4e77cc"
+    },
+    "assets/objects/model_51_mesh.ply": {
+      "source": "assets/stone/model_51_mesh.ply",
+      "source_sha256": "28e947c7cf3e1feeffbf4e50a3f0b9f96293fceb72e8f55cd5a7e05eae1fa886"
+    },
+    "assets/objects/model_52_mesh.ply": {
+      "source": "assets/stone/model_52_mesh.ply",
+      "source_sha256": "7aa0ac9debb30b8187fd9bd9928772e0f9b470bb0c5b4eff3d2a7ee551aa74c2"
+    },
+    "assets/objects/model_53_mesh.ply": {
+      "source": "assets/stone/model_53_mesh.ply",
+      "source_sha256": "0de3700c42bd44acd4dc1ebd4c234112dcfdeb0271fb54c53b5dfe995f6f8d26"
+    },
+    "assets/objects/model_54_mesh.ply": {
+      "source": "assets/stone/model_54_mesh.ply",
+      "source_sha256": "7fa89abf8c803dfae86d0f7dc586948e465b62c6ab18fbbc365b9ba0d5da142a"
+    },
+    "assets/objects/model_55_mesh.ply": {
+      "source": "assets/stone/model_55_mesh.ply",
+      "source_sha256": "c9a441cd73cde76780efe3112d95f774576de18ef51e6d300c79a5069d86ceb6"
+    },
+    "assets/objects/model_56_mesh.ply": {
+      "source": "assets/stone/model_56_mesh.ply",
+      "source_sha256": "63bc8eff32cdfd1f295b1b97108fcf80afaadd9d11daf5ec935b389cea4c3522"
+    },
+    "assets/objects/model_57_mesh.ply": {
+      "source": "assets/stone/model_57_mesh.ply",
+      "source_sha256": "4142c3bc00b446c92126c66c17f234e7a5b0742499af299214724c988b155ca1"
+    },
+    "assets/objects/model_58_mesh.ply": {
+      "source": "assets/stone/model_58_mesh.ply",
+      "source_sha256": "a49cb022e15c84d7b7175af06bf94b23301e33c29e138f91fa90cd9f94234f1a"
+    },
+    "assets/objects/model_6_mesh.ply": {
+      "source": "assets/stone/model_6_mesh.ply",
+      "source_sha256": "55873b522faa3655c65995f5d811beb7c63cfdd1ceee24667d260bfb3ac654c5"
+    },
+    "assets/objects/model_7_mesh.ply": {
+      "source": "assets/stone/model_7_mesh.ply",
+      "source_sha256": "eff2b13ff050563e93d228afd41db02ad63d8c908ffc818b21003a75d425dce3"
+    },
+    "assets/objects/model_8_mesh.ply": {
+      "source": "assets/stone/model_8_mesh.ply",
+      "source_sha256": "8c842536c513fdeb6fdb2770f6c9d2e98a59c782c367aafe1ab40e24dfca8e8d"
+    },
+    "assets/objects/model_9_mesh.ply": {
+      "source": "assets/stone/model_9_mesh.ply",
+      "source_sha256": "981006f0d94860f6d19ab30afa6635ea741a7c494c7217c65d88ec70d46261b3"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+units: si
+environment:
+  default_layers:
+    ground: true
+    support: false
+    obstacle: true
+  # Search coordinates are stack-local. Plan replay uses recorded world planes.
+  boxes:
+    - id: search_ground
+      layer: ground
+      minimum: [-3.0, -3.0, -0.03]
+      maximum: [3.0, 3.0, 0.0]
+      color: [0.28, 0.33, 0.25]
+      opacity: 1.0

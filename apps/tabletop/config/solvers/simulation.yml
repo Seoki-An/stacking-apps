@@ -1,0 +1,84 @@
+# Tabletop simulation in explicit SI units; no global scaling.
+units: si
+
+# Shared world: timestep/gravity, ground height/friction, native frame ID.
+# damping: mass-proportional D = d M in both stages; decay rate in 1/s.
+# 0 disables physical damping.
+integration:
+  dt: 0.01
+  gravity: [0.0, 0.0, -9.81]
+  damping: 0.01
+ground:
+  z: 0.0
+  friction: 5.0
+scene:
+  frame_id: 1
+
+# contact: model, penetration correction ratio, detection distance.
+# solver.constraint_scale_reference: positive numerical scale, not motion damping.
+# Other solver fields: penalty/update interval, iteration cap, tolerances.
+# stagnation_window: 0 disables early exit; max_iters still applies.
+# Structural solves use tighter tolerances to reduce residual contact jitter.
+physics:
+  # Only the new stone moves; structural starts at settled poses, at rest.
+  settling:
+    contact:
+      model: single_point
+      error_reduction_ratio: 0.2
+      detection_margin: 0.05
+    solver:
+      constraint_scale_reference: 1.0
+      beta_init: 0.01
+      beta_update_interval: 5000
+      max_iters: 2000
+      stagnation_window: 0
+      tol_abs: 0.00001
+      tol_rel: 0.000001
+
+  # Shared by short and long structural validation.
+  structural:
+    contact:
+      model: limit_surface_4d
+      error_reduction_ratio: 0.2
+      detection_margin: 0.01
+    solver:
+      constraint_scale_reference: 1.0
+      beta_init: 0.01
+      beta_update_interval: 5000
+      max_iters: 3000
+      stagnation_window: 0
+      tol_abs: 0.000001
+      tol_rel: 0.0000001
+
+# settling: timestep/count and stored pose budget.
+# structural: energy/motion limits, min/max simulated seconds, quiet steps.
+# final_extra_steps: quiet steps for the last stone.
+# freeze_radius: keep distant non-support stones static during short checks.
+phases:
+  settling:
+    dt: 0.01
+    steps: 400
+    sample_count: 64
+
+  short_structural:
+    energy_threshold: 0.000001
+    velocity_integral_threshold: 0.05
+    min_time: 0.5
+    max_time: 4.0
+    extra_steps: 20
+    final_extra_steps: 40
+    freeze_radius: 0.10
+
+  structural:
+    energy_threshold: 0.000001
+    velocity_integral_threshold: 0.05
+    min_time: 3.0
+    max_time: 15.0
+    extra_steps: 150
+    final_extra_steps: 300
+
+# Shared validity checks: contact gap, support count, support-chain Z slack.
+validation:
+  contact_gap_tolerance: 0.01
+  minimum_support_count: 1
+  support_chain_z_tolerance: 0.005

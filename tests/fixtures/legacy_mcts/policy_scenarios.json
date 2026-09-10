@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "legacy_repository": "stacking-tabletop",
+  "legacy_sources": {
+    "agent/mcts/mcts.py": "ac7fcc4e5349406797336f7afbe3e4fc481c351f333478106fc0f3c582672db7",
+    "agent/mcts/node.py": "c3a144ddf48f3a0a3f8ca539b8b8f1fb58316e9bc029145536113c21be9a2889"
+  },
+  "outcomes": {
+    "effective_depth": {
+      "0": 1,
+      "2": 1,
+      "3": 3
+    },
+    "puct_selected_id": 102,
+    "backup": {
+      "root": [1, 2.0],
+      "child": [1, 4.0],
+      "leaf": [1, 4.0]
+    }
+  }
+}

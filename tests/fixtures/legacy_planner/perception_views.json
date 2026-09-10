@@ -1,0 +1,15 @@
+{
+  "purpose": "Recorded software regression; no independent physical pose ground truth",
+  "timestamp_source": "recorded_unknown",
+  "sources": {
+    "logs/260623/plan_260623_1/exec_121628_1/step_17/pcd_0.ply": "51f2ce49400f74025d1a901270a1353e5c24c25432837c0efdee0f43dd80ce88",
+    "logs/260623/plan_260623_1/exec_121628_1/step_17/pcd_4.ply": "afda898a831e707f84919b12a62d907a81ae433059ed57bf42eb54c6752b657a",
+    "logs/260623/plan_260623_1/exec_121628_1/step_17/pcd_8.ply": "69e1fbc0ae5815ebf9e644464167c72797cfad6ac9e8af35d99d23dabf605833",
+    "logs/260623/plan_260623_1/exec_120500_1/step_17/pcd_0.ply": "ceac1d4982ed4e3a34a7e56326918e16ea055e380b4b69088f08540a0bac8714",
+    "logs/260623/plan_260623_1/exec_120500_1/step_17/pcd_4.ply": "ed2e5a4108dffd82d186db84429be9ac799d189ce97695187934448e9bc9437a",
+    "logs/260623/plan_260623_1/exec_120500_1/step_17/pcd_8.ply": "6e0f7bf3e8e41af4137fbe0de7043ea6a2b1bdafc67167e861a92c94dfc6ed2e",
+    "logs/260706/plan_260706_4/exec_164224_1_nuc/step_39/scene_scan/scene_base_iv_points21_swing0.ply": "f88caa46b87bfb19f2364fd047341a06e9777846a90815151595c0c64989fd47",
+    "logs/260623/plan_260623_1/exec_121628_1/step_17/scene_scan/scene_base_iv_points21_swing0.ply": "839459ef2cf9c42de7ba6287df41ff830c5f97dfed7e7cbfc7fc526ea60391ff"
+  },
+  "sha256": "c4a1aa63e07adde3eb7c8d8a3b23e89212f0e8b5d5e297af025ef933a3715bff"
+}

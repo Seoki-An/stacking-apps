@@ -1,0 +1,61 @@
+# Native UR5e direct pick-place motion (legacy tabletop policy).
+units: si
+allow_regrasp: false
+
+motion:
+  smooth_weight: 100.0
+  boundary_weight: 20.0
+  collision_weight: 1000.0
+  joint_limit_weight: 1000.0
+  swing_smoothness_scale: 0.25
+  collision_margin: 0.005
+  plane_feasibility_margin: -0.005
+  joint_limit_margin: 0.001
+  grasped_boundary_pos_scale: 30.0
+  grasped_boundary_rot_scale: 10.0
+  target_collision_tol: 0.005
+  # Legacy free/grasped PHR collision enforcement; feasibility margins above
+  # stay unchanged. The outer tolerance is not a final acceptance allowance.
+  collision_penetration_clamp: 0.01
+  collision_alm_enabled: true
+  collision_alm_max_iters: 5
+  collision_alm_beta_init: 100.0
+  collision_alm_beta_increase: 5.0
+  collision_alm_tol: 0.001
+  step_size: 0.01
+  max_iters: 400
+  tol: 1.0e-4
+  ik_max_iters: 2000
+  ik_tol: 0.001
+
+inverse_kinematics:
+  max_iters: 2000
+  tol: 0.001
+  initialization: swing
+
+direct:
+  simulation_refinement: true
+  approach_dir_tool: [0.0, -1.0, 0.0]
+  approach_distance: 0.10
+  target_pos_tol: 0.02
+  target_rot_tol: 0.1745329252
+  move_steps: 15
+  grasp_steps: 10
+  max_candidates: 1
+  worker_count: 20
+
+regrasp:
+  approach_dir_tool: [0.0, -1.0, 0.0]
+  approach_distance: 0.10
+  target_pos_tol: 0.02
+  target_rot_tol: 0.1745329252
+  max_handoff_orientation_distance: 2.3561944902
+  move_steps: 15
+  grasp_steps: 10
+  yaw_samples: 8
+  max_candidates: 1
+  worker_count: 20
+
+stable_pose:
+  sampling_level: 2
+  stable_eigenvalue_min: -0.2

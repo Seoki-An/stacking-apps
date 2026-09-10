@@ -1,0 +1,296 @@
+{
+  "fixture_version": 1,
+  "purpose": "Behavioral characterization of the legacy MCTS candidate viewer",
+  "units": "si",
+  "frame_id": "world",
+  "legacy_sources": [
+    "stacking-tabletop/scripts/debug/candidate_viewer.py",
+    "stacking-planner/scripts/debug/candidate_viewer.py",
+    "stacking-planner/docs/llm/debugging.md"
+  ],
+  "target": {
+    "origin": [0.0, 0.0, 0.0],
+    "width": 0.30,
+    "length": 0.24,
+    "height": 0.15,
+    "structure_offset": [0.01, -0.02, 0.0]
+  },
+  "camera_behavior": {
+    "camera": {
+      "eye": [0.42, -0.55, 0.38],
+      "look_at": [0.0, 0.0, 0.07],
+      "up": [0.0, 0.0, 1.0],
+      "vertical_fov_degrees": 45.0
+    },
+    "preserve_on": [
+      "candidate_change",
+      "mesh_source_change",
+      "candidate_render_change",
+      "candidate_pose_change",
+      "layer_toggle",
+      "refresh"
+    ],
+    "refit_on": [
+      "step_change",
+      "explicit_reset"
+    ]
+  },
+  "pose_semantics": {
+    "initial": "init_pose",
+    "solved": "solved_pose",
+    "legacy_settled": "action_pose",
+    "simulation_start": "first target-object simulation track pose",
+    "final": "final_pose",
+    "note": "The legacy settled_pose name is a compatibility alias for the designed action pose; it is not the simulation-start pose."
+  },
+  "steps": [
+    {
+      "step": 1,
+      "succeeded": true,
+      "state_only": false,
+      "scene": {
+        "object_ids": [11],
+        "object_poses": {
+          "11": [0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 1.0]
+        }
+      },
+      "score_map": {
+        "id": "step-1-state-score",
+        "scope": "state",
+        "x_coords": [-0.05, 0.0, 0.05],
+        "y_coords": [-0.04, 0.0],
+        "scores": [
+          [0.10, 0.65, 0.25],
+          [0.20, 0.90, 0.40]
+        ],
+        "valid": [
+          [true, true, false],
+          [true, true, true]
+        ],
+        "selected_xy": [
+          [0.0, 0.0],
+          [0.05, 0.0]
+        ]
+      },
+      "selected_candidate_id": "step-1-candidate-1",
+      "candidates": [
+        {
+          "candidate_id": "step-1-candidate-1",
+          "rank": 1,
+          "object_index": 1,
+          "object_id": 22,
+          "score_map_id": "step-1-state-score",
+          "selected": true,
+          "validated": true,
+          "failed": false,
+          "motion_failed": false,
+          "rejection_reason": null,
+          "score": 1.25,
+          "prior": 0.80,
+          "visits": 12,
+          "mean_value": 2.40,
+          "reward": 1.75,
+          "init_pose": [0.040, 0.000, 0.100, 0.0, 0.0, 0.0, 1.0],
+          "solved_pose": [0.040, 0.000, 0.070, 0.0, 0.0, 0.0, 1.0],
+          "action_pose": [0.040, 0.000, 0.065, 0.0, 0.0, 0.0, 1.0],
+          "final_pose": [0.041, 0.001, 0.061, 0.0, 0.0, 0.0, 1.0],
+          "simulation_tracks": {
+            "11": [
+              [0.000, 0.000, 0.025, 0.0, 0.0, 0.0, 1.0],
+              [0.001, 0.000, 0.025, 0.0, 0.0, 0.0, 1.0]
+            ],
+            "22": [
+              [0.040, 0.000, 0.064, 0.0, 0.0, 0.0, 1.0],
+              [0.041, 0.000, 0.062, 0.0, 0.0, 0.0, 1.0],
+              [0.041, 0.001, 0.061, 0.0, 0.0, 0.0, 1.0]
+            ]
+          },
+          "simulation_contacts": [
+            {
+              "object_id_first": 22,
+              "object_id_second": 11,
+              "point": [0.041, 0.001, 0.035],
+              "normal": [0.0, 0.0, 1.0],
+              "gap": -0.0002
+            }
+          ],
+          "pose_solve_contacts": [
+            {
+              "object_id": 22,
+              "role": "target",
+              "point": [0.040, 0.000, 0.040],
+              "normal": [0.0, 0.0, 1.0],
+              "force": [0.0, 0.0, 4.5]
+            }
+          ],
+          "best_sequence": [
+            {
+              "object_id": 22,
+              "pose": [0.041, 0.001, 0.061, 0.0, 0.0, 0.0, 1.0]
+            },
+            {
+              "object_id": 33,
+              "pose": [-0.025, 0.015, 0.102, 0.0, 0.0, 0.0, 1.0]
+            }
+          ],
+          "scene_motion": null
+        },
+        {
+          "candidate_id": "step-1-candidate-2",
+          "rank": 2,
+          "object_index": 2,
+          "object_id": 33,
+          "score_map_id": "step-1-state-score",
+          "selected": false,
+          "validated": true,
+          "failed": true,
+          "motion_failed": false,
+          "rejection_reason": "scene_motion_limit",
+          "score": 0.95,
+          "prior": 0.60,
+          "visits": 4,
+          "mean_value": -0.50,
+          "reward": 0.0,
+          "init_pose": [-0.020, 0.015, 0.110, 0.0, 0.0, 0.0, 1.0],
+          "solved_pose": [-0.020, 0.015, 0.080, 0.0, 0.0, 0.0, 1.0],
+          "action_pose": [-0.020, 0.015, 0.075, 0.0, 0.0, 0.0, 1.0],
+          "final_pose": [-0.018, 0.018, 0.050, 0.0, 0.0, 0.0, 1.0],
+          "simulation_tracks": {
+            "11": [
+              [0.000, 0.000, 0.025, 0.0, 0.0, 0.0, 1.0],
+              [0.008, 0.000, 0.023, 0.0, 0.0, 0.0, 1.0],
+              [0.015, 0.002, 0.020, 0.0, 0.0, 0.0, 1.0]
+            ],
+            "33": [
+              [-0.020, 0.015, 0.074, 0.0, 0.0, 0.0, 1.0],
+              [-0.018, 0.018, 0.050, 0.0, 0.0, 0.0, 1.0]
+            ]
+          },
+          "simulation_contacts": [],
+          "pose_solve_contacts": [],
+          "best_sequence": [],
+          "scene_motion": {
+            "object_id": 11,
+            "parent_pose": [0.000, 0.000, 0.025, 0.0, 0.0, 0.0, 1.0],
+            "failed_final_pose": [0.015, 0.002, 0.020, 0.0, 0.0, 0.0, 1.0],
+            "trajectory": [
+              [0.000, 0.000, 0.025, 0.0, 0.0, 0.0, 1.0],
+              [0.008, 0.000, 0.023, 0.0, 0.0, 0.0, 1.0],
+              [0.015, 0.002, 0.020, 0.0, 0.0, 0.0, 1.0]
+            ]
+          }
+        },
+        {
+          "candidate_id": "step-1-candidate-3",
+          "rank": 3,
+          "object_index": 1,
+          "object_id": 22,
+          "score_map_id": "step-1-state-score",
+          "selected": false,
+          "validated": false,
+          "failed": false,
+          "motion_failed": false,
+          "rejection_reason": null,
+          "score": 0.70,
+          "prior": 0.45,
+          "visits": 0,
+          "mean_value": 0.0,
+          "reward": null,
+          "init_pose": [0.050, -0.020, 0.100, 0.0, 0.0, 0.0, 1.0],
+          "solved_pose": [0.050, -0.020, 0.072, 0.0, 0.0, 0.0, 1.0],
+          "action_pose": [0.050, -0.020, 0.068, 0.0, 0.0, 0.0, 1.0],
+          "final_pose": null,
+          "simulation_tracks": {},
+          "simulation_contacts": [],
+          "pose_solve_contacts": [],
+          "best_sequence": [],
+          "scene_motion": null
+        }
+      ],
+      "expected_render_modes": {
+        "all": {
+          "candidate_draw_order": [
+            "step-1-candidate-2",
+            "step-1-candidate-3",
+            "step-1-candidate-1"
+          ],
+          "selected_overlay": true,
+          "opaque": false
+        },
+        "all_opaque": {
+          "candidate_draw_order": [
+            "step-1-candidate-1",
+            "step-1-candidate-2",
+            "step-1-candidate-3"
+          ],
+          "selected_overlay": false,
+          "opaque": true
+        },
+        "selected": {
+          "candidate_draw_order": [
+            "step-1-candidate-1"
+          ],
+          "selected_overlay": true,
+          "opaque": true
+        },
+        "no_select": {
+          "candidate_draw_order": [],
+          "selected_overlay": false,
+          "opaque": true
+        }
+      }
+    },
+    {
+      "step": 2,
+      "succeeded": false,
+      "state_only": false,
+      "failure_reason": "no_candidates",
+      "scene": {
+        "object_ids": [11, 22],
+        "object_poses": {
+          "11": [0.001, 0.000, 0.025, 0.0, 0.0, 0.0, 1.0],
+          "22": [0.041, 0.001, 0.061, 0.0, 0.0, 0.0, 1.0]
+        }
+      },
+      "score_map": {
+        "id": "step-2-state-score",
+        "scope": "state",
+        "x_coords": [-0.05, 0.0, 0.05],
+        "y_coords": [-0.04, 0.0],
+        "scores": [
+          [0.00, 0.15, 0.00],
+          [0.05, 0.20, 0.10]
+        ],
+        "valid": [
+          [false, true, false],
+          [true, true, true]
+        ],
+        "selected_xy": []
+      },
+      "selected_candidate_id": null,
+      "candidates": [],
+      "expected_render_modes": {
+        "all": {
+          "candidate_draw_order": [],
+          "selected_overlay": false,
+          "opaque": false
+        },
+        "all_opaque": {
+          "candidate_draw_order": [],
+          "selected_overlay": false,
+          "opaque": true
+        },
+        "selected": {
+          "candidate_draw_order": [],
+          "selected_overlay": false,
+          "opaque": true
+        },
+        "no_select": {
+          "candidate_draw_order": [],
+          "selected_overlay": false,
+          "opaque": true
+        }
+      }
+    }
+  ]
+}

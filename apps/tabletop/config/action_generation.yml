@@ -1,0 +1,24 @@
+# Tabletop placement-generation values migrated from the commissioned UR5e
+# planner. Physical distances are resolved directly in SI units.
+units: si
+
+initialization:
+  height_clearance: 0.015
+  xy_padding: 0.012
+
+filtering:
+  # false: prefer lower floors; true: require floor filling in search and planning.
+  # Matches legacy generate_sequence without/with its strict floor-first gate.
+  strict_floor_first: false
+  posegen_equilibrium_threshold: 1.0
+  # stacking-core reports the summed penetration residual across active
+  # candidate contacts; 3 mm admits the commissioned single-object solves.
+  posegen_gap_threshold: 0.003
+
+planar:
+  grid_shape: [32, 32]
+  # Cover diagonal/crosswise gap fits as well as the scan-aligned axis.
+  yaw_angles_degrees: [0.0, 180.0]
+  minimum_xy_separation: 0.003
+  # Legacy anchor inset; values below 1 permit controlled target overhang.
+  target_anchor_inset_scale: 0.6

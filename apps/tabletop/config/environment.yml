@@ -1,0 +1,26 @@
+# Tabletop search-environment values migrated explicitly from the commissioned
+# UR5e configuration. These values are not derived from a global scale.
+units: si
+
+observation:
+  action_sample_count: 96
+  max_poses_per_object: 32
+  surface_sample_count: 128
+  banned_object_ids: []
+  height_map_resolution: [128, 128]
+  height_map_margin: 0.02
+  render_height_map: true
+
+reward:
+  overlap_resolution: 0.003
+  posegen_threshold: 1.0
+  containment_threshold: 0.5
+  nonfinite_displacement: 0.2
+  max_displacement: 0.1
+  weights:
+    stability: 0.5
+    object_containment: 2.0
+    target_overlap_increment: 20.0
+    place_stability: 0.5
+    large_object_lower: 3.0
+    inward_orientation: 2.0

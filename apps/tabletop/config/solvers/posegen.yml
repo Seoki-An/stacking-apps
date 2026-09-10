@@ -1,0 +1,87 @@
+# Tabletop pose-generation profile. These are resolved native solver values;
+# distances are metres and gravity is m/s^2.
+units: si
+
+scene:
+  frame_id: 1
+  target_model_id: 1000000
+  target_entity_id: 1000001
+  target_friction: 1.0
+  target_sharpness: 20
+  target_epsilon: 0.000000001
+  placed_as_boundaries: false
+
+schedule:
+  times: [0.0, 0.3333333333333333, 0.6666666666666666, 1.0]
+  max_iters_warmup: 50
+  max_iters_final: 75
+  # Explicit coefficients preserve the original tabletop schedule.
+  objective_weights:
+    k_wrench: {ramp: 5.0}
+    k_comp: {ramp: 100.0}
+    k_gap_c: {constant: 40.0, ramp: 200.0, gap_feedback: 100000.0}
+    k_gap: {sine: 20.0}
+    k_target: {constant: 30.0, sine: 300.0}
+    k_xy: {anti_ramp: 0.0}
+    k_potential: {constant: 0.10, anti_ramp: 0.02}
+    k_reg: {anti_ramp: 0.0}
+    k_lower: {anti_ramp: 0.0}
+
+trust_region:
+  max_iters: 100
+  eps: 0.1
+  delta_init: 0.125
+  delta_max: 1.0
+  delta_reduction_rate: 0.25
+  delta_expansion_rate: 2.0
+  delta_lower_thresh: 0.25
+  delta_upper_thresh: 0.75
+  improvement_thresh: 0.125
+  tol: 0.00000001
+
+hausdorff:
+  eps: 0.001
+  max_iters: 50
+  error_tol: 0.0000000001
+  radius_init: 10.0
+  radius_reduction_rate: 0.25
+  radius_expansion_rate: 3.0
+  gain_ratio_lower_thresh: 0.05
+  gain_ratio_upper_thresh: 0.9
+  gain_ratio_max: 10000000000.0
+
+objective:
+  rho: 0.01
+  narrow_phase_scene_tol: 0.005
+  narrow_phase_candidate_tol: 0.05
+  eps_gap: 0.001
+  eps_comp: 0.001
+  eps_cone: 0.01
+  eps_target: 0.002
+  k_comp: 0.0
+  k_wrench:
+    - [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+  k_gap: 0.0
+  k_gap_c: 80.0
+  k_target: 1.0
+  k_potential: 1.0
+  k_xy: 0.0
+  k_box: 0.1
+  k_reg: 0.0
+  k_lower: 0.0
+  w_box: 1.0
+  gravity: 9.81
+  ground_height: 0.0
+
+force_solver:
+  max_iters: 1000
+  beta_consensus: 1.0
+  beta_contact: 1.0
+  beta_update_interval: 20
+  tol_abs: 0.001
+  tol_rel: 0.0001

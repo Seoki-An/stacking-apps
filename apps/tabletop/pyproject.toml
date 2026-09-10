@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stacking-tabletop"
+version = "0.1.0"
+description = "UR5e tabletop stacking application"
+requires-python = ">=3.12"
+dependencies = [
+  "PyYAML>=6.0",
+  "stacking-common==0.1.0",
+]
+
+[project.optional-dependencies]
+execution = ["scipy>=1.13"]
+acquisition = ["scipy>=1.13"]
+benchmark = ["open3d>=0.19"]
+perception = [
+  "coacd>=1.0.7",
+  "open3d>=0.19",
+  "pyvista>=0.44",
+  "scipy>=1.13",
+]
+workbench = [
+  "PySide6>=6.7",
+  "pyvista>=0.44",
+  "pyvistaqt>=0.11",
+]
+operations = [
+  "scipy>=1.13",
+  "imageio[ffmpeg]>=2.37",
+  "PySide6>=6.7",
+  "pyvista>=0.44",
+  "pyvistaqt>=0.11",
+]
+
+[project.scripts]
+stacking-tabletop-capture-femto = "stacking_tabletop.acquisition.cli:main"
+stacking-tabletop-merge-captures = "stacking_tabletop.perception.merge_captures_cli:main"
+stacking-tabletop-prepare-capture = "stacking_tabletop.perception.prepare_capture_cli:main"
+stacking-tabletop-reconstruct = "stacking_tabletop.perception.object_reconstruct_cli:main"
+stacking-tabletop-object-build = "stacking_tabletop.perception.object_build_cli:main"
+stacking-tabletop-workbench = "stacking_tabletop.gui.reconstruction.application:main"
+stacking-tabletop-reconstruction-workbench = "stacking_tabletop.gui.reconstruction.application:main"
+stacking-tabletop-operations = "stacking_tabletop.gui.operations.application:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

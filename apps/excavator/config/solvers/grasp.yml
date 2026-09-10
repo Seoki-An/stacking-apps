@@ -1,0 +1,94 @@
+# stacking-planner planning/planning.py: stone_grab attachment.
+units: si
+sampling:
+  aperture_margin: 0.01
+  dir_samples: 80
+  include_flipped: true
+  max_candidates: 0
+  max_seeds: 120
+  max_target_width: 1.6
+  preferred_parallel_axis:
+  - 0.0
+  - 0.0
+  - 0.0
+  # Legacy gripper.height (1.5 m) * surface_grasp_offset_scale (0.5).
+  retreat_distance: 0.75
+  # Legacy secondary seeds: gripper height 1.5 m times [0.65, 0.8, 1.2].
+  fallback_retreat_distances: [0.975, 1.2, 1.8]
+  fallback_min_candidates: 8
+  scene_clearance_margin: 0.05
+  spin_samples: 12
+  spin_step_degrees: 30.0
+  strategy: antipodal_surface
+generation:
+  contact_margin: 0.05
+  plane_separate_margin: -0.02
+  separate_margin: 0.01
+cost:
+  align: 1.0
+  antipodal_normal: 5.0
+  antipodal_position: 2.0
+  center_distance: 5.0
+  contact: 3.0
+  enclosure: 7.0
+  flatness: 0.0
+  radial_distance: 3.0
+  teeth_align: 1.0
+  teeth_fit: 2.0
+score:
+  align: 1.0
+  center_distance: 3.0
+  enclosure: 7.0
+  radial_distance: 3.0
+  teeth_align: 1.0
+  teeth_fit: 1.0
+  teeth_gap: 2.0
+trust_region:
+  gain_ratio_lower: 0.0
+  gain_ratio_upper: 0.75
+  improvement_tol: 0.0
+  max_iters: 200
+  radius_expansion: 2.0
+  radius_init: 0.1
+  radius_max: 0.1
+  radius_reduction: 0.25
+  step_tol: 1.0e-12
+  subproblem_tol: 0.01
+alm:
+  equality_penalty_increase: 10.0
+  equality_penalty_init: 50.0
+  equality_tol: 0.001
+  inequality_penalty_increase: 10.0
+  inequality_penalty_init: 50.0
+  inequality_tol: 0.015
+  max_iters: 20
+force:
+  damping: 0.0001
+  enabled: true
+  friction: 1.0
+  wrench_scale: 1.0
+force_weight:
+  complementarity: 10.0
+  cone: 10.0
+  moment: 10.0
+  wrench: 0.1
+simulation:
+  accept_relaxed: true
+  active_impulse_tol: 0.0001
+  damping: 2.0
+  dt: 0.01
+  error_reduction_ratio: 0.2
+  friction: 1.0
+  grasp_offset_tol:
+  - 0.5
+  - 1.0
+  - 0.6
+  obstacle_margin: 0.01
+  pgs_iters: 80
+  plane_obstacle_margin: 0.01
+  relaxed_velocity_tol: 0.1
+  settled_velocity_tol: 0.01
+  steps: 500
+  target_contact_margin: 0.01
+  virtual_approach_force: 5.0
+  virtual_closing_effort: 0.5

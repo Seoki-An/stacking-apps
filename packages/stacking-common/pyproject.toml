@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stacking-common"
+version = "0.1.0"
+description = "Platform-neutral workflows for stacking applications"
+requires-python = ">=3.12"
+dependencies = [
+  "numpy>=1.26",
+  "scipy>=1.13",
+  "PyYAML>=6.0",
+  "stacking-core==0.1.0",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8",
+]
+perception = [
+  "coacd>=1.0.7",
+  "open3d>=0.19",
+  "scipy>=1.13",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

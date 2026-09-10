@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "source": {
+    "asset": "apps/tabletop/assets/objects/model_1.pcd",
+    "sha256": "96aa552b49551931920ea59d7cb4e74f94d9f299520310858559107fa3b51118",
+    "legacy_implementations": [
+      "stacking-tabletop/perception/utils/reconstruction.py",
+      "stacking-planner/perception/utils/reconstruction.py"
+    ],
+    "legacy_implementation_sha256": "b2d2dd811d4445fffbc91c20da7aad756d805edbd041aa63c91682c6a1b5390f"
+  },
+  "point_count": 8407,
+  "bounds_min": [-0.04652312397956848, -0.022258028388023376, -0.021040083840489388],
+  "bounds_max": [0.04766995459794998, 0.018941150978207588, 0.02124468795955181],
+  "centroid": [-0.00019106537573244746, -0.0009742785024458575, 0.000141680743789527],
+  "unit_density_mass": 8.890028537234924e-05,
+  "center_of_mass": [-1.0278080910408453e-09, 3.4665926190869236e-10, -4.837701968147155e-10],
+  "inertia": [
+    [1.5907727591887302e-08, 1.625397288548437e-10, -4.4980774698882185e-09],
+    [1.625397288548437e-10, 5.363229766934779e-08, 9.36527384417839e-10],
+    [-4.4980774698882185e-09, 9.36527384417839e-10, 5.312972176390077e-08]
+  ],
+  "legacy_dsf_asset": {
+    "asset": "apps/tabletop/assets/objects/model_1.obj",
+    "sha256": "44a0efb21105610caedc3a600bfddef2e3c7b27461693132af77d5799e823316",
+    "unit_density_mass": 8.890028347495605e-05,
+    "component_count": 5,
+    "node_counts": [12, 12, 12, 12, 12],
+    "sharpness": [6.0, 11.0, 13.0, 10.0, 7.0]
+  }
+}

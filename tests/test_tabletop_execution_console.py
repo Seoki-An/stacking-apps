@@ -1,0 +1,168 @@
+"""Qt controls exercise the real executor/worker with simulated hardware only."""
+
+import time
+from types import SimpleNamespace
+
+import pytest
+
+pytest.importorskip('PySide6')
+from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtGui import QCloseEvent
+
+from stacking_common.artifacts import StackRunStore
+from stacking_tabletop.execution import DynamixelAdapter, UR5eAdapter
+from stacking_tabletop.gui.operations.execution_view import ExecutionView
+from stacking_tabletop.gui.operations.execution_worker import ExecutionWorker
+from test_tabletop_hardware_adapters import FakeTransport, Kinematics
+from test_tabletop_saved_execution import ROOT, saved
+
+
+def test_loading_validated_scene_is_passive_and_uses_recorded_assets(saved):
+    app = QApplication.instance() or QApplication([])
+    view = ExecutionView(ROOT, worker_factory=lambda *_: pytest.fail('loading must not connect'))
+    view.load(saved.path)
+    assert view.start_button.isEnabled()
+    assert not view.continue_button.isEnabled()
+    assert not view.manual_controls.isEnabled()
+    frame = view.scene.frame()
+    assert frame.robot_parts == ()  # No measured state yet.
+    assert frame.environment_boxes[0].bounds == pytest.approx(tuple(v for pair in zip(
+        saved.planning.obstacles[0].minimum, saved.planning.obstacles[0].maximum) for v in pair))
+    assert frame.object_mesh_paths[1] == saved.assets['object/1']
+    assert view.scene.projector.planning is saved.planning or view.scene.projector.planning.robot.home_positions[0] == 0
+    view.close()
+    app.processEvents()
+
+
+def test_worker_gates_and_abort_leave_durable_recovery_requirement(saved):
+    app = QApplication.instance() or QApplication([])
+    closed = []
+    def factory(saved, runtime):
+        transport = FakeTransport()
+        def sleep(duration):
+            transport.sleep(duration)
+            time.sleep(.0001)
+        runtime.clock = lambda: transport.now
+        runtime.sleep = sleep
+        transport.close = lambda: closed.append(True)
+        kin = Kinematics()
+        kin.grasp_pose = kin.pose
+        gripper = DynamixelAdapter(transport, runtime=runtime)
+        arm = UR5eAdapter(transport, kin, gripper=gripper)
+        return transport, arm, gripper
+    view = ExecutionView(ROOT, worker_factory=lambda saved, parent: ExecutionWorker(saved, parent, device_factory=factory))
+    view.load(saved.path)
+    view.start_button.click()
+    gates = []
+    seen = set()
+    deadline = time.monotonic() + 10
+    try:
+        while view.running and time.monotonic() < deadline:
+            app.processEvents()
+            if view.gate is not None and view.gate.token not in seen:
+                seen.add(view.gate.token)
+                gates.append(view.gate.name)
+                assert view.continue_button.isEnabled()
+                assert view.manual_controls.isEnabled() == view.gate.manual
+                if view.gate.name == 'place':
+                    view.abort_button.click()
+                    assert not view.scan_controls.isEnabled()
+                else:
+                    view.continue_button.click()
+                    assert not view.continue_button.isEnabled()
+            time.sleep(.001)
+        app.processEvents()
+        assert not view.running
+        assert gates == ['review', 'close', 'place']
+        assert closed == [True]
+        assert view.reconcile_button.isEnabled()
+        assert not view.start_button.isEnabled()
+        assert StackRunStore.load_execution_checkpoint(saved.path).requires_reconciliation
+        assert len(view.scene.frame().robot_parts) > 0
+    finally:
+        view.abort()
+        if view.worker is not None:
+            assert view.worker.wait(3000)
+        view.close()
+        app.processEvents()
+
+
+def test_window_refuses_close_and_artifact_switch_until_worker_exits():
+    from stacking_tabletop.gui.operations.window import StackingOperationsWindow
+    app = QApplication.instance() or QApplication([])
+    aborted = []
+    class Window(StackingOperationsWindow):
+        def __init__(self):
+            QMainWindow.__init__(self)
+            self._video_exporting = False
+            self.execution_view = SimpleNamespace(running=True, abort=lambda: aborted.append(True))
+    window = Window()
+    event = QCloseEvent()
+    window.closeEvent(event)
+    assert not event.isAccepted() and aborted == [True]
+    window.open_artifact('/does/not/exist.stack')
+    window._save_trajectory_video(30)
+    window.execution_view.running = False
+    window.close()
+    app.processEvents()
+
+
+def test_scan_controls_request_review_preview_and_clear(saved, tmp_path, monkeypatch):
+    from stacking_tabletop.execution.sequence import OperatorGate
+    from PySide6.QtWidgets import QFileDialog
+    app = QApplication.instance() or QApplication([])
+    view = ExecutionView(ROOT)
+    view.load(saved.path)
+    assert not view.scan_controls.isEnabled()
+    requests = []
+    executor = SimpleNamespace(request_scan=lambda *args: requests.append(args) or True)
+    view.worker = SimpleNamespace(executor=executor, isRunning=lambda: True)
+    gate = OperatorGate('place-token', 'command', 1, 'place', 'Inspect held object')
+    view.set_gate(gate)
+    view.receive_telemetry({'joints': [0.] * 6, 'gripper_raw': 500, 'holding': True, 'object_pose': None})
+    monkeypatch.setattr(QFileDialog, 'getExistingDirectory', lambda *args: str(tmp_path))
+    view.scan_kind.setCurrentText('pivot')
+    view.scan_camera.setCurrentText('secondary')
+    view.scan_button.click()
+    assert requests[0][:3] == ('place-token', 'pivot', 'secondary')
+    assert requests[0][3].parent == tmp_path and not requests[0][3].exists()
+    assert not view.continue_button.isEnabled() and not view.scan_controls.isEnabled()
+    view.set_gate(None)
+    view.prepare_scan_preview({'positions': [[0.] * 6, [.1] * 6], 'kind': 'pivot',
+                              'capture_count': 76, 'output': str(requests[0][3])})
+    view.set_gate(OperatorGate('scan-token', 'command', 1, 'scan_review', 'Review scan'))
+    assert view.continue_button.isEnabled() and not view.scan_controls.isEnabled()
+    assert view.scan_preview.isEnabled()
+    view.scan_preview.setValue(1)
+    parts = view.scene.frame().robot_parts
+    preview = [p for p in parts if p.part_id.startswith('scan_preview/')]
+    measured = [p for p in parts if not p.part_id.startswith('scan_preview/')]
+    assert len(preview) == len(measured) > 0
+    assert all(p.color == '#1ad9ff' for p in preview)
+    import pyvista as pv
+    assert pv.Color(preview[0].color).hex_rgb == '#1ad9ff'
+    view.set_gate(None)
+    assert view.scene.scan_preview is None and not view.scan_preview.isEnabled()
+    assert len(view.scene.frame().robot_parts) == len(measured)
+    view.worker = None
+    view.close()
+    app.processEvents()
+
+
+def test_scan_directory_dialog_cannot_submit_to_a_departed_gate(saved, tmp_path, monkeypatch):
+    from stacking_tabletop.execution.sequence import OperatorGate
+    from PySide6.QtWidgets import QFileDialog
+    app = QApplication.instance() or QApplication([])
+    view = ExecutionView(ROOT)
+    view.load(saved.path)
+    view.worker = SimpleNamespace(isRunning=lambda: True,
+        executor=SimpleNamespace(request_scan=lambda *args: pytest.fail('gate is gone')))
+    view.set_gate(OperatorGate('token', 'command', 1, 'place', 'Inspect held object'))
+    def choose(*args):
+        view.set_gate(None)  # Simulate a queued abort/fault signal in the modal event loop.
+        return str(tmp_path)
+    monkeypatch.setattr(QFileDialog, 'getExistingDirectory', choose)
+    view.scan_button.click()
+    view.worker = None
+    view.close()
+    app.processEvents()

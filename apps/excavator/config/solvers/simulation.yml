@@ -1,0 +1,65 @@
+# Independently resolved excavator SI profile; see docs/excavator-planning.md.
+units: si
+integration:
+  dt: 0.01
+  gravity:
+  - 0.0
+  - 0.0
+  - -9.81
+  damping: 0.0
+ground:
+  z: 0.0
+  friction: 5.0
+scene:
+  frame_id: 1
+physics:
+  settling:
+    contact:
+      model: single_point
+      error_reduction_ratio: 0.2
+      detection_margin: 0.01
+    solver:
+      constraint_scale_reference: 0.001
+      beta_init: 0.1
+      beta_update_interval: 50
+      max_iters: 2000
+      stagnation_window: 0
+      tol_abs: 0.001
+      tol_rel: 0.0001
+  structural:
+    contact:
+      model: limit_surface_4d
+      error_reduction_ratio: 0.2
+      detection_margin: 0.01
+    solver:
+      constraint_scale_reference: 0.001
+      beta_init: 0.1
+      beta_update_interval: 50
+      max_iters: 2000
+      stagnation_window: 0
+      tol_abs: 0.0001
+      tol_rel: 1.0e-05
+phases:
+  settling:
+    dt: 0.01
+    steps: 400
+    sample_count: 64
+  short_structural:
+    energy_threshold: 0.0001
+    velocity_integral_threshold: 0.5
+    min_time: 0.5
+    max_time: 4.0
+    extra_steps: 20
+    final_extra_steps: 40
+    freeze_radius: 1.5
+  structural:
+    energy_threshold: 0.0001
+    velocity_integral_threshold: 0.5
+    min_time: 3.0
+    max_time: 15.0
+    extra_steps: 150
+    final_extra_steps: 300
+validation:
+  contact_gap_tolerance: 0.1
+  minimum_support_count: 1
+  support_chain_z_tolerance: 0.05

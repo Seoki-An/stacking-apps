@@ -1,0 +1,241 @@
+# Tabletop perception and registration values in explicit SI units. Field and
+# in-hand registration are tuned independently; neither is scaled from the other.
+units: si
+
+registration:
+  field:
+    voxel_sizes: [0.006, 0.003, 0.0015]
+    max_iterations: [40, 25, 15]
+    correspondence_distance_scale: 2.5
+    evaluation_distance: 0.0075
+    minimum_points: 10
+    quality:
+      minimum_target_coverage: 0.35
+      minimum_source_coverage: 0.25
+      maximum_rmse: 0.0075
+      maximum_correction_translation: 0.05
+      maximum_correction_rotation_degrees: 20.0
+
+  in_hand:
+    voxel_sizes: [0.006, 0.003, 0.002]
+    max_iterations: [30, 40, 60]
+    correspondence_distance_scale: 3.0
+    evaluation_distance: 0.006
+    minimum_points: 50
+    quality:
+      minimum_target_coverage: 0.0
+      minimum_source_coverage: 0.20
+      maximum_rmse: 0.008
+      maximum_correction_translation: 0.10
+      maximum_correction_rotation_degrees: 15.0
+
+segmentation:
+  workspace_min: [-0.5, -0.9, 0.05]
+  workspace_max: [0.5, -0.4, 0.2]
+  voxel_size: 0.003
+  table_distance: 0.006
+  designated_table_height: 0.10
+  maximum_object_height: 0.25
+  cluster_distance: 0.018
+  minimum_cluster_points: 50
+  random_seed: 7
+  maximum_table_tilt_degrees: 15.0
+  maximum_plane_candidates: 5
+  ransac_iterations: 1000
+
+assignment_score:
+  target_coverage_weight: 0.7
+  source_coverage_weight: 0.3
+  rmse_weight: 0.15
+  extent_weight: 0.08
+  bottom_weight: 0.12
+  below_table_weight: 0.5
+  bottom_scale: 0.012
+  below_table_tolerance: 0.006
+
+dual_femto_fusion:
+  registration:
+    voxel_sizes: [0.008, 0.004, 0.002]
+    max_iterations: [50, 40, 30]
+    correspondence_distance_scale: 2.5
+    evaluation_distance: 0.005
+    minimum_points: 100
+  merge_voxel_size: 0.002
+  table_voxel_size: 0.004
+  table_distance: 0.006
+  maximum_object_height: 0.25
+  maximum_translation: 0.02
+  maximum_rotation_degrees: 3.0
+  minimum_symmetric_overlap: 0.10
+  maximum_symmetric_rmse: 0.006
+
+cameras:
+  primary:
+    serial: CL83C53005L
+    pointcloud_topic: /camera/depth/points
+    depth_mode: WFOV_UNBINNED_1024x1024_15
+  secondary:
+    serial: CL8956200P5
+    pointcloud_topic: /camera_2/depth/points
+    depth_mode: WFOV_UNBINNED_1024x1024_15
+
+capture:
+  frame_count: 7
+  warmup_frames: 10
+  period: 0.2
+  timeout: 60.0
+
+in_hand_capture:
+  crop_min: [-0.10, -0.10, -0.07]
+  crop_max: [0.10, 0.10, 0.32]
+  minimum_temporal_support: 5
+  temporal_tolerance: 0.005
+  enable_boundary_filter: true
+  discontinuity_threshold: 0.015
+  discontinuity_radius_pixels: 2
+  boundary_dilation_pixels: 2
+  reference_voxel_size: 0.002
+  manual_remove_distance: 0.005
+  manual_max_remove_ratio: 0.9
+
+# Registration between independently grasped scans. The operator supplies an
+# initial pose, so the limits below bound only the subsequent ICP correction.
+cross_capture_merge:
+  registration:
+    voxel_sizes: [0.006, 0.003, 0.002]
+    max_iterations: [30, 40, 60]
+    correspondence_distance_scale: 3.0
+    evaluation_distance: 0.006
+    minimum_points: 50
+  quality:
+    minimum_target_coverage: 0.20
+    minimum_source_coverage: 0.20
+    maximum_rmse: 0.008
+    maximum_correction_translation: 0.05
+    maximum_correction_rotation_degrees: 20.0
+  preview_voxel_size: 0.002
+  output_voxel_size: 0.0005
+  initial_translation_step: 0.002
+  initial_rotation_step_degrees: 5.0
+
+# In-hand reconstruction is tuned independently from field registration and
+# dual-camera fusion. These are direct metric values, not scaled aliases.
+reconstruction:
+  merge_voxel_size: 0.002
+  minimum_view_support: 2
+  pose_graph:
+    registration:
+      voxel_sizes: [0.006, 0.003, 0.002]
+      max_iterations: [30, 40, 60]
+      correspondence_distance_scale: 3.0
+      evaluation_distance: 0.006
+      minimum_points: 50
+    sequential_quality:
+      minimum_target_coverage: 0.35
+      minimum_source_coverage: 0.35
+      maximum_rmse: 0.008
+      maximum_correction_translation: 0.015
+      maximum_correction_rotation_degrees: 5.0
+    loop_quality:
+      minimum_target_coverage: 0.55
+      minimum_source_coverage: 0.55
+      maximum_rmse: 0.008
+      maximum_correction_translation: 0.015
+      maximum_correction_rotation_degrees: 5.0
+    maximum_final_translation: 0.015
+    maximum_final_rotation_degrees: 5.0
+    edge_prune_threshold: 0.25
+    loop_closure_preference: 0.3
+    loop_minimum_capture_separation: 5
+    loop_maximum_position_delta: 0.015
+    loop_maximum_view_angle_degrees: 7.5
+    maximum_loops_per_node: 2
+  mesh:
+    method: radial
+    voxel_size: 0.001
+    alpha: 0.005
+    bpa_radius_scales: [1.5, 2.5, 4.0]
+    radial_subdivisions: 4
+    radial_neighbors: 120
+    radial_radius_quantile: 0.7
+    radial_radius_padding: 0.0
+    radial_center_quantile: 0.5
+    radial_empty_angle_degrees: 25.0
+    radial_empty_radius_quantile: 0.75
+    radial_support_angle_degrees: 8.0
+    radial_minimum_support_points: 0
+    radial_tighten_angle_degrees: 5.0
+    radial_tighten_quantile: 0.9
+    radial_tighten_blend: 1.0
+    radial_maximum_radius_quantile: 0.99
+    radial_smoothing_iterations: 1
+    radial_smoothing_weight: 0.3
+    normal_radius: 0.005
+    normal_max_neighbors: 40
+    poisson_depth: 12
+    poisson_density_quantile: 0.02
+    smoothing_iterations: 2
+    simplification_voxel_size: 0.0
+    keep_largest_component: true
+    repair_invalid_mesh: true
+  cleanup:
+    statistical_neighbors: 20
+    statistical_std_ratio: 2.0
+    detached_voxel_size: 0.001
+    detached_eps: 0.004
+    detached_minimum_points: 6
+    detached_attach_distance: 0.008
+    detached_minimum_attached_size: 80
+    detached_keep_ratio: 0.10
+    fringe_neighbors: 80
+    fringe_margin: 0.003
+    fringe_reference_quantile: 0.65
+    cluster_voxel_size: 0.001
+    cluster_eps: 0.004
+    cluster_min_points: 8
+    manual_remove_distance: 0.005
+    manual_max_remove_ratio: 0.5
+  convex_decomposition:
+    enabled: true
+    threshold: 0.02
+    maximum_components: 3
+    preprocess_mode: auto
+    preprocess_resolution: 50
+    resolution: 2000
+    mcts_nodes: 20
+    mcts_iterations: 150
+    mcts_max_depth: 3
+    pca: false
+    merge: true
+    decimate: false
+    maximum_hull_vertices: 256
+    seed: 0
+    real_metric: false
+  dsf_fitting:
+    enabled: true
+    fit_source: split_cloud
+    total_vertices: 60
+    direction_subdivisions: 4
+    maximum_iterations: 300
+    support_quantile: 0.999
+    loss: huber
+    loss_scale: 0.005
+    center_interior_upper_bound: 0.8
+    maximum_sharpness: 60
+    split_inside_tolerance: 0.002
+    split_minimum_points: 20
+    ransac:
+      enabled: true
+      iterations: 5
+      sample_ratio: 0.5
+      minimum_sample_points: 200
+      maximum_sample_points: 2000
+      fit_maximum_iterations: 25
+      inlier_threshold: 0.002
+      minimum_inlier_ratio: 0.5
+      score_direction_subdivisions: 2
+      seed: null
+  dsf:
+    maximum_nodes: 128
+    sharpness: 20
+    friction: 1.0

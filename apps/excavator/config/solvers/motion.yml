@@ -1,0 +1,67 @@
+# Independently resolved excavator SI profile; see docs/excavator-planning.md.
+units: si
+allow_regrasp: true
+motion:
+  boundary_weight: 20.0
+  collision_alm_beta_increase: 5.0
+  collision_alm_beta_init: 50.0
+  collision_alm_enabled: true
+  collision_alm_max_iters: 5
+  collision_alm_tol: 0.001
+  collision_margin: 0.02
+  collision_penetration_clamp: 0.02
+  collision_weight: 1000.0
+  grasped_boundary_pos_scale: 10.0
+  grasped_boundary_rot_scale: 0.5
+  ik_max_iters: 2000
+  ik_tol: 0.001
+  joint_limit_margin_degrees: 0.057295779513082325
+  joint_limit_weight: 1000.0
+  max_iters: 400
+  plane_feasibility_margin: -0.005
+  smooth_boundary_alpha: 2.0
+  smooth_weight: 50.0
+  step_size: 0.01
+  swing_smoothness_scale: 1.0
+  target_collision_tol: 0.005
+  tol: 0.0001
+inverse_kinematics:
+  initialization: provided
+  max_iters: 2000
+  tol: 0.001
+direct:
+  joint_grasp_recovery: true
+  scene_approach: true
+  minimum_approach_up_component: 0.5
+  approach_dir_tool:
+  - 0.0
+  - -1.0
+  - 0.0
+  approach_distance: 1.5
+  grasp_steps: 10
+  max_candidates: 1
+  move_steps: 15
+  simulation_refinement: true
+  target_pos_tol: 0.02
+  target_rot_tol_degrees: 10.0
+  worker_count: 20
+regrasp:
+  joint_grasp_recovery: true
+  scene_approach: true
+  minimum_approach_up_component: 0.5
+  approach_dir_tool:
+  - 0.0
+  - -1.0
+  - 0.0
+  approach_distance: 1.5
+  grasp_steps: 10
+  max_candidates: 1
+  max_handoff_orientation_distance_degrees: 135.0
+  move_steps: 15
+  target_pos_tol: 0.02
+  target_rot_tol_degrees: 10.0
+  worker_count: 20
+  yaw_samples: 8
+stable_pose:
+  sampling_level: 2
+  stable_eigenvalue_min: -0.2

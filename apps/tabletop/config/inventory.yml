@@ -1,0 +1,21 @@
+# Tabletop object assets and target geometry in explicit SI units.
+units: si
+
+objects:
+  model_directory: apps/tabletop/assets/objects
+  ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+  density: 1000.0 # kg/m^3
+  # Add measured per-object material densities here when they become available.
+  density_overrides: {}
+
+target:
+  width: 0.08
+  length: 0.17
+  height: 0.15
+  origin: [0.0, 0.0, 0.0]
+  support_overlap: 0.05
+  taper_degrees:
+    width_positive: 0.0
+    width_negative: 0.0
+    length_positive: 10.0
+    length_negative: 10.0

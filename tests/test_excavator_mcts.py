@@ -1,0 +1,68 @@
+"""Native search and portable orientation policies for the excavator app."""
+
+from dataclasses import replace
+import json
+from pathlib import Path
+import random
+
+import numpy as np
+from scipy.spatial import ConvexHull
+from scipy.spatial.transform import Rotation
+
+from stacking_common.actions.orientation import PrincipalAxisOrientationProvider
+from stacking_common.domain import State
+from stacking_common.search import EvaluationFidelity, MCTSNode
+from stacking_excavator import ExcavatorApplication
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_principal_orientation_rolls_preserve_asset_axes_and_ignore_scan():
+    application = ExcavatorApplication.from_repository(ROOT)
+    initial = {55: np.r_[[0., 0., 1.], Rotation.from_euler("xyz", [.3, .7, .9]).as_quat()]}
+    inventory = application.load_inventory([55], initial)
+    provider = application.build_orientation_provider()
+    assert isinstance(provider, PrincipalAxisOrientationProvider)
+    assert application.build_orientation_filters(application.build_floor_policy(inventory)) == ()
+    rotations = provider.quaternions(inventory, None, None, 0)
+    points, _ = inventory[0].mesh_arrays()
+    points = points[ConvexHull(points).vertices]
+    covariance = np.cov(Rotation.from_quat(rotations[0]).apply(points), rowvar=False)
+    np.testing.assert_allclose(covariance, np.diag(np.diag(covariance)), atol=1e-12)
+    assert covariance[0, 0] > covariance[1, 1] > covariance[2, 2]
+    relative = Rotation.from_quat(rotations[1]) * Rotation.from_quat(rotations[0]).inv()
+    np.testing.assert_allclose(relative.as_matrix(), np.diag([1, -1, -1]), atol=1e-12)
+    rotations[0][:] = 0.
+    assert np.linalg.norm(provider.quaternions(inventory, None, None, 0)[0]) > .99
+
+
+def test_native_excavator_mcts_selects_a_validated_recorded_object():
+    application = ExcavatorApplication.from_repository(ROOT)
+    reference = json.loads((ROOT / "tests/fixtures/legacy_planner/reference.json").read_text())
+    ids = [56, 58, 8]
+    inventory = application.load_inventory(ids, {
+        i: np.concatenate(reference["pickup_poses"][str(i)]) for i in ids})
+    profile = application.mcts_profile
+    # The narrower ablation target needs more candidates than the old 8-sample smoke.
+    application = replace(application, mcts_profile=replace(profile,
+        tree=replace(profile.tree, root_max_children=12, final_validation_candidates=12),
+        root_cem=replace(profile.root_cem, population=96, elite=24, iterations=1, keep=12)))
+    request = replace(application.default_mcts_request(), iterations=2,
+                      max_time_seconds=60., final_validation_reserve_seconds=20.)
+    environment = application.build_environment(inventory,
+        application.build_core_backend(inventory, EvaluationFidelity.SHORT))
+    reset = environment.reset()
+    search = application.build_mcts(inventory, rng=random.Random(0))
+    try:
+        result = search.search(MCTSNode(state=reset.state, observation=reset.observation), request)
+        assert result.generated_candidates > 0
+        assert result.selected is not None
+        assert result.selected.action.object_id in ids
+        assert result.selected.selectable
+        assert not result.selected.state.failed
+        assert len(result.selected.state.placed_object_indices) == 1
+        # Search owns candidate states; the source scene has not advanced.
+        assert environment.snapshot().placed_object_indices == []
+    finally:
+        search.close()
+        environment.close()

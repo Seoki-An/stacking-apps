@@ -1,0 +1,59 @@
+# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.
+# Native-only controls and CLI override precedence: docs/excavator-planning.md.
+units: si
+tree:
+  max_depth: 3
+  iterations: 200
+  max_search_time: 240.0
+  max_children: 16
+  root_max_children: 12
+  exploration_constant: 2.0
+  discount: 0.9
+  failure_reward: -1.0
+  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.
+  initial_depth1_steps: 10  # Depth 1 until 10 objects have been placed.
+  root_lookahead: true
+widening:
+  enabled: true
+  coefficient: 3.0
+  exponent: 0.5
+generation:
+  batch_size: 32
+  expansion_retry_batches: 3
+  min_feasible_children: 3
+  attempt_multiplier: 3.0
+  evaluation_batch_size: 12
+  root_sampling_priority: lower_floor_first
+  deeper_sampling_priority: lower_floor_first
+validation:
+  max_candidates: 8
+  root_before_search: true
+  rejected_root_retry_rounds: 1
+  time_reserve: 30.0
+  max_state_drift: 0.1
+final_selection:
+  mode: max_descendant
+  max_weight: 1.0  # Legacy default for mode: max_descendant.
+  validate_descendant_path: false
+  validate_descendant_depth: 0
+  require_validated_descendant: false
+parallel:
+  # Local native worker allocation; separate from legacy Ray resource settings.
+  enabled: true
+  workers: 12
+root_cem:
+  population: 96
+  elite: 24
+  iterations: 3
+  keep: 12
+  mutation_xy_std: 0.1
+  mutation_yaw_std_degrees: 15.0
+  fresh_fraction: 0.3
+  duplicate_xy_threshold: 0.03
+  duplicate_yaw_threshold_degrees: 5.0
+  max_per_object: 8
+  height_map_score_weight: 1.0
+  seed: 0
+bootstrap:
+  mean_reward: 2.5
+  horizon: 4

@@ -1,0 +1,12 @@
+{
+  "object_id": 17,
+  "purpose": "Recorded software regression; no independent physical pose ground truth",
+  "timestamp_source": "recorded_unknown",
+  "sources": {
+    "logs/260707/plan_260707_7/exec_232318_1_nuc/step_44/field_scan/field_scene_cropped.ply": "51caf94320c2b41685fa0d5e2253eaec34b6400beed9777c059182c5c254f7a0",
+    "logs/260707/plan_260707_7/exec_232318_1_nuc/step_44/field_scan/field_pose_init_pos.npy": "f727d79897a3079e17559877a754d20cdc15a8965a60144fa256d9b37b9e41f0",
+    "logs/260707/plan_260707_7/exec_232318_1_nuc/step_44/field_scan/field_pose_init_rot.npy": "255db53805f7bf7d85043b5bb40a6d1b79d8eed6c3efb34bea78261d83f264b0",
+    "logs/260707/plan_260707_7/exec_232318_1_nuc/step_44/field_scan/field_pose_opt_T.npy": "231aa20bb7a7d3162402d85650f80a33e78f6364fc98d497c16b370af1c24ff1"
+  },
+  "sha256": "93ed7b2ce0d5b6d7a2b0e969a4dcbcc1ef876c4493eb1de09a9e7ed2fe1403a6"
+}

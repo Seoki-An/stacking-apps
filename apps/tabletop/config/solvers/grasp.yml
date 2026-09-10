@@ -1,0 +1,84 @@
+# Native SR-gripper grasp generation and validation.
+units: si
+
+sampling:
+  strategy: parallel_jaw
+  max_seeds: 30
+  dir_samples: 40
+  spin_samples: 12
+  spin_step: 0.5235987756
+  include_flipped: false
+  retreat_distance: 0.0
+  max_target_width: 0.1092
+  aperture_margin: 0.01
+  scene_clearance_margin: 0.0
+  preferred_parallel_axis: [0.0, 0.0, 0.0]
+  max_candidates: 16
+
+generation:
+  separate_margin: 0.003
+  plane_separate_margin: 0.002
+  contact_margin: 0.003
+
+cost:
+  antipodal_normal: 10.0
+  antipodal_position: 5.0
+  align: 5.0
+  enclosure: 10.0
+  radial_distance: 10.0
+  center_distance: 5.0
+  contact: 10.0
+  teeth_fit: 2.0
+  teeth_align: 1.0
+  flatness: 1.0
+
+score:
+  center_distance: 3.0
+  align: 1.0
+  enclosure: 10.0
+  radial_distance: 10.0
+  teeth_gap: 2.0
+  teeth_fit: 1.0
+  teeth_align: 1.0
+
+trust_region:
+  max_iters: 200
+  step_tol: 1.0e-6
+
+alm:
+  max_iters: 20
+  inequality_tol: 1.0e-4
+  equality_tol: 1.0e-4
+  inequality_penalty_init: 50.0
+  equality_penalty_init: 50.0
+  inequality_penalty_increase: 10.0
+  equality_penalty_increase: 10.0
+
+force:
+  enabled: true
+  friction: 1.0
+  damping: 1.0e-6
+
+force_weight:
+  wrench: 0.5
+  complementarity: 10.0
+  cone: 10.0
+  moment: 10.0
+
+simulation:
+  steps: 500
+  dt: 0.01
+  virtual_closing_effort: 1.0
+  virtual_approach_force: 5.0
+  damping: 1.0
+  friction: 1.0
+  pgs_iters: 80
+  error_reduction_ratio: 0.2
+  target_contact_margin: 0.003
+  obstacle_margin: 0.003
+  plane_obstacle_margin: 0.002
+  active_impulse_tol: 1.0e-4
+  settled_velocity_tol: 0.01
+  relaxed_velocity_tol: 0.1
+  accept_relaxed: true
+  grasp_offset_tol: [0.05, 0.30, 0.10]

@@ -1,0 +1,1 @@
+"""Optional tabletop graphical applications."""

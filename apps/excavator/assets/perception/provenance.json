@@ -1,0 +1,300 @@
+{
+  "source_project": "stacking-planner",
+  "encoding": "exact measured XYZ, compressed NPZ",
+  "models": {
+    "1": {
+      "source": "assets/stone/model_1.pcd",
+      "source_sha256": "4074c934282268db1813dbb0e068be736054819efa3c94965b5731d4104eb8ae",
+      "sha256": "a91b087cbd3749aa278d07c1bb194b298cbc3060b896fec004a108c58be7e532",
+      "points": 248615
+    },
+    "2": {
+      "source": "assets/stone/model_2.pcd",
+      "source_sha256": "a48752992c13ef58acf88f9f1dc630caa5be7dc50dac140222944932313f2823",
+      "sha256": "3d7b12e74b930214e91a965488edb5408fd7cc26a17a7d77f523e7036dde9860",
+      "points": 140304
+    },
+    "3": {
+      "source": "assets/stone/model_3.pcd",
+      "source_sha256": "84155d24b6ccad16d4d89477e83436b5e548f1c597b79eda3e994becf4e208d4",
+      "sha256": "68afb41fa09f3925832d1445188d254f91b78a6ad8443add83886316b0fe32bf",
+      "points": 135109
+    },
+    "4": {
+      "source": "assets/stone/model_4.pcd",
+      "source_sha256": "140051a70d58279ca198347f5db25afc7aeb99ee4c1ce797cda6820ee1538928",
+      "sha256": "d3008e936698435c4c54df6daa421f5a895dec9816df107bd50b030f00ab7b86",
+      "points": 190486
+    },
+    "5": {
+      "source": "assets/stone/model_5.pcd",
+      "source_sha256": "7833f8774f31bd0d7e3042df00a84936827cd300315298f05f4a33bd273e699b",
+      "sha256": "0c9d88880f8141e64cd99c9ce26d9386caa023d4739eb660ca667c03ff65c7e0",
+      "points": 72821
+    },
+    "6": {
+      "source": "assets/stone/model_6.pcd",
+      "source_sha256": "3f131914351c191d6f3a974bdd2fbc33e57a97f6591e9c372e86b03fab22e83d",
+      "sha256": "861fdbabda1d3ce538268896a5f858011a20f1c876a1328095e9d0242c4885fb",
+      "points": 185411
+    },
+    "7": {
+      "source": "assets/stone/model_7.pcd",
+      "source_sha256": "b5b15c37809ba7977fceb212b0a910c9a306cc6754906b54f1a1932e5686f18f",
+      "sha256": "2b5ee37cc9552e5d392ac5a5d277643f9043af9cf0652aab4a3210da94a38e93",
+      "points": 155768
+    },
+    "8": {
+      "source": "assets/stone/model_8.pcd",
+      "source_sha256": "fbc2bf3bb513f9b98da447341724200335957d1e387a19c394293cbc4677cf03",
+      "sha256": "c0c1ff2de3da895e9b3df76a06022565d3124d671e8d0aa1606a6fad1c56d7f3",
+      "points": 164964
+    },
+    "9": {
+      "source": "assets/stone/model_9.pcd",
+      "source_sha256": "d32ae4e67dfaad50b290d7f34b5ab4b88ecd539dea40dadc4acf72eeb9c3078b",
+      "sha256": "2a124c7219421ca6cf6e6f348fd4d430240bbae80c7667530bfe45c924a428f7",
+      "points": 28010
+    },
+    "10": {
+      "source": "assets/stone/model_10.pcd",
+      "source_sha256": "6e9efb79ac4d980620a45e63b11fae4cf8e91f3d7844566782c73c6c155bf2a4",
+      "sha256": "4a7194de70226794a45ed14bf6dff778d655747f335b40d98be9d44e870a5da7",
+      "points": 60587
+    },
+    "11": {
+      "source": "assets/stone/model_11.pcd",
+      "source_sha256": "8f506ad482907f21f755dd9a017a457bfe5cb1afec1d6e5827aaf51b700108e2",
+      "sha256": "4cefc027e6fcb3ed3af22e992c088705aaeb9b7a7ee5a58dd722a11a0120029a",
+      "points": 64803
+    },
+    "12": {
+      "source": "assets/stone/model_12.pcd",
+      "source_sha256": "ca2e7438db8bc1069f30c7f0a3c4274e78981dc888ca149e40b88786fa24832a",
+      "sha256": "b4e4d075bb353ce179d0d32ae67df2888411634b7def28dd73e4292889a75625",
+      "points": 214967
+    },
+    "13": {
+      "source": "assets/stone/model_13.pcd",
+      "source_sha256": "61c4ee6a170625d20047bd69454f55889ea07dd191a8423e0aae386f515e348e",
+      "sha256": "b8944f12445998e0138c2739332b07af4a538a20bb6d54c61852cfc041eb0e4f",
+      "points": 23903
+    },
+    "14": {
+      "source": "assets/stone/model_14.pcd",
+      "source_sha256": "7d1b476f617cd5f6aa588b0d2b79283adafd184c0f10573560a63dbe3f169f17",
+      "sha256": "561e3408e41bba04b8a6a2deddab7c8bab48dfd3edb66f9f681dece4701b64c2",
+      "points": 142028
+    },
+    "15": {
+      "source": "assets/stone/model_15.pcd",
+      "source_sha256": "a489b7b911c1725ef31f0deaf77ad501ae1026fd48ba596088339b47d072f220",
+      "sha256": "f7d9b037836e12278d51f540bfaeeb6ea417532e56093e10507034e95c78aa42",
+      "points": 89584
+    },
+    "17": {
+      "source": "assets/stone/model_17.pcd",
+      "source_sha256": "0b78921c7769e46226906a0f102d14d39209d1c2fce40b144a683861e3008b84",
+      "sha256": "89c1be0fb38546c1bc4d5221d366d94d0e2e947c038815fe492f73a0bdcc8950",
+      "points": 81658
+    },
+    "18": {
+      "source": "assets/stone/model_18.pcd",
+      "source_sha256": "63e0995bb58df5516e5ef48369791d3308a762634ab47bd0a06f8a142058c572",
+      "sha256": "d94f6f9e9e05ebcfe5cd1eca0cc77f1421409610b3d9becca2c78c63e9d310f8",
+      "points": 31840
+    },
+    "19": {
+      "source": "assets/stone/model_19.pcd",
+      "source_sha256": "53a57d523dec72003077ad23ed001cde4a9a304f5de9f955a65be32fe8b16660",
+      "sha256": "bc73a583eb672fdf01970de96a56a45b598f83383f9a041beb644ab32a072834",
+      "points": 225493
+    },
+    "20": {
+      "source": "assets/stone/model_20.pcd",
+      "source_sha256": "197450b340a330078d699350419293ecf32e52d3cb41ceb724e3b4d7939e0fcc",
+      "sha256": "d4355acd0917526012d08f43f4d3b304a7fb434b201b1d7ea5a0acbda9719347",
+      "points": 97100
+    },
+    "21": {
+      "source": "assets/stone/model_21.pcd",
+      "source_sha256": "af9bdc4b3043eb538f860b2feb7fd90c97c0e3edf75ccbc3764e2077991d53a1",
+      "sha256": "9de86b555b64e345f642d4ddceac2ef9ef9853558d4708f7e8f78fdb58a4b2a9",
+      "points": 114907
+    },
+    "30": {
+      "source": "assets/stone/model_30.pcd",
+      "source_sha256": "b59264b3d0e0997046a150877bade5f507c0dd22d45a1dcda08173d6b97bb37b",
+      "sha256": "517137e60065210208d4f9331a340272eefd211096cea5d811def5e72126da81",
+      "points": 232796
+    },
+    "31": {
+      "source": "assets/stone/model_31.pcd",
+      "source_sha256": "f0a3fa3b2f717cfba8de2a8a76f7c17d0ef02ae0d75ce2552e4092ec15ea6823",
+      "sha256": "b6f3b36b86b58b8dd3521556c0f9f787b216d629fb2cf7815cca27606023ed31",
+      "points": 287393
+    },
+    "32": {
+      "source": "assets/stone/model_32.pcd",
+      "source_sha256": "6314bd240b19ddfc72307ca54b3d30a5df0045429a7c4525d6f5143676a8b56f",
+      "sha256": "9561c7757f7e7bb57ac99970200006e01a0625862839d4416d25b649ad5c2fd7",
+      "points": 516098
+    },
+    "33": {
+      "source": "assets/stone/model_33.pcd",
+      "source_sha256": "83f725846d2d6edaa795925b86f38f0935f093fab6272b3877fa4e9d476e9a2f",
+      "sha256": "ff433f34b1b5ffa272788194b4120ae3c53d8c1d511ae0c5d3900be44fe4de6d",
+      "points": 367374
+    },
+    "34": {
+      "source": "assets/stone/model_34.pcd",
+      "source_sha256": "af18e42e012a853f45c4e267e75b632938bc634d8001a740a5b6375ee454aa71",
+      "sha256": "7b40ce05571a483195b3712277c86b6ce9e7cd8d994b728c4e71018096920c27",
+      "points": 521402
+    },
+    "35": {
+      "source": "assets/stone/model_35.pcd",
+      "source_sha256": "c218d89d5e92a6016f4988ebdc4289ccf505140fe43eecf9849befaadedc672f",
+      "sha256": "8856f5a97327618bde7ab9ed915dd0042c1eaff9aabc9d17d207370adb8ea25f",
+      "points": 56303
+    },
+    "36": {
+      "source": "assets/stone/model_36.pcd",
+      "source_sha256": "f75a1019c8a9ff4f7b768b7aac6ca1e1a89e43485ebe332eb35c9964ce94202d",
+      "sha256": "3515fc990bbb3b4690ee42bc5ad23c9ffeecfe4d0321eca6e1668401a9d1d589",
+      "points": 199409
+    },
+    "37": {
+      "source": "assets/stone/model_37.pcd",
+      "source_sha256": "475954aade942c1cf02ef993f16a3add88ef9c349e7ec72b9e4fda1898ca017c",
+      "sha256": "34eada55532da4921001bee1fe79c72da8faa0130e51de5962bee24ffbd61ab6",
+      "points": 621953
+    },
+    "38": {
+      "source": "assets/stone/model_38.pcd",
+      "source_sha256": "0287298b5b34cb72eb8be91ed81f548075e66bb994b2c0ed5f2935fc9ba7b05e",
+      "sha256": "550fec8ae90e86c9f7612eeec3c6e66d14ec30bbd77ddc2a8c1d2b3740d107f3",
+      "points": 368883
+    },
+    "39": {
+      "source": "assets/stone/model_39.pcd",
+      "source_sha256": "594e128b0c856a956e12e0d5921bb43d69043e0d8fa5e053bfd36120f403390b",
+      "sha256": "13c23163f450611a93df5a8773563318ef92c811a708efec1bc23bad32235a0a",
+      "points": 307000
+    },
+    "40": {
+      "source": "assets/stone/model_40.pcd",
+      "source_sha256": "1cc15584378e3b9f5c98b831d8317903774802de873b4cf9f57cda85fb33475d",
+      "sha256": "530fbe801b7dd6c5c13f836953ffda23df77b7194c18564a6c6c2629b4cb4452",
+      "points": 408237
+    },
+    "41": {
+      "source": "assets/stone/model_41.pcd",
+      "source_sha256": "966e9f6b8093d0ccc0fdd0cffb6a91c750081c3155df8a8f3da4adfce94965b9",
+      "sha256": "b1a98669b9bde2094960969156ca54dcb6defa510137eb50f4d8221e757b1686",
+      "points": 293008
+    },
+    "42": {
+      "source": "assets/stone/model_42.pcd",
+      "source_sha256": "23e71931b06547da9f3603e138004fe3c4386d56a159c331894f7cc65329730f",
+      "sha256": "85f7fa80bf1625716a721af871b323ffe2b52f27b4ec4e917d3cc399a3c588c7",
+      "points": 302215
+    },
+    "43": {
+      "source": "assets/stone/model_43.pcd",
+      "source_sha256": "613d916e6ce9273d75a8e368dd399b883a5bc4b100792a6e7724cf68a4ef063c",
+      "sha256": "f1fb7138606d41569cf9b26199b6b4c7255527331665ddcaa753d88cba9519cc",
+      "points": 247611
+    },
+    "44": {
+      "source": "assets/stone/model_44.pcd",
+      "source_sha256": "3d2d0b234580c656d1b0675f26a7b57e509e4a51149b20562af026851ca3ce33",
+      "sha256": "fdc885026bced916acf218d00ac5d5c2daeb0a5cb271bac3b4ff0d74e7e8849a",
+      "points": 205049
+    },
+    "45": {
+      "source": "assets/stone/model_45.pcd",
+      "source_sha256": "7e723e005f3c44f86f327ad6d35dc43574bf3fab8f2d04153305a323b2e49eda",
+      "sha256": "c03861ac54198b753de2402c4dd7c70af6ca478c3813d08205b2458392883736",
+      "points": 362819
+    },
+    "46": {
+      "source": "assets/stone/model_46.pcd",
+      "source_sha256": "b2099b9d06f5ec7fcdd388c48e0b814770a758cdfc466a46920007e96bad2a14",
+      "sha256": "c430108de3c898a2a799c7cb2c3b4fe3bed8aaa335f9460a574e211ebbec0089",
+      "points": 220189
+    },
+    "47": {
+      "source": "assets/stone/model_47.pcd",
+      "source_sha256": "20c45faea276810b8337f636226d3477060e976f250ee581aa155f36ef58cd40",
+      "sha256": "48444b8bae98b8ea1e8550ad8ca2b647f5a94d44bb3ab9205b6b643c254231bc",
+      "points": 401506
+    },
+    "48": {
+      "source": "assets/stone/model_48.pcd",
+      "source_sha256": "b9db7e47626a9db9203a91456e4d3bfa8be4e76dba1f18a88f5ff664234eed0d",
+      "sha256": "465a3cfc67b27569673fb4d07bd644a3c35a40806275dc9c0416e18c4520f3c9",
+      "points": 185069
+    },
+    "49": {
+      "source": "assets/stone/model_49.pcd",
+      "source_sha256": "0a5568bc7ddc09fe1934bc706b272ada4a0a54137a3cce825bb9b74f759f98cf",
+      "sha256": "babe930c528ab0b7897be3ae39b3e4198f82568f21cf7d49ec26b20834f3730f",
+      "points": 360017
+    },
+    "50": {
+      "source": "assets/stone/model_50.pcd",
+      "source_sha256": "2f9ec2516b4f72f758fb78883436a5eddc57378b712f8733803814a1c08433ac",
+      "sha256": "d896f13ef323e08dcf7bf7098ab4013febc5ca149e7ea1b205714d88fb35ede6",
+      "points": 333359
+    },
+    "51": {
+      "source": "assets/stone/model_51.pcd",
+      "source_sha256": "17df91dadd375959b6ad77438e235049c51826ad006a383a4fe3c879d4e649e4",
+      "sha256": "bf06e2827b7e67e8649ccfe5da97d93929d6a8f66064459b050d11cdb9dfc52a",
+      "points": 171992
+    },
+    "52": {
+      "source": "assets/stone/model_52.pcd",
+      "source_sha256": "d43f0c2e4505f88bc1611308297e103760c27824d87ba758fb58d0f325d25087",
+      "sha256": "473fc0c435dfc477883593ce1ecddba6e7ed0454498db37d4f456603cd3edee5",
+      "points": 187741
+    },
+    "53": {
+      "source": "assets/stone/model_53.pcd",
+      "source_sha256": "c1c605d87ddb2edd90b138bf8c247b74a0021636686171ade4fdad31d99b5880",
+      "sha256": "28bfe9a6937edb04fecc00e85c74f7c5d25c9e9ae15e1be6ccd67e19eb593b28",
+      "points": 237500
+    },
+    "54": {
+      "source": "assets/stone/model_54.pcd",
+      "source_sha256": "4d16f6fe916e575783b342fcad89e04749a4663b0d534b021e4379f83954fcce",
+      "sha256": "364e9481fc87bec1ad173a7883ad795fd6c31ab51cb707a558a552f5628f0cca",
+      "points": 117625
+    },
+    "55": {
+      "source": "assets/stone/model_55.pcd",
+      "source_sha256": "2687f1eafb935c99c5dff2d5a9de181425144228d071032b24105f64d073b4ab",
+      "sha256": "4a1075d2fbff751381dc199ce6192d426ccc6c1803cbdbfd4392435706fa328f",
+      "points": 350345
+    },
+    "56": {
+      "source": "assets/stone/model_56.pcd",
+      "source_sha256": "f4805d686c874af147d30bcd18677a186ca6fe7f5986bc632e2246ba09fb7ec9",
+      "sha256": "83303a67616004f1914170183d5793fd158feb5898f60e2f6bb362c62f94d9ab",
+      "points": 226659
+    },
+    "57": {
+      "source": "assets/stone/model_57.pcd",
+      "source_sha256": "ce75ec19feb0ecdb4f887b3a77987c9d34b23d37e30fbb09e015ec7cffb8c3cd",
+      "sha256": "e2afab622a49c31792aea73f6afa470bab14561d9f4fbf1d54334ff871226752",
+      "points": 165606
+    },
+    "58": {
+      "source": "assets/stone/model_58.pcd",
+      "source_sha256": "38f10cdcb00899438cae16257e962074bdc1875cbb2c94e9460621dfada9dd6c",
+      "sha256": "d5758e4723a6668e539dd45f1582c21a2c2bdbaf612afc891379f11392187d29",
+      "points": 180590
+    }
+  }
+}

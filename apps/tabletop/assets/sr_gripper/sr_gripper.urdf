@@ -1,0 +1,160 @@
+<?xml version="1.0"?>
+<robot name="sr_gripper_custom">
+  <!--
+    Before changing geometry here, read "Changing SR-Gripper URDF Parameters"
+    in docs/llm/perception.md. Constants elsewhere are derived from this file
+    (notably planning.SR_GRIPPER_PLANNING_OPEN_ANGLE), the collision dsf_vert
+    meshes are fitted from the visual STLs and must be regenerated when those
+    change, and perception FK depends on the finger-tip link names, the joint
+    order/signs below, and a monotonic terminal width over 0.0..0.9 rad.
+  -->
+
+  <link name="world"/>
+
+  <!--
+    GraspGen inherits StoneGrab's +Y approach-axis convention. Keep that
+    convention at the floating grasp pose while rotating the physical SR
+    gripper back so its finger chain still extends along physical-base +Z.
+    Grasp +X maps to physical -X. The physical right (+X) branch carries two
+    pads and therefore lies at grasp -X; the physical left branch carries one.
+  -->
+  <joint name="grasp_joint" type="floating">
+    <parent link="world"/>
+    <child link="grasp_frame"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="grasp_frame"/>
+
+  <joint name="grasp_to_physical_base" type="fixed">
+    <parent link="grasp_frame"/>
+    <child link="base_link"/>
+    <origin xyz="0 -0.01 0"
+            rpy="0 0 1.570796326794897"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <mesh filename="meshes/visual/body.stl"/>
+      </geometry>
+    </visual>
+    <collision name="base_mount">
+      <geometry>
+        <dsf_vert filename="apps/tabletop/assets/sr_gripper/meshes/collision/body_dsf1.obj"
+                  contact="false"/>
+      </geometry>
+    </collision>
+    <collision name="base_body">
+      <geometry>
+        <dsf_vert filename="apps/tabletop/assets/sr_gripper/meshes/collision/body_dsf2.obj"
+                  contact="false"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="left_finger_link_1">
+    <visual>
+      <geometry>
+        <mesh filename="meshes/visual/arm_left.stl"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <dsf_vert filename="apps/tabletop/assets/sr_gripper/meshes/collision/arm_left_dsf1.obj"
+                  contact="false"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="left_finger_tip">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 -1.570796326794897"/>
+      <geometry>
+        <mesh filename="meshes/visual/tip_left.stl"/>
+      </geometry>
+    </visual>
+    <collision name="left_tip_pad">
+      <geometry>
+        <dsf_vert filename="apps/tabletop/assets/sr_gripper/meshes/collision/tip_left_dsf1.obj"
+                  contact="true"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="right_finger_link_1">
+    <visual>
+      <geometry>
+        <mesh filename="meshes/visual/arm_right.stl"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <dsf_vert filename="apps/tabletop/assets/sr_gripper/meshes/collision/arm_right_dsf1.obj"
+                  contact="false"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="right_finger_tip">
+    <visual>
+      <origin xyz="0 0 0" rpy="3.141592653589793 0 1.570796326794897"/>
+      <geometry>
+        <mesh filename="meshes/visual/tip_right.stl"/>
+      </geometry>
+    </visual>
+    <collision name="right_tip_bridge">
+      <geometry>
+        <dsf_vert filename="apps/tabletop/assets/sr_gripper/meshes/collision/tip_right_bridge_dsf1.obj"
+                  contact="false"/>
+      </geometry>
+    </collision>
+    <collision name="right_tip_upper_pad">
+      <geometry>
+        <dsf_vert filename="apps/tabletop/assets/sr_gripper/meshes/collision/tip_right_upper_dsf1.obj"
+                  contact="true"/>
+      </geometry>
+    </collision>
+    <collision name="right_tip_lower_pad">
+      <geometry>
+        <dsf_vert filename="apps/tabletop/assets/sr_gripper/meshes/collision/tip_right_lower_dsf1.obj"
+                  contact="true"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="left_finger_joint_1" type="revolute">
+    <parent link="base_link"/>
+    <child link="left_finger_link_1"/>
+    <origin xyz="0.11 -0.0275 0" rpy="0 0 0"/>
+    <axis xyz="0 0 -1"/>
+    <limit lower="-0.1" upper="0.9"/>
+  </joint>
+
+  <joint name="left_finger_joint_2" type="revolute">
+    <parent link="left_finger_link_1"/>
+    <child link="left_finger_tip"/>
+    <origin xyz="0.0693 0.0025 0" rpy="0 0 0"/>
+    <axis xyz="0 0 -1"/>
+    <limit lower="-0.9" upper="0.1"/>
+    <mimic joint="left_finger_joint_1" multiplier="-1" offset="0"/>
+  </joint>
+
+  <joint name="right_finger_joint_1" type="revolute">
+    <parent link="base_link"/>
+    <child link="right_finger_link_1"/>
+    <origin xyz="0.11 0.0275 0" rpy="3.141592653589793 0 0"/>
+    <axis xyz="0 0 -1"/>
+    <limit lower="-0.1" upper="0.9"/>
+    <mimic joint="left_finger_joint_1" multiplier="1" offset="0"/>
+  </joint>
+
+  <joint name="right_finger_joint_2" type="revolute">
+    <parent link="right_finger_link_1"/>
+    <child link="right_finger_tip"/>
+    <origin xyz="0.0693 0.0025 0" rpy="0 0 0"/>
+    <axis xyz="0 0 -1"/>
+    <limit lower="-0.9" upper="0.1"/>
+    <mimic joint="left_finger_joint_1" multiplier="-1" offset="0"/>
+  </joint>
+</robot>

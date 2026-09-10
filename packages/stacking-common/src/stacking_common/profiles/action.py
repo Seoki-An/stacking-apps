@@ -1,0 +1,96 @@
+"""Loading of the resolved platform action-generation profile."""
+
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+import yaml
+
+from stacking_common.actions import (
+    PlacementActionGeneratorConfig,
+    PlanarSamplingConfig,
+)
+
+
+@dataclass(frozen=True)
+class ActionGenerationProfile:
+    """Common action settings resolved for the platform platform."""
+
+    generator: PlacementActionGeneratorConfig
+    planar: PlanarSamplingConfig
+    strict_floor_first: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.strict_floor_first, bool):
+            raise TypeError("strict_floor_first must be boolean")
+
+
+def load_action_generation_profile(
+    path: str | Path,
+    *,
+    max_poses_per_object: int,
+    banned_object_ids: Iterable[int],
+) -> ActionGenerationProfile:
+    """Load explicit SI-unit action-generation values."""
+
+    profile_path = Path(path)
+    if not profile_path.is_file():
+        raise FileNotFoundError(
+            f"missing action-generation profile: {profile_path}"
+        )
+    values = yaml.safe_load(profile_path.read_text())
+    if not isinstance(values, Mapping):
+        raise TypeError("action-generation profile root must be a mapping")
+    if values.get("units") != "si":
+        raise ValueError("action-generation profile units must be 'si'")
+    initialization = _mapping(values, "initialization")
+    filtering = _mapping(values, "filtering")
+    planar = _mapping(values, "planar")
+    return ActionGenerationProfile(
+        strict_floor_first=filtering.get("strict_floor_first", False),
+        generator=PlacementActionGeneratorConfig(
+            max_poses_per_object=max_poses_per_object,
+            banned_object_ids=frozenset(int(value) for value in banned_object_ids),
+            require_solver_convergence=filtering.get("require_solver_convergence", True),
+            reject_equilibrium_at_threshold=filtering.get("reject_equilibrium_at_threshold", False),
+            initial_height_clearance=float(
+                _required(initialization, "height_clearance")
+            ),
+            initial_height_xy_padding=float(_required(initialization, "xy_padding")),
+            posegen_gap_threshold=float(
+                _required(filtering, "posegen_gap_threshold")
+            ),
+            posegen_equilibrium_threshold=float(
+                _required(filtering, "posegen_equilibrium_threshold")
+            ),
+        ),
+        planar=PlanarSamplingConfig(
+            grid_shape=tuple(int(value) for value in _required(planar, "grid_shape")),
+            yaw_angles=tuple(
+                float(np.deg2rad(value))
+                for value in _required(planar, "yaw_angles_degrees")
+            ),
+            minimum_xy_separation=float(
+                _required(planar, "minimum_xy_separation")
+            ),
+            target_anchor_inset_scale=(
+                None
+                if planar.get("target_anchor_inset_scale") is None
+                else float(planar["target_anchor_inset_scale"])
+            ),
+        ),
+    )
+
+
+def _mapping(values: Mapping[str, object], key: str) -> Mapping[str, object]:
+    result = _required(values, key)
+    if not isinstance(result, Mapping):
+        raise TypeError(f"action-generation profile '{key}' must be a mapping")
+    return result
+
+
+def _required(values: Mapping[str, object], key: str):
+    if key not in values:
+        raise ValueError(f"action-generation profile is missing '{key}'")
+    return values[key]

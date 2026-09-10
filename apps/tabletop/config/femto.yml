@@ -1,0 +1,17 @@
+# Installed FEMTO Bolt identities; calibration files remain installation-specific.
+cameras:
+  primary:
+    serial: CL83C53005L
+    pose_calibration: ~/ros2_ws/src/poseid/calibration_output/femto_CL83C53005L/thirdview_result.npz
+    depth_calibration: ~/ros2_ws/src/poseid/calibration_output/femto_CL83C53005L/femto_depth_result.npz
+  secondary:
+    serial: CL8956200P5
+    pose_calibration: ~/ros2_ws/src/poseid/calibration_output/femto_CL8956200P5/thirdview_result.npz
+    depth_calibration: ~/ros2_ws/src/poseid/calibration_output/femto_CL8956200P5/femto_depth_result.npz
+# Both cameras use the established graph, one driver at a time.
+namespace: /camera
+base_frame: base_link
+field:
+  crop_min: [-0.5, 0.4, 0.05]
+  crop_max: [0.5, 0.9, 0.2]
+  voxel_size: 0.001

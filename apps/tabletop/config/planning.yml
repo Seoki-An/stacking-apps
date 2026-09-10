@@ -1,0 +1,38 @@
+# World-frame robot, gripper, and static planning scene.
+units: si
+
+frames:
+  world: world
+  stack: stack
+  world_T_stack: [-0.55, 0.0, 0.115, 0.0, 0.0, 0.0, 1.0]
+
+robot:
+  urdf: apps/tabletop/assets/ur5e/ur5e_ik.urdf
+  tool_link: grasp_frame
+  home_positions: [1.5707963268, -1.8325957146, 1.4835298642, -1.2217304764, -1.5707963268, 0.0]
+  link_from_tool: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+  gripper_opening: 0.743
+
+gripper:
+  urdf: apps/tabletop/assets/sr_gripper/sr_gripper.urdf
+  root_link: grasp_frame
+  grasp_from_root: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+  opening_offset: [0.0]
+  opening_direction: [1.0]
+  opening_limits: [-0.1, 0.743]
+
+scene:
+  frame_id: 1
+  obstacle_friction: 1.0
+  handoff_position: [0.0, 0.50, 0.115]
+  # Finite boxes match the commissioned cell; global support planes are unsafe.
+  obstacles:
+    - id: pick_table
+      minimum: [-0.5, -1.0, 0.0]
+      maximum: [0.5, -0.4, 0.1]
+    - id: third_view_camera
+      minimum: [-0.75, -0.90, 0.0]
+      maximum: [-0.35, -0.50, 0.8]
+    - id: place_table
+      minimum: [-0.84, -0.336, 0.0]
+      maximum: [-0.26, 0.336, 0.115]

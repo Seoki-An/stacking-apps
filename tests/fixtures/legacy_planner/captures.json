@@ -1,0 +1,30 @@
+{
+  "sources": {
+    "logs/260707/plan_260707_7/exec_232318_1_nuc/step_44/field_scan/field_raw_iv_points21_swing0.npy": "75586e97bb6ba75e3d69cebf5c0f2afdf978ef5112f7772c2b2bf89a02a0fe9d",
+    "logs/260707/plan_260707_7/exec_232318_1_nuc/step_44/field_scan/field_lidar_frame_iv_points21_swing0.npy": "3abbf7fb72872004609d0701941e8c2a5f74d9254fc7467a0fe07166669946b7",
+    "logs/260707/plan_260707_7/exec_232318_1_nuc/step_44/field_scan/field_scan_q_actual_swing0.npy": "e31a0a23ee35d370d0c7f5f65caf7505be731745cdce23cc2dde76a23d74e0af",
+    "logs/260707/plan_260707_7/exec_232318_1_nuc/step_44/field_scan/field_base_iv_points21_swing0.ply": "6393c927b7cb10d7dd7ec84144d47ccd8a42a5ec52cb15fd2ccda4882f406ac2",
+    "logs/260706/plan_260706_4/exec_164224_1_nuc/step_39/scene_scan/scene_raw_iv_points21_swing0.npy": "27844a9cb59db40570404f38caca5489848c6c730d6e04b7ade7077383b12118",
+    "logs/260706/plan_260706_4/exec_164224_1_nuc/step_39/scene_scan/scene_lidar_frame_iv_points21_swing0.npy": "a07f122b59bc7dcfc2b72c523b0aed6c1eb691eeee7e2643a19d758b30383577",
+    "logs/260706/plan_260706_4/exec_164224_1_nuc/step_39/scene_scan/scene_scan_q_actual_swing0.npy": "6c67924511ee5b557154f37a6f22c4ed7c9e20a106f63338f482216a4759d94b",
+    "logs/260706/plan_260706_4/exec_164224_1_nuc/step_39/scene_scan/scene_base_iv_points21_swing0.ply": "f88caa46b87bfb19f2364fd047341a06e9777846a90815151595c0c64989fd47",
+    "logs/260623/plan_260623_1/exec_121628_1/step_17/pcd_0.ply": "51f2ce49400f74025d1a901270a1353e5c24c25432837c0efdee0f43dd80ce88",
+    "logs/260623/plan_260623_1/exec_121628_1/step_17/q_list.npy": "b0b3e4e714c5ca3eee6a6b7b9ee338c5a1aec5b7c5e30c6dc604264759c565f0"
+  },
+  "timestamp_source": "recorded_unknown",
+  "cases": {
+    "field": {
+      "frame": "iv_points21",
+      "original_sensor_frame": true
+    },
+    "scene": {
+      "frame": "iv_points21",
+      "original_sensor_frame": true
+    },
+    "inhand": {
+      "frame": "stone_grab_geometry",
+      "original_sensor_frame": false
+    }
+  },
+  "sha256": "a6dfd346b870c0f1afcd678849e9f6dd7f23710df935de2aabdf70d5f06509fe"
+}

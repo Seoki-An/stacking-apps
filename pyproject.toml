@@ -1,0 +1,7 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [
+  "packages/stacking-common/src",
+  "apps/tabletop/src",
+  "apps/excavator/src",
+]
