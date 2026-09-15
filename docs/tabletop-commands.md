@@ -169,6 +169,21 @@ and follow the pickup, close, placement, and release gates. See the
 
 ## FEMTO capture and automatic scanning
 
+For fixed-field capture → filtering → stone identification, choose
+**File → Field scan / identify…** in the Operations Console. After success,
+**New plan using these poses** fills the planning inputs. Equivalent commands
+after installing `apps/tabletop[acquisition,perception,operations]`:
+
+```bash
+stacking-tabletop-scan-field --visualize
+stacking-tabletop-scan-field --both-cameras --visualize
+```
+
+These own their camera drivers; stop existing drivers first, or use
+`--use-running-camera` for a single camera. See the
+[field workflow guide](tabletop-femto.md#field-capture-and-identification-in-the-operations-console)
+for ID assignment, manual alignment, capture retries, and output paths.
+
 Start the primary camera driver in its own ROS-sourced terminal:
 
 ```bash

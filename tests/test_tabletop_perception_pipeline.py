@@ -193,6 +193,42 @@ def test_field_matcher_assigns_real_catalog_models_one_to_one() -> None:
     assert result.assignments == {0: 1, 1: 2}
 
 
+def test_field_icp_recovers_partial_surface_without_snapping_solved_pose() -> None:
+    pytest.importorskip('open3d')
+    from scipy.spatial.transform import Rotation
+    from stacking_tabletop.perception.assignment import TabletopFieldMatcher
+    from stacking_tabletop.perception.registration import Open3dRegistrationBackend
+
+    profile = TabletopApplication.from_repository(ROOT).perception_profile
+    rng = np.random.default_rng(81)
+    points = rng.normal(size=(5000, 3))
+    points /= np.linalg.norm(points, axis=1)[:, None]
+    points *= [.038, .025, .020]
+    points[:, 2] += .003 * np.sin(points[:, 0] * 90) * np.cos(points[:, 1] * 75)
+    model = PointCloudData(points)
+    expected = np.eye(4)
+    expected[:3, :3] = Rotation.from_euler('xyz', [12, -8, 33], degrees=True).as_matrix()
+    expected[:3, 3] = [.12, -.62, .128]
+    # Only the upper surface is visible; hidden points must not pull the fit.
+    observation = PointCloudData(points[points[:, 2] > .006]).transformed(expected)
+    initial = expected.copy()
+    initial[:3, 3] += [.001, -.001, .001]
+    matcher = TabletopFieldMatcher(
+        SimpleNamespace(load=lambda _: model),
+        Open3dRegistrationBackend(profile.field_registration),
+        profile.field_quality, profile.assignment,
+    )
+    result = matcher.register_best(
+        1, observation, np.array([0., 0., 1., -.1]), initial_transform=initial,
+    )
+    assert result.decision.accepted
+    np.testing.assert_allclose(result.registration.transform[:3, 3], expected[:3, 3], atol=.0001)
+    error_rotation = result.registration.transform[:3, :3].T @ expected[:3, :3]
+    assert Rotation.from_matrix(error_rotation).magnitude() < np.deg2rad(.2)
+    # A reference plane offset must be scored, not imposed on the ICP solution.
+    assert result.bottom_height > .005
+
+
 def test_recorded_dual_femto_fusion_loads_and_aligns(tmp_path: Path) -> None:
     o3d = pytest.importorskip("open3d")
     application = TabletopApplication.from_repository(ROOT)

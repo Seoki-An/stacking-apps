@@ -60,6 +60,10 @@ def test_field_and_in_hand_registration_have_independent_scales() -> None:
         profile.field_registration.evaluation_distance
         != profile.in_hand_registration.evaluation_distance
     )
+    assert profile.field_quality.maximum_correction_translation is None
+    assert profile.field_quality.maximum_correction_rotation_degrees is None
+    assert profile.in_hand_quality.maximum_correction_translation == .10
+    assert profile.in_hand_quality.maximum_correction_rotation_degrees == 15.
 
 
 def test_complete_tabletop_pcd_catalog_loads_finite_models() -> None:

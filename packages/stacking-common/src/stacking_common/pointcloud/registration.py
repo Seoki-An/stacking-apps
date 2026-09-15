@@ -95,8 +95,8 @@ class RegistrationQualityConfig:
     minimum_target_coverage: float
     minimum_source_coverage: float
     maximum_rmse: float
-    maximum_correction_translation: float
-    maximum_correction_rotation_degrees: float
+    maximum_correction_translation: float | None
+    maximum_correction_rotation_degrees: float | None
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -105,11 +105,10 @@ class RegistrationQualityConfig:
         ):
             if not np.isfinite(value) or not 0.0 <= value <= 1.0:
                 raise ValueError(f"{name} must be in [0, 1]")
-        limits = (
-            self.maximum_rmse,
+        limits = (self.maximum_rmse,) + tuple(value for value in (
             self.maximum_correction_translation,
             self.maximum_correction_rotation_degrees,
-        )
+        ) if value is not None)
         if not np.all(np.isfinite(limits)) or any(
             value <= 0.0 for value in limits
         ):
@@ -150,9 +149,11 @@ def evaluate_registration(
         reasons.append("low_source_coverage")
     if not np.isfinite(result.rmse) or result.rmse > config.maximum_rmse:
         reasons.append("high_rmse")
-    if translation > config.maximum_correction_translation:
+    if (config.maximum_correction_translation is not None
+            and translation > config.maximum_correction_translation):
         reasons.append("large_translation_correction")
-    if rotation > config.maximum_correction_rotation_degrees:
+    if (config.maximum_correction_rotation_degrees is not None
+            and rotation > config.maximum_correction_rotation_degrees):
         reasons.append("large_rotation_correction")
     return RegistrationDecision(
         accepted=not reasons,

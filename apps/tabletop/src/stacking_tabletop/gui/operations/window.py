@@ -48,6 +48,7 @@ class StackingOperationsWindow(QMainWindow):
         self._video_exporting = False
         self._artifact_path = None
         self._planning_dialog = None
+        self._field_dialog = None
         self.repository = Path(repository)
         planning = load_planning_profile(
             self.repository / "apps/tabletop/config/planning.yml"
@@ -74,6 +75,11 @@ class StackingOperationsWindow(QMainWindow):
         view = getattr(self, "execution_view", None)
         return view is not None and view.running
 
+    @property
+    def field_running(self):
+        dialog = getattr(self, '_field_dialog', None)
+        return dialog is not None and dialog.running
+
     def _build_ui(self) -> None:
         inventory = load_inventory_profile(
             self.repository / "apps/tabletop/config/inventory.yml"
@@ -94,6 +100,7 @@ class StackingOperationsWindow(QMainWindow):
             visualization.layer_visibility,
         )
         self.execution_view = ExecutionView(self.repository)
+        self.execution_view.can_start = lambda: not self.field_running
         self.execution_view.state_changed.connect(self._refresh_scene)
         self.tabs.addTab(self.plan_view, "Plan")
         self.tabs.addTab(self.search_inspector, "Search Inspector")
@@ -120,6 +127,10 @@ class StackingOperationsWindow(QMainWindow):
         file_menu.addAction(new_action)
         planning_toolbar = self.addToolBar("Planning")
         planning_toolbar.addAction(new_action)
+        field_action = QAction('Field scan / identify…', self)
+        field_action.triggered.connect(self._field_scan)
+        file_menu.addAction(field_action)
+        planning_toolbar.addAction(field_action)
         open_action = QAction("Open stacking run…", self)
         open_action.setShortcut("Ctrl+O")
         open_action.triggered.connect(self._choose_artifact)
@@ -192,8 +203,36 @@ class StackingOperationsWindow(QMainWindow):
             return
         self.statusBar().showMessage(f"Summary exported: {path}")
 
+    def _field_scan(self):
+        if self._field_dialog is None:
+            from .field_scan import FieldScanDialog
+            self._field_dialog = FieldScanDialog(self.repository, self)
+            self._field_dialog.can_start = lambda: not self.execution_running and not self._video_exporting and not (
+                self._planning_dialog is not None and self._planning_dialog.running)
+            self._field_dialog.poses_available.connect(self._plan_field_poses)
+            self._field_dialog.running_changed.connect(self.execution_view._controls)
+        self._field_dialog.show()
+        self._field_dialog.raise_()
+
+    def _plan_field_poses(self, path):
+        if self.execution_running or self.field_running or self._video_exporting or (
+                self._planning_dialog is not None and self._planning_dialog.running):
+            self.statusBar().showMessage('Finish the active workflow before creating a plan from field poses.')
+            return
+        import json
+        try:
+            report = json.loads((Path(path).parent / 'pose_identification/stone_poses.json').read_text())
+            if not Path(path).is_file() or not report['poses']:
+                raise ValueError('field pickup pose output is missing or empty')
+        except (OSError, ValueError, KeyError) as error:
+            self.statusBar().showMessage(f'Cannot load field poses: {error}')
+            return
+        self._new_planning()
+        self._planning_dialog.pick_path.setText(str(path))
+        self._planning_dialog.object_ids.setText(' '.join(str(item['stone_id']) for item in report['poses']))
+
     def _new_planning(self):
-        if self.execution_running or self._video_exporting:
+        if self.execution_running or self.field_running or self._video_exporting:
             return
         if self._planning_dialog is not None and self._planning_dialog.running:
             self._planning_dialog.show()
@@ -204,12 +243,12 @@ class StackingOperationsWindow(QMainWindow):
             self._planning_dialog.deleteLater()
         from .planning_run import PlanningRunDialog
         self._planning_dialog = PlanningRunDialog(self.repository, parent=self)
-        self._planning_dialog.can_start = lambda: not self.execution_running and not self._video_exporting
+        self._planning_dialog.can_start = lambda: not self.execution_running and not self.field_running and not self._video_exporting
         self._planning_dialog.run_available.connect(self.open_artifact)
         self._planning_dialog.show()
 
     def _resume_planning(self):
-        if self.execution_running or self._video_exporting:
+        if self.execution_running or self.field_running or self._video_exporting:
             return
         if self._planning_dialog is not None and self._planning_dialog.running:
             self._planning_dialog.show()
@@ -484,6 +523,11 @@ class StackingOperationsWindow(QMainWindow):
             self.statusBar().showMessage("Trajectory video export cancelled")
 
     def closeEvent(self, event) -> None:
+        if self.field_running:
+            self._field_dialog.reject()
+            event.ignore()
+            self.statusBar().showMessage('Stopping field capture; close again after its camera driver exits.')
+            return
         if self.execution_running:
             self.execution_view.abort()
             event.ignore()

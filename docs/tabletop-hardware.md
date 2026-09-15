@@ -146,9 +146,13 @@ Native acquire/release events and attachment modes now survive planning and
 journal serialization. Acquisition belongs to the last `pick_approach` sample;
 release belongs to the last `place_approach` sample. Older files without these
 semantics remain viewable but must be regenerated for execution. Regrasp plans
-are not supported. Recorded `grasp_steps` splits each descent into rigid travel
-and the legacy compliant contact portion; arm references are retimed by the
-adapter rather than following the viewer's playback speed.
+are not supported. Recorded `grasp_steps` splits `pick_approach` into rigid travel
+and the final compliant contact portion. `transfer` already reaches the
+placement approach pose, so all of `place_approach` uses contact compliance;
+that segment may contain exactly `grasp_steps` samples. Pickup requires more
+than `grasp_steps` samples, while placement requires at least that many.
+After release, rigid tracking is restored for retreat. Arm references are
+retimed by the adapter rather than following the viewer's playback speed.
 
 At the close/release gates, joint corrections use 0.5-degree increments, limited
 to ±5 degrees per joint, with a Reset control. Corrections taper to zero over the

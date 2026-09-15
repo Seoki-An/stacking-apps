@@ -20,6 +20,7 @@ class ExecutionView(QWidget):
         super().__init__(parent)
         self.repository = repository
         self.worker_factory = worker_factory
+        self.can_start = lambda: True
         self.worker = self.saved = self.gate = self.scene = None
         self.path = None
         self._paused = False
@@ -124,7 +125,7 @@ class ExecutionView(QWidget):
         ready = self.saved is not None
         active = self.running and not self._aborting
         checkpoint = StackRunStore.load_execution_checkpoint(self.path) if ready else None
-        self.start_button.setEnabled(ready and not self.running and bool(checkpoint.pending_steps)
+        self.start_button.setEnabled(ready and not self.running and self.can_start() and bool(checkpoint.pending_steps)
                                      and not checkpoint.requires_reconciliation)
         self.reconcile_button.setEnabled(ready and not self.running and checkpoint.requires_reconciliation)
         self.continue_button.setEnabled(active and self.gate is not None and not self._paused and not self._scan_pending)
@@ -135,7 +136,7 @@ class ExecutionView(QWidget):
         self.abort_button.setEnabled(self.running)
 
     def start(self):
-        if not self.start_button.isEnabled() or self.running:
+        if not self.start_button.isEnabled() or self.running or not self.can_start():
             return
         try:
             self.saved.verify_assets()

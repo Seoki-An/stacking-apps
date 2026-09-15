@@ -164,6 +164,10 @@ def load_recorded_femto_scan(directory: str | Path) -> RecordedFemtoScan:
     metadata = json.loads(metadata_path.read_text())
     frame_id = str(metadata.get("output_frame", "")).strip()
     serial = str(metadata.get("camera_serial", "")).strip()
+    if not serial and metadata.get("fusion_method") == "dual_femto_bounded_multiscale_gicp":
+        serials = metadata.get("camera_serials", [])
+        if len(serials) == 2 and all(isinstance(value, str) and value.strip() for value in serials) and serials[0] != serials[1]:
+            serial = "+".join(serials)
     if not frame_id or not serial:
         raise ValueError("field scan frame and camera serial are required")
     if not bool(metadata.get("fused_depth_corrected", False)):

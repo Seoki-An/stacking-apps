@@ -37,6 +37,8 @@ operations = [
 
 [project.scripts]
 stacking-tabletop-capture-femto = "stacking_tabletop.acquisition.cli:main"
+stacking-tabletop-scan-field = "stacking_tabletop.acquisition.field_workflow:main"
+stacking-tabletop-identify-field = "stacking_tabletop.perception.field_cli:main"
 stacking-tabletop-merge-captures = "stacking_tabletop.perception.merge_captures_cli:main"
 stacking-tabletop-prepare-capture = "stacking_tabletop.perception.prepare_capture_cli:main"
 stacking-tabletop-reconstruct = "stacking_tabletop.perception.object_reconstruct_cli:main"

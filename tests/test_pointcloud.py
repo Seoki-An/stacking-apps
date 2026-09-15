@@ -95,6 +95,27 @@ def test_captured_cloud_requires_frame_sensor_and_timestamp() -> None:
         CapturedPointCloud(cloud, "camera", 0, "SERIAL")
 
 
+@pytest.mark.parametrize(
+    'target_coverage,source_coverage,rmse,reasons',
+    [(.8, .7, .002, ()),
+     (.2, .7, .002, ('low_target_coverage',)),
+     (.8, .1, .002, ('low_source_coverage',)),
+     (.8, .7, .02, ('high_rmse',))],
+)
+def test_unbounded_pose_search_retains_fit_quality_checks(
+    target_coverage, source_coverage, rmse, reasons,
+):
+    transform = np.diag([-1., -1., 1., 1.])
+    transform[:3, 3] = [.3, -.6, .1]
+    result = RegistrationResult(transform, target_coverage, source_coverage, rmse, 100, ())
+    quality = RegistrationQualityConfig(.35, .25, .0075, None, None)
+    decision = evaluate_registration(result, np.eye(4), quality)
+    assert decision.reasons == reasons
+    assert decision.accepted == (not reasons)
+    assert decision.correction_rotation_degrees == 180.
+    assert decision.correction_translation > .6
+
+
 def test_multi_view_merge_counts_distinct_views_not_raw_samples() -> None:
     merger = MultiViewVoxelMerge(VoxelMergeConfig(0.01, 2))
     progress = []

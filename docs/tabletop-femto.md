@@ -9,7 +9,144 @@ and snapshotted, not copied into repository defaults.
 The capture CLI supplies fixed-field capture and already-settled in-hand views
 without commanding the robot. The Operations Console also composes acquisition
 with automatic wrist/pivot motion at the saved execution's held-object review
-gate. Live registration and online replanning remain later work.
+gate. Fixed-field stone identification is available through the combined CLI
+and console workflow below. Live in-hand registration and online replanning
+remain later work.
+
+## Field capture and identification in the Operations Console
+
+Install the entry points and perception/GUI dependencies, then source ROS in
+the terminal used to start the console:
+
+```bash
+python -m pip install -e 'apps/tabletop[acquisition,perception,operations]'
+source /opt/ros/jazzy/setup.bash
+source ~/ros2_ws/install/setup.bash
+stacking-tabletop-operations .
+```
+
+Choose **File → Field scan / identify…**, or the same action in the Planning
+toolbar. No saved `.stack` file is needed.
+
+1. Select **Capture and identify** and **Primary**, **Secondary**, or **Both
+   FEMTO cameras**. Choose a new output directory and verify the pickup table
+   height. Measured `model_<id>.pcd` files come from the inventory profile's
+   model directory by default; a different PCD directory can be selected.
+2. Stop external camera drivers first. The workflow starts and stops its own
+   driver for each camera, sequentially for two cameras. For a single already
+   running driver, select **Use an already running camera driver** instead.
+   The selected serial and calibrations must still match.
+3. Click **Start**. Each capture uses the migrated seven-frame synchronized
+   burst and existing depth correction/filtering. In two-camera mode, bounded
+   GICP registers secondary to primary; registration failures stop the workflow.
+4. Assign a unique stone ID to each cluster, or mark it Skip, in the ordering
+   window. **Assign stone IDs automatically** uses the orientation-bank matcher
+   instead. Optional manual alignment opens after assignment; its seeds still
+   pass through ICP and the configured quality gates.
+5. Click **New plan using these poses** after success. The new planning dialog
+   has the pickup file and identified IDs filled in. Planning starts only when
+   you click **Start planning** there.
+
+Ordering and alignment windows run in the identification subprocess; the
+console stays responsive. **Stop** interrupts the workflow and waits for its
+owned camera launch to exit. Failed/cancelled data is retained. Active hardware
+execution and field capture cannot be started together from the console.
+This fixed-field workflow sends no robot or gripper commands.
+
+To retry without recapturing, select **Identify existing capture** and choose a
+completed camera capture or `merged` directory. The workflow root and its
+`pose_identification` results folder are also accepted: the GUI resolves them
+to the capture containing `field_scan.json` before starting. Choose a new output
+directory. Previous captures and identification results are preserved.
+
+If identification rejects an assigned stone, the console reports its ID,
+cluster, rejection reasons, and measured quality values against their limits.
+The saved `pose_identification/stone_poses.json` also retains rejected candidate
+transforms and metrics for diagnosis. Field identification checks coverage and
+fitting error; it imposes no translation or rotation correction limit relative
+to the coarse initial pose. Older captures rejected only for
+`large_rotation_correction` or `large_translation_correction` can be retried
+without recapturing. For poor coverage or fitting error, verify the assigned ID,
+then retry **Identify existing capture** with
+**Manually align assigned models before ICP** enabled. Adjust the model in the
+alignment window and press **C** to confirm the seeds. Quality checks still
+apply, and no pickup file is exported while an assigned stone is rejected.
+
+## Combined field CLI
+
+From the repository root, with the same environment sourced:
+
+```bash
+stacking-tabletop-scan-field --visualize
+stacking-tabletop-scan-field --both-cameras --visualize
+```
+
+Before reinstalling entry points, use the equivalent module command:
+
+```bash
+python -m stacking_tabletop.acquisition.field_workflow --both-cameras --visualize
+```
+
+Useful flags include `--output-dir PATH`, `--camera secondary`,
+`--use-running-camera` (single camera), `--stone-directory PATH`,
+`--pick-table-height 0.10`, `--automatic-ordering`, and
+`--manual-init-stones 3 9`. The default per-camera burst is seven exposures;
+the old wrapper's capture-count and relaxed-ICP overrides are not used.
+Segmentation, registration, and fusion settings come from
+`apps/tabletop/config/perception.yml` (`--perception-config`). Camera identities
+and calibration paths come from `apps/tabletop/config/femto.yml` (`--femto-config`).
+
+The output root contains `field_workflow.json`, per-camera driver logs and
+`primary/` or `secondary/` captures. Two-camera runs also contain `merged/`.
+The selected camera directory, or `merged/`, receives `pose_identification/`
+with cropped clouds, clusters, aligned models and `stone_poses.json`, plus
+`pose_data.pkl` alongside it. The terminal and workflow manifest report the
+exact pickup-file path, which the planning GUI accepts directly.
+
+For an existing corrected capture, with a fresh result directory:
+
+```bash
+stacking-tabletop-identify-field .data/field_pcd/RUN/primary \
+  --identification-output .data/field_pose_retry --visualize
+```
+
+Identification rotates `base_link` into planning-world axes, fits and aligns the
+pickup table height, segments separated stones, and registers known models.
+Raw captures are unchanged and corrected depth is not corrected again.
+Stone-pose ICP fits the observed cluster to the complete model, then inverts
+the result to obtain the model pose in planning world, matching the direction
+used by legacy `stacking-planner`. Hidden model surfaces therefore do not act
+as source points seeking matches in the partial scan. The table guides initial
+height and candidate scoring; the solved pose is not shifted onto the table
+after ICP. Earlier tabletop runs applied that shift, which could visibly move
+a fitted model away from the observed surface. Re-identify an existing capture
+to update those results. Coverage and RMSE gates measure fit quality but do not
+prove the correct orientation of a symmetric or partly occluded stone; inspect
+the final overlay and use manual initialization when needed.
+
+The September 11 field-capture comparison found that the former tabletop
+registration reproduced legacy `stacking-tabletop` results, while legacy
+`stacking-planner/scripts/nuc/poseid_field_stone.py` uses observation-to-model
+ICP (`POSEID_MODE = 0`) and does not snap its result onto the table. The migrated
+field matcher now uses that registration direction and preserves the solved
+transform. Its tabletop scales and support-based candidate scoring remain
+platform-specific; it is not an exact copy of excavator candidate selection.
+On capture `field_20260911_201936_828bc0b5`, median observed-point distance to
+the model decreased for all six assigned stones. Stone 10 improved from
+4.87 to 1.93 mm, stone 4 from 3.15 to 1.04 mm, and stone 13 from 3.82 to
+1.52 mm. Reprocessed poses and `icp_comparison.png`/`icp_comparison.json` are
+under that capture's `identification_observed_to_model/` directory. These
+distances measure cloud fit, not ground-truth pose error. Stone 7 retains a
+support-versus-fit ambiguity: its highest-fitness alternative puts the model's
+first-percentile bottom about 14 mm below the reference plane. Review the
+assigned model, table reference, and overlay before treating that alternative
+as a correct pose.
+
+If an assigned stone fails the quality gates, diagnostics are saved but no new
+`pose_data.pkl` is published. Skipped/unassigned clusters are not exported.
+The export retains the legacy `{stone_id: (position_xyz, quaternion_xyzw)}`
+format in planning-world coordinates. Touching/stacked stones are not jointly
+identified by this workflow.
 
 ## Start the camera and capture
 

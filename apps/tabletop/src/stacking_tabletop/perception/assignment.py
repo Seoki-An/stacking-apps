@@ -55,6 +55,8 @@ class TabletopFieldMatcher:
         observation: PointCloudData,
         table_plane: np.ndarray,
         rotations: tuple[np.ndarray, ...] = None,
+        *,
+        initial_transform: np.ndarray | None = None,
     ) -> CandidateRegistration:
         model = self.catalog.load(object_id)
         plane = np.asarray(table_plane, dtype=np.float64)
@@ -64,42 +66,50 @@ class TabletopFieldMatcher:
         if not rotations:
             raise ValueError("registration orientation bank must not be empty")
         best = None
-        for index, rotation in enumerate(rotations):
-            initial = initial_table_transform(
+        for index, rotation in enumerate(rotations if initial_transform is None else (np.eye(3),)):
+            initial = initial_transform if initial_transform is not None else initial_table_transform(
                 model.points,
                 observation.points,
                 rotation,
                 plane,
             )
-            registration = self.backend.register(model, observation, initial)
-            snapped, bottom, below = _snap_and_evaluate(
-                self.backend,
-                model,
-                observation,
-                registration,
-                plane,
+            # A field scan observes only part of the complete model. Match
+            # observed points to that model, as in legacy stacking-planner;
+            # the opposite direction attracts hidden model surfaces to the scan.
+            observed_to_model = self.backend.register(
+                observation, model, np.linalg.inv(initial),
+            )
+            registration = self.backend.evaluate(
+                model, observation, np.linalg.inv(observed_to_model.transform),
+                scales=observed_to_model.scales,
+                correspondences=observed_to_model.correspondences,
+            )
+            bottom, below = _support_metrics(
+                model.points, registration.transform, plane,
                 self.score_profile.below_table_tolerance,
             )
-            decision = evaluate_registration(snapped, initial, self.quality)
+            decision = evaluate_registration(registration, initial, self.quality)
             score = _score(
                 model,
                 observation,
-                snapped,
+                registration,
                 bottom,
                 below,
                 self.backend.config.evaluation_distance,
                 self.score_profile,
             )
             candidate = CandidateRegistration(
-                registration=snapped,
+                registration=registration,
                 decision=decision,
-                initial_rotation_index=index,
+                initial_rotation_index=index if initial_transform is None else -1,
                 initial_transform=initial,
                 score=score,
                 bottom_height=bottom,
                 below_table_fraction=below,
             )
-            if best is None or candidate.score > best.score:
+            # A high scoring but rejected hypothesis must not hide a usable
+            # orientation that passed the same quality gates.
+            if best is None or (candidate.decision.accepted, candidate.score) > (best.decision.accepted, best.score):
                 best = candidate
         return best
 
@@ -162,32 +172,18 @@ def initial_table_transform(
     return transform
 
 
-def _snap_and_evaluate(
-    backend: Open3dRegistrationBackend,
-    model: PointCloudData,
-    observation: PointCloudData,
-    registration: RegistrationResult,
+def _support_metrics(
+    model_points: np.ndarray,
+    transform: np.ndarray,
     plane: np.ndarray,
     below_tolerance: float,
-) -> tuple[RegistrationResult, float, float]:
-    transform = registration.transform.copy()
-    aligned = model.points @ transform[:3, :3].T + transform[:3, 3]
-    normal = plane[:3]
-    normal_squared = float(normal @ normal)
-    bottom = float(np.quantile(aligned @ normal + plane[3], 0.01))
-    transform[:3, 3] -= bottom * normal / normal_squared
-    aligned = model.points @ transform[:3, :3].T + transform[:3, 3]
-    heights = aligned @ normal + plane[3]
+) -> tuple[float, float]:
+    """Score table consistency without moving the solved registration pose."""
+    aligned = model_points @ transform[:3, :3].T + transform[:3, 3]
+    heights = (aligned @ plane[:3] + plane[3]) / np.linalg.norm(plane[:3])
+    bottom = float(np.quantile(heights, 0.01))
     below = float(np.mean(heights < -below_tolerance))
-    evaluated = backend.evaluate(
-        model,
-        observation,
-        transform,
-        scales=registration.scales,
-        correspondences=registration.correspondences,
-    )
-    snapped_bottom = float(np.quantile(heights, 0.01))
-    return evaluated, snapped_bottom, below
+    return bottom, below
 
 
 def _score(

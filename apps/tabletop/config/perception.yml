@@ -13,8 +13,6 @@ registration:
       minimum_target_coverage: 0.35
       minimum_source_coverage: 0.25
       maximum_rmse: 0.0075
-      maximum_correction_translation: 0.05
-      maximum_correction_rotation_degrees: 20.0
 
   in_hand:
     voxel_sizes: [0.006, 0.003, 0.002]

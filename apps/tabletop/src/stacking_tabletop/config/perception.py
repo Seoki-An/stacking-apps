@@ -226,7 +226,8 @@ def load_perception_profile(path: str | Path) -> TabletopPerceptionProfile:
     cameras = _mapping(values, "cameras")
     return TabletopPerceptionProfile(
         field_registration=_registration(field),
-        field_quality=_quality(_mapping(field, "quality")),
+        # Field pose seeds are coarse search hypotheses, not calibrated poses.
+        field_quality=_quality(_mapping(field, "quality"), bound_correction=False),
         in_hand_registration=_registration(in_hand),
         in_hand_quality=_quality(_mapping(in_hand, "quality")),
         segmentation=_segmentation(_mapping(values, "segmentation")),
@@ -332,7 +333,9 @@ def load_perception_profile(path: str | Path) -> TabletopPerceptionProfile:
     )
 
 
-def _quality(values: Mapping[str, object]) -> RegistrationQualityConfig:
+def _quality(
+    values: Mapping[str, object], *, bound_correction: bool = True,
+) -> RegistrationQualityConfig:
     return RegistrationQualityConfig(
         minimum_target_coverage=float(
             _required(values, "minimum_target_coverage")
@@ -343,10 +346,10 @@ def _quality(values: Mapping[str, object]) -> RegistrationQualityConfig:
         maximum_rmse=float(_required(values, "maximum_rmse")),
         maximum_correction_translation=float(
             _required(values, "maximum_correction_translation")
-        ),
+        ) if bound_correction else None,
         maximum_correction_rotation_degrees=float(
             _required(values, "maximum_correction_rotation_degrees")
-        ),
+        ) if bound_correction else None,
     )
 
 

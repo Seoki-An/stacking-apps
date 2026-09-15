@@ -56,9 +56,12 @@ def saved(tmp_path):
               planning.obstacle_friction, tuple(box.size)) for box in planning.obstacles),
         {role: hashlib.sha256(path.read_bytes()).hexdigest() for role, path in assets.items()})
     points = [np.array([x, 0, 0, 0, 0, 0.]) for x in (0, .015, .025, .04, .05, 0)]
-    segments = tuple(MotionPlanSegment(stage, np.linspace(points[i], points[i + 1], 4),
-                     openings=np.full(4, .45), mode=mode) for i, (stage, mode) in enumerate(zip(STAGES, MODES)))
-    events = tuple(GraspEvent(event, index, 3, _pose(Kinematics().pose(points[index + 1])), .45)
+    # Match native segmentation: placement is only the final grasp_steps,
+    # whereas pickup also includes a travel prefix.
+    counts = (4, 4, 4, 2, 4)
+    segments = tuple(MotionPlanSegment(stage, np.linspace(points[i], points[i + 1], counts[i]),
+                     openings=np.full(counts[i], .45), mode=mode) for i, (stage, mode) in enumerate(zip(STAGES, MODES)))
+    events = tuple(GraspEvent(event, index, counts[index] - 1, _pose(Kinematics().pose(points[index + 1])), .45)
                    for event, index in (('acquire', 0), ('release', 3)))
     pick, place = events[0].frame_from_grasp, events[1].frame_from_grasp
     action = Action(selected.object_index, place, pick, object_id=selected.object_id)
@@ -112,6 +115,54 @@ def test_signed_model_opening_is_not_a_common_hardware_limit(saved):
     validate_command(command, saved.planning, saved.grasp_steps)
     with pytest.raises(ValueError, match='outside'):
         replace(result, grasp_events=(replace(result.grasp_events[0], sample_index=99),))
+
+
+@pytest.mark.parametrize('pickup_count,place_count,grasp_steps,error', [
+    (4, 2, 2, None),
+    (4, 3, 2, None),
+    (2, 2, 2, 'pickup approach'),
+    (4, 2, 3, 'placement approach'),
+])
+def test_approach_validation_distinguishes_travel_from_contact(saved, pickup_count, place_count, grasp_steps, error):
+    command = build_execution_command(saved.plans[0], saved.context)
+    segments = list(command.segments)
+    for index, count in ((0, pickup_count), (3, place_count)):
+        segment = segments[index]
+        segments[index] = replace(segment,
+            positions=np.linspace(segment.positions[0], segment.positions[-1], count),
+            openings=np.full(count, .45))
+    command = replace(command, segments=tuple(segments), grasp_events=tuple(
+        replace(event, sample_index=len(segments[event.segment_index].positions) - 1)
+        for event in command.grasp_events))
+    if error is None:
+        validate_command(command, saved.planning, grasp_steps)
+    else:
+        with pytest.raises(ValueError, match=error):
+            validate_command(command, saved.planning, grasp_steps)
+
+
+def test_native_length_placement_runs_fully_compliant_and_retreats_rigid(saved, monkeypatch):
+    transport, executor = executor_for(saved)
+    execute_path = executor.arm.execute_path
+    moves = []
+
+    def record_path(path, **kwargs):
+        use_wrench = next(call[2] for call in reversed(transport.calls) if call[0] == 'wrench')
+        moves.append((executor._segment, use_wrench, kwargs['attached'], np.array(path)))
+        return execute_path(path, **kwargs)
+
+    monkeypatch.setattr(executor.arm, 'execute_path', record_path)
+    results = execute_saved_run(saved, executor)
+    assert [result.status.value for result in results] == ['succeeded', 'succeeded']
+    assert [(index, contact, attached) for index, contact, attached, _ in moves] == [
+        (0, False, False), (0, True, False), (1, False, True),
+        (2, False, True), (3, True, True), (4, False, False),
+    ] * 2
+    segments = saved.plans[0].result.segments
+    np.testing.assert_array_equal(moves[0][3], segments[0].positions[:3])
+    np.testing.assert_array_equal(moves[1][3], segments[0].positions[2:])
+    np.testing.assert_array_equal(moves[4][3], segments[3].positions)
+    assert len(moves[4][3]) == saved.grasp_steps
 
 
 def test_saved_executor_gates_hold_before_lift_and_durable_success(saved):

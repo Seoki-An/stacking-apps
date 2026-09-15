@@ -169,5 +169,9 @@ def validate_command(command, planning, grasp_steps):
             raise ValueError("event opening is outside recorded gripper limits")
     if events[0].opening != events[1].opening:
         raise ValueError("direct execution requires one unchanged grasp")
-    if any(len(segments[index].positions) <= grasp_steps for index in (0, 3)):
-        raise ValueError("recorded descent is too short for its grasp_steps")
+    if len(segments[0].positions) <= grasp_steps:
+        raise ValueError("recorded pickup approach needs travel before its grasp_steps")
+    # Transfer already reaches pre-place. The placement segment can consist
+    # entirely of the final grasp_steps samples, without another travel prefix.
+    if len(segments[3].positions) < grasp_steps:
+        raise ValueError("recorded placement approach is too short for its grasp_steps")

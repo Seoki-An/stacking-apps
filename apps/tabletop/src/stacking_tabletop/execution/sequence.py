@@ -261,12 +261,17 @@ class TabletopMotionExecutor:
                 self._last_progress = self.runtime.clock()
                 self._emit("running", reference_index=reference_index, reference_count=count)
 
-        if index in (0, 3):
+        if index == 0:
             split = len(path) - self.saved.grasp_steps
             self._profile(False)
             self.arm.execute_path(path[:split + 1], attached=self._attached, progress=progress)
             self._profile(True)
             self.arm.execute_path(path[split:], attached=self._attached, progress=progress)
+        elif index == 3:
+            # Transfer ended at pre-place; this whole segment is the final
+            # contact approach, including when len(path) == grasp_steps.
+            self._profile(True)
+            self.arm.execute_path(path, attached=self._attached, progress=progress)
         else:
             self.arm.execute_path(path, attached=self._attached, progress=progress)
 
