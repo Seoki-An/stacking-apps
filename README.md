@@ -82,6 +82,15 @@ serial-checked calibration, synchronized raw depth bursts and exact-time TF.
 Output feeds the existing field fusion and reconstruction workflows. See the
 [FEMTO guide](docs/tabletop-femto.md) for driver startup and capture commands.
 
+For the proposed wrist-D435 field and scene identification milestone, see the
+[hand-eye capture and accuracy experiment](docs/tabletop-hand-eye-experiment.md).
+Its [calibration consistency audit](docs/tabletop-hand-eye-calibration.md) now
+pins compatible PoseID inputs and creates portable offline snapshots.
+The [wrist capture guide](docs/tabletop-hand-eye-capture.md) covers live RGB-D
+preflight, timestamped stationary views and offline raw-record verification.
+The [offline replay guide](docs/tabletop-hand-eye-replay.md) adds portable session
+assembly, native-depth PCD exports and a synthetic demo with interactive visuals.
+
 ```bash
 python -m stacking_tabletop.acquisition.cli --camera primary --output .data/field-primary
 ```

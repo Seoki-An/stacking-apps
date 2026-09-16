@@ -15,6 +15,8 @@ dependencies = [
 [project.optional-dependencies]
 execution = ["scipy>=1.13"]
 acquisition = ["scipy>=1.13"]
+hand-eye = ["scipy>=1.13", "pyrealsense2>=2.55"]
+hand-eye-replay = ["matplotlib>=3.8", "plotly>=5", "open3d>=0.19"]
 benchmark = ["open3d>=0.19"]
 perception = [
   "coacd>=1.0.7",
@@ -36,6 +38,9 @@ operations = [
 ]
 
 [project.scripts]
+stacking-tabletop-audit-hand-eye = "stacking_tabletop.acquisition.hand_eye_cli:main"
+stacking-tabletop-capture-hand-eye = "stacking_tabletop.acquisition.hand_eye_capture_cli:main"
+stacking-tabletop-replay-hand-eye = "stacking_tabletop.acquisition.hand_eye_replay_cli:main"
 stacking-tabletop-capture-femto = "stacking_tabletop.acquisition.cli:main"
 stacking-tabletop-scan-field = "stacking_tabletop.acquisition.field_workflow:main"
 stacking-tabletop-identify-field = "stacking_tabletop.perception.field_cli:main"

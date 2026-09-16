@@ -1,0 +1,18 @@
+# Explicit offline baseline, selected 2026-09-15. Hash changes require re-audit.
+# The PoseID installation profile binds legacy artifacts to a configured serial;
+# it is not evidence that the connected camera or physical accuracy was checked.
+schema_version: 1
+serial: '135522074611'
+color_frame: d435_color_optical_frame
+base_frame: base
+tool_frame: tool0
+robot_pose_source: tf
+hand_eye:
+  path: ~/ros2_ws/src/poseid/calibration_output/handeye_result.npz
+  sha256: 48298720efb9dea39d16db745123b26367b5875d3c9d645653feeddc81fc9896
+intrinsics:
+  path: ~/ros2_ws/src/poseid/calibration_output/d435_intrinsic_result.npz
+  sha256: febe2071b91c5c3885cdb8250ee8e1f15d06e09d08a78088a0ed99eb1e0cdd18
+installation:
+  path: ~/ros2_ws/src/poseid/config/handeye_params.yaml
+  sha256: 8c7a1671b16bccf7e12afb2213ce4ecd0a9386477176c9b80960700e1670402f
