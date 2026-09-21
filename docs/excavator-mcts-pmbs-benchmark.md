@@ -1,5 +1,10 @@
 # Excavator MCTS: PMBS scheduler benchmark
 
+For the later investigation of root-generation cost, see the
+[depth-one bottleneck profile](excavator-mcts-bottlenecks.md).
+The measurements here predate the production containment cache and voxel
+cropping; they isolate the earlier PMBS scheduler change.
+
 Measured on 2026-09-20 with native pose generation and physics, using the
 excavator search-only configuration. Results compare the new PMBS-style
 scheduler with the **already parallel** scheduler at

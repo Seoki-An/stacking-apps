@@ -1,0 +1,6506 @@
+{
+  "metadata": {
+    "measured_at_utc": "2026-09-21T02:26:02.675680+00:00",
+    "python": "3.12.3",
+    "cpu_model": "AMD Ryzen 9 9900X 12-Core Processor",
+    "object_count": 49,
+    "seed": 0,
+    "effective_depth": 1,
+    "iterations": 200,
+    "native_workers": 12,
+    "source_sha256": {
+      "tests/profile_excavator_mcts.py": "bda2378dccd32faa09ca37edfb3f3e5a20d7692af7e8988ddeeba59c631506c1",
+      "tests/benchmark_excavator_mcts.py": "5e3db5baa65a91df4d865eea169a0e32315c92215173bbb50c3fc6cefdc4ac15",
+      "packages/stacking-common/src/stacking_common/actions/cem.py": "01c4d933714fa1f947b9351926af9f6357a136324218b3e3d18916f85e3adbf6",
+      "packages/stacking-common/src/stacking_common/actions/scored.py": "4be3625d09acf2715238858e75b73fcc75a2663c5c34018a73c0716a40e7afa0",
+      "packages/stacking-common/src/stacking_common/environment/overlap.py": "926c9cf29b5ba8e378e76f99c8c7fe3e74c7341a88597a5b6ee8a460549687c2",
+      "packages/stacking-common/src/stacking_common/domain/geometry.py": "e414c16054367d27f8806f9124cdb32dc583054e9e538aa6e46fb429a482ae28",
+      "packages/stacking-common/src/stacking_common/search/policies.py": "a8b0947351191f53b0450728e4089d2447f6955c430fa92dc6411f82fa73c5ba",
+      "apps/excavator/config/mcts.yml": "beb2bd98f823bfe1614f6763c81e77f75ce95001d104a58f2eec6590146be0b9",
+      "apps/excavator/config/environment.yml": "0a575dafa72ce9e13ec7bab58dea7f234580397481de66387a4441ef393282ab",
+      "apps/excavator/config/action_generation.yml": "78771c64b5e252cd77c985825904c0cd3af274557c93496187a7b92f0f7c8c5e"
+    }
+  },
+  "runs": {
+    "timers": {
+      "search": {
+        "step": 1,
+        "elapsed_seconds": 61.16724364901893,
+        "completed_iterations": 200,
+        "expansion_calls": 1,
+        "generated_candidates": 12,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 12,
+        "failed_evaluations": 3,
+        "effective_max_depth": 1,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 0,
+          "short_jobs": 0,
+          "short_parallel_batches": 0,
+          "short_parallel_jobs": 0,
+          "long_batches": 1,
+          "long_jobs": 12,
+          "short_max_batch_size": 0,
+          "max_evaluation_batch_size": 12,
+          "workers": 12,
+          "pose_generation_seconds": 59.25697716395371,
+          "pose_generation_batches": 1,
+          "pose_generation_node_requests": 1,
+          "pose_generation_max_node_batch": 1,
+          "descendant_frontier_batches": 0,
+          "descendant_frontier_iterations": 0,
+          "short_batch_wall_seconds": 0.0,
+          "long_batch_wall_seconds": 1.0697556260274723,
+          "short_settling_job_seconds": 0.0,
+          "short_structural_job_seconds": 0.0,
+          "long_settling_job_seconds": 0.48156829294748604,
+          "long_structural_job_seconds": 3.6189766908064485
+        },
+        "revalidation": {
+          "attempted": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 12,
+          "accepted": 9,
+          "rejected": 3,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 0,
+          "attempted": 0,
+          "generated": 0,
+          "evaluated": 0
+        },
+        "root_retry": {
+          "rounds": 0,
+          "retired": 0,
+          "generated": 0,
+          "accepted": 0
+        },
+        "descendant_validation": {
+          "attempts": 0,
+          "failures": 0
+        },
+        "final_selection_mode": "max_descendant",
+        "tree": {
+          "nodes": 13,
+          "evaluated": 13,
+          "pending": 0,
+          "failed": 3,
+          "frontier_leaves": 12,
+          "max_depth": 1,
+          "rejection_reasons": {
+            "target_motion_limit": 3
+          },
+          "generation_rejections": {}
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 95,
+              "rejected": 1,
+              "duplicate_rejections": 0,
+              "retained": 95,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 96,
+              "rejected": 0,
+              "duplicate_rejections": 1,
+              "retained": 96,
+              "mutation_attempts": 67,
+              "fresh_attempts": 29,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 96,
+              "rejected": 0,
+              "duplicate_rejections": 2,
+              "retained": 96,
+              "mutation_attempts": 67,
+              "fresh_attempts": 29,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "posegen_gap": 1
+          },
+          "final_candidates": 12
+        }
+      },
+      "process_cpu_seconds": 1287.36928183,
+      "cprofile_enabled": false,
+      "timers": {
+        "PosegenFeasibilityFilter": {
+          "calls": 288,
+          "wall_seconds_sum": 0.0027024016017094254,
+          "thread_cpu_seconds_sum": 0.0027062599999999925,
+          "max_call_seconds": 6.407196633517742e-05,
+          "threads": 12
+        },
+        "TargetXYOverlapFilter": {
+          "calls": 287,
+          "wall_seconds_sum": 0.02070878993254155,
+          "thread_cpu_seconds_sum": 0.020727953999999993,
+          "max_call_seconds": 0.00014475604984909296,
+          "threads": 12
+        },
+        "bottom_height_kernel": {
+          "calls": 392,
+          "wall_seconds_sum": 0.05214654060546309,
+          "thread_cpu_seconds_sum": 0.052176494999991885,
+          "max_call_seconds": 0.0003052720567211509,
+          "threads": 1
+        },
+        "candidate_batch": {
+          "calls": 5,
+          "wall_seconds_sum": 0.27213641244452447,
+          "thread_cpu_seconds_sum": 0.0014361589999918323,
+          "max_call_seconds": 0.08022129407618195,
+          "threads": 1
+        },
+        "candidate_build": {
+          "calls": 288,
+          "wall_seconds_sum": 2.6295798510545865,
+          "thread_cpu_seconds_sum": 1.1515819649999999,
+          "max_call_seconds": 0.0349850959610194,
+          "threads": 12
+        },
+        "cem_deduplicate": {
+          "calls": 3,
+          "wall_seconds_sum": 0.004061379935592413,
+          "thread_cpu_seconds_sum": 0.004061186000002159,
+          "max_call_seconds": 0.0020013130269944668,
+          "threads": 1
+        },
+        "cem_mutation": {
+          "calls": 134,
+          "wall_seconds_sum": 0.0073030703933909535,
+          "thread_cpu_seconds_sum": 0.0073040590000381655,
+          "max_call_seconds": 0.00018686603289097548,
+          "threads": 1
+        },
+        "cem_rank": {
+          "calls": 6,
+          "wall_seconds_sum": 53.094095014967024,
+          "thread_cpu_seconds_sum": 51.306258895999996,
+          "max_call_seconds": 13.475376787013374,
+          "threads": 1
+        },
+        "native_pose_solve": {
+          "calls": 1152,
+          "wall_seconds_sum": 1.6442358993226662,
+          "thread_cpu_seconds_sum": 0.9298846950000003,
+          "max_call_seconds": 0.02223776502069086,
+          "threads": 12
+        },
+        "planar_sample": {
+          "calls": 107,
+          "wall_seconds_sum": 5.873929685796611,
+          "thread_cpu_seconds_sum": 5.871678172999999,
+          "max_call_seconds": 0.07478160597383976,
+          "threads": 1
+        },
+        "planar_score_map": {
+          "calls": 107,
+          "wall_seconds_sum": 4.512859281618148,
+          "thread_cpu_seconds_sum": 4.511075543000004,
+          "max_call_seconds": 0.0594735499471426,
+          "threads": 1
+        },
+        "pose_config": {
+          "calls": 1152,
+          "wall_seconds_sum": 0.038268927251920104,
+          "thread_cpu_seconds_sum": 0.03816426699999999,
+          "max_call_seconds": 0.0005943829892203212,
+          "threads": 12
+        },
+        "pose_initialization": {
+          "calls": 288,
+          "wall_seconds_sum": 0.7367229231167585,
+          "thread_cpu_seconds_sum": 0.07676962199999987,
+          "max_call_seconds": 0.018003647099249065,
+          "threads": 12
+        },
+        "pose_scene_build": {
+          "calls": 1152,
+          "wall_seconds_sum": 0.0075155398808419704,
+          "thread_cpu_seconds_sum": 0.0074813430000001645,
+          "max_call_seconds": 3.445497713983059e-05,
+          "threads": 12
+        },
+        "pose_solve_adapter": {
+          "calls": 288,
+          "wall_seconds_sum": 1.7919084177119657,
+          "thread_cpu_seconds_sum": 1.019653396,
+          "max_call_seconds": 0.03258938994258642,
+          "threads": 12
+        },
+        "prior_score": {
+          "calls": 7,
+          "wall_seconds_sum": 53.84006879804656,
+          "thread_cpu_seconds_sum": 52.02833541399998,
+          "max_call_seconds": 13.461820502998307,
+          "threads": 1
+        },
+        "root_cem": {
+          "calls": 1,
+          "wall_seconds_sum": 59.256962415063754,
+          "thread_cpu_seconds_sum": 57.196106599,
+          "max_call_seconds": 59.256962415063754,
+          "threads": 1
+        },
+        "score_xy_debug_map": {
+          "calls": 107,
+          "wall_seconds_sum": 4.401796407415532,
+          "thread_cpu_seconds_sum": 4.4002582809999815,
+          "max_call_seconds": 0.05783370300196111,
+          "threads": 1
+        }
+      },
+      "candidate_batches": [
+        {
+          "label": "candidate_batch",
+          "start": 571100.043637579,
+          "seconds": 0.07147764309775084,
+          "thread_cpu_seconds": 0.0008686059999991613,
+          "thread": 133981036741312,
+          "items": 96
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571113.647783745,
+          "seconds": 0.07820211409125477,
+          "thread_cpu_seconds": 0.00019959399999791572,
+          "thread": 133981036741312,
+          "items": 67
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571115.296366185,
+          "seconds": 0.021709219086915255,
+          "thread_cpu_seconds": 9.256300000259898e-05,
+          "thread": 133981036741312,
+          "items": 29
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571135.363302585,
+          "seconds": 0.08022129407618195,
+          "thread_cpu_seconds": 0.00016596899999399284,
+          "thread": 133981036741312,
+          "items": 67
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571137.035243428,
+          "seconds": 0.02052614209242165,
+          "thread_cpu_seconds": 0.00010942699999816341,
+          "thread": 133981036741312,
+          "items": 29
+        }
+      ],
+      "selected_object_id": 2,
+      "selected_pose": [
+        -0.06862979829177063,
+        1.3786170497444146,
+        0.37422054406690364,
+        0.9809525733571289,
+        0.12116922226145319,
+        -0.1364439859274112,
+        0.06658158232440593
+      ]
+    },
+    "blas1": {
+      "search": {
+        "step": 1,
+        "elapsed_seconds": 60.86999701394234,
+        "completed_iterations": 200,
+        "expansion_calls": 1,
+        "generated_candidates": 12,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 12,
+        "failed_evaluations": 3,
+        "effective_max_depth": 1,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 0,
+          "short_jobs": 0,
+          "short_parallel_batches": 0,
+          "short_parallel_jobs": 0,
+          "long_batches": 1,
+          "long_jobs": 12,
+          "short_max_batch_size": 0,
+          "max_evaluation_batch_size": 12,
+          "workers": 12,
+          "pose_generation_seconds": 59.515446503064595,
+          "pose_generation_batches": 1,
+          "pose_generation_node_requests": 1,
+          "pose_generation_max_node_batch": 1,
+          "descendant_frontier_batches": 0,
+          "descendant_frontier_iterations": 0,
+          "short_batch_wall_seconds": 0.0,
+          "long_batch_wall_seconds": 0.6007925539743155,
+          "short_settling_job_seconds": 0.0,
+          "short_structural_job_seconds": 0.0,
+          "long_settling_job_seconds": 0.2118555409833789,
+          "long_structural_job_seconds": 2.5127595691010356
+        },
+        "revalidation": {
+          "attempted": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 12,
+          "accepted": 9,
+          "rejected": 3,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 0,
+          "attempted": 0,
+          "generated": 0,
+          "evaluated": 0
+        },
+        "root_retry": {
+          "rounds": 0,
+          "retired": 0,
+          "generated": 0,
+          "accepted": 0
+        },
+        "descendant_validation": {
+          "attempts": 0,
+          "failures": 0
+        },
+        "final_selection_mode": "max_descendant",
+        "tree": {
+          "nodes": 13,
+          "evaluated": 13,
+          "pending": 0,
+          "failed": 3,
+          "frontier_leaves": 12,
+          "max_depth": 1,
+          "rejection_reasons": {
+            "target_motion_limit": 3
+          },
+          "generation_rejections": {}
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 95,
+              "rejected": 1,
+              "duplicate_rejections": 0,
+              "retained": 95,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 96,
+              "rejected": 0,
+              "duplicate_rejections": 1,
+              "retained": 96,
+              "mutation_attempts": 67,
+              "fresh_attempts": 29,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 96,
+              "rejected": 0,
+              "duplicate_rejections": 2,
+              "retained": 96,
+              "mutation_attempts": 67,
+              "fresh_attempts": 29,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "posegen_gap": 1
+          },
+          "final_candidates": 12
+        }
+      },
+      "process_cpu_seconds": 63.929371297,
+      "cprofile_enabled": false,
+      "timers": {
+        "PosegenFeasibilityFilter": {
+          "calls": 288,
+          "wall_seconds_sum": 0.0027722460217773914,
+          "thread_cpu_seconds_sum": 0.0027737380000000386,
+          "max_call_seconds": 0.00016134697943925858,
+          "threads": 12
+        },
+        "TargetXYOverlapFilter": {
+          "calls": 287,
+          "wall_seconds_sum": 0.020268191001378,
+          "thread_cpu_seconds_sum": 0.020301462999999936,
+          "max_call_seconds": 0.00014280201867222786,
+          "threads": 12
+        },
+        "bottom_height_kernel": {
+          "calls": 392,
+          "wall_seconds_sum": 0.05158434750046581,
+          "thread_cpu_seconds_sum": 0.05159393799999101,
+          "max_call_seconds": 0.0002305489033460617,
+          "threads": 1
+        },
+        "candidate_batch": {
+          "calls": 5,
+          "wall_seconds_sum": 0.21861591702327132,
+          "thread_cpu_seconds_sum": 0.001185182999994261,
+          "max_call_seconds": 0.07171417190693319,
+          "threads": 1
+        },
+        "candidate_build": {
+          "calls": 288,
+          "wall_seconds_sum": 2.2322994974674657,
+          "thread_cpu_seconds_sum": 1.1269721990000001,
+          "max_call_seconds": 0.02188127301633358,
+          "threads": 12
+        },
+        "cem_deduplicate": {
+          "calls": 3,
+          "wall_seconds_sum": 0.004019458079710603,
+          "thread_cpu_seconds_sum": 0.0040192170000032945,
+          "max_call_seconds": 0.0019927810644730926,
+          "threads": 1
+        },
+        "cem_mutation": {
+          "calls": 134,
+          "wall_seconds_sum": 0.004943442298099399,
+          "thread_cpu_seconds_sum": 0.004944516000016108,
+          "max_call_seconds": 0.00015403295401483774,
+          "threads": 1
+        },
+        "cem_rank": {
+          "calls": 6,
+          "wall_seconds_sum": 53.46234478009865,
+          "thread_cpu_seconds_sum": 53.442709704,
+          "max_call_seconds": 13.627465970930643,
+          "threads": 1
+        },
+        "native_pose_solve": {
+          "calls": 1152,
+          "wall_seconds_sum": 1.4578369692899287,
+          "thread_cpu_seconds_sum": 0.898786966,
+          "max_call_seconds": 0.013161516981199384,
+          "threads": 12
+        },
+        "object_contains": {
+          "calls": 786,
+          "wall_seconds_sum": 53.63205840042792,
+          "thread_cpu_seconds_sum": 53.526933497,
+          "max_call_seconds": 0.26773040799889714,
+          "threads": 13
+        },
+        "overlap_transform": {
+          "calls": 786,
+          "wall_seconds_sum": 2.7437286669155583,
+          "thread_cpu_seconds_sum": 2.7213086240000184,
+          "max_call_seconds": 0.026091199950315058,
+          "threads": 13
+        },
+        "planar_sample": {
+          "calls": 107,
+          "wall_seconds_sum": 5.820758883957751,
+          "thread_cpu_seconds_sum": 5.820387591000019,
+          "max_call_seconds": 0.07681721507105976,
+          "threads": 1
+        },
+        "planar_score_map": {
+          "calls": 107,
+          "wall_seconds_sum": 4.4605821025324985,
+          "thread_cpu_seconds_sum": 4.460257646000004,
+          "max_call_seconds": 0.06133099505677819,
+          "threads": 1
+        },
+        "pose_config": {
+          "calls": 1152,
+          "wall_seconds_sum": 0.0495213057147339,
+          "thread_cpu_seconds_sum": 0.04867455500000024,
+          "max_call_seconds": 0.011875069001689553,
+          "threads": 12
+        },
+        "pose_initialization": {
+          "calls": 288,
+          "wall_seconds_sum": 0.6170735567575321,
+          "thread_cpu_seconds_sum": 0.07597043499999989,
+          "max_call_seconds": 0.006499587907455862,
+          "threads": 12
+        },
+        "pose_scene_build": {
+          "calls": 1152,
+          "wall_seconds_sum": 0.007121838862076402,
+          "thread_cpu_seconds_sum": 0.007088009000000091,
+          "max_call_seconds": 4.0346989408135414e-05,
+          "threads": 12
+        },
+        "pose_solve_adapter": {
+          "calls": 288,
+          "wall_seconds_sum": 1.5590531310299411,
+          "thread_cpu_seconds_sum": 0.997999657,
+          "max_call_seconds": 0.018838504911400378,
+          "threads": 12
+        },
+        "prior_containment": {
+          "calls": 774,
+          "wall_seconds_sum": 54.14312608609907,
+          "thread_cpu_seconds_sum": 54.12214237799998,
+          "max_call_seconds": 0.07890430197585374,
+          "threads": 1
+        },
+        "prior_score": {
+          "calls": 7,
+          "wall_seconds_sum": 54.15160921495408,
+          "thread_cpu_seconds_sum": 54.13059128399999,
+          "max_call_seconds": 13.618313019978814,
+          "threads": 1
+        },
+        "root_cem": {
+          "calls": 1,
+          "wall_seconds_sum": 59.51543776597828,
+          "thread_cpu_seconds_sum": 59.277935420000006,
+          "max_call_seconds": 59.51543776597828,
+          "threads": 1
+        },
+        "score_xy_debug_map": {
+          "calls": 107,
+          "wall_seconds_sum": 4.350304946769029,
+          "thread_cpu_seconds_sum": 4.350068860000022,
+          "max_call_seconds": 0.059697096003219485,
+          "threads": 1
+        }
+      },
+      "candidate_batches": [
+        {
+          "label": "candidate_batch",
+          "start": 571238.440610361,
+          "seconds": 0.07171417190693319,
+          "thread_cpu_seconds": 0.000682668000000497,
+          "thread": 130385519477440,
+          "items": 96
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571252.089709028,
+          "seconds": 0.050274317036382854,
+          "thread_cpu_seconds": 0.00012961399999866785,
+          "thread": 130385519477440,
+          "items": 67
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571253.717196445,
+          "seconds": 0.020020522992126644,
+          "thread_cpu_seconds": 0.00010058799999868029,
+          "thread": 130385519477440,
+          "items": 29
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571274.161362401,
+          "seconds": 0.05642824003007263,
+          "thread_cpu_seconds": 0.00016679399999475208,
+          "thread": 130385519477440,
+          "items": 67
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571275.76877678,
+          "seconds": 0.020178665057756007,
+          "thread_cpu_seconds": 0.0001055190000016637,
+          "thread": 130385519477440,
+          "items": 29
+        }
+      ],
+      "selected_object_id": 2,
+      "selected_pose": [
+        -0.06862979829177063,
+        1.3786170497444146,
+        0.37422054406690364,
+        0.9809525733571289,
+        0.12116922226145319,
+        -0.1364439859274112,
+        0.06658158232440593
+      ],
+      "overlap_grid_points": 556150,
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": null,
+        "MKL_NUM_THREADS": null
+      },
+      "thread_pools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/inrol-excavator/workspace/stacking/.direnv/python-3.12.3/lib/python3.12/site-packages/numpy.libs/libscipy_openblas64_-ff84a88b.so",
+          "version": "0.3.31.dev",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/inrol-excavator/workspace/stacking/.direnv/python-3.12.3/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ]
+    },
+    "cache": {
+      "search": {
+        "step": 1,
+        "elapsed_seconds": 26.32396027003415,
+        "completed_iterations": 200,
+        "expansion_calls": 1,
+        "generated_candidates": 12,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 12,
+        "failed_evaluations": 3,
+        "effective_max_depth": 1,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 0,
+          "short_jobs": 0,
+          "short_parallel_batches": 0,
+          "short_parallel_jobs": 0,
+          "long_batches": 1,
+          "long_jobs": 12,
+          "short_max_batch_size": 0,
+          "max_evaluation_batch_size": 12,
+          "workers": 12,
+          "pose_generation_seconds": 25.702904273057356,
+          "pose_generation_batches": 1,
+          "pose_generation_node_requests": 1,
+          "pose_generation_max_node_batch": 1,
+          "descendant_frontier_batches": 0,
+          "descendant_frontier_iterations": 0,
+          "short_batch_wall_seconds": 0.0,
+          "long_batch_wall_seconds": 0.5936068220762536,
+          "short_settling_job_seconds": 0.0,
+          "short_structural_job_seconds": 0.0,
+          "long_settling_job_seconds": 0.16134475904982537,
+          "long_structural_job_seconds": 2.455575197120197
+        },
+        "revalidation": {
+          "attempted": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 12,
+          "accepted": 9,
+          "rejected": 3,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 0,
+          "attempted": 0,
+          "generated": 0,
+          "evaluated": 0
+        },
+        "root_retry": {
+          "rounds": 0,
+          "retired": 0,
+          "generated": 0,
+          "accepted": 0
+        },
+        "descendant_validation": {
+          "attempts": 0,
+          "failures": 0
+        },
+        "final_selection_mode": "max_descendant",
+        "tree": {
+          "nodes": 13,
+          "evaluated": 13,
+          "pending": 0,
+          "failed": 3,
+          "frontier_leaves": 12,
+          "max_depth": 1,
+          "rejection_reasons": {
+            "target_motion_limit": 3
+          },
+          "generation_rejections": {}
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 95,
+              "rejected": 1,
+              "duplicate_rejections": 0,
+              "retained": 95,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 96,
+              "rejected": 0,
+              "duplicate_rejections": 1,
+              "retained": 96,
+              "mutation_attempts": 67,
+              "fresh_attempts": 29,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 96,
+              "rejected": 0,
+              "duplicate_rejections": 2,
+              "retained": 96,
+              "mutation_attempts": 67,
+              "fresh_attempts": 29,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "posegen_gap": 1
+          },
+          "final_candidates": 12
+        }
+      },
+      "process_cpu_seconds": 29.263224757,
+      "cprofile_enabled": false,
+      "experimental_prior_cache": true,
+      "prior_cache_hits": 492,
+      "prior_cache_entries": 282,
+      "timers": {
+        "PosegenFeasibilityFilter": {
+          "calls": 288,
+          "wall_seconds_sum": 0.0026358235627412796,
+          "thread_cpu_seconds_sum": 0.002640775999999917,
+          "max_call_seconds": 1.7662998288869858e-05,
+          "threads": 12
+        },
+        "TargetXYOverlapFilter": {
+          "calls": 287,
+          "wall_seconds_sum": 0.036840266664512455,
+          "thread_cpu_seconds_sum": 0.0354569029999999,
+          "max_call_seconds": 0.016292157932184637,
+          "threads": 12
+        },
+        "bottom_height_kernel": {
+          "calls": 392,
+          "wall_seconds_sum": 0.050761816557496786,
+          "thread_cpu_seconds_sum": 0.0507823539999972,
+          "max_call_seconds": 0.00022820394951850176,
+          "threads": 1
+        },
+        "candidate_batch": {
+          "calls": 5,
+          "wall_seconds_sum": 0.21713764313608408,
+          "thread_cpu_seconds_sum": 0.0011645130000017545,
+          "max_call_seconds": 0.07295216911006719,
+          "threads": 1
+        },
+        "candidate_build": {
+          "calls": 288,
+          "wall_seconds_sum": 2.2468222555471584,
+          "thread_cpu_seconds_sum": 1.143850268,
+          "max_call_seconds": 0.02359812008216977,
+          "threads": 12
+        },
+        "cem_deduplicate": {
+          "calls": 3,
+          "wall_seconds_sum": 0.004061257001012564,
+          "thread_cpu_seconds_sum": 0.004061165999996952,
+          "max_call_seconds": 0.002018856001086533,
+          "threads": 1
+        },
+        "cem_mutation": {
+          "calls": 134,
+          "wall_seconds_sum": 0.004947349312715232,
+          "thread_cpu_seconds_sum": 0.004949185000009848,
+          "max_call_seconds": 0.00012982601765543222,
+          "threads": 1
+        },
+        "cem_rank": {
+          "calls": 6,
+          "wall_seconds_sum": 19.743134295917116,
+          "thread_cpu_seconds_sum": 19.738851352999994,
+          "max_call_seconds": 6.797714214073494,
+          "threads": 1
+        },
+        "native_pose_solve": {
+          "calls": 1152,
+          "wall_seconds_sum": 1.4277390725910664,
+          "thread_cpu_seconds_sum": 0.9127027429999998,
+          "max_call_seconds": 0.017704732017591596,
+          "threads": 12
+        },
+        "object_contains": {
+          "calls": 294,
+          "wall_seconds_sum": 20.703399963211268,
+          "thread_cpu_seconds_sum": 20.594430002000014,
+          "max_call_seconds": 0.25480837491340935,
+          "threads": 13
+        },
+        "overlap_transform": {
+          "calls": 294,
+          "wall_seconds_sum": 1.1075394965009764,
+          "thread_cpu_seconds_sum": 1.0816149120000353,
+          "max_call_seconds": 0.02492834406439215,
+          "threads": 13
+        },
+        "planar_sample": {
+          "calls": 107,
+          "wall_seconds_sum": 5.729285487090237,
+          "thread_cpu_seconds_sum": 5.728273963999995,
+          "max_call_seconds": 0.07316847203765064,
+          "threads": 1
+        },
+        "planar_score_map": {
+          "calls": 107,
+          "wall_seconds_sum": 4.388565079541877,
+          "thread_cpu_seconds_sum": 4.387606611999984,
+          "max_call_seconds": 0.058114262064918876,
+          "threads": 1
+        },
+        "pose_config": {
+          "calls": 1152,
+          "wall_seconds_sum": 0.03671507874969393,
+          "thread_cpu_seconds_sum": 0.036635400000000054,
+          "max_call_seconds": 0.000115199014544487,
+          "threads": 12
+        },
+        "pose_initialization": {
+          "calls": 288,
+          "wall_seconds_sum": 0.6571940506109968,
+          "thread_cpu_seconds_sum": 0.07517568900000006,
+          "max_call_seconds": 0.01812341797631234,
+          "threads": 12
+        },
+        "pose_scene_build": {
+          "calls": 1152,
+          "wall_seconds_sum": 0.007140029221773148,
+          "thread_cpu_seconds_sum": 0.007118835999999992,
+          "max_call_seconds": 2.377503551542759e-05,
+          "threads": 12
+        },
+        "pose_solve_adapter": {
+          "calls": 288,
+          "wall_seconds_sum": 1.5175252771005034,
+          "thread_cpu_seconds_sum": 0.999656791,
+          "max_call_seconds": 0.02154447801876813,
+          "threads": 12
+        },
+        "prior_containment": {
+          "calls": 282,
+          "wall_seconds_sum": 19.698594009387307,
+          "thread_cpu_seconds_sum": 19.694319431999997,
+          "max_call_seconds": 0.07907471992075443,
+          "threads": 1
+        },
+        "prior_score": {
+          "calls": 7,
+          "wall_seconds_sum": 19.706395347137004,
+          "thread_cpu_seconds_sum": 19.702109375999996,
+          "max_call_seconds": 6.788448848994449,
+          "threads": 1
+        },
+        "root_cem": {
+          "calls": 1,
+          "wall_seconds_sum": 25.702894483925775,
+          "thread_cpu_seconds_sum": 25.48157102,
+          "max_call_seconds": 25.702894483925775,
+          "threads": 1
+        },
+        "score_xy_debug_map": {
+          "calls": 107,
+          "wall_seconds_sum": 4.279993567150086,
+          "thread_cpu_seconds_sum": 4.279094969000004,
+          "max_call_seconds": 0.05653322709258646,
+          "threads": 1
+        }
+      },
+      "candidate_batches": [
+        {
+          "label": "candidate_batch",
+          "start": 571371.370327515,
+          "seconds": 0.07295216911006719,
+          "thread_cpu_seconds": 0.0006659299999993706,
+          "thread": 132855614366400,
+          "items": 96
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571378.196801477,
+          "seconds": 0.046141903032548726,
+          "thread_cpu_seconds": 0.0001258860000010742,
+          "thread": 132855614366400,
+          "items": 67
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571379.784753938,
+          "seconds": 0.020661122049205005,
+          "thread_cpu_seconds": 0.00013090500000068062,
+          "thread": 132855614366400,
+          "items": 29
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571386.612388078,
+          "seconds": 0.05713535693939775,
+          "thread_cpu_seconds": 0.00010472499999991669,
+          "thread": 132855614366400,
+          "items": 67
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571388.217484344,
+          "seconds": 0.020247092004865408,
+          "thread_cpu_seconds": 0.00013706700000071237,
+          "thread": 132855614366400,
+          "items": 29
+        }
+      ],
+      "selected_object_id": 2,
+      "selected_pose": [
+        -0.06862979829177063,
+        1.3786170497444146,
+        0.37422054406690364,
+        0.9809525733571289,
+        0.12116922226145319,
+        -0.1364439859274112,
+        0.06658158232440593
+      ],
+      "overlap_grid_points": 556150,
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": null,
+        "MKL_NUM_THREADS": null
+      },
+      "thread_pools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/inrol-excavator/workspace/stacking/.direnv/python-3.12.3/lib/python3.12/site-packages/numpy.libs/libscipy_openblas64_-ff84a88b.so",
+          "version": "0.3.31.dev",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/inrol-excavator/workspace/stacking/.direnv/python-3.12.3/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ]
+    },
+    "cache-crop": {
+      "search": {
+        "step": 1,
+        "elapsed_seconds": 7.46292193303816,
+        "completed_iterations": 200,
+        "expansion_calls": 1,
+        "generated_candidates": 12,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 12,
+        "failed_evaluations": 3,
+        "effective_max_depth": 1,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 0,
+          "short_jobs": 0,
+          "short_parallel_batches": 0,
+          "short_parallel_jobs": 0,
+          "long_batches": 1,
+          "long_jobs": 12,
+          "short_max_batch_size": 0,
+          "max_evaluation_batch_size": 12,
+          "workers": 12,
+          "pose_generation_seconds": 6.837905572028831,
+          "pose_generation_batches": 1,
+          "pose_generation_node_requests": 1,
+          "pose_generation_max_node_batch": 1,
+          "descendant_frontier_batches": 0,
+          "descendant_frontier_iterations": 0,
+          "short_batch_wall_seconds": 0.0,
+          "long_batch_wall_seconds": 0.5978250739863142,
+          "short_settling_job_seconds": 0.0,
+          "short_structural_job_seconds": 0.0,
+          "long_settling_job_seconds": 0.19925104617141187,
+          "long_structural_job_seconds": 2.3929234981769696
+        },
+        "revalidation": {
+          "attempted": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 12,
+          "accepted": 9,
+          "rejected": 3,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 0,
+          "attempted": 0,
+          "generated": 0,
+          "evaluated": 0
+        },
+        "root_retry": {
+          "rounds": 0,
+          "retired": 0,
+          "generated": 0,
+          "accepted": 0
+        },
+        "descendant_validation": {
+          "attempts": 0,
+          "failures": 0
+        },
+        "final_selection_mode": "max_descendant",
+        "tree": {
+          "nodes": 13,
+          "evaluated": 13,
+          "pending": 0,
+          "failed": 3,
+          "frontier_leaves": 12,
+          "max_depth": 1,
+          "rejection_reasons": {
+            "target_motion_limit": 3
+          },
+          "generation_rejections": {}
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 95,
+              "rejected": 1,
+              "duplicate_rejections": 0,
+              "retained": 95,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 96,
+              "rejected": 0,
+              "duplicate_rejections": 1,
+              "retained": 96,
+              "mutation_attempts": 67,
+              "fresh_attempts": 29,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 96,
+              "rejected": 0,
+              "duplicate_rejections": 2,
+              "retained": 96,
+              "mutation_attempts": 67,
+              "fresh_attempts": 29,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "posegen_gap": 1
+          },
+          "final_candidates": 12
+        }
+      },
+      "process_cpu_seconds": 10.674430477,
+      "cprofile_enabled": false,
+      "experimental_prior_cache": true,
+      "experimental_prior_crop": true,
+      "prior_cache_hits": 492,
+      "prior_cache_entries": 282,
+      "timers": {
+        "PosegenFeasibilityFilter": {
+          "calls": 288,
+          "wall_seconds_sum": 0.0026478187646716833,
+          "thread_cpu_seconds_sum": 0.002653563000000014,
+          "max_call_seconds": 3.460503648966551e-05,
+          "threads": 12
+        },
+        "TargetXYOverlapFilter": {
+          "calls": 287,
+          "wall_seconds_sum": 0.020112486789003015,
+          "thread_cpu_seconds_sum": 0.020144264999999967,
+          "max_call_seconds": 0.0001827869564294815,
+          "threads": 12
+        },
+        "bottom_height_kernel": {
+          "calls": 392,
+          "wall_seconds_sum": 0.05054315866436809,
+          "thread_cpu_seconds_sum": 0.05057266699999641,
+          "max_call_seconds": 0.00022723199799656868,
+          "threads": 1
+        },
+        "candidate_batch": {
+          "calls": 5,
+          "wall_seconds_sum": 0.20823336206376553,
+          "thread_cpu_seconds_sum": 0.0012959140000008418,
+          "max_call_seconds": 0.06990507594309747,
+          "threads": 1
+        },
+        "candidate_build": {
+          "calls": 288,
+          "wall_seconds_sum": 2.1290400777943432,
+          "thread_cpu_seconds_sum": 1.156970611,
+          "max_call_seconds": 0.020126097020693123,
+          "threads": 12
+        },
+        "cem_deduplicate": {
+          "calls": 3,
+          "wall_seconds_sum": 0.004100124002434313,
+          "thread_cpu_seconds_sum": 0.004099859000001871,
+          "max_call_seconds": 0.002060411963611841,
+          "threads": 1
+        },
+        "cem_mutation": {
+          "calls": 134,
+          "wall_seconds_sum": 0.00488619355019182,
+          "thread_cpu_seconds_sum": 0.004892378000000086,
+          "max_call_seconds": 0.00011406699195504189,
+          "threads": 1
+        },
+        "cem_rank": {
+          "calls": 6,
+          "wall_seconds_sum": 0.9227047930471599,
+          "thread_cpu_seconds_sum": 0.9222152869999984,
+          "max_call_seconds": 0.3152144200867042,
+          "threads": 1
+        },
+        "native_pose_solve": {
+          "calls": 1152,
+          "wall_seconds_sum": 1.4037313666194677,
+          "thread_cpu_seconds_sum": 0.9367472290000001,
+          "max_call_seconds": 0.013350103050470352,
+          "threads": 12
+        },
+        "object_contains": {
+          "calls": 294,
+          "wall_seconds_sum": 2.665048994938843,
+          "thread_cpu_seconds_sum": 2.592304162000001,
+          "max_call_seconds": 0.301389432977885,
+          "threads": 13
+        },
+        "overlap_transform": {
+          "calls": 294,
+          "wall_seconds_sum": 0.1956294133560732,
+          "thread_cpu_seconds_sum": 0.17577789800000124,
+          "max_call_seconds": 0.02536339790094644,
+          "threads": 13
+        },
+        "planar_sample": {
+          "calls": 107,
+          "wall_seconds_sum": 5.693713238695636,
+          "thread_cpu_seconds_sum": 5.690290588,
+          "max_call_seconds": 0.07328663696534932,
+          "threads": 1
+        },
+        "planar_score_map": {
+          "calls": 107,
+          "wall_seconds_sum": 4.358756567700766,
+          "thread_cpu_seconds_sum": 4.356691265999999,
+          "max_call_seconds": 0.05820479500107467,
+          "threads": 1
+        },
+        "pose_config": {
+          "calls": 1152,
+          "wall_seconds_sum": 0.03511326143052429,
+          "thread_cpu_seconds_sum": 0.035106261000000104,
+          "max_call_seconds": 0.00015227892436087132,
+          "threads": 12
+        },
+        "pose_initialization": {
+          "calls": 288,
+          "wall_seconds_sum": 0.5693758748238906,
+          "thread_cpu_seconds_sum": 0.07302553299999996,
+          "max_call_seconds": 0.01270037004724145,
+          "threads": 12
+        },
+        "pose_scene_build": {
+          "calls": 1152,
+          "wall_seconds_sum": 0.006803852622397244,
+          "thread_cpu_seconds_sum": 0.00679312500000002,
+          "max_call_seconds": 2.6621040888130665e-05,
+          "threads": 12
+        },
+        "pose_solve_adapter": {
+          "calls": 288,
+          "wall_seconds_sum": 1.488702526083216,
+          "thread_cpu_seconds_sum": 1.0192406779999998,
+          "max_call_seconds": 0.017924727988429368,
+          "threads": 12
+        },
+        "prior_containment": {
+          "calls": 282,
+          "wall_seconds_sum": 0.8832854916108772,
+          "thread_cpu_seconds_sum": 0.8828568619999961,
+          "max_call_seconds": 0.0054584520403295755,
+          "threads": 1
+        },
+        "prior_score": {
+          "calls": 7,
+          "wall_seconds_sum": 0.8860767520964146,
+          "thread_cpu_seconds_sum": 0.8856486280000002,
+          "max_call_seconds": 0.30594067508354783,
+          "threads": 1
+        },
+        "root_cem": {
+          "calls": 1,
+          "wall_seconds_sum": 6.837899019010365,
+          "thread_cpu_seconds_sum": 6.626993046,
+          "max_call_seconds": 6.837899019010365,
+          "threads": 1
+        },
+        "score_xy_debug_map": {
+          "calls": 107,
+          "wall_seconds_sum": 4.250901606632397,
+          "thread_cpu_seconds_sum": 4.248914289000004,
+          "max_call_seconds": 0.05663458397611976,
+          "threads": 1
+        }
+      },
+      "candidate_batches": [
+        {
+          "label": "candidate_batch",
+          "start": 571507.650075988,
+          "seconds": 0.06990507594309747,
+          "thread_cpu_seconds": 0.0008090960000002312,
+          "thread": 123485912195776,
+          "items": 96
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571508.03337785,
+          "seconds": 0.04397026204969734,
+          "thread_cpu_seconds": 0.0001237130000006914,
+          "thread": 123485912195776,
+          "items": 67
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571509.609242986,
+          "seconds": 0.020942987059243023,
+          "thread_cpu_seconds": 0.0001243640000003765,
+          "thread": 123485912195776,
+          "items": 29
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571509.954529603,
+          "seconds": 0.052478392026387155,
+          "thread_cpu_seconds": 0.00012674099999987476,
+          "thread": 123485912195776,
+          "items": 67
+        },
+        {
+          "label": "candidate_batch",
+          "start": 571511.545173864,
+          "seconds": 0.020936644985340536,
+          "thread_cpu_seconds": 0.00011199999999966792,
+          "thread": 123485912195776,
+          "items": 29
+        }
+      ],
+      "selected_object_id": 2,
+      "selected_pose": [
+        -0.06862979829177063,
+        1.3786170497444146,
+        0.37422054406690364,
+        0.9809525733571289,
+        0.12116922226145319,
+        -0.1364439859274112,
+        0.06658158232440593
+      ],
+      "overlap_grid_points": 556150,
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": null,
+        "MKL_NUM_THREADS": null
+      },
+      "thread_pools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/inrol-excavator/workspace/stacking/.direnv/python-3.12.3/lib/python3.12/site-packages/numpy.libs/libscipy_openblas64_-ff84a88b.so",
+          "version": "0.3.31.dev",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/inrol-excavator/workspace/stacking/.direnv/python-3.12.3/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ]
+    }
+  },
+  "crop_reference_check": {
+    "cases": 282,
+    "full_grid_points": 556150,
+    "elapsed_seconds": 0.9003175380639732,
+    "max_absolute_error": 0.0,
+    "mean_cropped_grid_points": 20629.63120567376,
+    "max_cropped_grid_points": 39739,
+    "rows": [
+      {
+        "object_id": 53,
+        "grid_points": 17476,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 53,
+        "grid_points": 17510,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 2,
+        "grid_points": 32277,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 2,
+        "grid_points": 36163,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 38,
+        "grid_points": 24969,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 38,
+        "grid_points": 20163,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 15,
+        "grid_points": 10287,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 15,
+        "grid_points": 12960,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 46,
+        "grid_points": 18200,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 46,
+        "grid_points": 15609,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 13,
+        "grid_points": 20244,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 13,
+        "grid_points": 15222,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 1,
+        "grid_points": 24171,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 1,
+        "grid_points": 29046,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 37,
+        "grid_points": 30912,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 37,
+        "grid_points": 21703,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 57,
+        "grid_points": 12400,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 57,
+        "grid_points": 12355,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 8,
+        "grid_points": 15313,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 8,
+        "grid_points": 18500,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 43,
+        "grid_points": 16306,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 43,
+        "grid_points": 17664,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 44,
+        "grid_points": 17546,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 44,
+        "grid_points": 14684,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 30,
+        "grid_points": 20880,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 58,
+        "grid_points": 14775,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 58,
+        "grid_points": 8914,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 6,
+        "grid_points": 32640,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 6,
+        "grid_points": 28178,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 48,
+        "grid_points": 15804,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 48,
+        "grid_points": 10362,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 12,
+        "grid_points": 25650,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 12,
+        "grid_points": 24916,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 33,
+        "grid_points": 15458,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 33,
+        "grid_points": 16064,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 50,
+        "grid_points": 20348,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 50,
+        "grid_points": 22442,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 17,
+        "grid_points": 18792,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 17,
+        "grid_points": 12409,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 11,
+        "grid_points": 19197,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 11,
+        "grid_points": 13861,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 31,
+        "grid_points": 16128,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 31,
+        "grid_points": 19240,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 56,
+        "grid_points": 22422,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 56,
+        "grid_points": 22692,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 4,
+        "grid_points": 32604,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 4,
+        "grid_points": 35469,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 10,
+        "grid_points": 31320,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 10,
+        "grid_points": 19519,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 5,
+        "grid_points": 19872,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 5,
+        "grid_points": 15871,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 51,
+        "grid_points": 12635,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 51,
+        "grid_points": 13684,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 52,
+        "grid_points": 15626,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 52,
+        "grid_points": 16146,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 49,
+        "grid_points": 23780,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 49,
+        "grid_points": 26768,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 19,
+        "grid_points": 30730,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 19,
+        "grid_points": 39739,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 39,
+        "grid_points": 23828,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 39,
+        "grid_points": 16958,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 55,
+        "grid_points": 22103,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 55,
+        "grid_points": 23560,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 7,
+        "grid_points": 31881,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 7,
+        "grid_points": 27863,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 45,
+        "grid_points": 22214,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 45,
+        "grid_points": 33626,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 20,
+        "grid_points": 15624,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 20,
+        "grid_points": 13566,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 9,
+        "grid_points": 37582,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 9,
+        "grid_points": 27332,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 54,
+        "grid_points": 16940,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 54,
+        "grid_points": 17208,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 14,
+        "grid_points": 17856,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 14,
+        "grid_points": 14959,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 47,
+        "grid_points": 28980,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 47,
+        "grid_points": 23436,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 32,
+        "grid_points": 25687,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 32,
+        "grid_points": 34003,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 40,
+        "grid_points": 24720,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 40,
+        "grid_points": 23088,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 12512,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 15876,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 35,
+        "grid_points": 25056,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 35,
+        "grid_points": 20842,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 41,
+        "grid_points": 24640,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 41,
+        "grid_points": 21868,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 42,
+        "grid_points": 19798,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 42,
+        "grid_points": 21828,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 18,
+        "grid_points": 16259,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 18,
+        "grid_points": 20165,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 21847,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 24548,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 36,
+        "grid_points": 15732,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 34,
+        "grid_points": 33425,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 18,
+        "grid_points": 18108,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 56,
+        "grid_points": 19314,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 57,
+        "grid_points": 11658,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 25194,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 42,
+        "grid_points": 21080,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 25498,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 12470,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 2,
+        "grid_points": 28539,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 46,
+        "grid_points": 18241,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 8,
+        "grid_points": 15313,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 46,
+        "grid_points": 20068,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 46,
+        "grid_points": 21452,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 26258,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 35,
+        "grid_points": 19980,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 44,
+        "grid_points": 15090,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 18,
+        "grid_points": 24548,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 50,
+        "grid_points": 20336,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 35,
+        "grid_points": 20376,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 2,
+        "grid_points": 33966,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 1,
+        "grid_points": 27810,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 56,
+        "grid_points": 25536,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 13014,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 4,
+        "grid_points": 31122,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 27398,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 23598,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 2,
+        "grid_points": 33390,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 18,
+        "grid_points": 20585,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 18741,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 4,
+        "grid_points": 29799,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 44,
+        "grid_points": 13027,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 17,
+        "grid_points": 18420,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 2,
+        "grid_points": 28539,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 42,
+        "grid_points": 17852,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 24208,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 50,
+        "grid_points": 20379,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 44,
+        "grid_points": 15271,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 2,
+        "grid_points": 34230,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 50,
+        "grid_points": 23846,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 46,
+        "grid_points": 19075,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 13558,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 18,
+        "grid_points": 19912,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 18,
+        "grid_points": 21386,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 44,
+        "grid_points": 18784,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 56,
+        "grid_points": 23940,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 17,
+        "grid_points": 16399,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 4,
+        "grid_points": 31863,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 57,
+        "grid_points": 12431,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 56,
+        "grid_points": 18036,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 5,
+        "grid_points": 15778,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 1,
+        "grid_points": 34656,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 57,
+        "grid_points": 10054,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 43,
+        "grid_points": 18117,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 25752,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 42,
+        "grid_points": 24837,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 1,
+        "grid_points": 28428,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 23598,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 57,
+        "grid_points": 12431,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 17,
+        "grid_points": 19040,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 35,
+        "grid_points": 27676,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 51,
+        "grid_points": 13800,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 2,
+        "grid_points": 34230,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 51,
+        "grid_points": 13472,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 44,
+        "grid_points": 17472,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 51,
+        "grid_points": 15080,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 8,
+        "grid_points": 15453,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 43,
+        "grid_points": 16306,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 51,
+        "grid_points": 12635,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 37,
+        "grid_points": 36611,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 34,
+        "grid_points": 33390,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 52,
+        "grid_points": 19240,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 19,
+        "grid_points": 28948,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 33,
+        "grid_points": 21690,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 36,
+        "grid_points": 13068,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 2,
+        "grid_points": 30660,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 8,
+        "grid_points": 12527,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 53,
+        "grid_points": 17664,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 38,
+        "grid_points": 25830,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 54,
+        "grid_points": 17710,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 5,
+        "grid_points": 15207,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 47,
+        "grid_points": 23229,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 30,
+        "grid_points": 16628,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 50,
+        "grid_points": 27684,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 58,
+        "grid_points": 14976,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 10,
+        "grid_points": 29094,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 55,
+        "grid_points": 20491,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 20,
+        "grid_points": 17440,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 44,
+        "grid_points": 20832,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 17,
+        "grid_points": 15562,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 1,
+        "grid_points": 25624,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 6,
+        "grid_points": 33600,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 31,
+        "grid_points": 16838,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 15,
+        "grid_points": 11025,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 12462,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 43,
+        "grid_points": 17664,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 9,
+        "grid_points": 33642,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 4,
+        "grid_points": 30381,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 8998,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 22977,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 4,
+        "grid_points": 29835,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 5,
+        "grid_points": 16848,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 15082,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 44,
+        "grid_points": 18250,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 17,
+        "grid_points": 13174,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 43,
+        "grid_points": 19448,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 46,
+        "grid_points": 18241,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 17,
+        "grid_points": 18972,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 10838,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 46,
+        "grid_points": 18241,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 43,
+        "grid_points": 19312,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 5,
+        "grid_points": 18240,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 8,
+        "grid_points": 12977,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 12386,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 44,
+        "grid_points": 13027,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 51,
+        "grid_points": 12217,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 43,
+        "grid_points": 17568,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 42,
+        "grid_points": 24058,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 42,
+        "grid_points": 23164,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 44,
+        "grid_points": 16909,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 19312,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 43,
+        "grid_points": 17536,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 50,
+        "grid_points": 23869,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 14049,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 44,
+        "grid_points": 16445,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 54,
+        "grid_points": 18828,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 17,
+        "grid_points": 17910,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 12963,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 42,
+        "grid_points": 23279,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 54,
+        "grid_points": 14478,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 44,
+        "grid_points": 12585,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 43,
+        "grid_points": 15500,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 12699,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 20454,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 54,
+        "grid_points": 15928,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 15678,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 4,
+        "grid_points": 31783,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 14081,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 20559,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 5,
+        "grid_points": 17740,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 51,
+        "grid_points": 15484,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 8,
+        "grid_points": 15313,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 54,
+        "grid_points": 17115,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 5,
+        "grid_points": 14430,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 2,
+        "grid_points": 36176,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 4,
+        "grid_points": 30882,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 4,
+        "grid_points": 31548,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 43,
+        "grid_points": 17650,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 4,
+        "grid_points": 31863,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 44,
+        "grid_points": 9229,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 46,
+        "grid_points": 13993,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 4,
+        "grid_points": 31863,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 3,
+        "grid_points": 26970,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 14018,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 51,
+        "grid_points": 12648,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 46,
+        "grid_points": 21472,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 17,
+        "grid_points": 12577,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 5,
+        "grid_points": 13290,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 54,
+        "grid_points": 16872,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 13516,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 46,
+        "grid_points": 15271,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 50,
+        "grid_points": 21036,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 21,
+        "grid_points": 13977,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 17,
+        "grid_points": 16656,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 37,
+        "grid_points": 24536,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 33,
+        "grid_points": 24180,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 12,
+        "grid_points": 29070,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 55,
+        "grid_points": 20491,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 19,
+        "grid_points": 35024,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 57,
+        "grid_points": 12995,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 14,
+        "grid_points": 18432,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 43,
+        "grid_points": 16248,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 11,
+        "grid_points": 14607,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 20,
+        "grid_points": 17546,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 8,
+        "grid_points": 15950,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 2,
+        "grid_points": 33615,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 46,
+        "grid_points": 16915,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 47,
+        "grid_points": 21108,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 10,
+        "grid_points": 28236,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 54,
+        "grid_points": 18722,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 42,
+        "grid_points": 23275,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 51,
+        "grid_points": 11788,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 52,
+        "grid_points": 16640,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 18,
+        "grid_points": 20905,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 31,
+        "grid_points": 19240,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 38,
+        "grid_points": 25032,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 34,
+        "grid_points": 26982,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 32,
+        "grid_points": 25724,
+        "absolute_error": 0.0
+      },
+      {
+        "object_id": 40,
+        "grid_points": 17813,
+        "absolute_error": 0.0
+      }
+    ]
+  },
+  "containment_reference": [
+    {
+      "object_id": 53,
+      "pose": [
+        -0.21547727085260304,
+        1.3787494092195023,
+        0.256292302693422,
+        0.5487578281157705,
+        -0.5079734039085424,
+        0.632091392464484,
+        -0.20319532124421866
+      ],
+      "containment": 0.9667704482625551
+    },
+    {
+      "object_id": 53,
+      "pose": [
+        -0.3637660619698406,
+        -1.3795428270434749,
+        0.2563003156775555,
+        0.5081952246346083,
+        0.5488384441591665,
+        -0.20308808345540014,
+        -0.6318775247070731
+      ],
+      "containment": 0.9652254134040793
+    },
+    {
+      "object_id": 2,
+      "pose": [
+        0.2195210852707871,
+        -1.2716468629775897,
+        0.37424574626901363,
+        0.6081366313171706,
+        0.779041412893416,
+        -0.04893684944239935,
+        0.14446279595067393
+      ],
+      "containment": 0.9900248900619018
+    },
+    {
+      "object_id": 2,
+      "pose": [
+        0.36878250240030297,
+        -1.2345189516214252,
+        0.3742220417994918,
+        -0.1214278468924479,
+        0.9809203852367818,
+        0.06660290956011755,
+        0.1364350697735543
+      ],
+      "containment": 0.9993347571473462
+    },
+    {
+      "object_id": 38,
+      "pose": [
+        -0.36279862151335024,
+        -0.943227236775346,
+        0.28691126274369305,
+        -0.0744970918165926,
+        0.461363516455447,
+        0.8682746311051003,
+        -0.16641230114999553
+      ],
+      "containment": 0.9541803295093974
+    },
+    {
+      "object_id": 38,
+      "pose": [
+        0.6456241276696307,
+        1.386921329619291,
+        0.28231911605480836,
+        0.4532188386516334,
+        -0.7607784338025056,
+        0.31289103867927154,
+        -0.343377426262237
+      ],
+      "containment": 0.8462739291577617
+    },
+    {
+      "object_id": 15,
+      "pose": [
+        0.21500992353171364,
+        -1.5318701520361053,
+        0.2792614755792911,
+        -0.06528911605330094,
+        0.8266281354608247,
+        0.5579250591763928,
+        0.033806587117864
+      ],
+      "containment": 0.8471322473944304
+    },
+    {
+      "object_id": 15,
+      "pose": [
+        0.07130731045011592,
+        1.0794250820604396,
+        0.27926110609759297,
+        -0.06524419729580191,
+        0.8266311056995967,
+        0.557924137499335,
+        0.03383587747808224
+      ],
+      "containment": 0.9946561265186606
+    },
+    {
+      "object_id": 46,
+      "pose": [
+        -0.3600213339511596,
+        1.3844803189607056,
+        0.23659133913721905,
+        0.002580630328925053,
+        0.6917805812615876,
+        -0.6806483716813077,
+        0.2411446907233701
+      ],
+      "containment": 0.9539050430237492
+    },
+    {
+      "object_id": 46,
+      "pose": [
+        -0.6432680083981664,
+        1.3106424021394256,
+        0.23655888740033348,
+        0.691798392420829,
+        -0.007435224210729029,
+        -0.23689856953459626,
+        -0.6820841366263807
+      ],
+      "containment": 0.954046236783818
+    },
+    {
+      "object_id": 13,
+      "pose": [
+        0.21442220148988977,
+        1.4757538947628592,
+        0.28888844563868954,
+        0.35797776771409934,
+        -0.5485058247226603,
+        0.5121473471707355,
+        -0.5556063110276223
+      ],
+      "containment": 0.9360782294079971
+    },
+    {
+      "object_id": 13,
+      "pose": [
+        -0.6490210480081742,
+        1.4655946248436504,
+        0.24506513083810114,
+        0.549661380545815,
+        0.3269772910103151,
+        0.7103377730138619,
+        0.29390213699415624
+      ],
+      "containment": 0.8090778715814828
+    },
+    {
+      "object_id": 1,
+      "pose": [
+        -0.3540828716056092,
+        1.5105855344079289,
+        0.37036887307733424,
+        0.39666889854317716,
+        -0.6202427574197785,
+        0.3014511211884926,
+        -0.6058712143113033
+      ],
+      "containment": 0.8637561277606968
+    },
+    {
+      "object_id": 1,
+      "pose": [
+        -0.21152164326369027,
+        1.4208055628372278,
+        0.3700964947319321,
+        0.611738299819853,
+        0.408222840901991,
+        -0.6116519769079156,
+        -0.2915685577082378
+      ],
+      "containment": 0.9550287897532626
+    },
+    {
+      "object_id": 37,
+      "pose": [
+        0.6333972638997535,
+        0.653498703294622,
+        0.34384717553546007,
+        0.429970776872572,
+        0.5704557548732696,
+        0.562833546193964,
+        -0.41584102977735643
+      ],
+      "containment": 0.9733351516430243
+    },
+    {
+      "object_id": 37,
+      "pose": [
+        0.7554259581131177,
+        1.2229084311342107,
+        0.3478793640333761,
+        0.42222945955462426,
+        0.5881489432323012,
+        0.5459163531425788,
+        -0.4216378059785962
+      ],
+      "containment": 0.7470818350279101
+    },
+    {
+      "object_id": 57,
+      "pose": [
+        0.21731076407118247,
+        1.5230190028667867,
+        0.2467231962598108,
+        0.8272731312908366,
+        -0.34895628606543183,
+        -0.12317656411434522,
+        0.42270108908383425
+      ],
+      "containment": 0.9250732838979666
+    },
+    {
+      "object_id": 57,
+      "pose": [
+        -0.5062216688457503,
+        -1.5256849772971108,
+        0.24672319656555153,
+        0.34846998642119326,
+        0.8274781581680218,
+        0.4227732956336429,
+        0.12292805545334176
+      ],
+      "containment": 0.9204697238157086
+    },
+    {
+      "object_id": 8,
+      "pose": [
+        -0.6415245357384769,
+        -1.3022028896776987,
+        0.2956923851991455,
+        0.44427540237029883,
+        0.47160241492418775,
+        -0.52550837297356,
+        -0.5514086316163949
+      ],
+      "containment": 0.9372280426678603
+    },
+    {
+      "object_id": 8,
+      "pose": [
+        -0.3625560995471797,
+        0.9423800770168758,
+        0.29588772123052814,
+        -0.017224513782234916,
+        0.64814740032838,
+        -0.7610050679906625,
+        -0.02189863157952124
+      ],
+      "containment": 0.9752943429345753
+    },
+    {
+      "object_id": 43,
+      "pose": [
+        -0.212720525483871,
+        1.3964473235075507,
+        0.29390298110718344,
+        0.9519259274567585,
+        -0.011644211894252644,
+        -0.09237868723385387,
+        0.29183491756454
+      ],
+      "containment": 0.9957298551255958
+    },
+    {
+      "object_id": 43,
+      "pose": [
+        -0.3578818158064494,
+        1.1061247428623877,
+        0.29390298110711494,
+        0.9519259274567591,
+        -0.01164421189425413,
+        -0.09237868723384984,
+        0.29183491756453933
+      ],
+      "containment": 0.9964451782973814
+    },
+    {
+      "object_id": 44,
+      "pose": [
+        0.6519718417711505,
+        -0.7985600019256555,
+        0.2526939657606362,
+        -0.03244459812957889,
+        -0.07163763439549217,
+        0.2789694270422459,
+        -0.9570744256149305
+      ],
+      "containment": 0.9855562210617531
+    },
+    {
+      "object_id": 44,
+      "pose": [
+        -0.6531867716038451,
+        1.3790125229125256,
+        0.2526886338033905,
+        -0.03262791315581485,
+        -0.07142328893330069,
+        0.27886618211575354,
+        -0.9571143011956462
+      ],
+      "containment": 0.966652628739712
+    },
+    {
+      "object_id": 30,
+      "pose": [
+        0.6432881621186376,
+        -0.6508052839770471,
+        0.29913541970154034,
+        0.6390902646507931,
+        0.3386854958277614,
+        -0.47153645770126207,
+        -0.5044889866023128
+      ],
+      "containment": 0.958673148190811
+    },
+    {
+      "object_id": 58,
+      "pose": [
+        -0.5374462264475088,
+        1.2344301293770537,
+        0.250501282798501,
+        0.2208836176056963,
+        0.6471911108395986,
+        -0.24958038963205104,
+        -0.6856119329728302
+      ],
+      "containment": 0.9973414179431335
+    },
+    {
+      "object_id": 58,
+      "pose": [
+        -0.7864477120557791,
+        -1.351500019743242,
+        0.2715945691236479,
+        -0.20778813595560608,
+        0.6014114934445866,
+        0.7228142295408402,
+        0.26956983451812333
+      ],
+      "containment": 0.87422789653974
+    },
+    {
+      "object_id": 6,
+      "pose": [
+        0.3624866664218409,
+        -1.233895243773848,
+        0.4031445353688018,
+        0.006579500850950353,
+        -0.8731438952827818,
+        -0.14511355522016034,
+        -0.4653154890935058
+      ],
+      "containment": 0.9355930449790385
+    },
+    {
+      "object_id": 6,
+      "pose": [
+        -0.5067025927459831,
+        1.3595440576268072,
+        0.4031442992582258,
+        -0.6112113825141077,
+        -0.6235569522073632,
+        0.22537283147619191,
+        -0.43220881535602834
+      ],
+      "containment": 0.9047021494656662
+    },
+    {
+      "object_id": 48,
+      "pose": [
+        -0.6545982646273056,
+        -0.6515473520540825,
+        0.24131314547344676,
+        -0.7134769325866771,
+        0.03982605727133434,
+        -0.32001008104924383,
+        -0.6220595629485837
+      ],
+      "containment": 0.9962221256601669
+    },
+    {
+      "object_id": 48,
+      "pose": [
+        -0.6497323582203366,
+        -1.491978127279748,
+        0.2413401941169487,
+        -0.47664713107406403,
+        0.5325127518225986,
+        0.21312743096170872,
+        -0.6661939505555793
+      ],
+      "containment": 0.8440020077290178
+    },
+    {
+      "object_id": 12,
+      "pose": [
+        0.21599333284064112,
+        1.4745437651736135,
+        0.3367369054347967,
+        0.2986092370636185,
+        0.7523539869385294,
+        -0.33547517320429215,
+        -0.4819257308357098
+      ],
+      "containment": 0.9099041260423577
+    },
+    {
+      "object_id": 12,
+      "pose": [
+        -0.499853127040912,
+        -1.430300603353765,
+        0.38449661833736465,
+        -0.5119414552444397,
+        0.46370081094848137,
+        0.6315805528793059,
+        -0.35214132042774604
+      ],
+      "containment": 0.8737912772727783
+    },
+    {
+      "object_id": 33,
+      "pose": [
+        0.6468087666502657,
+        -1.4000615731662203,
+        0.23447942200180688,
+        0.5612832838299281,
+        -0.472055692015966,
+        0.5615707977409637,
+        -0.38309625168226025
+      ],
+      "containment": 0.8043093266367051
+    },
+    {
+      "object_id": 33,
+      "pose": [
+        -0.641179878002754,
+        1.4326625911547495,
+        0.234453767006789,
+        0.5650271914753816,
+        -0.4672801776065806,
+        0.5585689786939739,
+        -0.3878069165837247
+      ],
+      "containment": 0.8446855262472447
+    },
+    {
+      "object_id": 50,
+      "pose": [
+        0.6485022848041481,
+        1.3277741312770182,
+        0.2836613871462936,
+        0.23832893662358806,
+        0.4424911777780204,
+        0.8541288594225207,
+        0.13365914505964083
+      ],
+      "containment": 0.9041002140726347
+    },
+    {
+      "object_id": 50,
+      "pose": [
+        -0.55467013602072,
+        1.3505585700529519,
+        0.2837220538679389,
+        -0.14295643558776222,
+        0.4821110558873493,
+        0.6990952034743992,
+        -0.508328913002512
+      ],
+      "containment": 0.9446170257241433
+    },
+    {
+      "object_id": 17,
+      "pose": [
+        0.3642064430906217,
+        -1.2335589882876343,
+        0.22780391757859256,
+        -0.6496376768046465,
+        -0.39394997861684966,
+        0.1157098791386056,
+        -0.6398324211020998
+      ],
+      "containment": 0.9968298497191354
+    },
+    {
+      "object_id": 17,
+      "pose": [
+        -0.649411180492429,
+        1.434377581841807,
+        0.2277520224997874,
+        0.18321525292301943,
+        0.7373246724008743,
+        0.3688602693767108,
+        0.5354685800685581
+      ],
+      "containment": 0.8553841969954814
+    },
+    {
+      "object_id": 11,
+      "pose": [
+        0.3698643268908198,
+        -1.346308213235363,
+        0.26681909914792235,
+        0.44440388663990643,
+        0.5142965536594903,
+        0.46214573183964824,
+        -0.5695836751309789
+      ],
+      "containment": 0.8561161576049549
+    },
+    {
+      "object_id": 11,
+      "pose": [
+        0.8006112668855222,
+        -1.333452879227839,
+        0.26700387608702264,
+        0.43495601152745034,
+        0.5236560337160591,
+        0.4564964117103177,
+        -0.5728949750909869
+      ],
+      "containment": 0.7426933840097591
+    },
+    {
+      "object_id": 31,
+      "pose": [
+        0.6452236729069246,
+        1.3361773532420569,
+        0.28325801401508194,
+        0.6196117796891198,
+        0.21625980241320683,
+        -0.3644732289689045,
+        -0.6606604314590536
+      ],
+      "containment": 0.8580713324775956
+    },
+    {
+      "object_id": 31,
+      "pose": [
+        -0.21352653548764025,
+        1.372850771638201,
+        0.28144801329232993,
+        0.7475176648690014,
+        0.20984134572241714,
+        0.29646322640594164,
+        0.556141623800251
+      ],
+      "containment": 0.911525721796793
+    },
+    {
+      "object_id": 56,
+      "pose": [
+        -0.21748141261406953,
+        1.3744297088971285,
+        0.3187017093694829,
+        0.42694824603413023,
+        0.4595712018181432,
+        -0.479502489819483,
+        -0.6136667401161023
+      ],
+      "containment": 1.0
+    },
+    {
+      "object_id": 56,
+      "pose": [
+        0.3589799225480551,
+        1.230463800344695,
+        0.31875623029992417,
+        0.6261960484624672,
+        0.020829205449821347,
+        0.09792040712751524,
+        -0.773211644349917
+      ],
+      "containment": 0.9970444366793308
+    },
+    {
+      "object_id": 4,
+      "pose": [
+        -0.21358148029592416,
+        -1.2897148241489254,
+        0.3084306895311136,
+        0.8070116858443501,
+        0.20820283494465286,
+        -0.0928054965390612,
+        -0.5447667925303524
+      ],
+      "containment": 0.9519081468390297
+    },
+    {
+      "object_id": 4,
+      "pose": [
+        -0.362054242674226,
+        1.173553578942703,
+        0.3490429610624523,
+        0.28669937602332174,
+        0.36087039052022907,
+        0.3500371850185235,
+        0.8155059767640722
+      ],
+      "containment": 0.9872757909939431
+    },
+    {
+      "object_id": 10,
+      "pose": [
+        -0.21718308267102876,
+        1.2057560525539563,
+        0.28029178298573504,
+        0.552900245075449,
+        0.03383500672766501,
+        -0.044037368098941355,
+        -0.8313947447068485
+      ],
+      "containment": 0.9882932511082949
+    },
+    {
+      "object_id": 10,
+      "pose": [
+        0.6514820118101027,
+        -1.335077991964835,
+        0.25940024495021746,
+        0.6360657511548359,
+        0.6700471881810304,
+        0.17190668714051305,
+        0.34191404875334236
+      ],
+      "containment": 0.8708332002799452
+    },
+    {
+      "object_id": 5,
+      "pose": [
+        -0.36283307768993156,
+        0.6530594005121724,
+        0.3213733910523419,
+        0.8344888982997063,
+        0.329745938587575,
+        0.21471649803685364,
+        0.3857365941550421
+      ],
+      "containment": 1.0
+    },
+    {
+      "object_id": 5,
+      "pose": [
+        -0.6515051080489623,
+        1.3784729591817242,
+        0.3213733910523419,
+        -0.32981348478964256,
+        0.8344622044474957,
+        0.38571921277291116,
+        -0.21474772058716676
+      ],
+      "containment": 0.9481426099780542
+    },
+    {
+      "object_id": 51,
+      "pose": [
+        -0.7847424722370088,
+        -0.7925328771677449,
+        0.23105797960807997,
+        -0.2279954845143728,
+        0.7144933689338904,
+        -0.6372537299330682,
+        -0.17727089010028765
+      ],
+      "containment": 0.914732344837507
+    },
+    {
+      "object_id": 51,
+      "pose": [
+        0.5859440801432418,
+        -1.3748269525423014,
+        0.2394323087600171,
+        0.3490270395819908,
+        0.6729495601337466,
+        -0.3377818977634151,
+        -0.5578731080629127
+      ],
+      "containment": 0.966747994015919
+    },
+    {
+      "object_id": 52,
+      "pose": [
+        0.3592068808928213,
+        -1.343932659999997,
+        0.24517084733377462,
+        0.4361679978222457,
+        0.6355441065811849,
+        0.3966296011290612,
+        0.49852394704152264
+      ],
+      "containment": 0.9244550861003812
+    },
+    {
+      "object_id": 52,
+      "pose": [
+        0.4994363888905615,
+        -1.3912194316342734,
+        0.24515374045507884,
+        -0.6392710937500994,
+        0.4315468658416353,
+        0.4949560709077823,
+        -0.40014779663187416
+      ],
+      "containment": 0.8803807263202115
+    },
+    {
+      "object_id": 49,
+      "pose": [
+        0.5786324563908661,
+        0.07526682361462357,
+        0.38856985202408817,
+        0.6585846940614509,
+        0.29736958860125384,
+        -0.596665729941275,
+        -0.34903801402820256
+      ],
+      "containment": 0.8919222617216287
+    },
+    {
+      "object_id": 49,
+      "pose": [
+        0.47668896718919784,
+        1.2674653331727819,
+        0.3720074029769713,
+        0.6153150221357686,
+        -0.3908269876321304,
+        -0.3239536062212838,
+        -0.6030719279560928
+      ],
+      "containment": 0.9167520721493533
+    },
+    {
+      "object_id": 19,
+      "pose": [
+        -0.6245064436555093,
+        -1.2123864949377259,
+        0.3262315021933077,
+        0.6134890140440654,
+        -0.23073929880907526,
+        0.2868285568397417,
+        -0.6986558413221549
+      ],
+      "containment": 0.8876544472717545
+    },
+    {
+      "object_id": 19,
+      "pose": [
+        0.49002672129954605,
+        1.2070867896879949,
+        0.3726553212397225,
+        -0.20524342076445692,
+        0.5002908543784037,
+        0.779749884393622,
+        -0.31555398436141496
+      ],
+      "containment": 0.929159084675481
+    },
+    {
+      "object_id": 39,
+      "pose": [
+        0.3629220240385282,
+        -1.0887280553822136,
+        0.29896890444003454,
+        -0.5302135107201996,
+        0.6513504305893822,
+        0.4975432179507475,
+        -0.2169492933659895
+      ],
+      "containment": 0.9449286131910886
+    },
+    {
+      "object_id": 39,
+      "pose": [
+        0.6512873451068165,
+        1.3407743450804277,
+        0.2989581945656392,
+        -0.8356731725989343,
+        0.0835974900331035,
+        0.19731447023350268,
+        -0.5056963595825752
+      ],
+      "containment": 0.8998361050660431
+    },
+    {
+      "object_id": 55,
+      "pose": [
+        0.07202573041760257,
+        1.3519519960446498,
+        0.2709698798818043,
+        -0.5514335267490628,
+        0.2339112889141564,
+        -0.15546226605147412,
+        -0.7855177008379567
+      ],
+      "containment": 0.9147061493333148
+    },
+    {
+      "object_id": 55,
+      "pose": [
+        0.36191845148098456,
+        1.2330416028143316,
+        0.2682633292183706,
+        0.028042700744514062,
+        0.7994858754815903,
+        -0.596362396650611,
+        0.06624072540007579
+      ],
+      "containment": 0.9543459994073163
+    },
+    {
+      "object_id": 7,
+      "pose": [
+        -0.6440040960131652,
+        -1.2943920393992574,
+        0.33847069886976044,
+        0.7072540803154006,
+        0.09205459216067129,
+        -0.26136723125061617,
+        -0.6503881828321731
+      ],
+      "containment": 0.9131843017918296
+    },
+    {
+      "object_id": 7,
+      "pose": [
+        0.6390830733422382,
+        1.2287865200960908,
+        0.3384692104009367,
+        0.7072118816591219,
+        0.09239579337349038,
+        -0.2616526131830038,
+        -0.6502709295528696
+      ],
+      "containment": 0.8617247593880394
+    },
+    {
+      "object_id": 45,
+      "pose": [
+        -0.6378600464959078,
+        1.299302948121752,
+        0.2833684553957113,
+        0.2546260049911416,
+        0.7584451415444886,
+        0.5989543589496101,
+        0.03435463207594611
+      ],
+      "containment": 0.8270778471050175
+    },
+    {
+      "object_id": 45,
+      "pose": [
+        0.21775145152493808,
+        1.0886739618444508,
+        0.2833342739030922,
+        0.7164475326756953,
+        0.3584026076608279,
+        0.39970357207322094,
+        0.44551942518450843
+      ],
+      "containment": 0.9099848859318219
+    },
+    {
+      "object_id": 20,
+      "pose": [
+        -0.7200819587749074,
+        -0.6541905645265655,
+        0.2701502208467688,
+        -0.517582877504125,
+        0.439246280836211,
+        -0.35664067437253155,
+        -0.6418552010143819
+      ],
+      "containment": 0.9078336766131441
+    },
+    {
+      "object_id": 20,
+      "pose": [
+        0.7520756722095169,
+        1.3773932356131562,
+        0.27014945934169987,
+        0.6765661453232067,
+        0.05470544279536461,
+        0.7058769585591801,
+        0.20249267864864212
+      ],
+      "containment": 0.8328842788164513
+    },
+    {
+      "object_id": 9,
+      "pose": [
+        -0.3643815491643099,
+        0.07217816641156635,
+        0.301990776085458,
+        0.21199400635309415,
+        0.2521499211087405,
+        0.9346983865530012,
+        -0.1334836496745448
+      ],
+      "containment": 0.9283892119507275
+    },
+    {
+      "object_id": 9,
+      "pose": [
+        -0.6482908849457656,
+        -1.2493213106688756,
+        0.30183707467434817,
+        0.2516537520821518,
+        -0.21225128640123847,
+        0.13398498913719303,
+        0.9347019862875551
+      ],
+      "containment": 0.8480078431292768
+    },
+    {
+      "object_id": 54,
+      "pose": [
+        0.6419616146035606,
+        -0.6555149433327293,
+        0.2564300331706883,
+        0.735821275485989,
+        0.21900610834363438,
+        -0.4758216282348712,
+        -0.4291819580950074
+      ],
+      "containment": 0.9866106779296235
+    },
+    {
+      "object_id": 54,
+      "pose": [
+        -0.6279842099783264,
+        -1.322189696349842,
+        0.25154793983582,
+        0.5776755447933107,
+        0.5989810607492879,
+        0.5118353731974981,
+        0.21339448107949568
+      ],
+      "containment": 0.9642703624209484
+    },
+    {
+      "object_id": 14,
+      "pose": [
+        -0.3563150085713728,
+        1.2329609271755624,
+        0.26286314897660407,
+        -0.05154366237339479,
+        -0.18917413276785994,
+        0.56753587447659,
+        0.7996620720921794
+      ],
+      "containment": 0.9583222875472323
+    },
+    {
+      "object_id": 14,
+      "pose": [
+        0.6503839980443556,
+        1.3618241237924023,
+        0.254744317710571,
+        0.9625625232052312,
+        0.18026177046376113,
+        -0.10851987636272341,
+        0.17088744677204512
+      ],
+      "containment": 0.8945307888300187
+    },
+    {
+      "object_id": 47,
+      "pose": [
+        -0.07332953931160503,
+        -1.0875131534795037,
+        0.30874798416306876,
+        -0.5125880045890112,
+        0.2183694943269489,
+        -0.4397283069043083,
+        0.7044198446991107
+      ],
+      "containment": 0.977160577209183
+    },
+    {
+      "object_id": 47,
+      "pose": [
+        -0.6272796845224068,
+        -1.3647849599030395,
+        0.30874359220255443,
+        0.2247683297138968,
+        0.5098045848413194,
+        -0.6988541495581582,
+        -0.4485324524242794
+      ],
+      "containment": 0.911455963652592
+    },
+    {
+      "object_id": 32,
+      "pose": [
+        0.6416487788591358,
+        -1.2597713486081203,
+        0.3788646011810202,
+        0.032393441474477744,
+        0.6898206689125856,
+        0.6591206954838804,
+        0.2977549638129957
+      ],
+      "containment": 0.8657818812170911
+    },
+    {
+      "object_id": 32,
+      "pose": [
+        -0.4900353717561856,
+        0.36491624749903195,
+        0.3791702399212966,
+        0.5117245598584074,
+        0.46431064676676964,
+        0.25640730110488824,
+        0.6758763896429957
+      ],
+      "containment": 0.912198431893653
+    },
+    {
+      "object_id": 40,
+      "pose": [
+        0.2175689237811473,
+        1.3798668685109898,
+        0.3218056250261015,
+        0.6945716150060148,
+        0.1989720889612428,
+        0.22306940865159744,
+        0.6543855273202199
+      ],
+      "containment": 0.9740819906479468
+    },
+    {
+      "object_id": 40,
+      "pose": [
+        0.6542790850418977,
+        -1.0901018822661692,
+        0.29273517362345347,
+        0.591138093971874,
+        0.2221733209794934,
+        -0.42029405585120416,
+        -0.651573231430196
+      ],
+      "containment": 0.9613362302762317
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        -0.6393063983096218,
+        -1.339869413290789,
+        0.2939829507405427,
+        0.4316896266460287,
+        0.6531806137780868,
+        0.4493104396014933,
+        0.43025490223332397
+      ],
+      "containment": 0.9978384140484973
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        -0.5083557445507205,
+        1.2336717059381417,
+        0.2939829507405426,
+        -0.15695836800969873,
+        0.767049489068045,
+        0.6219405737517507,
+        -0.013750445575553317
+      ],
+      "containment": 1.0
+    },
+    {
+      "object_id": 35,
+      "pose": [
+        -0.2166692240315465,
+        1.4421124104074494,
+        0.3179527047770754,
+        0.3155573681758904,
+        -0.7698196558971139,
+        0.49312032386423305,
+        -0.2542313729192146
+      ],
+      "containment": 0.9479617209771866
+    },
+    {
+      "object_id": 35,
+      "pose": [
+        -0.6489208290891909,
+        -1.3451922321035836,
+        0.3174546176837871,
+        0.3147541422950806,
+        -0.7872956518068788,
+        0.4634418370572505,
+        -0.2575209704452643
+      ],
+      "containment": 0.9106832000801646
+    },
+    {
+      "object_id": 41,
+      "pose": [
+        0.5146782852331706,
+        -0.35989247486948156,
+        0.2768705948341892,
+        0.28041908919650227,
+        0.6576795538510363,
+        0.6640538375803579,
+        -0.21875840476495037
+      ],
+      "containment": 0.8373739267604707
+    },
+    {
+      "object_id": 41,
+      "pose": [
+        0.35289862326099825,
+        -1.2054557508185615,
+        0.2770793855848725,
+        0.28965289796000054,
+        0.6533295536359949,
+        0.6587649078938482,
+        -0.23513929738938824
+      ],
+      "containment": 0.8226958502760877
+    },
+    {
+      "object_id": 42,
+      "pose": [
+        0.631638819682986,
+        1.374444518798471,
+        0.30928815522963,
+        0.7415005711935452,
+        0.15682394942744254,
+        0.0890498363980578,
+        -0.6462609987018437
+      ],
+      "containment": 0.9288947888167641
+    },
+    {
+      "object_id": 42,
+      "pose": [
+        -0.07173212462083836,
+        -1.4534537740555162,
+        0.30934374387341307,
+        -0.6406037561607121,
+        0.40572464039504363,
+        -0.5130652942029031,
+        0.4022167918593007
+      ],
+      "containment": 0.8880668124151733
+    },
+    {
+      "object_id": 18,
+      "pose": [
+        0.6403421260898339,
+        -1.4461287826979679,
+        0.2870530580828727,
+        0.2954358590889697,
+        -0.5824019629866422,
+        0.5949378310440068,
+        -0.46858786141589426
+      ],
+      "containment": 0.8654702015212187
+    },
+    {
+      "object_id": 18,
+      "pose": [
+        0.35982212802702646,
+        1.3738607594972516,
+        0.28702104322973554,
+        0.29451673307460513,
+        -0.5826930239215155,
+        0.5969141897220885,
+        -0.46628551759698117
+      ],
+      "containment": 0.978190665723925
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.6465250442926953,
+        1.3183212672599107,
+        0.3240869826783612,
+        0.6172394272935608,
+        0.7379770799909616,
+        0.06156696967552595,
+        -0.26573450481129435
+      ],
+      "containment": 0.9616432797363932
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.6471959453530564,
+        -0.799350724777511,
+        0.32407851026183615,
+        0.6171779443703674,
+        0.7380234356613323,
+        0.06156228292044344,
+        -0.2657496542218527
+      ],
+      "containment": 0.9906415812588375
+    },
+    {
+      "object_id": 36,
+      "pose": [
+        -0.3634468340862606,
+        0.6533026307817987,
+        0.2602766048516032,
+        0.49019717086325515,
+        -0.06828264009910232,
+        0.07074261272012763,
+        -0.8660483228344059
+      ],
+      "containment": 1.0
+    },
+    {
+      "object_id": 34,
+      "pose": [
+        -0.4411121222952826,
+        0.32918637747998514,
+        0.35220483524561313,
+        0.26079978730780595,
+        0.5414717494807144,
+        0.735010910576939,
+        0.31392798025559443
+      ],
+      "containment": 0.9767907219382894
+    },
+    {
+      "object_id": 18,
+      "pose": [
+        0.34723985576057137,
+        1.4113696413533805,
+        0.2870910800012891,
+        0.30176850995466786,
+        -0.5795157912277954,
+        0.5906067423254591,
+        -0.4735830339413256
+      ],
+      "containment": 0.9568852593031937
+    },
+    {
+      "object_id": 56,
+      "pose": [
+        -0.27363658578472705,
+        1.4044876365768302,
+        0.3187534437700655,
+        0.34650960464044706,
+        0.5220310930387291,
+        -0.5727314787689404,
+        -0.5285766595488811
+      ],
+      "containment": 0.9591957965384569
+    },
+    {
+      "object_id": 57,
+      "pose": [
+        -0.5738576686491554,
+        -1.539443897619899,
+        0.24671950702504852,
+        0.412105949529635,
+        0.7978215071094376,
+        0.41165250477525606,
+        0.1555369553133963
+      ],
+      "containment": 0.8906677295989851
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.6446598876177964,
+        -1.032170873605403,
+        0.3240790756423632,
+        0.6380736180586458,
+        0.7200420229372239,
+        0.06913082485085853,
+        -0.26386070605048395
+      ],
+      "containment": 0.9912146702217316
+    },
+    {
+      "object_id": 42,
+      "pose": [
+        0.5699823496723213,
+        1.3887419838980146,
+        0.3095623386551222,
+        0.7472317476829038,
+        0.12926468677009495,
+        0.11048826008300004,
+        -0.6424388689928512
+      ],
+      "containment": 0.9550246937137822
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.6079027644513194,
+        -0.6953071236122227,
+        0.32408839240212534,
+        0.6299310113821724,
+        0.7271860498691601,
+        0.0661254958705198,
+        -0.26460307740198086
+      ],
+      "containment": 0.9998110046651439
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        -0.7099241832345659,
+        -1.3450005630049537,
+        0.29398295074054265,
+        0.34802007144824953,
+        0.7013436232239437,
+        0.4988467308325235,
+        0.37168681866588976
+      ],
+      "containment": 0.9294280254483754
+    },
+    {
+      "object_id": 2,
+      "pose": [
+        0.2282317632387104,
+        -1.3177430063232287,
+        0.37415634425442307,
+        0.6980014015968299,
+        0.7000651969517779,
+        -0.06678875404338384,
+        0.13506304349844095
+      ],
+      "containment": 0.974129995037972
+    },
+    {
+      "object_id": 46,
+      "pose": [
+        -0.3400943969180025,
+        1.384990794016815,
+        0.23663832628692733,
+        0.017530433286925835,
+        0.691487790273342,
+        -0.6860312779610424,
+        0.22560674961268906
+      ],
+      "containment": 0.9522107179029256
+    },
+    {
+      "object_id": 8,
+      "pose": [
+        -0.6596701912180403,
+        -1.2900031267145031,
+        0.29582680650190535,
+        0.4309450831534463,
+        0.4842794384088398,
+        -0.5399383591310085,
+        -0.5368671429499128
+      ],
+      "containment": 0.9410758997345319
+    },
+    {
+      "object_id": 46,
+      "pose": [
+        -0.4220956095472546,
+        1.3474879520372907,
+        0.23663664773875348,
+        -0.06897240394019549,
+        0.6882654729379605,
+        -0.6524659786840422,
+        0.3095506306181124
+      ],
+      "containment": 0.9750841070340457
+    },
+    {
+      "object_id": 46,
+      "pose": [
+        -0.4974252441233318,
+        1.2736002922064176,
+        0.2365753433420801,
+        0.6780252441502989,
+        0.13742209498542982,
+        -0.3740842542941448,
+        -0.6176227868156557
+      ],
+      "containment": 0.9849676702388507
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.5718574922294526,
+        -0.7741893588117593,
+        0.3257522277684472,
+        0.6519902227080642,
+        0.7076523248258701,
+        0.07381765996619669,
+        -0.2620837456591786
+      ],
+      "containment": 0.9993525334948287
+    },
+    {
+      "object_id": 35,
+      "pose": [
+        -0.08180831997069334,
+        1.4987866322356596,
+        0.31772918154974533,
+        0.48416580591961994,
+        -0.6937160960528933,
+        0.3967868409776796,
+        -0.3562325831283427
+      ],
+      "containment": 0.8643957032996956
+    },
+    {
+      "object_id": 44,
+      "pose": [
+        0.6942869904436952,
+        -0.9270779850215755,
+        0.2526937291955121,
+        -0.028576620904357884,
+        -0.07326256791915389,
+        0.22740445023085085,
+        -0.9706200023154193
+      ],
+      "containment": 0.9719749993934906
+    },
+    {
+      "object_id": 18,
+      "pose": [
+        0.4306665226541253,
+        1.2563659842369241,
+        0.28704538603360114,
+        0.2400954806041835,
+        -0.6073989761695368,
+        0.6366396469966219,
+        -0.41001293127615046
+      ],
+      "containment": 1.0
+    },
+    {
+      "object_id": 50,
+      "pose": [
+        -0.7016255291822013,
+        1.261907717445513,
+        0.28369700515011803,
+        -0.24720744185852858,
+        0.4378219849607266,
+        0.5682756794827404,
+        -0.6513548512778893
+      ],
+      "containment": 0.88353579003199
+    },
+    {
+      "object_id": 35,
+      "pose": [
+        -0.19286897081413523,
+        1.4778619550255907,
+        0.317521264552218,
+        0.46832420791657625,
+        -0.706198928222379,
+        0.40222805839540937,
+        -0.34665270674889276
+      ],
+      "containment": 0.8960824460621644
+    },
+    {
+      "object_id": 2,
+      "pose": [
+        0.5174058279020268,
+        -1.189564030096643,
+        0.37427408435996096,
+        0.16300685717640107,
+        0.9747753420685729,
+        0.025388594635347764,
+        0.15032370495371436
+      ],
+      "containment": 0.9972911277871267
+    },
+    {
+      "object_id": 1,
+      "pose": [
+        -0.13999122900746094,
+        1.4043609276158866,
+        0.37014819755885764,
+        0.6404504091712139,
+        0.36171693055848897,
+        -0.5882808102230473,
+        -0.3360205705951426
+      ],
+      "containment": 0.9548204046802201
+    },
+    {
+      "object_id": 56,
+      "pose": [
+        -0.03908650476574995,
+        1.2449750217958333,
+        0.3187430501855753,
+        0.46713778089581093,
+        0.41780057668214093,
+        -0.42083006367746123,
+        -0.655840704202653
+      ],
+      "containment": 1.0
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        -0.6483347621770753,
+        -1.3238727706853948,
+        0.2939829507405427,
+        0.4151333905126989,
+        0.663826118836267,
+        0.45998430437252086,
+        0.41882405824300223
+      ],
+      "containment": 0.9915300790341418
+    },
+    {
+      "object_id": 4,
+      "pose": [
+        -0.27028631010121834,
+        -1.302759109617505,
+        0.30843336686355205,
+        0.8285839935780875,
+        0.08938340818789282,
+        -0.01304720508847805,
+        -0.5525295850597357
+      ],
+      "containment": 0.9700950098070924
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.587504415606341,
+        -0.7406918639677549,
+        0.32575216329360035,
+        0.4864801366526448,
+        0.8301188348111199,
+        0.016516931128312595,
+        -0.27196872562917135
+      ],
+      "containment": 0.9953409107545695
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.6858849916891077,
+        -0.6268559666774904,
+        0.3240812437958717,
+        0.6439486158519901,
+        0.7147778658990875,
+        0.0713329700108341,
+        -0.26331424183375585
+      ],
+      "containment": 0.9670303159875984
+    },
+    {
+      "object_id": 2,
+      "pose": [
+        0.18582281283623348,
+        -1.2697548919719492,
+        0.3740387853716549,
+        0.5871304824766452,
+        0.7959287700117911,
+        -0.04843527382137128,
+        0.13938871498119196
+      ],
+      "containment": 0.9887760054528787
+    },
+    {
+      "object_id": 18,
+      "pose": [
+        0.4641124501623807,
+        1.3907178105406266,
+        0.2870434500048583,
+        0.24615333652516427,
+        -0.6049513267946104,
+        0.6325405043380851,
+        -0.4163351264290474
+      ],
+      "containment": 0.9750939496744001
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.7523198518867328,
+        1.3612081686849942,
+        0.3257181933688067,
+        0.5742477034183483,
+        0.7719931136404397,
+        0.04617150847112032,
+        -0.26857847906337023
+      ],
+      "containment": 0.8330421164629447
+    },
+    {
+      "object_id": 4,
+      "pose": [
+        -0.2290906984816616,
+        -1.3040794211963143,
+        0.30843704259649857,
+        0.7778428870412891,
+        0.2989981067702002,
+        -0.15435256953926677,
+        -0.5307879609634476
+      ],
+      "containment": 0.9611950555886788
+    },
+    {
+      "object_id": 44,
+      "pose": [
+        -0.722433366806213,
+        1.4137435279316122,
+        0.25269384381661825,
+        -0.05187927517933671,
+        -0.05910156303129788,
+        0.5452949226904569,
+        -0.8345471786197189
+      ],
+      "containment": 0.8570852052808914
+    },
+    {
+      "object_id": 17,
+      "pose": [
+        0.4027621146247079,
+        -1.2916445369356102,
+        0.22780325857316913,
+        -0.6439325277522,
+        -0.4032007562505771,
+        0.10654605369098916,
+        -0.6414265260374737
+      ],
+      "containment": 0.9835858747450105
+    },
+    {
+      "object_id": 2,
+      "pose": [
+        0.24098407494216317,
+        -1.3083106382540637,
+        0.3742664635437024,
+        0.6824205962774654,
+        0.7148033412055822,
+        -0.06295428833410448,
+        0.13926618670011368
+      ],
+      "containment": 0.9794661383674342
+    },
+    {
+      "object_id": 42,
+      "pose": [
+        0.7438314584247131,
+        1.2874996946438109,
+        0.30930656332301354,
+        0.7241920514051916,
+        0.23017296054611705,
+        0.02413493119972998,
+        -0.6496027909507166
+      ],
+      "containment": 0.8320741590644202
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.5682857727227921,
+        1.3393396133227864,
+        0.32574110960153835,
+        0.6391621608938282,
+        0.7189705496227999,
+        0.06993812273656745,
+        -0.2639351053662735
+      ],
+      "containment": 0.9569439502406611
+    },
+    {
+      "object_id": 50,
+      "pose": [
+        -0.5957132935298571,
+        1.3665938878777772,
+        0.2835452887994131,
+        -0.11277376132341686,
+        0.48036318026658736,
+        0.7479329169323562,
+        -0.44399284405291517
+      ],
+      "containment": 0.9284592639779224
+    },
+    {
+      "object_id": 44,
+      "pose": [
+        -0.6413122927108753,
+        1.4004461506862276,
+        0.2526886413052405,
+        -0.037839969995883585,
+        -0.06880432034118594,
+        0.3491528893262131,
+        -0.9337699727707329
+      ],
+      "containment": 0.9508690468009205
+    },
+    {
+      "object_id": 2,
+      "pose": [
+        0.11228114118610301,
+        -1.2448516371820662,
+        0.37410727109423714,
+        0.5854427915744999,
+        0.7967628324809183,
+        -0.0463528914164953,
+        0.14239780906942245
+      ],
+      "containment": 0.9909331697775547
+    },
+    {
+      "object_id": 50,
+      "pose": [
+        -0.5173409923589457,
+        1.3011128987525011,
+        0.2838013192918219,
+        -0.20602975461757636,
+        0.45917518757287834,
+        0.6240804246816049,
+        -0.5976901461952179
+      ],
+      "containment": 0.9727707014940736
+    },
+    {
+      "object_id": 46,
+      "pose": [
+        -0.2161399542443468,
+        1.3849607072888477,
+        0.23657975817409374,
+        0.20882500292314737,
+        0.6595339798547553,
+        -0.7215675716231578,
+        0.02733655342127038
+      ],
+      "containment": 0.9639297999886229
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        -0.6104047388690812,
+        -1.3424965770664097,
+        0.2939829507405426,
+        0.3982027922823985,
+        0.6741182271580309,
+        0.4704350738378446,
+        0.4070503572471055
+      ],
+      "containment": 0.9961561913780025
+    },
+    {
+      "object_id": 18,
+      "pose": [
+        0.40041373857901535,
+        1.4043842981934742,
+        0.2870046119901983,
+        0.26638297731769545,
+        -0.595970922732188,
+        0.6189308999194478,
+        -0.43678748811980317
+      ],
+      "containment": 0.9619638736244146
+    },
+    {
+      "object_id": 18,
+      "pose": [
+        0.3491892480736884,
+        1.2991561676930372,
+        0.28703207655372226,
+        0.371095281688159,
+        -0.5372673878051398,
+        0.5275355207297925,
+        -0.5434503843757721
+      ],
+      "containment": 0.9990005975767324
+    },
+    {
+      "object_id": 44,
+      "pose": [
+        0.6243785533462461,
+        -0.7900679308620415,
+        0.2526886432316763,
+        -0.04035279879382928,
+        -0.06736155310836735,
+        0.3833672309288032,
+        -0.9202519432428898
+      ],
+      "containment": 0.9877585813322821
+    },
+    {
+      "object_id": 56,
+      "pose": [
+        -0.21829049275565793,
+        1.2265525191182212,
+        0.31868685731603463,
+        0.4110799236394744,
+        0.4738722103750778,
+        -0.4993120110749769,
+        -0.5976168841415578
+      ],
+      "containment": 0.999771283951728
+    },
+    {
+      "object_id": 17,
+      "pose": [
+        0.3526085273974137,
+        -1.344807768226898,
+        0.22779917702488078,
+        -0.7395344236697599,
+        -0.17410474318358213,
+        0.30762300093222383,
+        -0.5728389511074368
+      ],
+      "containment": 0.9548023024679124
+    },
+    {
+      "object_id": 4,
+      "pose": [
+        -0.23645944764311708,
+        -1.2943856678568617,
+        0.3084721289825217,
+        0.8121422082479094,
+        0.18440850942030526,
+        -0.07622560563302148,
+        -0.5482774774523114
+      ],
+      "containment": 0.967541109900939
+    },
+    {
+      "object_id": 57,
+      "pose": [
+        -0.3246013379560125,
+        -1.5307174448859504,
+        0.24672319587950298,
+        0.33906037390013394,
+        0.8313780287650637,
+        0.4241407073099665,
+        0.11812407265252862
+      ],
+      "containment": 0.914654700553909
+    },
+    {
+      "object_id": 56,
+      "pose": [
+        -0.056217461587090456,
+        1.433460515896878,
+        0.31875460143055206,
+        0.36321856581461825,
+        0.5105110454401215,
+        -0.5552946353058118,
+        -0.546899089349938
+      ],
+      "containment": 0.9446889690493037
+    },
+    {
+      "object_id": 5,
+      "pose": [
+        -0.647448308751264,
+        1.4447547016248172,
+        0.3213733910523418,
+        -0.3698585203983613,
+        0.8175015475760292,
+        0.37486093851034574,
+        -0.23318484380138202
+      ],
+      "containment": 0.9084593521771325
+    },
+    {
+      "object_id": 1,
+      "pose": [
+        -0.2333367913987415,
+        1.3772114427883209,
+        0.37005168529188903,
+        0.554800078030277,
+        0.48221864957023297,
+        -0.6434519761633899,
+        -0.21361554670877278
+      ],
+      "containment": 0.996080649142613
+    },
+    {
+      "object_id": 57,
+      "pose": [
+        -0.7009344239337895,
+        -1.5360303090402518,
+        0.2467231964438438,
+        0.36988570162346274,
+        0.8181294462693496,
+        0.41943134116684533,
+        0.13388848691544517
+      ],
+      "containment": 0.839059398150513
+    },
+    {
+      "object_id": 43,
+      "pose": [
+        -0.17003387406589932,
+        1.3623330087097067,
+        0.2936930323844246,
+        0.9571782639034176,
+        -0.11911454762179019,
+        -0.0900523097056932,
+        0.24801628408708487
+      ],
+      "containment": 0.995372193539703
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.6004600549384075,
+        -0.8464568061788017,
+        0.3257521300205392,
+        0.47909062958437737,
+        0.8344364001438828,
+        0.014023457759060767,
+        -0.2720136125120267
+      ],
+      "containment": 0.9922462303549412
+    },
+    {
+      "object_id": 42,
+      "pose": [
+        0.5510908978402304,
+        1.3260602424167136,
+        0.309573701930576,
+        0.7571057141056426,
+        0.042689247325379945,
+        0.18391705027500563,
+        -0.6254143302239872
+      ],
+      "containment": 0.986870515307023
+    },
+    {
+      "object_id": 1,
+      "pose": [
+        -0.10346488301961002,
+        1.405630183783689,
+        0.3700963805260493,
+        0.6261802508382378,
+        0.38567159313179017,
+        -0.6005968050918389,
+        -0.31375020864506875
+      ],
+      "containment": 0.9554455598993473
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.6755228385273261,
+        -0.8568107702642781,
+        0.3240769657054585,
+        0.6612553204514814,
+        0.698789243066356,
+        0.07778362284355272,
+        -0.26150469014281563
+      ],
+      "containment": 0.9742512369200647
+    },
+    {
+      "object_id": 57,
+      "pose": [
+        -0.4473751078693343,
+        -1.5425693316635964,
+        0.24672319463089706,
+        0.41129928801035975,
+        0.7981127822509333,
+        0.4120242189872338,
+        0.1551931875367139
+      ],
+      "containment": 0.8860641695167271
+    },
+    {
+      "object_id": 17,
+      "pose": [
+        0.43727827236310807,
+        -1.1533201621665952,
+        0.22780605810933852,
+        -0.6729218832562147,
+        -0.3527066098142378,
+        0.15535181815968896,
+        -0.6313794414001263
+      ],
+      "containment": 1.0
+    },
+    {
+      "object_id": 35,
+      "pose": [
+        -0.2041667378857178,
+        1.394128135607326,
+        0.31807362432760816,
+        0.2645196020400114,
+        -0.7994427977410451,
+        0.4892083682145142,
+        -0.2271470135076773
+      ],
+      "containment": 0.977163229013187
+    },
+    {
+      "object_id": 51,
+      "pose": [
+        0.5609494173768034,
+        -1.1434772634219503,
+        0.23837036993624386,
+        0.4195940348187689,
+        0.6332297191771542,
+        -0.2781243519945012,
+        -0.5878841837666389
+      ],
+      "containment": 0.9773368940272388
+    },
+    {
+      "object_id": 2,
+      "pose": [
+        0.27659267656001707,
+        -1.2507095139112252,
+        0.37412853455085066,
+        0.5514150298606739,
+        0.8206068271144612,
+        -0.04008435587399424,
+        0.1447036438762206
+      ],
+      "containment": 0.9891166103462486
+    },
+    {
+      "object_id": 51,
+      "pose": [
+        0.7422419688092957,
+        -1.456626918842144,
+        0.23106813403238224,
+        0.05608204106404234,
+        0.7478791397370008,
+        -0.5245308290977309,
+        -0.40298760073032264
+      ],
+      "containment": 0.8341080886109679
+    },
+    {
+      "object_id": 44,
+      "pose": [
+        -0.6424209712834713,
+        1.1767773552096166,
+        0.25269356014887556,
+        -0.03835908172870261,
+        -0.0686487256951718,
+        0.35845344223840686,
+        -0.9302295754580141
+      ],
+      "containment": 0.9714244093258584
+    },
+    {
+      "object_id": 51,
+      "pose": [
+        0.612118942521137,
+        -1.2403420287758506,
+        0.23819470999274708,
+        0.26832698926676307,
+        0.7102830735536121,
+        -0.4023418996890866,
+        -0.5114876127618788
+      ],
+      "containment": 0.9541156220725906
+    },
+    {
+      "object_id": 8,
+      "pose": [
+        -0.649091591133606,
+        -1.2877852879529985,
+        0.2958152308734468,
+        0.5047015586860164,
+        0.40687905751597225,
+        -0.4447179902656112,
+        -0.6180223930804897
+      ],
+      "containment": 0.9504206954678771
+    },
+    {
+      "object_id": 43,
+      "pose": [
+        -0.3840516741590145,
+        1.4870833230633718,
+        0.29384380051491626,
+        0.9337766561834018,
+        0.18448279696796369,
+        -0.030451133959338253,
+        0.3051228972568472
+      ],
+      "containment": 0.8936174723531973
+    },
+    {
+      "object_id": 51,
+      "pose": [
+        -0.7838130748276564,
+        -0.937003074002478,
+        0.2310722651668165,
+        -0.22797374900521053,
+        0.7144926687638969,
+        -0.6372477886680261,
+        -0.17732301566594286
+      ],
+      "containment": 0.9156611957156928
+    },
+    {
+      "object_id": 37,
+      "pose": [
+        0.34535365279558367,
+        -0.8354663173996892,
+        0.3953573220133483,
+        0.2468840062267546,
+        -0.5819540813388219,
+        0.3522416879389521,
+        -0.6901474682706833
+      ],
+      "containment": 0.9816056956388088
+    },
+    {
+      "object_id": 34,
+      "pose": [
+        0.4486995887590301,
+        -0.6279207703464388,
+        0.35221015372003567,
+        0.5412841640720679,
+        -0.2610687783303046,
+        -0.3141883667233077,
+        0.7349423221734243
+      ],
+      "containment": 0.976126740329721
+    },
+    {
+      "object_id": 52,
+      "pose": [
+        -0.07217114009530086,
+        -0.7977798146057126,
+        0.2451677000534225,
+        -0.14455206089350953,
+        0.7573238114474392,
+        0.6330867299245503,
+        0.06904012383825987
+      ],
+      "containment": 0.9886303045250636
+    },
+    {
+      "object_id": 19,
+      "pose": [
+        0.6360734958536152,
+        -1.2281595236428764,
+        0.3263962140427699,
+        0.615014246796755,
+        -0.22751657451738933,
+        0.28284916308464514,
+        -0.69999288246325
+      ],
+      "containment": 0.860343105560494
+    },
+    {
+      "object_id": 33,
+      "pose": [
+        -0.49895056993716447,
+        -1.2154798210420499,
+        0.23452290702699582,
+        0.7307814967514663,
+        0.06468460144871678,
+        0.12481908462003978,
+        -0.6679779206348986
+      ],
+      "containment": 0.9673571645544257
+    },
+    {
+      "object_id": 36,
+      "pose": [
+        -0.7741797573679368,
+        1.0882005227833262,
+        0.2602766048516032,
+        0.4901942513147769,
+        -0.06830359609266205,
+        0.07077963644546029,
+        -0.8660452977780114
+      ],
+      "containment": 0.9181569811383261
+    },
+    {
+      "object_id": 2,
+      "pose": [
+        0.35324886992478133,
+        -1.0991535580886114,
+        0.326286841106773,
+        -0.05438497113022009,
+        0.32805479273538424,
+        0.931586077275864,
+        0.14686629465019305
+      ],
+      "containment": 1.0
+    },
+    {
+      "object_id": 8,
+      "pose": [
+        -0.6026157175047191,
+        1.4894161199976832,
+        0.29587281420575673,
+        0.6481250291927098,
+        0.017411846078945005,
+        0.02159515252865108,
+        -0.7610285300416383
+      ],
+      "containment": 0.8513383760010842
+    },
+    {
+      "object_id": 53,
+      "pose": [
+        0.35493327183977147,
+        1.3497346916984523,
+        0.2557995885554785,
+        -0.024432391077260647,
+        0.7452438185626119,
+        -0.5940255712808362,
+        -0.3019078167668747
+      ],
+      "containment": 0.9569384082540735
+    },
+    {
+      "object_id": 38,
+      "pose": [
+        0.07216384815718418,
+        0.9436080715677267,
+        0.2868953657052498,
+        -0.3789033157370253,
+        0.27350176749464816,
+        0.4962442306907809,
+        -0.7316903197438835
+      ],
+      "containment": 0.9522619935031461
+    },
+    {
+      "object_id": 54,
+      "pose": [
+        -0.21472759845812361,
+        1.3687514651040211,
+        0.2564280203928151,
+        0.36549301641504356,
+        0.6751322858204044,
+        -0.6399431137480734,
+        0.03292510836988721
+      ],
+      "containment": 0.9867838586700008
+    },
+    {
+      "object_id": 5,
+      "pose": [
+        0.6509838133380056,
+        1.336306846577111,
+        0.32137339105234214,
+        -0.8228013482817452,
+        0.35791346253838147,
+        0.12144851159719007,
+        -0.42443627746736706
+      ],
+      "containment": 0.9520790189288159
+    },
+    {
+      "object_id": 47,
+      "pose": [
+        -0.5048506757267198,
+        -1.288798724248551,
+        0.3087673975941237,
+        0.5168598660281494,
+        0.20802458836077722,
+        -0.186999521708479,
+        -0.8090814720456111
+      ],
+      "containment": 0.9441127209857785
+    },
+    {
+      "object_id": 30,
+      "pose": [
+        0.6441393748007228,
+        1.4564627001828747,
+        0.2893559657204463,
+        0.22568939912781344,
+        0.6895850075663392,
+        -0.6880979752071296,
+        -0.007615049369968315
+      ],
+      "containment": 0.8813560103878059
+    },
+    {
+      "object_id": 50,
+      "pose": [
+        0.06911873672326138,
+        -1.2349548430068953,
+        0.28373106212123356,
+        -0.14454263551111635,
+        0.4816760643990151,
+        0.6972828386161751,
+        -0.5107761138463169
+      ],
+      "containment": 0.9989658606887045
+    },
+    {
+      "object_id": 58,
+      "pose": [
+        0.07289585075794655,
+        -1.2322963584739501,
+        0.2505012979979593,
+        -0.30141992682317736,
+        0.6138352634581817,
+        -0.6612698507941844,
+        -0.30834150139053973
+      ],
+      "containment": 0.9951473155814888
+    },
+    {
+      "object_id": 10,
+      "pose": [
+        0.4773318967753684,
+        -0.21696331239854377,
+        0.2594002449502174,
+        0.9235855269982542,
+        0.023079178959302313,
+        -0.12058675146280486,
+        0.36320236947130363
+      ],
+      "containment": 0.9944223316733195
+    },
+    {
+      "object_id": 55,
+      "pose": [
+        0.21356474199477748,
+        -1.2650677345677586,
+        0.26749639498084465,
+        0.043931716101580455,
+        0.7991164639148417,
+        -0.5966469023722778,
+        0.0591215300053661
+      ],
+      "containment": 0.937515672001595
+    },
+    {
+      "object_id": 20,
+      "pose": [
+        0.6321255245773191,
+        -0.5052286373272634,
+        0.29371819814277933,
+        0.6080359515775262,
+        -0.3161923871497581,
+        -0.4790380550797454,
+        -0.5484862784821192
+      ],
+      "containment": 0.9629906120790598
+    },
+    {
+      "object_id": 44,
+      "pose": [
+        0.2177809703316389,
+        1.2338512325899451,
+        0.2526886338033905,
+        -0.03262791315581485,
+        -0.07142328893330092,
+        0.2788661821157537,
+        -0.9571143011956462
+      ],
+      "containment": 0.9954668422791338
+    },
+    {
+      "object_id": 17,
+      "pose": [
+        0.6407864705526732,
+        -1.3227929976876065,
+        0.22775756998724278,
+        -0.6514863065206722,
+        -0.3908761818705549,
+        0.11873098617092992,
+        -0.6392842527273984
+      ],
+      "containment": 0.9558618204658423
+    },
+    {
+      "object_id": 1,
+      "pose": [
+        0.6285440229019098,
+        1.3047676502514176,
+        0.3716446803228844,
+        0.7242699018433408,
+        -0.14866783730678793,
+        -0.22446245776135287,
+        -0.634781528157596
+      ],
+      "containment": 0.9415879525420285
+    },
+    {
+      "object_id": 6,
+      "pose": [
+        -0.21815849486848207,
+        -0.7984113728061062,
+        0.4031445353688016,
+        0.006579500850950324,
+        -0.8731438952827818,
+        -0.14511355522016028,
+        -0.4653154890935058
+      ],
+      "containment": 0.9336931493552092
+    },
+    {
+      "object_id": 31,
+      "pose": [
+        0.6287446478626001,
+        -1.415142266886608,
+        0.2815923733359577,
+        0.7453140145951456,
+        0.2173371527902636,
+        0.302053222854991,
+        0.5532046928832056
+      ],
+      "containment": 0.8460499305127981
+    },
+    {
+      "object_id": 15,
+      "pose": [
+        -0.08258794063856637,
+        -1.4841756969304147,
+        0.27937068687058025,
+        0.5416178781335269,
+        0.6280856538650393,
+        0.36892875730918884,
+        0.41958319499875085
+      ],
+      "containment": 0.9089772162194908
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        0.6465007167010807,
+        1.4446132987642768,
+        0.2939829507405427,
+        0.43176563312993804,
+        0.6531303744398549,
+        0.44926036860133284,
+        0.4303071847368499
+      ],
+      "containment": 0.9569043290664572
+    },
+    {
+      "object_id": 43,
+      "pose": [
+        0.3357045394770781,
+        -1.0816496057850409,
+        0.29378537248922926,
+        0.6860252175531278,
+        0.6631381848516379,
+        0.13946633919569434,
+        0.2648892011845898
+      ],
+      "containment": 0.9951933627467566
+    },
+    {
+      "object_id": 9,
+      "pose": [
+        -0.3678901367401266,
+        -1.2362340865459203,
+        0.3019024325069215,
+        0.028100726858459744,
+        -0.32810416936357795,
+        -0.5662608456413999,
+        0.7555836537999944
+      ],
+      "containment": 0.9279732669632945
+    },
+    {
+      "object_id": 4,
+      "pose": [
+        -0.3584958495992522,
+        -1.3436559844429936,
+        0.30843209476132205,
+        0.8332336937836466,
+        -0.017263074274967014,
+        0.057656537691058427,
+        -0.5496356260939758
+      ],
+      "containment": 0.9505151105265823
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        -0.858780414545204,
+        -1.4422422386916605,
+        0.29398295074054254,
+        0.2750967528637412,
+        0.73302293586918,
+        0.5339703730263861,
+        0.3191783087611314
+      ],
+      "containment": 0.6695246228569294
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.6620346624202913,
+        -0.9480256351323498,
+        0.32409759653478193,
+        0.6833318572368801,
+        0.6772765033855154,
+        0.08595154161369313,
+        -0.2587787536512918
+      ],
+      "containment": 0.985598398385369
+    },
+    {
+      "object_id": 4,
+      "pose": [
+        -0.22730096615462977,
+        -1.3170903422082954,
+        0.30843064615797844,
+        0.7073174292967812,
+        0.44081735543589107,
+        -0.25203112368723907,
+        -0.4917951057630076
+      ],
+      "containment": 0.9534559649639711
+    },
+    {
+      "object_id": 5,
+      "pose": [
+        0.6219407655471085,
+        1.2572165078873896,
+        0.321373391052342,
+        -0.8323866914343909,
+        0.33501716571448226,
+        0.10966179246754316,
+        -0.42763323756736765
+      ],
+      "containment": 0.9865491946057559
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        -0.5342013188908398,
+        -1.3532242598073303,
+        0.29398295074054276,
+        0.3552128843700003,
+        0.6977282097980906,
+        0.4949986802981479,
+        0.3767963090750606
+      ],
+      "containment": 0.9919506347017655
+    },
+    {
+      "object_id": 44,
+      "pose": [
+        -0.5564133812620642,
+        1.3380851845419124,
+        0.2526886396129935,
+        -0.03636928750251707,
+        -0.06959295468266423,
+        0.32922876399703016,
+        -0.9409795516067732
+      ],
+      "containment": 0.9916127118057081
+    },
+    {
+      "object_id": 17,
+      "pose": [
+        0.7349715248129467,
+        -1.3283607344742574,
+        0.22776775534088287,
+        -0.6721176215229222,
+        -0.3542257927325115,
+        0.15392573628149886,
+        -0.6317348006177849
+      ],
+      "containment": 0.8793999382818944
+    },
+    {
+      "object_id": 43,
+      "pose": [
+        -0.27660443345256674,
+        1.327732186431241,
+        0.2936928916265118,
+        0.957078284810064,
+        -0.11982615024435568,
+        -0.09026780763171781,
+        0.2479809939652765
+      ],
+      "containment": 0.9948357011608638
+    },
+    {
+      "object_id": 46,
+      "pose": [
+        -0.48373927192313737,
+        1.3857281433061113,
+        0.23661573294098753,
+        0.05513866534020826,
+        0.6895449745127048,
+        -0.697155069213696,
+        0.18831427237047269
+      ],
+      "containment": 0.9534814617435433
+    },
+    {
+      "object_id": 17,
+      "pose": [
+        0.5710600346485705,
+        -1.2481744095375202,
+        0.22779855348961536,
+        -0.5901065198779627,
+        -0.47853715490031656,
+        0.027730933633081146,
+        -0.6496210294450664
+      ],
+      "containment": 0.9954171590552288
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        -0.7579936332905832,
+        -1.3295278599619995,
+        0.2939829507405426,
+        0.4333332873979822,
+        0.6520913356269878,
+        0.44822542134882354,
+        0.4313851222396738
+      ],
+      "containment": 0.8803631975589439
+    },
+    {
+      "object_id": 46,
+      "pose": [
+        -0.42289081381939,
+        1.385942862795763,
+        0.23662225068577766,
+        0.04375507016236987,
+        0.6903503615911636,
+        -0.6939950359320065,
+        0.1996816521059686
+      ],
+      "containment": 0.953622655503612
+    },
+    {
+      "object_id": 43,
+      "pose": [
+        -0.11085993886182566,
+        1.3353420787635075,
+        0.29385540922882275,
+        0.9474388808288303,
+        -0.09193563559736045,
+        -0.11682708611201331,
+        0.2832999081392352
+      ],
+      "containment": 0.9994853017774704
+    },
+    {
+      "object_id": 5,
+      "pose": [
+        0.6014367395008905,
+        1.0857289624132522,
+        0.3213733910523421,
+        -0.8285519058425258,
+        0.34439199282966826,
+        0.11448202781172687,
+        -0.4263681037643917
+      ],
+      "containment": 0.9959114645427025
+    },
+    {
+      "object_id": 8,
+      "pose": [
+        -0.7419107761708715,
+        -1.2990476300712859,
+        0.29536700486930106,
+        0.46126458241339446,
+        0.45458031427670037,
+        -0.5069992820547724,
+        -0.5688087999310827
+      ],
+      "containment": 0.883495467201125
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        -0.718853719576242,
+        -1.348168964954634,
+        0.2939829507405427,
+        0.33586613647431907,
+        0.7072445025152562,
+        0.5051861441181188,
+        0.3630235692387333
+      ],
+      "containment": 0.9186337633127005
+    },
+    {
+      "object_id": 44,
+      "pose": [
+        -0.7462482961995193,
+        1.4120209820667997,
+        0.2526920825898085,
+        -0.03514542690213209,
+        -0.07031819545675554,
+        0.31440866089385544,
+        -0.9460271371956014
+      ],
+      "containment": 0.8455228138606139
+    },
+    {
+      "object_id": 51,
+      "pose": [
+        0.6152963733116764,
+        -1.4985753820334677,
+        0.23104900430949735,
+        0.2689962232253092,
+        0.700083845215864,
+        -0.3863341459407298,
+        -0.5369074121657633
+      ],
+      "containment": 0.8974557185032485
+    },
+    {
+      "object_id": 43,
+      "pose": [
+        -0.13867876585058198,
+        1.4317901057858229,
+        0.2938510177675775,
+        0.8340819978778883,
+        -0.45804248716153984,
+        -0.21989959040402118,
+        0.21482195165076792
+      ],
+      "containment": 0.9456572331006019
+    },
+    {
+      "object_id": 42,
+      "pose": [
+        0.5430036909065549,
+        1.3665332578775156,
+        0.3093913960860859,
+        0.7590350265265995,
+        0.017405868660642983,
+        0.2042273448565798,
+        -0.6179434082946145
+      ],
+      "containment": 0.9803380390827685
+    },
+    {
+      "object_id": 42,
+      "pose": [
+        0.5003538740675688,
+        1.4456405816125049,
+        0.30958777215847705,
+        0.7550587276626526,
+        -0.06851435018904352,
+        0.2734452407973996,
+        -0.591962669333026
+      ],
+      "containment": 0.9115137360058012
+    },
+    {
+      "object_id": 44,
+      "pose": [
+        -0.6355086418708926,
+        1.2985792181422147,
+        0.2526886381093916,
+        -0.03531468953606784,
+        -0.07013392656357319,
+        0.31498702355781644,
+        -0.9458421010073161
+      ],
+      "containment": 0.9787656102276219
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.7347815311031795,
+        1.3270038127570294,
+        0.32574356668148186,
+        0.6130167821272334,
+        0.7414883141827177,
+        0.06015038071362921,
+        -0.2660590845298258
+      ],
+      "containment": 0.8806085003831596
+    },
+    {
+      "object_id": 43,
+      "pose": [
+        -0.2752165015094346,
+        1.3911770114672883,
+        0.2938932749854544,
+        0.9656903193418515,
+        0.010822925470095557,
+        -0.0533014404126628,
+        0.25393705492432
+      ],
+      "containment": 0.9960875167114887
+    },
+    {
+      "object_id": 50,
+      "pose": [
+        -0.5259632726418262,
+        1.304013781653768,
+        0.28386440668202056,
+        -0.18284995108652644,
+        0.469262645486802,
+        0.6523971839400963,
+        -0.5663359244524534
+      ],
+      "containment": 0.9702001484889932
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        0.616837890352365,
+        1.39364274236867,
+        0.2939829507405427,
+        0.5460559585988837,
+        0.5610915594148843,
+        0.3610744602262216,
+        0.5065810756476898
+      ],
+      "containment": 0.9852217440197863
+    },
+    {
+      "object_id": 44,
+      "pose": [
+        -0.5772670108679596,
+        1.3818625898950292,
+        0.25268863697777416,
+        -0.03457800396401191,
+        -0.0704999955960314,
+        0.3050601277130557,
+        -0.9490903174843365
+      ],
+      "containment": 0.9877585813322821
+    },
+    {
+      "object_id": 54,
+      "pose": [
+        -0.597889938603083,
+        -1.3079385219595896,
+        0.2516169316527832,
+        0.47576482135752624,
+        0.6822174572211696,
+        0.5395157039539141,
+        0.130957936026937
+      ],
+      "containment": 0.9639240009401938
+    },
+    {
+      "object_id": 17,
+      "pose": [
+        0.4693931019617864,
+        -1.326877314103644,
+        0.22777615387339972,
+        -0.6392557656922823,
+        -0.41059587196892244,
+        0.09914532655832084,
+        -0.6425988641235666
+      ],
+      "containment": 0.9675165184430723
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        0.6756184678518202,
+        1.394031422840299,
+        0.29398295074054254,
+        0.5415993949084168,
+        0.5653945024539334,
+        0.3650713308540891,
+        0.5037083237530727
+      ],
+      "containment": 0.9576052551791633
+    },
+    {
+      "object_id": 42,
+      "pose": [
+        0.5534746529962505,
+        1.3182511841522007,
+        0.3096168716760542,
+        0.7034724184866242,
+        0.2821554848114385,
+        -0.025212840271024158,
+        -0.651827547365766
+      ],
+      "containment": 0.9603906563265627
+    },
+    {
+      "object_id": 54,
+      "pose": [
+        -0.7428561009348073,
+        -1.3137728369803556,
+        0.2516061709083402,
+        0.5971648320745094,
+        0.5777307635849013,
+        0.5054534158217878,
+        0.23267611088187995
+      ],
+      "containment": 0.944354577277556
+    },
+    {
+      "object_id": 44,
+      "pose": [
+        -0.7212702859850292,
+        1.4705880243320415,
+        0.25269480035774733,
+        -0.037995715067880444,
+        -0.06886174458772179,
+        0.35377983033784965,
+        -0.9320162109185325
+      ],
+      "containment": 0.8234992111553233
+    },
+    {
+      "object_id": 43,
+      "pose": [
+        -0.14286439778750457,
+        1.445316400584125,
+        0.29389370497215533,
+        0.9656645362420113,
+        0.014983526233615756,
+        -0.052132897396810145,
+        0.25406624804393385
+      ],
+      "containment": 0.9723030212496165
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        -0.7567788054273733,
+        -1.2819160430508039,
+        0.2939829507405427,
+        0.31279841288983784,
+        0.7177450806947109,
+        0.5166716122103194,
+        0.34648174146429567
+      ],
+      "containment": 0.8826061611196037
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.7320457148317344,
+        1.2782697228328355,
+        0.3240870981760423,
+        0.605623423926706,
+        0.7475422198734633,
+        0.05739471847819162,
+        -0.2666584785615437
+      ],
+      "containment": 0.9074290638466062
+    },
+    {
+      "object_id": 54,
+      "pose": [
+        -0.6882035878547101,
+        -1.2922506931631454,
+        0.2515977074673136,
+        0.5109282093653104,
+        0.6554421253462164,
+        0.5326501400395868,
+        0.16009938635797727
+      ],
+      "containment": 0.9601140246518928
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        0.5977298269361033,
+        1.4094408767461288,
+        0.2939829507405426,
+        0.31255750250481495,
+        0.7178500230522284,
+        0.5167878708394233,
+        0.3463083143459353
+      ],
+      "containment": 0.987464707580446
+    },
+    {
+      "object_id": 4,
+      "pose": [
+        -0.37578723906345807,
+        -1.2873109285376099,
+        0.3084346986843393,
+        0.8109127841591174,
+        0.19215699846646994,
+        -0.08192596242924882,
+        -0.5466116364547201
+      ],
+      "containment": 0.9658385099635032
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        -0.6258227758625712,
+        -1.3620302238987476,
+        0.2939829507405427,
+        0.5199239884553702,
+        0.5853886693440085,
+        0.38378070770581385,
+        0.48960343179468835
+      ],
+      "containment": 0.9912497085890593
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.7602255956208472,
+        -1.117083228812258,
+        0.3240785874557116,
+        0.6264704211676947,
+        0.730157354550698,
+        0.06490608534640784,
+        -0.26493819860960505
+      ],
+      "containment": 0.8787746157018984
+    },
+    {
+      "object_id": 5,
+      "pose": [
+        0.6057255905121106,
+        1.2816258894790047,
+        0.32137339105234203,
+        -0.7916129026646255,
+        0.42243711690066765,
+        0.15493410252861747,
+        -0.4133900318986778
+      ],
+      "containment": 0.9970817482848209
+    },
+    {
+      "object_id": 51,
+      "pose": [
+        0.5970327351702178,
+        -1.3406319815877241,
+        0.2310619693453442,
+        0.27161659090336265,
+        0.6990561449626814,
+        -0.3843013359965431,
+        -0.5383840793404112
+      ],
+      "containment": 0.9700918571773886
+    },
+    {
+      "object_id": 8,
+      "pose": [
+        -0.6661661678737844,
+        -1.2729287888139562,
+        0.29585964107084134,
+        0.4730333839415633,
+        0.4433677860601832,
+        -0.48919813643904025,
+        -0.5833948982168559
+      ],
+      "containment": 0.9502832720012103
+    },
+    {
+      "object_id": 54,
+      "pose": [
+        -0.6391780441931219,
+        -1.3676294406586063,
+        0.2515960735917857,
+        0.654427635873201,
+        0.5123906847922229,
+        0.47825757031706395,
+        0.28363700741967485
+      ],
+      "containment": 0.9540526987386864
+    },
+    {
+      "object_id": 5,
+      "pose": [
+        0.6983584185288224,
+        1.326101681743245,
+        0.321373391052342,
+        -0.848082146812219,
+        0.29302009770458354,
+        0.0881640332270083,
+        -0.43257715825586673
+      ],
+      "containment": 0.8960117887382375
+    },
+    {
+      "object_id": 2,
+      "pose": [
+        0.10484607780474499,
+        -1.1155424070399538,
+        0.37424982198470785,
+        0.7968992729025018,
+        0.5847802663070495,
+        -0.08702721450121699,
+        0.12413642866410897
+      ],
+      "containment": 0.9996753620407162
+    },
+    {
+      "object_id": 4,
+      "pose": [
+        -0.38857212871692764,
+        -1.310521281964048,
+        0.30843227120884853,
+        0.8319464520861245,
+        0.049361945962741106,
+        0.01356365468227589,
+        -0.5524893903268563
+      ],
+      "containment": 0.9670767644634566
+    },
+    {
+      "object_id": 4,
+      "pose": [
+        -0.22195322874822448,
+        -1.295893430348243,
+        0.30847438060296833,
+        0.7775670847883219,
+        0.2981953872593522,
+        -0.15351946945629422,
+        -0.5318841153568076
+      ],
+      "containment": 0.9646776463697971
+    },
+    {
+      "object_id": 43,
+      "pose": [
+        -0.5105950375424306,
+        1.3204535050932864,
+        0.2938969384500497,
+        0.9519291399889748,
+        0.010947132378894298,
+        -0.08544140197555347,
+        0.2939572070233722
+      ],
+      "containment": 0.9966240090903278
+    },
+    {
+      "object_id": 4,
+      "pose": [
+        -0.3213316462345324,
+        -1.286674270521751,
+        0.30842820653750014,
+        0.8091358175277625,
+        0.19996737363313832,
+        -0.08728418858832633,
+        -0.5456131859645823
+      ],
+      "containment": 0.9570933375575837
+    },
+    {
+      "object_id": 44,
+      "pose": [
+        -0.7593203661468463,
+        1.4893182856241522,
+        0.25269409654581004,
+        -0.021916880144678984,
+        -0.0755287120221452,
+        0.1399474966495188,
+        -0.9870307807796739
+      ],
+      "containment": 0.7675225542793764
+    },
+    {
+      "object_id": 46,
+      "pose": [
+        -0.6654245696441216,
+        1.3386868393338738,
+        0.23651125553845875,
+        0.6901138782136603,
+        -0.04992479950712867,
+        -0.19536775932037206,
+        -0.6950408535540997
+      ],
+      "containment": 0.9286313599714622
+    },
+    {
+      "object_id": 4,
+      "pose": [
+        -0.25691813816230735,
+        -1.3043852692688767,
+        0.3084894097221279,
+        0.8285471262751786,
+        0.08197939919673583,
+        -0.007196477897420182,
+        -0.5538386483032378
+      ],
+      "containment": 0.9704045734320808
+    },
+    {
+      "object_id": 3,
+      "pose": [
+        -0.45845906400122555,
+        1.2878564664095682,
+        0.3257528865033246,
+        0.5224413841360327,
+        0.8080004522307522,
+        0.028356700176643622,
+        -0.2708988130133061
+      ],
+      "containment": 0.9911000524291528
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        -0.6622632426092534,
+        -1.3735837614925022,
+        0.29398295074054254,
+        0.5506752129052177,
+        0.5565587640667718,
+        0.3568747922352225,
+        0.5095483634546648
+      ],
+      "containment": 0.9775115567800184
+    },
+    {
+      "object_id": 51,
+      "pose": [
+        0.5943982188428032,
+        -1.3781625624789293,
+        0.2310630351454657,
+        0.39005367218854364,
+        0.640599179539564,
+        -0.28394698948906566,
+        -0.597381729839109
+      ],
+      "containment": 0.9617321992737152
+    },
+    {
+      "object_id": 46,
+      "pose": [
+        -0.3133807324167253,
+        1.3369996254397805,
+        0.23655344792821387,
+        -0.2501638962028062,
+        0.6450353792242968,
+        -0.5451462891706866,
+        0.4734584543431763
+      ],
+      "containment": 0.9766372383948008
+    },
+    {
+      "object_id": 17,
+      "pose": [
+        0.7561375309972517,
+        -1.3243147268527964,
+        0.2277725229474253,
+        -0.6761429654994527,
+        -0.34651125277300526,
+        0.1611428460790472,
+        -0.6299155697907719
+      ],
+      "containment": 0.8571500603253647
+    },
+    {
+      "object_id": 5,
+      "pose": [
+        0.70706143966036,
+        1.3274306375867384,
+        0.3213733910523419,
+        -0.83673998379264,
+        0.3239912111819368,
+        0.10400273029455957,
+        -0.429044667477445
+      ],
+      "containment": 0.8862239610768842
+    },
+    {
+      "object_id": 54,
+      "pose": [
+        -0.5935216846921622,
+        -1.3281223294553532,
+        0.2515247616144217,
+        0.5843759147800663,
+        0.5931589435310571,
+        0.5090270831573086,
+        0.21807954178795275
+      ],
+      "containment": 0.9660021698247216
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        -0.691055253070503,
+        -1.3699016904738448,
+        0.2939829507405427,
+        0.28393495471625607,
+        0.7296449749428069,
+        0.5300742391631017,
+        0.3256078208622255
+      ],
+      "containment": 0.9358765456852722
+    },
+    {
+      "object_id": 46,
+      "pose": [
+        -0.6524171793418015,
+        1.3910703201738976,
+        0.23655253520954717,
+        0.6804686485579674,
+        -0.12496844101652083,
+        -0.11757202890088518,
+        -0.7124058710452373
+      ],
+      "containment": 0.9097113961222641
+    },
+    {
+      "object_id": 50,
+      "pose": [
+        -0.6123008786855372,
+        1.316263703922147,
+        0.28339444031830646,
+        -0.27380503180051924,
+        0.4194125295773556,
+        0.5291591415998882,
+        -0.6849193656595718
+      ],
+      "containment": 0.9382518468544199
+    },
+    {
+      "object_id": 21,
+      "pose": [
+        -0.5728283271680292,
+        -1.344206931221131,
+        0.29398295074054265,
+        0.4100392249492305,
+        0.6669847689206896,
+        0.4631771823236016,
+        0.41529031990357984
+      ],
+      "containment": 0.99475433915259
+    },
+    {
+      "object_id": 17,
+      "pose": [
+        -0.6304980363393965,
+        -1.2066957232099333,
+        0.22780592843871172,
+        -0.3956546797063647,
+        0.6486005097773012,
+        0.6401346051072458,
+        0.11402824425233236
+      ],
+      "containment": 0.9855283244078823
+    },
+    {
+      "object_id": 37,
+      "pose": [
+        0.7588705909815341,
+        -1.1194394860386607,
+        0.34373728855466656,
+        -0.5814191907312962,
+        0.4186719672642979,
+        -0.4258398339787538,
+        -0.5525630681409632
+      ],
+      "containment": 0.8614310954913659
+    },
+    {
+      "object_id": 33,
+      "pose": [
+        0.35260161003747165,
+        1.1958294673867944,
+        0.2744589059860546,
+        -0.647241386132603,
+        -0.17575485601791294,
+        0.11057511833600343,
+        -0.7334589026443461
+      ],
+      "containment": 0.9844591854085715
+    },
+    {
+      "object_id": 12,
+      "pose": [
+        -0.648578405617054,
+        -0.07424385732270836,
+        0.3366129510740006,
+        0.7404087221261427,
+        0.3264692161313394,
+        0.09828939709066985,
+        -0.5792684779423735
+      ],
+      "containment": 0.980034879315878
+    },
+    {
+      "object_id": 55,
+      "pose": [
+        0.35884266984999164,
+        -1.3693608013174532,
+        0.26699332514248003,
+        0.7987225446744379,
+        -0.040458505898094466,
+        -0.05899091839450128,
+        -0.5974324041063205
+      ],
+      "containment": 0.9009761453970685
+    },
+    {
+      "object_id": 19,
+      "pose": [
+        0.20975644714095262,
+        -1.291681064339634,
+        0.3263589364386433,
+        0.28915590319263956,
+        -0.5879840872958771,
+        0.6878267299434394,
+        -0.31234270651161045
+      ],
+      "containment": 0.9234961030608102
+    },
+    {
+      "object_id": 57,
+      "pose": [
+        -0.6527650411011137,
+        1.378141183952932,
+        0.24672320760156718,
+        0.8316186469255598,
+        0.3384719713421795,
+        0.21191098207683617,
+        0.3859286026931287
+      ],
+      "containment": 0.9849195649673217
+    },
+    {
+      "object_id": 14,
+      "pose": [
+        -0.36260864906439855,
+        0.3692931835039297,
+        0.2628335185466552,
+        0.09537007766190861,
+        -0.1709633702524234,
+        0.9646427988180027,
+        0.17646627158543535
+      ],
+      "containment": 0.9585639220120702
+    },
+    {
+      "object_id": 43,
+      "pose": [
+        0.5130859261290341,
+        1.396447323507548,
+        0.2939029811071096,
+        0.9519259274567586,
+        -0.011644211894254075,
+        -0.09237868723385076,
+        0.2918349175645405
+      ],
+      "containment": 0.9960875167114887
+    },
+    {
+      "object_id": 11,
+      "pose": [
+        -0.7815528663332473,
+        1.3373045799256995,
+        0.26681169129192484,
+        -0.518254470524992,
+        0.43984230268246066,
+        -0.57347634727874,
+        -0.4572482166872662
+      ],
+      "containment": 0.7668654505136534
+    },
+    {
+      "object_id": 20,
+      "pose": [
+        0.0774015731609437,
+        1.3771192121483502,
+        0.2701472297253605,
+        0.6767478929450419,
+        0.052673568356005146,
+        0.7052578246068942,
+        0.20457073451948765
+      ],
+      "containment": 0.9676476620392426
+    },
+    {
+      "object_id": 8,
+      "pose": [
+        0.0693632936350403,
+        1.3454468797076247,
+        0.2958930763991817,
+        0.44617484524814666,
+        0.4704579660473006,
+        -0.5225718313457721,
+        -0.5536388630997241
+      ],
+      "containment": 0.9494587312012092
+    },
+    {
+      "object_id": 2,
+      "pose": [
+        -0.06862979829177063,
+        1.3786170497444146,
+        0.37422054406690364,
+        0.9809525733571289,
+        0.12116922226145319,
+        -0.1364439859274112,
+        0.06658158232440593
+      ],
+      "containment": 0.9986535473606063
+    },
+    {
+      "object_id": 46,
+      "pose": [
+        -0.5056271210058045,
+        -1.4809841820038188,
+        0.23662546635375006,
+        0.4890468107392727,
+        -0.489207828415769,
+        0.30902106868063345,
+        -0.6526981665624264
+      ],
+      "containment": 0.9071699084410285
+    },
+    {
+      "object_id": 47,
+      "pose": [
+        -0.5239257410225552,
+        1.4548799892981417,
+        0.27591475997931997,
+        0.1527014677403799,
+        0.739295680979003,
+        0.5903018705661489,
+        0.28577589023889255
+      ],
+      "containment": 0.8467290973215454
+    },
+    {
+      "object_id": 10,
+      "pose": [
+        -0.07174221614666633,
+        1.2694527888671436,
+        0.2594002449502175,
+        0.6352017638188641,
+        0.6708663007062695,
+        0.1723471534177774,
+        0.34169223656220027
+      ],
+      "containment": 0.978050130164007
+    },
+    {
+      "object_id": 54,
+      "pose": [
+        -0.21679724588892596,
+        0.9440264072581054,
+        0.25158087748125935,
+        0.8312336192259905,
+        0.018602832180304067,
+        0.21351393676473288,
+        0.512948733998397
+      ],
+      "containment": 0.9852252320066048
+    },
+    {
+      "object_id": 42,
+      "pose": [
+        -0.580200323564408,
+        1.0867724128798026,
+        0.3093099587534248,
+        0.40963569428721364,
+        0.6378862168835472,
+        -0.397936822328675,
+        -0.5166682278897989
+      ],
+      "containment": 0.9822044608611269
+    },
+    {
+      "object_id": 51,
+      "pose": [
+        0.5591762353020038,
+        1.5094190885431442,
+        0.23828631761115981,
+        0.3508106046079633,
+        0.6733692899378083,
+        -0.3386296044346171,
+        -0.5557298894820235
+      ],
+      "containment": 0.9388824676703411
+    },
+    {
+      "object_id": 52,
+      "pose": [
+        -0.5056197577526654,
+        1.348147971206663,
+        0.245166662654369,
+        0.43296228285988575,
+        0.638005653490094,
+        0.3990941433783461,
+        0.49620188679260246
+      ],
+      "containment": 0.9224265590812102
+    },
+    {
+      "object_id": 18,
+      "pose": [
+        -0.21732428606650106,
+        -1.3796978230147658,
+        0.31311237034644873,
+        -0.6263429061314362,
+        0.4341646244408414,
+        0.33323219452499037,
+        -0.5551143552053299
+      ],
+      "containment": 0.9926832968357016
+    },
+    {
+      "object_id": 31,
+      "pose": [
+        -0.49864336391156044,
+        1.3265744582480063,
+        0.2832632939533296,
+        -0.2062101065710544,
+        0.6230014023644102,
+        -0.666459912328193,
+        0.35380479061119324
+      ],
+      "containment": 0.9234304111211556
+    },
+    {
+      "object_id": 38,
+      "pose": [
+        -0.6430956594569653,
+        0.3612079032708188,
+        0.2823092014903412,
+        0.8584271804940939,
+        -0.2174451535738644,
+        -0.02159169766535941,
+        -0.46406268926528277
+      ],
+      "containment": 0.9493844894937693
+    },
+    {
+      "object_id": 34,
+      "pose": [
+        -0.6008758451229934,
+        1.3793983498869975,
+        0.3527284628605168,
+        0.5305939921417758,
+        -0.267502854316688,
+        -0.309679673022061,
+        0.7423009757183587
+      ],
+      "containment": 0.8860465687672852
+    },
+    {
+      "object_id": 32,
+      "pose": [
+        -0.6516394483266988,
+        -1.2299061950708186,
+        0.38145929445818755,
+        -0.6888295343433286,
+        0.033976135600842124,
+        0.29737118200641505,
+        -0.6602498579614342
+      ],
+      "containment": 0.8584231597683679
+    },
+    {
+      "object_id": 40,
+      "pose": [
+        0.6535379159738515,
+        -1.3795122714045436,
+        0.32258943254209016,
+        -0.2063263195182301,
+        0.6822954469845258,
+        0.6672567108391226,
+        -0.21603438323193613
+      ],
+      "containment": 0.8633468245384868
+    }
+  ],
+  "checks": {
+    "all_runs_completed_200_iterations": true,
+    "all_runs_same_selected_object_and_pose": true,
+    "all_runs_same_cem_statistics": true,
+    "all_282_containment_values_identical_after_crop": true
+  }
+}

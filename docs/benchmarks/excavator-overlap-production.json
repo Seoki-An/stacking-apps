@@ -1,0 +1,414 @@
+{
+  "measured_at_utc": "2026-09-21T03:14:10.768950+00:00",
+  "source_sha256": {
+    "packages/stacking-common/src/stacking_common/environment/overlap.py": "a07cd6c9e2a12a5119ba5b0d6244ad4cbcf996c261cfff6156fd9430790371a8",
+    "tests/test_voxel_overlap.py": "8f44c9c0cacdb837785e5d2b94ef541490dcfce975da6d4f49c9d8f22e67a853",
+    "apps/excavator/config/mcts.yml": "beb2bd98f823bfe1614f6763c81e77f75ce95001d104a58f2eec6590146be0b9",
+    "apps/excavator/config/environment.yml": "0a575dafa72ce9e13ec7bab58dea7f234580397481de66387a4441ef393282ab"
+  },
+  "reference_check": {
+    "cases": 282,
+    "max_absolute_error": 0.0,
+    "elapsed_seconds": 0.924483131035231
+  },
+  "tests": {
+    "passed": 217,
+    "seconds": 6.36
+  },
+  "comparisons": [
+    {
+      "case": 0,
+      "previous_elapsed_seconds": 59.747546031023376,
+      "current": {
+        "step": 1,
+        "elapsed_seconds": 8.190234253997914,
+        "completed_iterations": 200,
+        "expansion_calls": 1,
+        "generated_candidates": 12,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 12,
+        "failed_evaluations": 3,
+        "effective_max_depth": 1,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 0,
+          "short_jobs": 0,
+          "short_parallel_batches": 0,
+          "short_parallel_jobs": 0,
+          "long_batches": 1,
+          "long_jobs": 12,
+          "short_max_batch_size": 0,
+          "max_evaluation_batch_size": 12,
+          "workers": 12,
+          "pose_generation_seconds": 7.76201853400562,
+          "pose_generation_batches": 1,
+          "pose_generation_node_requests": 1,
+          "pose_generation_max_node_batch": 1,
+          "descendant_frontier_batches": 0,
+          "descendant_frontier_iterations": 0,
+          "short_batch_wall_seconds": 0.0,
+          "long_batch_wall_seconds": 0.3942276129964739,
+          "short_settling_job_seconds": 0.0,
+          "short_structural_job_seconds": 0.0,
+          "long_settling_job_seconds": 0.2720927969785407,
+          "long_structural_job_seconds": 2.3278019709978253
+        },
+        "revalidation": {
+          "attempted": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 12,
+          "accepted": 9,
+          "rejected": 3,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 0,
+          "attempted": 0,
+          "generated": 0,
+          "evaluated": 0
+        },
+        "root_retry": {
+          "rounds": 0,
+          "retired": 0,
+          "generated": 0,
+          "accepted": 0
+        },
+        "descendant_validation": {
+          "attempts": 0,
+          "failures": 0
+        },
+        "final_selection_mode": "max_descendant",
+        "tree": {
+          "nodes": 13,
+          "evaluated": 13,
+          "pending": 0,
+          "failed": 3,
+          "frontier_leaves": 12,
+          "max_depth": 1,
+          "rejection_reasons": {
+            "target_motion_limit": 3
+          },
+          "generation_rejections": {}
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 95,
+              "rejected": 1,
+              "duplicate_rejections": 0,
+              "retained": 95,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 96,
+              "rejected": 0,
+              "duplicate_rejections": 1,
+              "retained": 96,
+              "mutation_attempts": 67,
+              "fresh_attempts": 29,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 96,
+              "rejected": 0,
+              "duplicate_rejections": 2,
+              "retained": 96,
+              "mutation_attempts": 67,
+              "fresh_attempts": 29,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "posegen_gap": 1
+          },
+          "final_candidates": 12
+        },
+        "mode": "pmbs",
+        "seed": 0,
+        "case": 0,
+        "force_depth3": false,
+        "requested_iterations": 200,
+        "max_time_seconds": 240.0,
+        "setup_seconds": 2.5350299240089953,
+        "load_before": [
+          11.51318359375,
+          9.21728515625,
+          5.5498046875
+        ],
+        "load_after": [
+          10.7509765625,
+          9.09716796875,
+          5.5302734375
+        ],
+        "state_sha256": "68abf207254fd0fafd6be49635bacd855375d84c90df841d80c8a949854cf85b",
+        "tree_config": {
+          "max_depth": 3,
+          "max_children": 16,
+          "exploration_constant": 2.0,
+          "discount": 0.9,
+          "root_max_children": 12,
+          "expansion_attempt_multiplier": 3.0,
+          "failure_reward": -1.0,
+          "generation_batch_size": 32,
+          "expansion_retry_batches": 3,
+          "min_feasible_children": 3,
+          "evaluation_batch_size": 12,
+          "final_validation_candidates": 8,
+          "initial_depth1_steps": 10,
+          "validate_root_before_search": true,
+          "root_lookahead": true,
+          "rejected_root_retry_rounds": 1,
+          "final_selection": {
+            "mode": "max_descendant",
+            "max_weight": 1.0,
+            "validate_descendant_path": false,
+            "validate_descendant_depth": 0,
+            "require_validated_descendant": false
+          },
+          "widening": {
+            "enabled": true,
+            "coefficient": 3.0,
+            "exponent": 0.5
+          }
+        },
+        "object_count": 49,
+        "selected": {
+          "object_id": 2,
+          "pose": [
+            -0.06862979829177063,
+            1.3786170497444146,
+            0.37422054406690364,
+            0.9809525733571289,
+            0.12116922226145319,
+            -0.1364439859274112,
+            0.06658158232440593
+          ],
+          "reward": 4.942670719598069,
+          "target_IoU": 0.015834774076695216,
+          "failed": false,
+          "selection_score": 4.942670719598069
+        }
+      },
+      "same_state_and_selected_object_pose_reward": true
+    },
+    {
+      "case": 10,
+      "previous_elapsed_seconds": 165.74658932798775,
+      "current": {
+        "step": 11,
+        "elapsed_seconds": 74.41442811198067,
+        "completed_iterations": 40,
+        "expansion_calls": 20,
+        "generated_candidates": 71,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 60,
+        "failed_evaluations": 38,
+        "effective_max_depth": 3,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 4,
+          "short_jobs": 48,
+          "short_parallel_batches": 4,
+          "short_parallel_jobs": 48,
+          "long_batches": 1,
+          "long_jobs": 12,
+          "short_max_batch_size": 12,
+          "max_evaluation_batch_size": 12,
+          "workers": 12,
+          "pose_generation_seconds": 13.249466189881787,
+          "pose_generation_batches": 6,
+          "pose_generation_node_requests": 20,
+          "pose_generation_max_node_batch": 7,
+          "descendant_frontier_batches": 3,
+          "descendant_frontier_iterations": 33,
+          "short_batch_wall_seconds": 42.76069792709313,
+          "long_batch_wall_seconds": 12.636307606939226,
+          "short_settling_job_seconds": 19.996110818348825,
+          "short_structural_job_seconds": 75.384128907579,
+          "long_settling_job_seconds": 4.6125915420707315,
+          "long_structural_job_seconds": 32.54929375892971
+        },
+        "revalidation": {
+          "attempted": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 12,
+          "accepted": 7,
+          "rejected": 5,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 7,
+          "attempted": 7,
+          "generated": 21,
+          "evaluated": 12
+        },
+        "root_retry": {
+          "rounds": 0,
+          "retired": 0,
+          "generated": 0,
+          "accepted": 0
+        },
+        "descendant_validation": {
+          "attempts": 0,
+          "failures": 0
+        },
+        "final_selection_mode": "max_descendant",
+        "tree": {
+          "nodes": 72,
+          "evaluated": 61,
+          "pending": 11,
+          "failed": 38,
+          "frontier_leaves": 51,
+          "max_depth": 3,
+          "rejection_reasons": {
+            "posegen_gap": 8,
+            "target_motion_limit": 22,
+            "stone_outside_target": 8,
+            "simulation_unsettled": 8
+          },
+          "generation_rejections": {
+            "posegen_gap": 8
+          }
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 96,
+              "rejected": 0,
+              "duplicate_rejections": 0,
+              "retained": 96,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 94,
+              "rejected": 2,
+              "duplicate_rejections": 5,
+              "retained": 96,
+              "mutation_attempts": 67,
+              "fresh_attempts": 29,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 94,
+              "rejected": 2,
+              "duplicate_rejections": 4,
+              "retained": 96,
+              "mutation_attempts": 67,
+              "fresh_attempts": 29,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "posegen_gap": 4
+          },
+          "final_candidates": 12
+        },
+        "mode": "pmbs",
+        "seed": 0,
+        "case": 10,
+        "force_depth3": false,
+        "requested_iterations": 40,
+        "max_time_seconds": 240.0,
+        "setup_seconds": 2.410016898997128,
+        "load_before": [
+          2.68701171875,
+          7.77099609375,
+          4.5859375
+        ],
+        "load_after": [
+          10.0107421875,
+          8.87548828125,
+          5.20068359375
+        ],
+        "state_sha256": "e13cf3dd3262a7bc13d0a54b50c9a424194b49609f1909f06587d0ffbc4ca1f8",
+        "tree_config": {
+          "max_depth": 3,
+          "max_children": 16,
+          "exploration_constant": 2.0,
+          "discount": 0.9,
+          "root_max_children": 12,
+          "expansion_attempt_multiplier": 3.0,
+          "failure_reward": -1.0,
+          "generation_batch_size": 32,
+          "expansion_retry_batches": 3,
+          "min_feasible_children": 3,
+          "evaluation_batch_size": 12,
+          "final_validation_candidates": 8,
+          "initial_depth1_steps": 10,
+          "validate_root_before_search": true,
+          "root_lookahead": true,
+          "rejected_root_retry_rounds": 1,
+          "final_selection": {
+            "mode": "max_descendant",
+            "max_weight": 1.0,
+            "validate_descendant_path": false,
+            "validate_descendant_depth": 0,
+            "require_validated_descendant": false
+          },
+          "widening": {
+            "enabled": true,
+            "coefficient": 3.0,
+            "exponent": 0.5
+          }
+        },
+        "object_count": 49,
+        "selected": {
+          "object_id": 56,
+          "pose": [
+            0.22906506414958852,
+            -0.3632497679297098,
+            1.3622140186552483,
+            -0.6998239630324525,
+            0.4099231643749097,
+            0.4463157833248906,
+            -0.37816880044432866
+          ],
+          "reward": 1.6158383150603983,
+          "target_IoU": 0.18140435236720434,
+          "failed": false,
+          "selection_score": 1.6158383150603983
+        }
+      },
+      "same_state_and_selected_object_pose_reward": true
+    }
+  ],
+  "cli_log": "config: /home/inrol-excavator/workspace/stacking/stacking-apps/apps/excavator/config/mcts.yml\ndebug mode: real excavator assets/actions/rewards; native pose solve; core transition; search_workers=12; motion_planning=False\ninventory source: catalog (search-only; no recorded pickup poses)\npose_from_scan: false (profile); controls MCTS orientation initialization/filtering; recorded pickup poses are used for motion planning in either mode\ndebug workload: objects=49, steps=1, iterations/step=200, search_limit/attempt=240.0s, planning_cap/step=all ranked candidates; progress heartbeat=10s\n[Progress] step 1 started\n[Progress] step 1: MCTS search 1 started\n/home/inrol-excavator/workspace/stacking/stacking-apps/packages/stacking-common/src/stacking_common/domain/geometry.py:41: RuntimeWarning: invalid value encountered in matmul\n  return np.asarray(points, dtype=float) @ quaternion_matrix(pose[3:]).T + pose[:3]\n[Progress] step 1: MCTS search finished in 7.4s; generated=12, evaluated=12, ranked=8, MCTS_execution_rejected=0\n[INFO] Search: iterations=200, effective_depth=1, expansions=1, generated=12, seeded=0, execution_rejected=0, transition_evaluations=12, failed_evaluations=3, generation_rejected=0, timed_out=False\n[INFO] Tree nodes: 13, evaluated: 13, pending: 0, failed: 3, frontier leaves: 12, max depth: 1\n[INFO] Root candidates: total=12, selectable=9, evaluated=12, pending=0, failed=3\n[INFO] Root CEM: rounds=3, attempts=288, posegen_rejected=1, duplicates=3, retained=12\n[INFO] CEM round 1: attempted=96, accepted=95, rejected=1, duplicates=0, retained=95, mutated=0, fresh=96, fresh_fallback=0\n[INFO] CEM round 2: attempted=96, accepted=96, rejected=0, duplicates=1, retained=96, mutated=67, fresh=29, fresh_fallback=0\n[INFO] CEM round 3: attempted=96, accepted=96, rejected=0, duplicates=2, retained=96, mutated=67, fresh=29, fresh_fallback=0\n[INFO] CEM posegen rejections: posegen_gap=1\n[INFO] MCTS long simulation: batches=1, jobs=12, workers=12\n[INFO] MCTS pose generation: batches=1, node_requests=1, max_node_batch=1, frontier_batches=0, frontier_iterations=0\n[Timing] MCTS phases: pose_generation=7.03s, short_batch_wall=0.00s, long_batch_wall=0.37s; simulation_job_seconds=(short_settle=0.00s, short_structural=0.00s, long_settle=0.24s, long_structural=2.39s)\n[INFO] Root authoritative validation: attempted=12, kept=9, rejected=3, timed_out=False\n[INFO] Rejection reasons: target_motion_limit=3\n[Timing] MCTS total wall=7.43s\n[INFO] Selected physical validation: stages=(short=0.690s, long_extension=3.610s, total=4.300s), settled=True, support_count=1, support_has_ground=True\n  step  1: reward = 4.943  target_IoU = 0.016  time = 7.427s\n[Progress] step 1 finished with complete in 7.4s\nstack run: /tmp/excavator-containment-optimized.stack\n\nreturn=   4.943  target_IoU= 0.016  steps=1\n"
+}
