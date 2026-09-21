@@ -1,0 +1,265 @@
+{
+  "gpu": "NVIDIA GeForce RTX 5060 Ti",
+  "torch": "2.7.0+cu128",
+  "cuda": "12.8",
+  "dtype": "float64",
+  "target_grid_points": 556150,
+  "cuda_init_seconds": 0.09907251002732664,
+  "geometry_upload_seconds": 0.009959410992451012,
+  "reference_sha256": "701216ef1f9d02d3e2faf5727a64f4da687e9ba9c9244e6d66540925ec6ecb85",
+  "benchmark_sha256": "702e2eb7dd66ac3c1075c510920fed89107f5d4d7c5f06cc364135e0a8207073",
+  "results": [
+    {
+      "queries": 96,
+      "max_batch_per_object": 1,
+      "cpu_seconds": [
+        0.3107324430020526,
+        0.31211970502045006,
+        0.3144879270112142
+      ],
+      "gpu_seconds": [
+        0.05903624603524804,
+        0.059099887032061815,
+        0.05872558301780373,
+        0.059251095983199775,
+        0.059016347979195416
+      ],
+      "parallel_cpu_seconds": [
+        0.09799478994682431,
+        0.09740202792454511,
+        0.09745746396947652
+      ],
+      "cpu_median_seconds": 0.31211970502045006,
+      "gpu_median_seconds": 0.05903624603524804,
+      "parallel_cpu_median_seconds": 0.09745746396947652,
+      "speedup": 5.286916529789116,
+      "speedup_vs_parallel_cpu": 1.6508072669676321,
+      "max_absolute_error": 0.0,
+      "peak_cuda_allocated_bytes": 38129152
+    },
+    {
+      "queries": 96,
+      "max_batch_per_object": 16,
+      "cpu_seconds": [
+        0.3107324430020526,
+        0.31211970502045006,
+        0.3144879270112142
+      ],
+      "gpu_seconds": [
+        0.050209328066557646,
+        0.05018557293806225,
+        0.050339997978881,
+        0.05140541202854365,
+        0.050263933022506535
+      ],
+      "parallel_cpu_seconds": [
+        0.09799478994682431,
+        0.09740202792454511,
+        0.09745746396947652
+      ],
+      "cpu_median_seconds": 0.31211970502045006,
+      "gpu_median_seconds": 0.050263933022506535,
+      "parallel_cpu_median_seconds": 0.09745746396947652,
+      "speedup": 6.209615647878034,
+      "speedup_vs_parallel_cpu": 1.9389144085847456,
+      "max_absolute_error": 0.0,
+      "peak_cuda_allocated_bytes": 53175808
+    },
+    {
+      "queries": 96,
+      "max_batch_per_object": 64,
+      "cpu_seconds": [
+        0.3107324430020526,
+        0.31211970502045006,
+        0.3144879270112142
+      ],
+      "gpu_seconds": [
+        0.05023251299280673,
+        0.05036955396644771,
+        0.050201824051328,
+        0.05023618903942406,
+        0.05099843395873904
+      ],
+      "parallel_cpu_seconds": [
+        0.09799478994682431,
+        0.09740202792454511,
+        0.09745746396947652
+      ],
+      "cpu_median_seconds": 0.31211970502045006,
+      "gpu_median_seconds": 0.05023618903942406,
+      "parallel_cpu_median_seconds": 0.09745746396947652,
+      "speedup": 6.2130450376223125,
+      "speedup_vs_parallel_cpu": 1.939985214503322,
+      "max_absolute_error": 0.0,
+      "peak_cuda_allocated_bytes": 53175808
+    },
+    {
+      "queries": 282,
+      "max_batch_per_object": 1,
+      "cpu_seconds": [
+        0.8896315969759598,
+        0.9048216249793768,
+        0.8994928780011833
+      ],
+      "gpu_seconds": [
+        0.17095624306239188,
+        0.17085021792445332,
+        0.17076778097543865,
+        0.1710920799523592,
+        0.1713137540500611
+      ],
+      "parallel_cpu_seconds": [
+        0.261322243954055,
+        0.30385692801792175,
+        0.25842846604064107
+      ],
+      "cpu_median_seconds": 0.8994928780011833,
+      "gpu_median_seconds": 0.17095624306239188,
+      "parallel_cpu_median_seconds": 0.261322243954055,
+      "speedup": 5.261538636368524,
+      "speedup_vs_parallel_cpu": 1.5285914060399848,
+      "max_absolute_error": 0.0,
+      "peak_cuda_allocated_bytes": 38628864
+    },
+    {
+      "queries": 282,
+      "max_batch_per_object": 16,
+      "cpu_seconds": [
+        0.8896315969759598,
+        0.9048216249793768,
+        0.8994928780011833
+      ],
+      "gpu_seconds": [
+        0.15150401298888028,
+        0.15160694799851626,
+        0.15154446789529175,
+        0.15131753496825695,
+        0.15130054205656052
+      ],
+      "parallel_cpu_seconds": [
+        0.261322243954055,
+        0.30385692801792175,
+        0.25842846604064107
+      ],
+      "cpu_median_seconds": 0.8994928780011833,
+      "gpu_median_seconds": 0.15150401298888028,
+      "parallel_cpu_median_seconds": 0.261322243954055,
+      "speedup": 5.937089455625192,
+      "speedup_vs_parallel_cpu": 1.7248536114567137,
+      "max_absolute_error": 0.0,
+      "peak_cuda_allocated_bytes": 196163072
+    },
+    {
+      "queries": 282,
+      "max_batch_per_object": 64,
+      "cpu_seconds": [
+        0.8896315969759598,
+        0.9048216249793768,
+        0.8994928780011833
+      ],
+      "gpu_seconds": [
+        0.15117016294971108,
+        0.15103937999811023,
+        0.15094267495442182,
+        0.15258661389816552,
+        0.15179783792700619
+      ],
+      "parallel_cpu_seconds": [
+        0.261322243954055,
+        0.30385692801792175,
+        0.25842846604064107
+      ],
+      "cpu_median_seconds": 0.8994928780011833,
+      "gpu_median_seconds": 0.15117016294971108,
+      "parallel_cpu_median_seconds": 0.261322243954055,
+      "speedup": 5.950201153784643,
+      "speedup_vs_parallel_cpu": 1.7286628449357933,
+      "max_absolute_error": 0.0,
+      "peak_cuda_allocated_bytes": 196325888
+    },
+    {
+      "queries": 1128,
+      "max_batch_per_object": 1,
+      "cpu_seconds": [
+        3.586612394079566,
+        3.6449763169512153,
+        3.526786745991558
+      ],
+      "gpu_seconds": [
+        0.6848108670674264,
+        0.6871223010821268,
+        0.6950641419971362,
+        0.6864822829375044,
+        0.6917972000082955
+      ],
+      "parallel_cpu_seconds": [
+        1.052870808984153,
+        1.0478491639951244,
+        1.0662289559841156
+      ],
+      "cpu_median_seconds": 3.586612394079566,
+      "gpu_median_seconds": 0.6871223010821268,
+      "parallel_cpu_median_seconds": 1.052870808984153,
+      "speedup": 5.219758387162119,
+      "speedup_vs_parallel_cpu": 1.5322902594283734,
+      "max_absolute_error": 0.0,
+      "peak_cuda_allocated_bytes": 39121920
+    },
+    {
+      "queries": 1128,
+      "max_batch_per_object": 16,
+      "cpu_seconds": [
+        3.586612394079566,
+        3.6449763169512153,
+        3.526786745991558
+      ],
+      "gpu_seconds": [
+        0.6105245290091261,
+        0.611155849066563,
+        0.6142383320257068,
+        0.6105432499898598,
+        0.6113035349408165
+      ],
+      "parallel_cpu_seconds": [
+        1.052870808984153,
+        1.0478491639951244,
+        1.0662289559841156
+      ],
+      "cpu_median_seconds": 3.586612394079566,
+      "gpu_median_seconds": 0.611155849066563,
+      "parallel_cpu_median_seconds": 1.052870808984153,
+      "speedup": 5.868572475510967,
+      "speedup_vs_parallel_cpu": 1.7227533870325136,
+      "max_absolute_error": 0.0,
+      "peak_cuda_allocated_bytes": 253426688
+    },
+    {
+      "queries": 1128,
+      "max_batch_per_object": 64,
+      "cpu_seconds": [
+        3.586612394079566,
+        3.6449763169512153,
+        3.526786745991558
+      ],
+      "gpu_seconds": [
+        0.6240620099706575,
+        0.6233030409784988,
+        0.6238066809019074,
+        0.6250279060332105,
+        0.6249832389876246
+      ],
+      "parallel_cpu_seconds": [
+        1.052870808984153,
+        1.0478491639951244,
+        1.0662289559841156
+      ],
+      "cpu_median_seconds": 3.586612394079566,
+      "gpu_median_seconds": 0.6240620099706575,
+      "parallel_cpu_median_seconds": 1.052870808984153,
+      "speedup": 5.747205144322442,
+      "speedup_vs_parallel_cpu": 1.6871253051177677,
+      "max_absolute_error": 0.0,
+      "peak_cuda_allocated_bytes": 729943552
+    }
+  ]
+}

@@ -62,6 +62,84 @@ def test_scored_maps_and_seeded_poses_match_legacy_capture(label):
                 proposal.score, proposal.diagnostics["height_map_score_normalized"])
 
 
+@pytest.mark.parametrize("placed", [False, True])
+def test_score_map_reuse_preserves_fresh_draws_and_mutation_scores(placed, monkeypatch):
+    from stacking_common.actions import scored
+    app, inventory, state = inputs(placed)
+    with np.load(FIXTURE) as recorded:
+        observation = SimpleNamespace(scene_height_map=recorded["placed_height" if placed else "empty_height"],
+            height_map_xlim=np.array(META["xlim"]), height_map_ylim=np.array(META["ylim"]))
+    cached, uncached = [ScoredPlanarPoseSampler(inventory, app.action_generation_profile.planar,
+        app.build_orientation_provider(), app.sampling_settings, seed=META["seed"]) for _ in range(2)]
+    original = scored.floor.score_xy_debug_map
+    calls = []
+    def record(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(scored.floor, 'score_xy_debug_map', record)
+    draws = []
+    index = META['candidate_index']
+    for _ in range(3):
+        before = len(calls)
+        actual = cached.sample(inventory, state, observation, index, 32, 'lower_floor_first')
+        assert len(calls) - before == (1 if not draws else 0)
+        uncached._score_context = None
+        expected = uncached.sample(inventory, state, observation, index, 32, 'lower_floor_first')
+        np.testing.assert_array_equal([p.pose for p in actual], [p.pose for p in expected])
+        assert [p.diagnostics for p in actual] == [p.diagnostics for p in expected]
+        mutation = actual[0].pose.copy()
+        mutation[0] += .031
+        assert cached.score_at_object_pose(observation, mutation, index) == uncached.score_at_object_pose(observation, mutation, index)
+        draws.append(np.array([p.pose for p in actual]))
+    assert not np.array_equal(draws[0], draws[1])
+    # Equivalent reconstructed inputs can reuse maps, with current lookup identity.
+    duplicate = SimpleNamespace(**{k: v.copy() for k, v in vars(observation).items()})
+    before = len(calls)
+    cached.score_map(state.copy(), duplicate, index)
+    assert len(calls) == before
+    assert cached.score_at_object_pose(duplicate, mutation, index) == uncached.score_at_object_pose(observation, mutation, index)
+
+
+@pytest.mark.parametrize('change', ['height', 'bounds', 'placed', 'pose', 'settings', 'orientation'])
+def test_score_map_cache_invalidates_changed_inputs(change, monkeypatch):
+    from stacking_common.actions import scored
+    app, inventory, state = inputs(True)
+    with np.load(FIXTURE) as recorded:
+        observation = SimpleNamespace(scene_height_map=recorded['placed_height'],
+            height_map_xlim=np.array(META['xlim']), height_map_ylim=np.array(META['ylim']))
+    sampler = ScoredPlanarPoseSampler(inventory, app.action_generation_profile.planar,
+        app.build_orientation_provider(), app.sampling_settings, seed=META['seed'])
+    original = scored.floor.score_xy_debug_map
+    calls = []
+    def record(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(scored.floor, 'score_xy_debug_map', record)
+    index = META['candidate_index']
+    sampler.score_map(state, observation, index)
+    sampler.score_map(state, observation, index)
+    assert len(calls) == 1
+    if change == 'height':
+        observation.scene_height_map[0, 0] += .1
+    elif change == 'bounds':
+        observation.height_map_xlim[0] -= 1
+    elif change == 'placed':
+        state.placed_object_indices.clear()
+    elif change == 'pose':
+        state.object_poses[55][0] += .1
+    elif change == 'settings':
+        sampler.settings['score']['height'] -= 1.
+    else:
+        quaternions = sampler.quaternions(state, observation, index)
+        monkeypatch.setattr(sampler, 'quaternions', lambda *args: quaternions[:1])
+    actual = sampler.score_map(state, observation, index)
+    assert len(calls) == 2
+    sampler._score_context = None
+    expected = sampler.score_map(state, observation, index)
+    np.testing.assert_array_equal(actual['scores'], expected['scores'])
+    np.testing.assert_array_equal(actual['candidate_mask'], expected['candidate_mask'])
+
+
 @pytest.mark.parametrize("feq,gap,converged,legacy,tabletop", [
     (.5, .001, False, True, False),
     (1., .001, True, False, True),

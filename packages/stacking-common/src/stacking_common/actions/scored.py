@@ -60,6 +60,8 @@ class ScoredPlanarPoseSampler:
         self._kernels = {}
         self._scores = {}
         self._sampled_scores = {}
+        self._score_context = None
+        self._score_keys = {}
 
     def view(self, state, observation):
         planar = {
@@ -97,18 +99,42 @@ class ScoredPlanarPoseSampler:
         return tuple(unique.values())
 
     def score_map(self, state, observation, object_index):
+        # State/observation arrays are mutable. Key their contents, not just
+        # their identities, and retain maps only for the current scene.
+        height = np.asarray(observation.scene_height_map)
+        context = (
+            tuple(state.object_ids), tuple(state.placed_object_indices),
+            tuple((object_id, np.asarray(pose).tobytes())
+                  for object_id, pose in sorted(state.object_poses.items())),
+            height.shape, height.dtype.str, height.tobytes(),
+            tuple(observation.height_map_xlim), tuple(observation.height_map_ylim),
+            self.config, repr(self.settings),
+        )
+        if context != self._score_context:
+            self._scores.clear()
+            self._score_keys.clear()
+            self._sampled_scores.clear()
+            self._score_context = context
         view = self.view(state, observation)
         quaternions = self.quaternions(state, observation, object_index)
         rows, columns = self.config.grid_shape
         dx = np.diff(view.xlim)[0] / max(columns - 1, 1)
         dy = np.diff(view.ylim)[0] / max(rows - 1, 1)
         key = (object_index, float(dx), float(dy), tuple(tuple(q) for q in quaternions))
+        if self._score_keys.get(object_index) == key:
+            scores = self._scores[object_index][1]
+            # CEM lookup uses the current observation's identity, including
+            # when an equivalent observation was reconstructed from a state.
+            self._scores[object_index] = (observation, scores)
+            return scores
         if key not in self._kernels:
             self._kernels[key] = [bottom_height_kernel(self.stones[object_index].points, q, dx, dy)
                                   for q in quaternions]
         scores = floor.score_xy_debug_map(view, self.state_view(state), object_index,
             scene_height_map=observation.scene_height_map, support_kernels=self._kernels[key])
         self._scores[object_index] = (observation, scores)
+        self._score_keys[object_index] = key
+        self._sampled_scores.pop(object_index, None)
         return scores
 
     def sample(self, inventory, state, observation, object_index, count, sampling_priority):

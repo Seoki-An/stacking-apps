@@ -2,6 +2,11 @@
 
 ## Production update
 
+The subsequent [score-map reuse change](excavator-scoremap-and-gpu.md) further
+reduced the default depth-one CLI search to **5.07 seconds**. That report also
+contains the GPU containment comparison. The measurements below isolate the
+earlier containment optimization.
+
 The shared `VoxelOverlapEvaluator` now caches up to 1,024 exact object/pose
 intersection volumes and crops voxel tests to conservative object bounds.
 Both prior scoring and environment rewards use this implementation. Cache
@@ -115,7 +120,7 @@ remedy for this depth-one workload.
    by object identity and exact pose within a fixed target/resolution context.
 2. **Implemented:** a tested object-bounds broad phase before voxel containment
    tests, preserving the original voxel grid and boundary semantics.
-3. Reuse planar score maps within an unchanged state, keeping random proposal
+3. **Implemented:** reuse planar score maps within an unchanged state, keeping random proposal
    draws independent and invalidating maps when their inputs change.
 4. Expose separate sampling, prior-scoring, and native pose-build timers so
    future logs identify the expensive operation directly.
