@@ -1,0 +1,3712 @@
+{
+  "metadata": {
+    "baseline_ref": "bb49465cbea3a1932d14acbdb3f2ddfa0539f42f",
+    "python": "3.12.3",
+    "cpu_count": 24,
+    "affinity_count": 24,
+    "cpu_model": "AMD Ryzen 9 9900X 12-Core Processor",
+    "hashes": {
+      "packages/stacking-common/src/stacking_common/search/mcts/search.py": "e24720266950a0ed2fb5fda45c5e64427f65c4dcb9df3730c8c8181b90027914",
+      "packages/stacking-common/src/stacking_common/search/mcts/tree_policy.py": "75c79310900c15564f4335e40da59ae95f7fa525f70bfbcd390f18fd5655a734",
+      "apps/excavator/config/action_generation.yml": "78771c64b5e252cd77c985825904c0cd3af274557c93496187a7b92f0f7c8c5e",
+      "apps/excavator/config/environment.yml": "0a575dafa72ce9e13ec7bab58dea7f234580397481de66387a4441ef393282ab",
+      "apps/excavator/config/inventory.yml": "eb70b5be44d9f7b885b54846644502c0dd859de6d544f5ddf729dcb10bc1fe70",
+      "apps/excavator/config/mcts.yml": "beb2bd98f823bfe1614f6763c81e77f75ce95001d104a58f2eec6590146be0b9",
+      "apps/excavator/config/perception.yml": "6f74e63bce78cb2700581379d948eda2202a1d64f1c1595257c0261977a835f5",
+      "apps/excavator/config/planning.yml": "c3060120c41a230591a94a76a47c755b7695e1e3dd6e9ee0f7760c1c3588f46f",
+      "apps/excavator/config/solvers/grasp.yml": "950afe380d4dfca34e4180a47e8770d0dc1c0ff93237eef540451b07192e9aa0",
+      "apps/excavator/config/solvers/motion.yml": "85d312f0cd78e9baa691cc87ccf7cdee5d7188fc470c81d7b1f46c29b1fc98ce",
+      "apps/excavator/config/solvers/posegen.yml": "a76ae3aa48e0a447fc5582733a404406baf7aa2663d9402032fd6584bca0c8f7",
+      "apps/excavator/config/solvers/simulation.yml": "05471ed7a22476580451127af4b02a2a694fdc4e660a9e80c33dfb0fe356bbe9",
+      "apps/excavator/config/visualization.yml": "5784f36864378519ba59324d075211b196a9ad8e6064fae95adfb5b01a4bdc31"
+    },
+    "stacking_core_ref": "f4b1593bfc5c4e5a3c5f55ecfde1abe756aa6dcf",
+    "stacking_core_dirty": false,
+    "measured_at_utc": "2026-09-20T02:27:30.132071+00:00",
+    "thread_environment": {
+      "OMP_NUM_THREADS": null,
+      "OPENBLAS_NUM_THREADS": null,
+      "MKL_NUM_THREADS": null
+    },
+    "benchmark_script_sha256": "5e3db5baa65a91df4d865eea169a0e32315c92215173bbb50c3fc6cefdc4ac15",
+    "state_sha256": {
+      "state_0.pkl": "68abf207254fd0fafd6be49635bacd855375d84c90df841d80c8a949854cf85b",
+      "state_1.pkl": "3868ca4afec707648c58385ec1d97d26a184b9bb9873c1357ac8dc8a4279a316",
+      "state_10.pkl": "e13cf3dd3262a7bc13d0a54b50c9a424194b49609f1909f06587d0ffbc4ca1f8",
+      "state_2.pkl": "59497e167d8513db8a59b75274469320c76bc99fd3d6f28f28b667d943911388",
+      "state_3.pkl": "80f51ddcc9c6274d56aba1193d6e5d80822e6733319092d1bbda55eac1d55be1",
+      "state_4.pkl": "b3ec8531b0518051c0db6a609757af8fd2aea4c0ac1b19dfc0d779032865471f",
+      "state_5.pkl": "7bedb15222f390bb81a3127191c4742d1926e6e67cf97ccf2d93c47f6dc11053",
+      "state_6.pkl": "01da30cb452aa1a306943451358dae1a6b957129c92be237f9683954898624e2",
+      "state_7.pkl": "9f40d4a8bd2929318b7ce37f989095e8b9c4c83ffda032d9187a1ec0bb05b2e2",
+      "state_8.pkl": "12171a809833f1afd93c302ae5527d24e2e9c61a9ecc2b8ece76bd547138545c",
+      "state_9.pkl": "c5520801d7833e1fba860ee04f0ffffba0ebe66fead4723f9d6c542d614302fd"
+    }
+  },
+  "summary": {
+    "depth1_control": {
+      "previous_seconds": 59.52826716698473,
+      "pmbs_seconds": 59.747546031023376,
+      "speedup": 0.9963299101200779,
+      "time_reduction_percent": -0.36836090562410995,
+      "previous_iterations": 200,
+      "pmbs_iterations": 200,
+      "same_object_and_pose": true,
+      "reward_difference": 0.0,
+      "iou_difference": 0.0
+    },
+    "depth3_fixed40_pairs": [
+      {
+        "seed": 0,
+        "previous_seconds": 207.5544139869744,
+        "pmbs_seconds": 165.74658932798775,
+        "speedup": 1.2522394266361354,
+        "time_reduction_percent": 20.143066994282478,
+        "previous_iterations": 40,
+        "pmbs_iterations": 40,
+        "same_object_and_pose": true,
+        "reward_difference": 0.0,
+        "iou_difference": 3.059338098690412e-05
+      },
+      {
+        "seed": 1,
+        "previous_seconds": 322.2542510839994,
+        "pmbs_seconds": 161.8407490690006,
+        "speedup": 1.9911811638155896,
+        "time_reduction_percent": 49.77855264140027,
+        "previous_iterations": 40,
+        "pmbs_iterations": 40,
+        "same_object_and_pose": true,
+        "reward_difference": 0.0005329038399770614,
+        "iou_difference": -5.224466059772226e-06
+      },
+      {
+        "seed": 2,
+        "previous_seconds": 242.90667302702786,
+        "pmbs_seconds": 163.62765935895732,
+        "speedup": 1.4845086336788125,
+        "time_reduction_percent": 32.63764337147267,
+        "previous_iterations": 40,
+        "pmbs_iterations": 40,
+        "same_object_and_pose": true,
+        "reward_difference": 0.0,
+        "iou_difference": -0.00015656612622710897
+      }
+    ],
+    "depth3_fixed40_aggregate": {
+      "previous_mean_seconds": 257.57177936600056,
+      "pmbs_mean_seconds": 163.73833258531522,
+      "ratio_of_mean_times": 1.5730695146281264,
+      "time_reduction_percent": 36.43001846384393
+    },
+    "depth3_default_budget": {
+      "previous_seconds": 228.2777813950088,
+      "pmbs_seconds": 210.78838976600673,
+      "speedup": 1.0829713232707778,
+      "time_reduction_percent": 7.661451553508247,
+      "previous_iterations": 49,
+      "pmbs_iterations": 67,
+      "same_object_and_pose": true,
+      "reward_difference": 0.0,
+      "iou_difference": -8.458170037556334e-05,
+      "iteration_rate_ratio": 1.4807975236559616
+    }
+  },
+  "trials": [
+    {
+      "filename": "case0-pmbs-seed0-iter200-time240.json",
+      "step": 1,
+      "elapsed_seconds": 59.747546031023376,
+      "completed_iterations": 200,
+      "expansion_calls": 1,
+      "generated_candidates": 12,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 12,
+      "failed_evaluations": 3,
+      "effective_max_depth": 1,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 0,
+        "short_jobs": 0,
+        "short_parallel_batches": 0,
+        "short_parallel_jobs": 0,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 0,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 57.971857259981334,
+        "pose_generation_batches": 1,
+        "pose_generation_node_requests": 1,
+        "pose_generation_max_node_batch": 1,
+        "descendant_frontier_batches": 0,
+        "descendant_frontier_iterations": 0,
+        "short_batch_wall_seconds": 0.0,
+        "long_batch_wall_seconds": 1.023322299006395,
+        "short_settling_job_seconds": 0.0,
+        "short_structural_job_seconds": 0.0,
+        "long_settling_job_seconds": 0.3259271449642256,
+        "long_structural_job_seconds": 3.8335086909355596
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 9,
+        "rejected": 3,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 0,
+        "attempted": 0,
+        "generated": 0,
+        "evaluated": 0
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 13,
+        "evaluated": 13,
+        "pending": 0,
+        "failed": 3,
+        "frontier_leaves": 12,
+        "max_depth": 1,
+        "rejection_reasons": {
+          "target_motion_limit": 3
+        },
+        "generation_rejections": {}
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 0,
+            "retained": 95,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 1,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 2,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 1
+        },
+        "final_candidates": 12
+      },
+      "mode": "pmbs",
+      "seed": 0,
+      "case": 0,
+      "force_depth3": false,
+      "requested_iterations": 200,
+      "max_time_seconds": 240.0,
+      "setup_seconds": 2.0544593050144613,
+      "load_before": [
+        18.3291015625,
+        17.8193359375,
+        12.19384765625
+      ],
+      "load_after": [
+        22.47900390625,
+        19.08837890625,
+        12.98291015625
+      ],
+      "state_sha256": "68abf207254fd0fafd6be49635bacd855375d84c90df841d80c8a949854cf85b",
+      "tree_config": {
+        "max_depth": 3,
+        "max_children": 16,
+        "exploration_constant": 2.0,
+        "discount": 0.9,
+        "root_max_children": 12,
+        "expansion_attempt_multiplier": 3.0,
+        "failure_reward": -1.0,
+        "generation_batch_size": 32,
+        "expansion_retry_batches": 3,
+        "min_feasible_children": 3,
+        "evaluation_batch_size": 12,
+        "final_validation_candidates": 8,
+        "initial_depth1_steps": 10,
+        "validate_root_before_search": true,
+        "root_lookahead": true,
+        "rejected_root_retry_rounds": 1,
+        "final_selection": {
+          "mode": "max_descendant",
+          "max_weight": 1.0,
+          "validate_descendant_path": false,
+          "validate_descendant_depth": 0,
+          "require_validated_descendant": false
+        },
+        "widening": {
+          "enabled": true,
+          "coefficient": 3.0,
+          "exponent": 0.5
+        }
+      },
+      "object_count": 49,
+      "selected": {
+        "object_id": 2,
+        "pose": [
+          -0.06862979829177063,
+          1.3786170497444146,
+          0.37422054406690364,
+          0.9809525733571289,
+          0.12116922226145319,
+          -0.1364439859274112,
+          0.06658158232440593
+        ],
+        "reward": 4.942670719598069,
+        "target_IoU": 0.015834774076695216,
+        "failed": false,
+        "selection_score": 4.942670719598069
+      }
+    },
+    {
+      "filename": "case0-previous-seed0-iter200-time240.json",
+      "step": 1,
+      "elapsed_seconds": 59.52826716698473,
+      "completed_iterations": 200,
+      "expansion_calls": 1,
+      "generated_candidates": 12,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 12,
+      "failed_evaluations": 3,
+      "effective_max_depth": 1,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 0,
+        "short_jobs": 0,
+        "short_parallel_batches": 0,
+        "short_parallel_jobs": 0,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 0,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 57.68382133700652,
+        "pose_generation_batches": 1,
+        "pose_generation_node_requests": 1,
+        "pose_generation_max_node_batch": 1,
+        "descendant_frontier_batches": 0,
+        "descendant_frontier_iterations": 0,
+        "short_batch_wall_seconds": 0.0,
+        "long_batch_wall_seconds": 1.0874513749731705,
+        "short_settling_job_seconds": 0.0,
+        "short_structural_job_seconds": 0.0,
+        "long_settling_job_seconds": 0.28765135077992454,
+        "long_structural_job_seconds": 3.9165446519036777
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 9,
+        "rejected": 3,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 0,
+        "attempted": 0,
+        "generated": 0,
+        "evaluated": 0
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 13,
+        "evaluated": 13,
+        "pending": 0,
+        "failed": 3,
+        "frontier_leaves": 12,
+        "max_depth": 1,
+        "rejection_reasons": {
+          "target_motion_limit": 3
+        },
+        "generation_rejections": {}
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 0,
+            "retained": 95,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 1,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 2,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 1
+        },
+        "final_candidates": 12
+      },
+      "mode": "previous",
+      "seed": 0,
+      "case": 0,
+      "force_depth3": false,
+      "requested_iterations": 200,
+      "max_time_seconds": 240.0,
+      "setup_seconds": 2.093972413043957,
+      "load_before": [
+        10.001953125,
+        16.931640625,
+        11.5341796875
+      ],
+      "load_after": [
+        17.8349609375,
+        17.71484375,
+        12.1298828125
+      ],
+      "state_sha256": "68abf207254fd0fafd6be49635bacd855375d84c90df841d80c8a949854cf85b",
+      "tree_config": {
+        "max_depth": 3,
+        "max_children": 16,
+        "exploration_constant": 2.0,
+        "discount": 0.9,
+        "root_max_children": 12,
+        "expansion_attempt_multiplier": 3.0,
+        "failure_reward": -1.0,
+        "generation_batch_size": 32,
+        "expansion_retry_batches": 3,
+        "min_feasible_children": 3,
+        "evaluation_batch_size": 12,
+        "final_validation_candidates": 8,
+        "initial_depth1_steps": 10,
+        "validate_root_before_search": true,
+        "root_lookahead": true,
+        "rejected_root_retry_rounds": 1,
+        "final_selection": {
+          "mode": "max_descendant",
+          "max_weight": 1.0,
+          "validate_descendant_path": false,
+          "validate_descendant_depth": 0,
+          "require_validated_descendant": false
+        },
+        "widening": {
+          "enabled": true,
+          "coefficient": 3.0,
+          "exponent": 0.5
+        }
+      },
+      "object_count": 49,
+      "selected": {
+        "object_id": 2,
+        "pose": [
+          -0.06862979829177063,
+          1.3786170497444146,
+          0.37422054406690364,
+          0.9809525733571289,
+          0.12116922226145319,
+          -0.1364439859274112,
+          0.06658158232440593
+        ],
+        "reward": 4.942670719598069,
+        "target_IoU": 0.015834774076695216,
+        "failed": false,
+        "selection_score": 4.942670719598069
+      }
+    },
+    {
+      "filename": "case10-pmbs-seed0-iter200-time240.json",
+      "step": 11,
+      "elapsed_seconds": 210.78838976600673,
+      "completed_iterations": 67,
+      "expansion_calls": 29,
+      "generated_candidates": 117,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 84,
+      "failed_evaluations": 54,
+      "effective_max_depth": 3,
+      "timed_out": true,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 6,
+        "short_jobs": 72,
+        "short_parallel_batches": 6,
+        "short_parallel_jobs": 72,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 12,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 67.69508293399122,
+        "pose_generation_batches": 8,
+        "pose_generation_node_requests": 29,
+        "pose_generation_max_node_batch": 7,
+        "descendant_frontier_batches": 5,
+        "descendant_frontier_iterations": 60,
+        "short_batch_wall_seconds": 108.31117208604701,
+        "long_batch_wall_seconds": 18.891117584018502,
+        "short_settling_job_seconds": 58.667910748394206,
+        "short_structural_job_seconds": 196.69275059568463,
+        "long_settling_job_seconds": 7.963747262954712,
+        "long_structural_job_seconds": 53.2350299450336
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 7,
+        "rejected": 5,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 7,
+        "attempted": 7,
+        "generated": 21,
+        "evaluated": 12
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 118,
+        "evaluated": 85,
+        "pending": 33,
+        "failed": 54,
+        "frontier_leaves": 71,
+        "max_depth": 3,
+        "rejection_reasons": {
+          "posegen_gap": 10,
+          "target_motion_limit": 31,
+          "stone_outside_target": 11,
+          "simulation_unsettled": 12
+        },
+        "generation_rejections": {
+          "posegen_gap": 10
+        }
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 0,
+            "retained": 96,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 94,
+            "rejected": 2,
+            "duplicate_rejections": 5,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 94,
+            "rejected": 2,
+            "duplicate_rejections": 4,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 4
+        },
+        "final_candidates": 12
+      },
+      "mode": "pmbs",
+      "seed": 0,
+      "case": 10,
+      "force_depth3": false,
+      "requested_iterations": 200,
+      "max_time_seconds": 240.0,
+      "setup_seconds": 2.3830479540047236,
+      "load_before": [
+        20.89990234375,
+        21.2109375,
+        20.1376953125
+      ],
+      "load_after": [
+        22.39111328125,
+        21.51904296875,
+        20.4765625
+      ],
+      "state_sha256": "e13cf3dd3262a7bc13d0a54b50c9a424194b49609f1909f06587d0ffbc4ca1f8",
+      "tree_config": {
+        "max_depth": 3,
+        "max_children": 16,
+        "exploration_constant": 2.0,
+        "discount": 0.9,
+        "root_max_children": 12,
+        "expansion_attempt_multiplier": 3.0,
+        "failure_reward": -1.0,
+        "generation_batch_size": 32,
+        "expansion_retry_batches": 3,
+        "min_feasible_children": 3,
+        "evaluation_batch_size": 12,
+        "final_validation_candidates": 8,
+        "initial_depth1_steps": 10,
+        "validate_root_before_search": true,
+        "root_lookahead": true,
+        "rejected_root_retry_rounds": 1,
+        "final_selection": {
+          "mode": "max_descendant",
+          "max_weight": 1.0,
+          "validate_descendant_path": false,
+          "validate_descendant_depth": 0,
+          "require_validated_descendant": false
+        },
+        "widening": {
+          "enabled": true,
+          "coefficient": 3.0,
+          "exponent": 0.5
+        }
+      },
+      "object_count": 49,
+      "selected": {
+        "object_id": 56,
+        "pose": [
+          0.22906506414958852,
+          -0.3632497679297098,
+          1.3622140186552483,
+          -0.6998239630324525,
+          0.4099231643749097,
+          0.4463157833248906,
+          -0.37816880044432866
+        ],
+        "reward": 1.6158383150603983,
+        "target_IoU": 0.18131977066682878,
+        "failed": false,
+        "selection_score": 1.6158383150603983
+      }
+    },
+    {
+      "filename": "case10-pmbs-seed0-iter40-time240.json",
+      "step": 11,
+      "elapsed_seconds": 165.74658932798775,
+      "completed_iterations": 40,
+      "expansion_calls": 20,
+      "generated_candidates": 71,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 60,
+      "failed_evaluations": 38,
+      "effective_max_depth": 3,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 4,
+        "short_jobs": 48,
+        "short_parallel_batches": 4,
+        "short_parallel_jobs": 48,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 12,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 65.71668931789463,
+        "pose_generation_batches": 6,
+        "pose_generation_node_requests": 20,
+        "pose_generation_max_node_batch": 7,
+        "descendant_frontier_batches": 3,
+        "descendant_frontier_iterations": 33,
+        "short_batch_wall_seconds": 71.64740239601815,
+        "long_batch_wall_seconds": 18.16503847797867,
+        "short_settling_job_seconds": 40.52205577597488,
+        "short_structural_job_seconds": 130.11866266996367,
+        "long_settling_job_seconds": 6.994657264905982,
+        "long_structural_job_seconds": 49.54606294591213
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 7,
+        "rejected": 5,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 7,
+        "attempted": 7,
+        "generated": 21,
+        "evaluated": 12
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 72,
+        "evaluated": 61,
+        "pending": 11,
+        "failed": 38,
+        "frontier_leaves": 51,
+        "max_depth": 3,
+        "rejection_reasons": {
+          "posegen_gap": 8,
+          "target_motion_limit": 22,
+          "stone_outside_target": 8,
+          "simulation_unsettled": 8
+        },
+        "generation_rejections": {
+          "posegen_gap": 8
+        }
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 0,
+            "retained": 96,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 94,
+            "rejected": 2,
+            "duplicate_rejections": 5,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 94,
+            "rejected": 2,
+            "duplicate_rejections": 4,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 4
+        },
+        "final_candidates": 12
+      },
+      "mode": "pmbs",
+      "seed": 0,
+      "case": 10,
+      "force_depth3": false,
+      "requested_iterations": 40,
+      "max_time_seconds": 240.0,
+      "setup_seconds": 2.398008247022517,
+      "load_before": [
+        21.4755859375,
+        20.4189453125,
+        14.73681640625
+      ],
+      "load_after": [
+        21.3134765625,
+        20.705078125,
+        15.78125
+      ],
+      "state_sha256": "e13cf3dd3262a7bc13d0a54b50c9a424194b49609f1909f06587d0ffbc4ca1f8",
+      "tree_config": {
+        "max_depth": 3,
+        "max_children": 16,
+        "exploration_constant": 2.0,
+        "discount": 0.9,
+        "root_max_children": 12,
+        "expansion_attempt_multiplier": 3.0,
+        "failure_reward": -1.0,
+        "generation_batch_size": 32,
+        "expansion_retry_batches": 3,
+        "min_feasible_children": 3,
+        "evaluation_batch_size": 12,
+        "final_validation_candidates": 8,
+        "initial_depth1_steps": 10,
+        "validate_root_before_search": true,
+        "root_lookahead": true,
+        "rejected_root_retry_rounds": 1,
+        "final_selection": {
+          "mode": "max_descendant",
+          "max_weight": 1.0,
+          "validate_descendant_path": false,
+          "validate_descendant_depth": 0,
+          "require_validated_descendant": false
+        },
+        "widening": {
+          "enabled": true,
+          "coefficient": 3.0,
+          "exponent": 0.5
+        }
+      },
+      "object_count": 49,
+      "selected": {
+        "object_id": 56,
+        "pose": [
+          0.22906506414958852,
+          -0.3632497679297098,
+          1.3622140186552483,
+          -0.6998239630324525,
+          0.4099231643749097,
+          0.4463157833248906,
+          -0.37816880044432866
+        ],
+        "reward": 1.6158383150603983,
+        "target_IoU": 0.18141694964172836,
+        "failed": false,
+        "selection_score": 1.6158383150603983
+      }
+    },
+    {
+      "filename": "case10-pmbs-seed1-iter40-time240.json",
+      "step": 11,
+      "elapsed_seconds": 161.8407490690006,
+      "completed_iterations": 40,
+      "expansion_calls": 12,
+      "generated_candidates": 70,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 58,
+      "failed_evaluations": 52,
+      "effective_max_depth": 3,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 5,
+        "short_jobs": 46,
+        "short_parallel_batches": 4,
+        "short_parallel_jobs": 45,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 12,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 65.34549314400647,
+        "pose_generation_batches": 5,
+        "pose_generation_node_requests": 12,
+        "pose_generation_max_node_batch": 3,
+        "descendant_frontier_batches": 3,
+        "descendant_frontier_iterations": 36,
+        "short_batch_wall_seconds": 69.25494508299744,
+        "long_batch_wall_seconds": 17.35445990500739,
+        "short_settling_job_seconds": 27.269200016453397,
+        "short_structural_job_seconds": 115.11665937199723,
+        "long_settling_job_seconds": 5.055843601003289,
+        "long_structural_job_seconds": 44.7116183200269
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 3,
+        "rejected": 9,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 3,
+        "attempted": 3,
+        "generated": 9,
+        "evaluated": 9
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 71,
+        "evaluated": 59,
+        "pending": 12,
+        "failed": 52,
+        "frontier_leaves": 54,
+        "max_depth": 3,
+        "rejection_reasons": {
+          "posegen_gap": 2,
+          "simulation_unsettled": 9,
+          "target_motion_limit": 29,
+          "stone_outside_target": 14
+        },
+        "generation_rejections": {
+          "posegen_gap": 2
+        }
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 0,
+            "retained": 95,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 93,
+            "rejected": 3,
+            "duplicate_rejections": 2,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 4,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 5
+        },
+        "final_candidates": 12
+      },
+      "mode": "pmbs",
+      "seed": 1,
+      "case": 10,
+      "force_depth3": false,
+      "requested_iterations": 40,
+      "max_time_seconds": 240.0,
+      "setup_seconds": 2.386941951001063,
+      "load_before": [
+        19.7666015625,
+        20.39453125,
+        15.70703125
+      ],
+      "load_after": [
+        20.7041015625,
+        20.740234375,
+        16.59326171875
+      ],
+      "state_sha256": "e13cf3dd3262a7bc13d0a54b50c9a424194b49609f1909f06587d0ffbc4ca1f8",
+      "tree_config": {
+        "max_depth": 3,
+        "max_children": 16,
+        "exploration_constant": 2.0,
+        "discount": 0.9,
+        "root_max_children": 12,
+        "expansion_attempt_multiplier": 3.0,
+        "failure_reward": -1.0,
+        "generation_batch_size": 32,
+        "expansion_retry_batches": 3,
+        "min_feasible_children": 3,
+        "evaluation_batch_size": 12,
+        "final_validation_candidates": 8,
+        "initial_depth1_steps": 10,
+        "validate_root_before_search": true,
+        "root_lookahead": true,
+        "rejected_root_retry_rounds": 1,
+        "final_selection": {
+          "mode": "max_descendant",
+          "max_weight": 1.0,
+          "validate_descendant_path": false,
+          "validate_descendant_depth": 0,
+          "require_validated_descendant": false
+        },
+        "widening": {
+          "enabled": true,
+          "coefficient": 3.0,
+          "exponent": 0.5
+        }
+      },
+      "object_count": 49,
+      "selected": {
+        "object_id": 56,
+        "pose": [
+          0.20541124719005127,
+          -0.3892149744967529,
+          1.359421826065302,
+          -0.20261949698616874,
+          0.739216948246716,
+          0.6419808039986792,
+          -0.01908638685277059
+        ],
+        "reward": 1.6196089879640228,
+        "target_IoU": 0.18141172517566861,
+        "failed": false,
+        "selection_score": 1.6196089879640228
+      }
+    },
+    {
+      "filename": "case10-pmbs-seed2-iter40-time240.json",
+      "step": 11,
+      "elapsed_seconds": 163.62765935895732,
+      "completed_iterations": 40,
+      "expansion_calls": 18,
+      "generated_candidates": 66,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 60,
+      "failed_evaluations": 44,
+      "effective_max_depth": 3,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 4,
+        "short_jobs": 48,
+        "short_parallel_batches": 4,
+        "short_parallel_jobs": 48,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 12,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 64.50462439411785,
+        "pose_generation_batches": 6,
+        "pose_generation_node_requests": 18,
+        "pose_generation_max_node_batch": 5,
+        "descendant_frontier_batches": 3,
+        "descendant_frontier_iterations": 35,
+        "short_batch_wall_seconds": 70.99016296002083,
+        "long_batch_wall_seconds": 18.261606990010478,
+        "short_settling_job_seconds": 31.629550002340693,
+        "short_structural_job_seconds": 121.14617931476096,
+        "long_settling_job_seconds": 7.390806930081453,
+        "long_structural_job_seconds": 67.05518057802692
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 5,
+        "rejected": 7,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 5,
+        "attempted": 5,
+        "generated": 15,
+        "evaluated": 12
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 67,
+        "evaluated": 61,
+        "pending": 6,
+        "failed": 44,
+        "frontier_leaves": 52,
+        "max_depth": 3,
+        "rejection_reasons": {
+          "target_motion_limit": 22,
+          "stone_outside_target": 14,
+          "simulation_unsettled": 7,
+          "posegen_gap": 3,
+          "scene_motion_limit": 1
+        },
+        "generation_rejections": {
+          "posegen_gap": 3
+        }
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 90,
+            "rejected": 6,
+            "duplicate_rejections": 0,
+            "retained": 90,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 93,
+            "rejected": 3,
+            "duplicate_rejections": 3,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 91,
+            "rejected": 5,
+            "duplicate_rejections": 2,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 14
+        },
+        "final_candidates": 12
+      },
+      "mode": "pmbs",
+      "seed": 2,
+      "case": 10,
+      "force_depth3": false,
+      "requested_iterations": 40,
+      "max_time_seconds": 240.0,
+      "setup_seconds": 2.403413071995601,
+      "load_before": [
+        22.10009765625,
+        21.67529296875,
+        18.67138671875
+      ],
+      "load_after": [
+        25.1982421875,
+        22.44287109375,
+        19.39599609375
+      ],
+      "state_sha256": "e13cf3dd3262a7bc13d0a54b50c9a424194b49609f1909f06587d0ffbc4ca1f8",
+      "tree_config": {
+        "max_depth": 3,
+        "max_children": 16,
+        "exploration_constant": 2.0,
+        "discount": 0.9,
+        "root_max_children": 12,
+        "expansion_attempt_multiplier": 3.0,
+        "failure_reward": -1.0,
+        "generation_batch_size": 32,
+        "expansion_retry_batches": 3,
+        "min_feasible_children": 3,
+        "evaluation_batch_size": 12,
+        "final_validation_candidates": 8,
+        "initial_depth1_steps": 10,
+        "validate_root_before_search": true,
+        "root_lookahead": true,
+        "rejected_root_retry_rounds": 1,
+        "final_selection": {
+          "mode": "max_descendant",
+          "max_weight": 1.0,
+          "validate_descendant_path": false,
+          "validate_descendant_depth": 0,
+          "require_validated_descendant": false
+        },
+        "widening": {
+          "enabled": true,
+          "coefficient": 3.0,
+          "exponent": 0.5
+        }
+      },
+      "object_count": 49,
+      "selected": {
+        "object_id": 44,
+        "pose": [
+          -0.06720204323803118,
+          1.4315102051044475,
+          1.04092949100037,
+          0.36961859861142726,
+          -0.0022970796596268384,
+          -0.40633960233381056,
+          -0.8356224880654917
+        ],
+        "reward": 2.3991646786753775,
+        "target_IoU": 0.17401695066418882,
+        "failed": false,
+        "selection_score": 2.3991646786753775
+      }
+    },
+    {
+      "filename": "case10-previous-seed0-iter200-time240.json",
+      "step": 11,
+      "elapsed_seconds": 228.2777813950088,
+      "completed_iterations": 49,
+      "expansion_calls": 26,
+      "generated_candidates": 103,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 96,
+      "failed_evaluations": 71,
+      "effective_max_depth": 3,
+      "timed_out": true,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 7,
+        "short_jobs": 84,
+        "short_parallel_batches": 7,
+        "short_parallel_jobs": 84,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 12,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 68.02412243490107,
+        "pose_generation_batches": 9,
+        "pose_generation_node_requests": 26,
+        "pose_generation_max_node_batch": 7,
+        "descendant_frontier_batches": 6,
+        "descendant_frontier_iterations": 42,
+        "short_batch_wall_seconds": 126.48509757901775,
+        "long_batch_wall_seconds": 18.05882475298131,
+        "short_settling_job_seconds": 73.01139291306026,
+        "short_structural_job_seconds": 227.4926074258983,
+        "long_settling_job_seconds": 6.18708862492349,
+        "long_structural_job_seconds": 47.939720284950454
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 7,
+        "rejected": 5,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 7,
+        "attempted": 7,
+        "generated": 21,
+        "evaluated": 12
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 104,
+        "evaluated": 97,
+        "pending": 7,
+        "failed": 71,
+        "frontier_leaves": 89,
+        "max_depth": 2,
+        "rejection_reasons": {
+          "stone_outside_target": 21,
+          "target_motion_limit": 34,
+          "simulation_unsettled": 15,
+          "posegen_gap": 4,
+          "scene_motion_limit": 1
+        },
+        "generation_rejections": {
+          "posegen_gap": 4
+        }
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 0,
+            "retained": 96,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 94,
+            "rejected": 2,
+            "duplicate_rejections": 5,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 94,
+            "rejected": 2,
+            "duplicate_rejections": 4,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 4
+        },
+        "final_candidates": 12
+      },
+      "mode": "previous",
+      "seed": 0,
+      "case": 10,
+      "force_depth3": false,
+      "requested_iterations": 200,
+      "max_time_seconds": 240.0,
+      "setup_seconds": 2.40852013300173,
+      "load_before": [
+        22.39111328125,
+        21.51904296875,
+        20.4765625
+      ],
+      "load_after": [
+        21.2880859375,
+        21.3076171875,
+        20.62744140625
+      ],
+      "state_sha256": "e13cf3dd3262a7bc13d0a54b50c9a424194b49609f1909f06587d0ffbc4ca1f8",
+      "tree_config": {
+        "max_depth": 3,
+        "max_children": 16,
+        "exploration_constant": 2.0,
+        "discount": 0.9,
+        "root_max_children": 12,
+        "expansion_attempt_multiplier": 3.0,
+        "failure_reward": -1.0,
+        "generation_batch_size": 32,
+        "expansion_retry_batches": 3,
+        "min_feasible_children": 3,
+        "evaluation_batch_size": 12,
+        "final_validation_candidates": 8,
+        "initial_depth1_steps": 10,
+        "validate_root_before_search": true,
+        "root_lookahead": true,
+        "rejected_root_retry_rounds": 1,
+        "final_selection": {
+          "mode": "max_descendant",
+          "max_weight": 1.0,
+          "validate_descendant_path": false,
+          "validate_descendant_depth": 0,
+          "require_validated_descendant": false
+        },
+        "widening": {
+          "enabled": true,
+          "coefficient": 3.0,
+          "exponent": 0.5
+        }
+      },
+      "object_count": 49,
+      "selected": {
+        "object_id": 56,
+        "pose": [
+          0.22906506414958852,
+          -0.3632497679297098,
+          1.3622140186552483,
+          -0.6998239630324525,
+          0.4099231643749097,
+          0.4463157833248906,
+          -0.37816880044432866
+        ],
+        "reward": 1.6158383150603983,
+        "target_IoU": 0.18140435236720434,
+        "failed": false,
+        "selection_score": 1.6158383150603983
+      }
+    },
+    {
+      "filename": "case10-previous-seed0-iter40-time240.json",
+      "step": 11,
+      "elapsed_seconds": 207.5544139869744,
+      "completed_iterations": 40,
+      "expansion_calls": 24,
+      "generated_candidates": 96,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 84,
+      "failed_evaluations": 59,
+      "effective_max_depth": 3,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 6,
+        "short_jobs": 72,
+        "short_parallel_batches": 6,
+        "short_parallel_jobs": 72,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 12,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 66.73956712702056,
+        "pose_generation_batches": 8,
+        "pose_generation_node_requests": 24,
+        "pose_generation_max_node_batch": 7,
+        "descendant_frontier_batches": 5,
+        "descendant_frontier_iterations": 33,
+        "short_batch_wall_seconds": 108.07978746097069,
+        "long_batch_wall_seconds": 18.47903334297007,
+        "short_settling_job_seconds": 58.40763237106148,
+        "short_structural_job_seconds": 195.54705039894907,
+        "long_settling_job_seconds": 9.807062745036092,
+        "long_structural_job_seconds": 48.50856027100235
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 7,
+        "rejected": 5,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 7,
+        "attempted": 7,
+        "generated": 21,
+        "evaluated": 12
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 97,
+        "evaluated": 85,
+        "pending": 12,
+        "failed": 59,
+        "frontier_leaves": 77,
+        "max_depth": 2,
+        "rejection_reasons": {
+          "target_motion_limit": 30,
+          "stone_outside_target": 16,
+          "simulation_unsettled": 13,
+          "posegen_gap": 4
+        },
+        "generation_rejections": {
+          "posegen_gap": 4
+        }
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 0,
+            "retained": 96,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 94,
+            "rejected": 2,
+            "duplicate_rejections": 5,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 94,
+            "rejected": 2,
+            "duplicate_rejections": 4,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 4
+        },
+        "final_candidates": 12
+      },
+      "mode": "previous",
+      "seed": 0,
+      "case": 10,
+      "force_depth3": false,
+      "requested_iterations": 40,
+      "max_time_seconds": 240.0,
+      "setup_seconds": 2.440144609019626,
+      "load_before": [
+        22.47900390625,
+        19.08837890625,
+        12.98291015625
+      ],
+      "load_after": [
+        21.4755859375,
+        20.4189453125,
+        14.73681640625
+      ],
+      "state_sha256": "e13cf3dd3262a7bc13d0a54b50c9a424194b49609f1909f06587d0ffbc4ca1f8",
+      "tree_config": {
+        "max_depth": 3,
+        "max_children": 16,
+        "exploration_constant": 2.0,
+        "discount": 0.9,
+        "root_max_children": 12,
+        "expansion_attempt_multiplier": 3.0,
+        "failure_reward": -1.0,
+        "generation_batch_size": 32,
+        "expansion_retry_batches": 3,
+        "min_feasible_children": 3,
+        "evaluation_batch_size": 12,
+        "final_validation_candidates": 8,
+        "initial_depth1_steps": 10,
+        "validate_root_before_search": true,
+        "root_lookahead": true,
+        "rejected_root_retry_rounds": 1,
+        "final_selection": {
+          "mode": "max_descendant",
+          "max_weight": 1.0,
+          "validate_descendant_path": false,
+          "validate_descendant_depth": 0,
+          "require_validated_descendant": false
+        },
+        "widening": {
+          "enabled": true,
+          "coefficient": 3.0,
+          "exponent": 0.5
+        }
+      },
+      "object_count": 49,
+      "selected": {
+        "object_id": 56,
+        "pose": [
+          0.22906506414958852,
+          -0.3632497679297098,
+          1.3622140186552483,
+          -0.6998239630324525,
+          0.4099231643749097,
+          0.4463157833248906,
+          -0.37816880044432866
+        ],
+        "reward": 1.6158383150603983,
+        "target_IoU": 0.18138635626074145,
+        "failed": false,
+        "selection_score": 1.6158383150603983
+      }
+    },
+    {
+      "filename": "case10-previous-seed1-iter40-time240.json",
+      "step": 11,
+      "elapsed_seconds": 215.33493394800462,
+      "completed_iterations": 21,
+      "expansion_calls": 19,
+      "generated_candidates": 96,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 90,
+      "failed_evaluations": 76,
+      "effective_max_depth": 3,
+      "timed_out": true,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 7,
+        "short_jobs": 78,
+        "short_parallel_batches": 7,
+        "short_parallel_jobs": 78,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 12,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 67.06797482294496,
+        "pose_generation_batches": 8,
+        "pose_generation_node_requests": 19,
+        "pose_generation_max_node_batch": 3,
+        "descendant_frontier_batches": 6,
+        "descendant_frontier_iterations": 18,
+        "short_batch_wall_seconds": 116.18058757408289,
+        "long_batch_wall_seconds": 17.416297460964415,
+        "short_settling_job_seconds": 48.35343824105803,
+        "short_structural_job_seconds": 182.39964495104505,
+        "long_settling_job_seconds": 7.248120588075835,
+        "long_structural_job_seconds": 46.747108579962514
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 3,
+        "rejected": 9,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 3,
+        "attempted": 3,
+        "generated": 9,
+        "evaluated": 9
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 97,
+        "evaluated": 91,
+        "pending": 6,
+        "failed": 76,
+        "frontier_leaves": 87,
+        "max_depth": 2,
+        "rejection_reasons": {
+          "posegen_gap": 5,
+          "target_motion_limit": 41,
+          "stone_outside_target": 22,
+          "simulation_unsettled": 13
+        },
+        "generation_rejections": {
+          "posegen_gap": 5
+        }
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 0,
+            "retained": 95,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 93,
+            "rejected": 3,
+            "duplicate_rejections": 2,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 4,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 5
+        },
+        "final_candidates": 12
+      },
+      "mode": "previous",
+      "seed": 1,
+      "case": 10,
+      "force_depth3": false,
+      "requested_iterations": 40,
+      "max_time_seconds": 240.0,
+      "setup_seconds": 2.4194963189656846,
+      "load_before": [
+        21.04833984375,
+        20.81103515625,
+        16.638671875
+      ],
+      "load_after": [
+        21.7646484375,
+        21.21044921875,
+        17.671875
+      ],
+      "state_sha256": "e13cf3dd3262a7bc13d0a54b50c9a424194b49609f1909f06587d0ffbc4ca1f8",
+      "tree_config": {
+        "max_depth": 3,
+        "max_children": 16,
+        "exploration_constant": 2.0,
+        "discount": 0.9,
+        "root_max_children": 12,
+        "expansion_attempt_multiplier": 3.0,
+        "failure_reward": -1.0,
+        "generation_batch_size": 32,
+        "expansion_retry_batches": 3,
+        "min_feasible_children": 3,
+        "evaluation_batch_size": 12,
+        "final_validation_candidates": 8,
+        "initial_depth1_steps": 10,
+        "validate_root_before_search": true,
+        "root_lookahead": true,
+        "rejected_root_retry_rounds": 1,
+        "final_selection": {
+          "mode": "max_descendant",
+          "max_weight": 1.0,
+          "validate_descendant_path": false,
+          "validate_descendant_depth": 0,
+          "require_validated_descendant": false
+        },
+        "widening": {
+          "enabled": true,
+          "coefficient": 3.0,
+          "exponent": 0.5
+        }
+      },
+      "object_count": 49,
+      "selected": {
+        "object_id": 56,
+        "pose": [
+          0.20541124719005127,
+          -0.3892149744967529,
+          1.359421826065302,
+          -0.20261949698616874,
+          0.739216948246716,
+          0.6419808039986792,
+          -0.01908638685277059
+        ],
+        "reward": 1.6190760841240457,
+        "target_IoU": 0.18141874925237467,
+        "failed": false,
+        "selection_score": 1.6190760841240457
+      }
+    },
+    {
+      "filename": "case10-previous-seed1-iter40-time600.json",
+      "step": 11,
+      "elapsed_seconds": 322.2542510839994,
+      "completed_iterations": 40,
+      "expansion_calls": 36,
+      "generated_candidates": 153,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 153,
+      "failed_evaluations": 123,
+      "effective_max_depth": 3,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 14,
+        "short_jobs": 141,
+        "short_parallel_batches": 14,
+        "short_parallel_jobs": 141,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 12,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 70.78008838283131,
+        "pose_generation_batches": 15,
+        "pose_generation_node_requests": 36,
+        "pose_generation_max_node_batch": 3,
+        "descendant_frontier_batches": 12,
+        "descendant_frontier_iterations": 36,
+        "short_batch_wall_seconds": 209.7710909009329,
+        "long_batch_wall_seconds": 17.23388888599584,
+        "short_settling_job_seconds": 105.27993619604968,
+        "short_structural_job_seconds": 302.2771322236513,
+        "long_settling_job_seconds": 8.884289924870245,
+        "long_structural_job_seconds": 48.38820568006486
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 3,
+        "rejected": 9,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 3,
+        "attempted": 3,
+        "generated": 9,
+        "evaluated": 9
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 154,
+        "evaluated": 154,
+        "pending": 0,
+        "failed": 123,
+        "frontier_leaves": 149,
+        "max_depth": 3,
+        "rejection_reasons": {
+          "posegen_gap": 5,
+          "target_motion_limit": 63,
+          "simulation_unsettled": 23,
+          "scene_motion_limit": 1,
+          "stone_outside_target": 36
+        },
+        "generation_rejections": {
+          "posegen_gap": 5
+        }
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 0,
+            "retained": 95,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 93,
+            "rejected": 3,
+            "duplicate_rejections": 2,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 4,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 5
+        },
+        "final_candidates": 12
+      },
+      "mode": "previous",
+      "seed": 1,
+      "case": 10,
+      "force_depth3": false,
+      "requested_iterations": 40,
+      "max_time_seconds": 600.0,
+      "setup_seconds": 2.4723077210364863,
+      "load_before": [
+        23.18017578125,
+        22.06982421875,
+        19.29150390625
+      ],
+      "load_after": [
+        17.58447265625,
+        20.71728515625,
+        19.66748046875
+      ],
+      "state_sha256": "e13cf3dd3262a7bc13d0a54b50c9a424194b49609f1909f06587d0ffbc4ca1f8",
+      "tree_config": {
+        "max_depth": 3,
+        "max_children": 16,
+        "exploration_constant": 2.0,
+        "discount": 0.9,
+        "root_max_children": 12,
+        "expansion_attempt_multiplier": 3.0,
+        "failure_reward": -1.0,
+        "generation_batch_size": 32,
+        "expansion_retry_batches": 3,
+        "min_feasible_children": 3,
+        "evaluation_batch_size": 12,
+        "final_validation_candidates": 8,
+        "initial_depth1_steps": 10,
+        "validate_root_before_search": true,
+        "root_lookahead": true,
+        "rejected_root_retry_rounds": 1,
+        "final_selection": {
+          "mode": "max_descendant",
+          "max_weight": 1.0,
+          "validate_descendant_path": false,
+          "validate_descendant_depth": 0,
+          "require_validated_descendant": false
+        },
+        "widening": {
+          "enabled": true,
+          "coefficient": 3.0,
+          "exponent": 0.5
+        }
+      },
+      "object_count": 49,
+      "selected": {
+        "object_id": 56,
+        "pose": [
+          0.20541124719005127,
+          -0.3892149744967529,
+          1.359421826065302,
+          -0.20261949698616874,
+          0.739216948246716,
+          0.6419808039986792,
+          -0.01908638685277059
+        ],
+        "reward": 1.6190760841240457,
+        "target_IoU": 0.1814169496417284,
+        "failed": false,
+        "selection_score": 1.6190760841240457
+      }
+    },
+    {
+      "filename": "case10-previous-seed2-iter40-time240.json",
+      "step": 11,
+      "elapsed_seconds": 222.55989531701198,
+      "completed_iterations": 35,
+      "expansion_calls": 29,
+      "generated_candidates": 98,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 96,
+      "failed_evaluations": 69,
+      "effective_max_depth": 3,
+      "timed_out": true,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 7,
+        "short_jobs": 84,
+        "short_parallel_batches": 7,
+        "short_parallel_jobs": 84,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 12,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 65.40663318400038,
+        "pose_generation_batches": 9,
+        "pose_generation_node_requests": 29,
+        "pose_generation_max_node_batch": 5,
+        "descendant_frontier_batches": 6,
+        "descendant_frontier_iterations": 30,
+        "short_batch_wall_seconds": 123.56371377588948,
+        "long_batch_wall_seconds": 18.16948909900384,
+        "short_settling_job_seconds": 60.49353997700382,
+        "short_structural_job_seconds": 201.82059572683647,
+        "long_settling_job_seconds": 9.680682923004497,
+        "long_structural_job_seconds": 67.08901477296604
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 5,
+        "rejected": 7,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 5,
+        "attempted": 5,
+        "generated": 15,
+        "evaluated": 12
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 99,
+        "evaluated": 97,
+        "pending": 2,
+        "failed": 69,
+        "frontier_leaves": 91,
+        "max_depth": 2,
+        "rejection_reasons": {
+          "target_motion_limit": 34,
+          "stone_outside_target": 18,
+          "simulation_unsettled": 16,
+          "posegen_gap": 2,
+          "scene_motion_limit": 1
+        },
+        "generation_rejections": {
+          "posegen_gap": 2
+        }
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 90,
+            "rejected": 6,
+            "duplicate_rejections": 0,
+            "retained": 90,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 93,
+            "rejected": 3,
+            "duplicate_rejections": 3,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 91,
+            "rejected": 5,
+            "duplicate_rejections": 2,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 14
+        },
+        "final_candidates": 12
+      },
+      "mode": "previous",
+      "seed": 2,
+      "case": 10,
+      "force_depth3": false,
+      "requested_iterations": 40,
+      "max_time_seconds": 240.0,
+      "setup_seconds": 2.4173320299596526,
+      "load_before": [
+        21.94384765625,
+        21.2568359375,
+        17.7060546875
+      ],
+      "load_after": [
+        21.84765625,
+        21.619140625,
+        18.63720703125
+      ],
+      "state_sha256": "e13cf3dd3262a7bc13d0a54b50c9a424194b49609f1909f06587d0ffbc4ca1f8",
+      "tree_config": {
+        "max_depth": 3,
+        "max_children": 16,
+        "exploration_constant": 2.0,
+        "discount": 0.9,
+        "root_max_children": 12,
+        "expansion_attempt_multiplier": 3.0,
+        "failure_reward": -1.0,
+        "generation_batch_size": 32,
+        "expansion_retry_batches": 3,
+        "min_feasible_children": 3,
+        "evaluation_batch_size": 12,
+        "final_validation_candidates": 8,
+        "initial_depth1_steps": 10,
+        "validate_root_before_search": true,
+        "root_lookahead": true,
+        "rejected_root_retry_rounds": 1,
+        "final_selection": {
+          "mode": "max_descendant",
+          "max_weight": 1.0,
+          "validate_descendant_path": false,
+          "validate_descendant_depth": 0,
+          "require_validated_descendant": false
+        },
+        "widening": {
+          "enabled": true,
+          "coefficient": 3.0,
+          "exponent": 0.5
+        }
+      },
+      "object_count": 49,
+      "selected": {
+        "object_id": 44,
+        "pose": [
+          -0.06720204323803118,
+          1.4315102051044475,
+          1.04092949100037,
+          0.36961859861142726,
+          -0.0022970796596268384,
+          -0.40633960233381056,
+          -0.8356224880654917
+        ],
+        "reward": 2.395537208353252,
+        "target_IoU": 0.17419331250752512,
+        "failed": false,
+        "selection_score": 2.395537208353252
+      }
+    },
+    {
+      "filename": "case10-previous-seed2-iter40-time600.json",
+      "step": 11,
+      "elapsed_seconds": 242.90667302702786,
+      "completed_iterations": 40,
+      "expansion_calls": 32,
+      "generated_candidates": 107,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 107,
+      "failed_evaluations": 76,
+      "effective_max_depth": 3,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 8,
+        "short_jobs": 95,
+        "short_parallel_batches": 8,
+        "short_parallel_jobs": 95,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 12,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 66.89497090899386,
+        "pose_generation_batches": 10,
+        "pose_generation_node_requests": 32,
+        "pose_generation_max_node_batch": 5,
+        "descendant_frontier_batches": 7,
+        "descendant_frontier_iterations": 35,
+        "short_batch_wall_seconds": 140.64309436408803,
+        "long_batch_wall_seconds": 18.519565725000575,
+        "short_settling_job_seconds": 62.733458787959535,
+        "short_structural_job_seconds": 234.40876400092384,
+        "long_settling_job_seconds": 8.633077414997388,
+        "long_structural_job_seconds": 68.33201914891833
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 5,
+        "rejected": 7,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 5,
+        "attempted": 5,
+        "generated": 15,
+        "evaluated": 12
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 108,
+        "evaluated": 108,
+        "pending": 0,
+        "failed": 76,
+        "frontier_leaves": 102,
+        "max_depth": 2,
+        "rejection_reasons": {
+          "target_motion_limit": 34,
+          "simulation_unsettled": 19,
+          "stone_outside_target": 21,
+          "posegen_gap": 2,
+          "scene_motion_limit": 2
+        },
+        "generation_rejections": {
+          "posegen_gap": 2
+        }
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 90,
+            "rejected": 6,
+            "duplicate_rejections": 0,
+            "retained": 90,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 93,
+            "rejected": 3,
+            "duplicate_rejections": 3,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 91,
+            "rejected": 5,
+            "duplicate_rejections": 2,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 14
+        },
+        "final_candidates": 12
+      },
+      "mode": "previous",
+      "seed": 2,
+      "case": 10,
+      "force_depth3": false,
+      "requested_iterations": 40,
+      "max_time_seconds": 600.0,
+      "setup_seconds": 2.39317218499491,
+      "load_before": [
+        17.58447265625,
+        20.71728515625,
+        19.66748046875
+      ],
+      "load_after": [
+        22.63232421875,
+        21.55224609375,
+        20.2412109375
+      ],
+      "state_sha256": "e13cf3dd3262a7bc13d0a54b50c9a424194b49609f1909f06587d0ffbc4ca1f8",
+      "tree_config": {
+        "max_depth": 3,
+        "max_children": 16,
+        "exploration_constant": 2.0,
+        "discount": 0.9,
+        "root_max_children": 12,
+        "expansion_attempt_multiplier": 3.0,
+        "failure_reward": -1.0,
+        "generation_batch_size": 32,
+        "expansion_retry_batches": 3,
+        "min_feasible_children": 3,
+        "evaluation_batch_size": 12,
+        "final_validation_candidates": 8,
+        "initial_depth1_steps": 10,
+        "validate_root_before_search": true,
+        "root_lookahead": true,
+        "rejected_root_retry_rounds": 1,
+        "final_selection": {
+          "mode": "max_descendant",
+          "max_weight": 1.0,
+          "validate_descendant_path": false,
+          "validate_descendant_depth": 0,
+          "require_validated_descendant": false
+        },
+        "widening": {
+          "enabled": true,
+          "coefficient": 3.0,
+          "exponent": 0.5
+        }
+      },
+      "object_count": 49,
+      "selected": {
+        "object_id": 44,
+        "pose": [
+          -0.06720204323803118,
+          1.4315102051044475,
+          1.04092949100037,
+          0.36961859861142726,
+          -0.0022970796596268384,
+          -0.40633960233381056,
+          -0.8356224880654917
+        ],
+        "reward": 2.3991646786753775,
+        "target_IoU": 0.17417351679041593,
+        "failed": false,
+        "selection_score": 2.3991646786753775
+      }
+    }
+  ],
+  "preparation": [
+    {
+      "step": 1,
+      "elapsed_seconds": 60.394422964018304,
+      "completed_iterations": 200,
+      "expansion_calls": 1,
+      "generated_candidates": 12,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 12,
+      "failed_evaluations": 3,
+      "effective_max_depth": 1,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 0,
+        "short_jobs": 0,
+        "short_parallel_batches": 0,
+        "short_parallel_jobs": 0,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 0,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 58.576299015956465,
+        "pose_generation_batches": 1,
+        "pose_generation_node_requests": 1,
+        "pose_generation_max_node_batch": 1,
+        "descendant_frontier_batches": 0,
+        "descendant_frontier_iterations": 0,
+        "short_batch_wall_seconds": 0.0,
+        "long_batch_wall_seconds": 1.017229816003237,
+        "short_settling_job_seconds": 0.0,
+        "short_structural_job_seconds": 0.0,
+        "long_settling_job_seconds": 0.2744276350713335,
+        "long_structural_job_seconds": 3.1269999020150863
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 9,
+        "rejected": 3,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 0,
+        "attempted": 0,
+        "generated": 0,
+        "evaluated": 0
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 13,
+        "evaluated": 13,
+        "pending": 0,
+        "failed": 3,
+        "frontier_leaves": 12,
+        "max_depth": 1,
+        "rejection_reasons": {
+          "target_motion_limit": 3
+        },
+        "generation_rejections": {}
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 0,
+            "retained": 95,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 1,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 2,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 1
+        },
+        "final_candidates": 12
+      },
+      "selected_object_id": 2
+    },
+    {
+      "step": 2,
+      "elapsed_seconds": 59.10063497896772,
+      "completed_iterations": 200,
+      "expansion_calls": 1,
+      "generated_candidates": 12,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 12,
+      "failed_evaluations": 9,
+      "effective_max_depth": 1,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 0,
+        "short_jobs": 0,
+        "short_parallel_batches": 0,
+        "short_parallel_jobs": 0,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 0,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 55.021659773017745,
+        "pose_generation_batches": 1,
+        "pose_generation_node_requests": 1,
+        "pose_generation_max_node_batch": 1,
+        "descendant_frontier_batches": 0,
+        "descendant_frontier_iterations": 0,
+        "short_batch_wall_seconds": 0.0,
+        "long_batch_wall_seconds": 3.1124558619922027,
+        "short_settling_job_seconds": 0.0,
+        "short_structural_job_seconds": 0.0,
+        "long_settling_job_seconds": 0.6456119121285155,
+        "long_structural_job_seconds": 16.302469336020295
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 3,
+        "rejected": 9,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 0,
+        "attempted": 0,
+        "generated": 0,
+        "evaluated": 0
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 13,
+        "evaluated": 13,
+        "pending": 0,
+        "failed": 9,
+        "frontier_leaves": 12,
+        "max_depth": 1,
+        "rejection_reasons": {
+          "target_motion_limit": 7,
+          "simulation_unsettled": 2
+        },
+        "generation_rejections": {}
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 0,
+            "retained": 95,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 1,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 94,
+            "rejected": 2,
+            "duplicate_rejections": 4,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 4
+        },
+        "final_candidates": 12
+      },
+      "selected_object_id": 42
+    },
+    {
+      "step": 3,
+      "elapsed_seconds": 63.36730341298971,
+      "completed_iterations": 200,
+      "expansion_calls": 1,
+      "generated_candidates": 12,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 12,
+      "failed_evaluations": 5,
+      "effective_max_depth": 1,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 0,
+        "short_jobs": 0,
+        "short_parallel_batches": 0,
+        "short_parallel_jobs": 0,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 0,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 58.021838142944034,
+        "pose_generation_batches": 1,
+        "pose_generation_node_requests": 1,
+        "pose_generation_max_node_batch": 1,
+        "descendant_frontier_batches": 0,
+        "descendant_frontier_iterations": 0,
+        "short_batch_wall_seconds": 0.0,
+        "long_batch_wall_seconds": 4.353851929015946,
+        "short_settling_job_seconds": 0.0,
+        "short_structural_job_seconds": 0.0,
+        "long_settling_job_seconds": 1.5716431900509633,
+        "long_structural_job_seconds": 19.264003316056915
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 7,
+        "rejected": 5,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 0,
+        "attempted": 0,
+        "generated": 0,
+        "evaluated": 0
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 13,
+        "evaluated": 13,
+        "pending": 0,
+        "failed": 5,
+        "frontier_leaves": 12,
+        "max_depth": 1,
+        "rejection_reasons": {
+          "simulation_unsettled": 2,
+          "target_motion_limit": 3
+        },
+        "generation_rejections": {}
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 92,
+            "rejected": 4,
+            "duplicate_rejections": 0,
+            "retained": 92,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 1,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 3,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 4
+        },
+        "final_candidates": 12
+      },
+      "selected_object_id": 17
+    },
+    {
+      "step": 4,
+      "elapsed_seconds": 61.968532751954626,
+      "completed_iterations": 200,
+      "expansion_calls": 1,
+      "generated_candidates": 12,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 12,
+      "failed_evaluations": 5,
+      "effective_max_depth": 1,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 0,
+        "short_jobs": 0,
+        "short_parallel_batches": 0,
+        "short_parallel_jobs": 0,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 0,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 55.18882492301054,
+        "pose_generation_batches": 1,
+        "pose_generation_node_requests": 1,
+        "pose_generation_max_node_batch": 1,
+        "descendant_frontier_batches": 0,
+        "descendant_frontier_iterations": 0,
+        "short_batch_wall_seconds": 0.0,
+        "long_batch_wall_seconds": 5.820429557992611,
+        "short_settling_job_seconds": 0.0,
+        "short_structural_job_seconds": 0.0,
+        "long_settling_job_seconds": 1.5016608670703135,
+        "long_structural_job_seconds": 24.83018205402186
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 7,
+        "rejected": 5,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 0,
+        "attempted": 0,
+        "generated": 0,
+        "evaluated": 0
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 13,
+        "evaluated": 13,
+        "pending": 0,
+        "failed": 5,
+        "frontier_leaves": 12,
+        "max_depth": 1,
+        "rejection_reasons": {
+          "simulation_unsettled": 5
+        },
+        "generation_rejections": {}
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 93,
+            "rejected": 3,
+            "duplicate_rejections": 0,
+            "retained": 93,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 3,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 4,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 3
+        },
+        "final_candidates": 12
+      },
+      "selected_object_id": 4
+    },
+    {
+      "step": 5,
+      "elapsed_seconds": 66.17258467001375,
+      "completed_iterations": 200,
+      "expansion_calls": 1,
+      "generated_candidates": 12,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 12,
+      "failed_evaluations": 7,
+      "effective_max_depth": 1,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 0,
+        "short_jobs": 0,
+        "short_parallel_batches": 0,
+        "short_parallel_jobs": 0,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 0,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 56.676748832978774,
+        "pose_generation_batches": 1,
+        "pose_generation_node_requests": 1,
+        "pose_generation_max_node_batch": 1,
+        "descendant_frontier_batches": 0,
+        "descendant_frontier_iterations": 0,
+        "short_batch_wall_seconds": 0.0,
+        "long_batch_wall_seconds": 8.287110687990207,
+        "short_settling_job_seconds": 0.0,
+        "short_structural_job_seconds": 0.0,
+        "long_settling_job_seconds": 2.082271905033849,
+        "long_structural_job_seconds": 38.33820210490376
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 5,
+        "rejected": 7,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 0,
+        "attempted": 0,
+        "generated": 0,
+        "evaluated": 0
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 13,
+        "evaluated": 13,
+        "pending": 0,
+        "failed": 7,
+        "frontier_leaves": 12,
+        "max_depth": 1,
+        "rejection_reasons": {
+          "target_motion_limit": 2,
+          "simulation_unsettled": 4,
+          "stone_outside_target": 1
+        },
+        "generation_rejections": {}
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 92,
+            "rejected": 4,
+            "duplicate_rejections": 0,
+            "retained": 92,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 5,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 5,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 5
+        },
+        "final_candidates": 12
+      },
+      "selected_object_id": 7
+    },
+    {
+      "step": 6,
+      "elapsed_seconds": 69.5729445599718,
+      "completed_iterations": 200,
+      "expansion_calls": 1,
+      "generated_candidates": 12,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 12,
+      "failed_evaluations": 6,
+      "effective_max_depth": 1,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 0,
+        "short_jobs": 0,
+        "short_parallel_batches": 0,
+        "short_parallel_jobs": 0,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 0,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 58.816650704015046,
+        "pose_generation_batches": 1,
+        "pose_generation_node_requests": 1,
+        "pose_generation_max_node_batch": 1,
+        "descendant_frontier_batches": 0,
+        "descendant_frontier_iterations": 0,
+        "short_batch_wall_seconds": 0.0,
+        "long_batch_wall_seconds": 9.568996371002868,
+        "short_settling_job_seconds": 0.0,
+        "short_structural_job_seconds": 0.0,
+        "long_settling_job_seconds": 2.8241051439545117,
+        "long_structural_job_seconds": 44.33891458512517
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 6,
+        "rejected": 6,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 0,
+        "attempted": 0,
+        "generated": 0,
+        "evaluated": 0
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 13,
+        "evaluated": 13,
+        "pending": 0,
+        "failed": 6,
+        "frontier_leaves": 12,
+        "max_depth": 1,
+        "rejection_reasons": {
+          "target_motion_limit": 5,
+          "simulation_unsettled": 1
+        },
+        "generation_rejections": {}
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 0,
+            "retained": 95,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 6,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 94,
+            "rejected": 2,
+            "duplicate_rejections": 8,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 4
+        },
+        "final_candidates": 12
+      },
+      "selected_object_id": 10
+    },
+    {
+      "step": 7,
+      "elapsed_seconds": 70.24984694900922,
+      "completed_iterations": 200,
+      "expansion_calls": 1,
+      "generated_candidates": 12,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 12,
+      "failed_evaluations": 1,
+      "effective_max_depth": 1,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 0,
+        "short_jobs": 0,
+        "short_parallel_batches": 0,
+        "short_parallel_jobs": 0,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 0,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 59.262654625985306,
+        "pose_generation_batches": 1,
+        "pose_generation_node_requests": 1,
+        "pose_generation_max_node_batch": 1,
+        "descendant_frontier_batches": 0,
+        "descendant_frontier_iterations": 0,
+        "short_batch_wall_seconds": 0.0,
+        "long_batch_wall_seconds": 9.595735353010241,
+        "short_settling_job_seconds": 0.0,
+        "short_structural_job_seconds": 0.0,
+        "long_settling_job_seconds": 2.7710577510879375,
+        "long_structural_job_seconds": 29.765644274826627
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 11,
+        "rejected": 1,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 0,
+        "attempted": 0,
+        "generated": 0,
+        "evaluated": 0
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 13,
+        "evaluated": 13,
+        "pending": 0,
+        "failed": 1,
+        "frontier_leaves": 12,
+        "max_depth": 1,
+        "rejection_reasons": {
+          "target_motion_limit": 1
+        },
+        "generation_rejections": {}
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 0,
+            "retained": 96,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 6,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 6,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 1
+        },
+        "final_candidates": 12
+      },
+      "selected_object_id": 1
+    },
+    {
+      "step": 8,
+      "elapsed_seconds": 72.02087575005135,
+      "completed_iterations": 200,
+      "expansion_calls": 1,
+      "generated_candidates": 12,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 12,
+      "failed_evaluations": 5,
+      "effective_max_depth": 1,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 0,
+        "short_jobs": 0,
+        "short_parallel_batches": 0,
+        "short_parallel_jobs": 0,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 0,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 59.09134995302884,
+        "pose_generation_batches": 1,
+        "pose_generation_node_requests": 1,
+        "pose_generation_max_node_batch": 1,
+        "descendant_frontier_batches": 0,
+        "descendant_frontier_iterations": 0,
+        "short_batch_wall_seconds": 0.0,
+        "long_batch_wall_seconds": 11.536732289008796,
+        "short_settling_job_seconds": 0.0,
+        "short_structural_job_seconds": 0.0,
+        "long_settling_job_seconds": 5.5200544600375,
+        "long_structural_job_seconds": 40.99418739101384
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 7,
+        "rejected": 5,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 0,
+        "attempted": 0,
+        "generated": 0,
+        "evaluated": 0
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 13,
+        "evaluated": 13,
+        "pending": 0,
+        "failed": 5,
+        "frontier_leaves": 12,
+        "max_depth": 1,
+        "rejection_reasons": {
+          "target_motion_limit": 4,
+          "stone_outside_target": 1
+        },
+        "generation_rejections": {}
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 94,
+            "rejected": 2,
+            "duplicate_rejections": 0,
+            "retained": 94,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 3,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 94,
+            "rejected": 2,
+            "duplicate_rejections": 5,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 5
+        },
+        "final_candidates": 12
+      },
+      "selected_object_id": 3
+    },
+    {
+      "step": 9,
+      "elapsed_seconds": 75.78609269898152,
+      "completed_iterations": 200,
+      "expansion_calls": 1,
+      "generated_candidates": 12,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 12,
+      "failed_evaluations": 7,
+      "effective_max_depth": 1,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 0,
+        "short_jobs": 0,
+        "short_parallel_batches": 0,
+        "short_parallel_jobs": 0,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 0,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 60.835180512978695,
+        "pose_generation_batches": 1,
+        "pose_generation_node_requests": 1,
+        "pose_generation_max_node_batch": 1,
+        "descendant_frontier_batches": 0,
+        "descendant_frontier_iterations": 0,
+        "short_batch_wall_seconds": 0.0,
+        "long_batch_wall_seconds": 13.471419973007869,
+        "short_settling_job_seconds": 0.0,
+        "short_structural_job_seconds": 0.0,
+        "long_settling_job_seconds": 7.46267752291169,
+        "long_structural_job_seconds": 45.96050046390155
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 5,
+        "rejected": 7,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 0,
+        "attempted": 0,
+        "generated": 0,
+        "evaluated": 0
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 13,
+        "evaluated": 13,
+        "pending": 0,
+        "failed": 7,
+        "frontier_leaves": 12,
+        "max_depth": 1,
+        "rejection_reasons": {
+          "target_motion_limit": 5,
+          "stone_outside_target": 2
+        },
+        "generation_rejections": {}
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 0,
+            "retained": 96,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 94,
+            "rejected": 2,
+            "duplicate_rejections": 2,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 96,
+            "rejected": 0,
+            "duplicate_rejections": 6,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 2
+        },
+        "final_candidates": 12
+      },
+      "selected_object_id": 5
+    },
+    {
+      "step": 10,
+      "elapsed_seconds": 78.24539697100408,
+      "completed_iterations": 200,
+      "expansion_calls": 1,
+      "generated_candidates": 12,
+      "seeded_candidates": 0,
+      "execution_rejected_candidates": 0,
+      "evaluated_candidates": 12,
+      "failed_evaluations": 7,
+      "effective_max_depth": 1,
+      "timed_out": false,
+      "final_validation": {
+        "attempts": 0,
+        "failures": 0,
+        "timed_out": false
+      },
+      "simulation": {
+        "short_batches": 0,
+        "short_jobs": 0,
+        "short_parallel_batches": 0,
+        "short_parallel_jobs": 0,
+        "long_batches": 1,
+        "long_jobs": 12,
+        "short_max_batch_size": 0,
+        "max_evaluation_batch_size": 12,
+        "workers": 12,
+        "pose_generation_seconds": 60.459391742013395,
+        "pose_generation_batches": 1,
+        "pose_generation_node_requests": 1,
+        "pose_generation_max_node_batch": 1,
+        "descendant_frontier_batches": 0,
+        "descendant_frontier_iterations": 0,
+        "short_batch_wall_seconds": 0.0,
+        "long_batch_wall_seconds": 16.11212277895538,
+        "short_settling_job_seconds": 0.0,
+        "short_structural_job_seconds": 0.0,
+        "long_settling_job_seconds": 5.634908608102705,
+        "long_structural_job_seconds": 59.131229003018234
+      },
+      "revalidation": {
+        "attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "cleared_subtrees": 0,
+        "timed_out": false
+      },
+      "root_validation": {
+        "attempted": 12,
+        "accepted": 5,
+        "rejected": 7,
+        "timed_out": false
+      },
+      "root_lookahead": {
+        "eligible": 0,
+        "attempted": 0,
+        "generated": 0,
+        "evaluated": 0
+      },
+      "root_retry": {
+        "rounds": 0,
+        "retired": 0,
+        "generated": 0,
+        "accepted": 0
+      },
+      "descendant_validation": {
+        "attempts": 0,
+        "failures": 0
+      },
+      "final_selection_mode": "max_descendant",
+      "tree": {
+        "nodes": 13,
+        "evaluated": 13,
+        "pending": 0,
+        "failed": 7,
+        "frontier_leaves": 12,
+        "max_depth": 1,
+        "rejection_reasons": {
+          "stone_outside_target": 2,
+          "target_motion_limit": 5
+        },
+        "generation_rejections": {}
+      },
+      "cem": {
+        "rounds": [
+          {
+            "round_index": 0,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 0,
+            "retained": 95,
+            "mutation_attempts": 0,
+            "fresh_attempts": 96,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 1,
+            "attempted": 96,
+            "accepted": 95,
+            "rejected": 1,
+            "duplicate_rejections": 4,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          },
+          {
+            "round_index": 2,
+            "attempted": 96,
+            "accepted": 93,
+            "rejected": 3,
+            "duplicate_rejections": 4,
+            "retained": 96,
+            "mutation_attempts": 67,
+            "fresh_attempts": 29,
+            "fresh_fallback_attempts": 0
+          }
+        ],
+        "rejection_counts": {
+          "posegen_gap": 5
+        },
+        "final_candidates": 12
+      },
+      "selected_object_id": 43
+    }
+  ]
+}

@@ -370,6 +370,11 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 if consumed > 0:
                     completed += consumed
                 else:
+                    if (
+                        iteration_deadline is not None
+                        and time.monotonic() >= iteration_deadline
+                    ):
+                        break
                     self._run_iteration(root, request, counters)
                     completed += 1
             else:
@@ -757,65 +762,94 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         counters,
         remaining_iterations,
     ) -> int:
-        """Advance one independent non-root frontier per root branch."""
+        """Select a PMBS-style batch globally, then expand/evaluate/back up.
 
-        if not self.config.root_lookahead or remaining_iterations < 2:
-            return 0
-        limit = min(
-            int(remaining_iterations),
-            self.config.evaluation_batch_size,
-        )
-        frontiers = []
-        for root_child in sorted(
-            root.evaluated_children(),
-            key=lambda child: child.prior,
-            reverse=True,
+        Reservations exist only in this call, never in persistent tree statistics.
+        Pending actions are unique. Before poses exist, an expansion reserves at
+        most its current generation allowance; multiple slots may share a state.
+        """
+
+        limit = min(remaining_iterations, self.config.evaluation_batch_size)
+        if (
+            limit < 2
+            or self.config.max_depth <= 1
+            or root.terminal
+            or root.failed
+            or root.pending_children()
+            or can_expand(root, self.config)
         ):
-            frontier = self._selected_frontier(root_child, request)
-            if frontier is not None:
-                frontiers.append(frontier)
-            if len(frontiers) >= limit:
-                break
-        if len(frontiers) < 2:
             return 0
 
-        self._expand_many(
-            [
-                node
-                for node in frontiers
-                if not node.pending_children()
-                and can_expand(node, self.config)
-            ],
-            counters,
-            request.deeper_sampling_priority,
-            request,
-        )
-        selected_nodes = [
-            (
-                frontier,
-                select_child(
-                    frontier,
-                    self.config,
-                    epsilon=request.epsilon,
-                    rng=self.rng,
-                ),
+        virtual_visits = {}
+        unavailable = set()
+        expansions = {}
+        reservations = []
+        for _ in range(limit):
+            if (
+                counters.generation_deadline is not None
+                and time.monotonic() >= counters.generation_deadline
+            ):
+                break
+            selected = self._select_batch_frontier(
+                root, request, virtual_visits, unavailable, expansions
             )
-            for frontier in frontiers
-        ]
-        evaluation_nodes = [
-            selected
-            for _, selected in selected_nodes
-            if selected is not None and not selected.evaluated
-        ]
-        selected_ids = {id(node) for node in evaluation_nodes}
-        for frontier, _ in selected_nodes:
+            if selected is None:
+                break
+            node, needs_expansion = selected
+            reservations.append(selected)
+            if needs_expansion:
+                expansions[node] = expansions.get(node, 0) + 1
+            else:
+                unavailable.add(node)
+            ancestor = node
+            while ancestor is not None:
+                virtual_visits[ancestor] = virtual_visits.get(ancestor, 0) + 1
+                ancestor = ancestor.parent
+
+        if not reservations:
+            return 0
+        self._expand_many(
+            list(expansions), counters, request.deeper_sampling_priority, request
+        )
+
+        selected_nodes = []
+        selected_set = set()
+        for node, needs_expansion in reservations:
+            if needs_expansion:
+                pending = [
+                    child
+                    for child in node.pending_children()
+                    if child not in selected_set
+                ]
+                if pending:
+                    node = select_child(
+                        node,
+                        self.config,
+                        epsilon=request.epsilon,
+                        rng=self.rng,
+                        excluded=selected_set,
+                    )
+                elif node.selectable_children() or node in selected_set:
+                    # Rejected proposals do not create fictitious evaluations
+                    # or repeated backups for unfilled expansion slots.
+                    continue
+            selected_nodes.append(node)
+            selected_set.add(node)
+
+        # As in serial search, spare workers may evaluate pending siblings;
+        # only reserved selections contribute visits and completed iterations.
+        evaluation_nodes = [node for node in selected_nodes if not node.evaluated]
+        evaluation_set = set(evaluation_nodes)
+        for selected in selected_nodes:
             if len(evaluation_nodes) >= self.config.evaluation_batch_size:
                 break
-            for sibling in frontier.pending_children():
-                if id(sibling) in selected_ids:
+            if selected.parent is None:
+                continue
+            for sibling in selected.parent.pending_children():
+                if sibling in evaluation_set:
                     continue
                 evaluation_nodes.append(sibling)
-                selected_ids.add(id(sibling))
+                evaluation_set.add(sibling)
                 if len(evaluation_nodes) >= self.config.evaluation_batch_size:
                     break
 
@@ -826,29 +860,54 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         for fidelity, nodes in by_fidelity.items():
             self._evaluate_many(nodes, fidelity, counters)
 
-        for frontier, selected in selected_nodes:
-            self._back_up(frontier if selected is None else selected)
-        counters.descendant_frontier_batches += 1
-        counters.descendant_frontier_iterations += len(frontiers)
-        return len(frontiers)
+        # All reservations disappear here (and on any exception) without undoing
+        # edits to real visits/rewards: the selection overlay is local only.
+        for node in selected_nodes:
+            self._back_up(node)
+        if selected_nodes:
+            counters.descendant_frontier_batches += 1
+            counters.descendant_frontier_iterations += len(selected_nodes)
+        return len(selected_nodes)
 
-    def _selected_frontier(self, node, request):
-        """Find the next pending or expandable node inside one root branch."""
+    def _select_batch_frontier(
+        self, root, request, virtual_visits, unavailable, expansions
+    ):
+        """Traverse from the root, skipping work already reserved this round."""
 
+        node = root
         while True:
-            if node.terminal or node.failed:
-                return None
-            if node.pending_children() or can_expand(node, self.config):
-                return node
+            if (
+                not node.evaluated
+                or node.terminal
+                or node.depth >= self.config.max_depth
+            ):
+                return node, False
+            if not node.pending_children() and can_expand(node, self.config):
+                capacity = min(
+                    expansion_room(node, self.config),
+                    self.config.generation_batch_size,
+                )
+                if expansions.get(node, 0) < capacity:
+                    return node, True
             child = select_child(
                 node,
                 self.config,
                 epsilon=request.epsilon,
                 rng=self.rng,
+                virtual_visits=virtual_visits,
+                excluded=unavailable,
             )
-            if child is None or not child.evaluated:
+            if child is not None:
+                node = child
+            elif node is root:
                 return None
-            node = child
+            elif not node.selectable_children() and node not in expansions:
+                return node, False
+            else:
+                # All work below this node is already reserved. Reconsider the
+                # ancestor using global PUCT rather than imposing branch quotas.
+                unavailable.add(node)
+                node = node.parent
 
     def _run_root_lookahead_iteration(
         self,

@@ -646,11 +646,19 @@ def test_final_long_validation_rejects_failure_and_selects_by_long_reward() -> N
 def test_final_validation_stops_scheduling_after_wall_deadline(
     monkeypatch,
 ) -> None:
-    clock = iter([0.0, 0.0, 0.0, 1.1, 1.1])
+    clock = [0.0]
     monkeypatch.setattr(
         "stacking_common.search.mcts.search.time.monotonic",
-        lambda: next(clock),
+        lambda: clock[0],
     )
+
+    class TimedFinalEvaluator(_FinalEvaluator):
+        def evaluate(self, state, action, fidelity):
+            result = super().evaluate(state, action, fidelity)
+            if fidelity is EvaluationFidelity.LONG:
+                clock[0] = 1.1
+            return result
+
     config = MCTSConfig(
         max_depth=1,
         max_children=2,
@@ -665,7 +673,7 @@ def test_final_validation_stops_scheduling_after_wall_deadline(
         config,
         _RemainingObjectGenerator(),
         _ObjectPriorityScorer(),
-        _FinalEvaluator(),
+        TimedFinalEvaluator(),
         _ZeroEstimator(),
     )
 
@@ -944,7 +952,11 @@ def test_nonroot_frontiers_batch_action_generation_across_root_branches() -> Non
     )
 
     assert (1, 1, 1) in generator.batch_depths
-    assert (2, 2, 2) in generator.batch_depths
+    # Ordinary batches follow global PUCT; they need not cover every branch.
+    assert any(
+        len(depths) > 1 and set(depths) == {2}
+        for depths in generator.batch_depths
+    )
     assert result.pose_generation_max_node_batch == 3
     assert result.descendant_frontier_batches == 2
     assert result.descendant_frontier_iterations == 6

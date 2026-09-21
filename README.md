@@ -71,6 +71,8 @@ see the [tabletop command reference](docs/tabletop-commands.md).
 
 For recorded-scene MCTS, native direct/regrasp planning, `.stack` runs, and
 checkpoint resume, see [the excavator planning guide](docs/excavator-planning.md).
+Native search-only timings are recorded in the
+[excavator PMBS benchmark](docs/excavator-mcts-pmbs-benchmark.md).
 
 Open its offline Operations Console with `stacking-excavator-operations .`
 or `stacking-excavator-operations . --run /path/to/run.stack`.
@@ -113,6 +115,10 @@ Edit the profile's `debug` section to select object IDs, placement count,
 native or pass-through pose solving, and kinematic or stacking-core transitions.
 Command-line values such as `--iterations 8` remain available as temporary
 overrides.
+Ordinary depth-two-and-deeper search uses PMBS-style global PUCT selection
+with temporary virtual visits and distinct action reservations. See
+[MCTS batching](docs/mcts-batching.md) for the algorithm, serial baseline,
+and differences from the PMBS paper.
 Add `--plan-motion` to pass every selected placement through the configured
 native grasp and motion planner. For a short end-to-end smoke run:
 

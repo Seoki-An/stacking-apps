@@ -23,7 +23,8 @@
 # - expansion_retry_batches: generator retries per expansion; integer > 0.
 # - min_feasible_children: target surviving children; integer > 0.
 # - attempt_multiplier: total attempt allowance multiplier; number >= 1.
-# - evaluation_batch_size: sibling simulation batch limit; integer > 0.
+# - evaluation_batch_size: PMBS selection/simulation batch limit; 1 uses serial
+#   tree iterations. Integer > 0; spare slots can evaluate pending siblings.
 # - root/deeper_sampling_priority: planar ordering; lower_floor_first.
 #
 # validation

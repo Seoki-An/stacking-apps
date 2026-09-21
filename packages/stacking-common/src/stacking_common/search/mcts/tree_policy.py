@@ -2,7 +2,7 @@
 
 import math
 import random
-from collections.abc import Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import TypeVar
 
 from .config import MCTSConfig
@@ -60,20 +60,28 @@ def selection_score(
     child: MCTSNode[object],
     prior_probability: float,
     config: MCTSConfig,
+    *,
+    virtual_visits: Mapping[MCTSNode, int] | None = None,
 ) -> float:
-    """Return the legacy-compatible PUCT score for an evaluated child."""
+    """Return PUCT with optional PMBS-style pending, zero-return visits."""
 
     if child.parent is not parent:
         raise ValueError("selection child does not belong to the parent")
     if not child.evaluated or not child.selectable:
         return -math.inf
+    parent_visits = parent.visits
+    child_visits = child.visits
+    if virtual_visits is not None:
+        parent_visits += virtual_visits.get(parent, 0)
+        child_visits += virtual_visits.get(child, 0)
     exploration = (
         config.exploration_constant
         * float(prior_probability)
-        * math.sqrt(max(parent.visits, 1))
-        / (child.visits + 1.0)
+        * math.sqrt(max(parent_visits, 1))
+        / (child_visits + 1.0)
     )
-    return child.mean_value + exploration
+    mean = child.value_sum / child_visits if child_visits else 0.0
+    return mean + exploration
 
 
 def select_child(
@@ -82,12 +90,14 @@ def select_child(
     *,
     epsilon: float = 0.0,
     rng: random.Random | None = None,
+    virtual_visits: Mapping[MCTSNode, int] | None = None,
+    excluded: Collection[MCTSNode] = (),
 ) -> MCTSNode[ObservationT] | None:
     """Choose a pending candidate first, otherwise choose by PUCT."""
 
     if not 0.0 <= epsilon <= 1.0:
         raise ValueError("MCTS selection epsilon must be between zero and one")
-    pending = node.pending_children()
+    pending = [child for child in node.pending_children() if child not in excluded]
     if pending:
         generator = rng if rng is not None else random
         if epsilon > 0.0 and generator.random() < epsilon:
@@ -98,9 +108,19 @@ def select_child(
     if not children:
         return None
     probabilities = _softmax([child.prior for child in children])
+    # Preserve the original priors when a reserved action/subtree is excluded.
+    eligible = [
+        (child, probability)
+        for child, probability in zip(children, probabilities)
+        if child not in excluded
+    ]
+    if not eligible:
+        return None
     return max(
-        zip(children, probabilities),
-        key=lambda pair: selection_score(node, pair[0], pair[1], config),
+        eligible,
+        key=lambda pair: selection_score(
+            node, pair[0], pair[1], config, virtual_visits=virtual_visits
+        ),
     )[0]
 
 
