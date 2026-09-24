@@ -103,6 +103,36 @@ def bindings():
               Bool=NS, Float64MultiArray=NS, Int32=NS, String=NS, Trigger=NS(Request=lambda: NS()))
 
 
+@pytest.mark.parametrize('publishers', [1, 2])
+def test_robot_description_is_latched_read_only_and_requires_one_publisher(publishers):
+    class DescriptionNode(Node):
+        def create_subscription(self, kind, topic, callback, qos):
+            entity = super().create_subscription(kind, topic, callback, qos)
+            if topic == '/robot_description':
+                entity.get_publisher_count = lambda: publishers
+                callback(NS(data='<robot name="installed"/>'))
+            return entity
+    node = DescriptionNode()
+    with TabletopRosTransport(node=node, bindings=bindings()) as transport:
+        if publishers == 1:
+            assert transport.read_robot_description() == '<robot name="installed"/>'
+        else:
+            with pytest.raises(RuntimeError, match='one authoritative'):
+                transport.read_robot_description()
+        entity = node.subscriptions['/robot_description']
+        assert entity.qos.durability == 'latched'
+        assert entity in node.destroyed_entities
+        assert all(not publisher.messages for publisher in node.publishers.values())
+
+
+def test_missing_robot_description_timeout_cleans_subscription():
+    node = Node()
+    with TabletopRosTransport(node=node, bindings=bindings()) as transport:
+        with pytest.raises(RuntimeError, match='one authoritative'):
+            transport.read_robot_description(timeout=.001)
+        assert node.subscriptions['/robot_description'] in node.destroyed_entities
+
+
 def test_graph_topics_qos_and_no_startup_or_cleanup_commands():
     node = Node()
     transport = TabletopRosTransport(node=node, bindings=bindings())

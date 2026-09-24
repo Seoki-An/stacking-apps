@@ -6,6 +6,7 @@ transport owns a private ROS context and executor, never the global context.
 """
 
 import threading
+import time
 from types import SimpleNamespace
 
 import numpy as np
@@ -87,6 +88,30 @@ class TabletopRosTransport:
     def arm_connected(self):
         return self.ok() and all(pub.get_subscription_count() > 0 for pub in
                                  (self.pose_publisher, self.gain_publisher, self.wrench_publisher))
+
+    def read_robot_description(self, timeout=15.):
+        """Read one authoritative, latched driver model without publishing commands."""
+        if not np.isfinite(timeout) or timeout <= 0:
+            raise ValueError('robot description timeout must be positive')
+        api = self.api
+        received = threading.Event()
+        messages = []
+        def receive(message):
+            messages.append(message.data)
+            received.set()
+        qos = api.QoSProfile(depth=1, durability=api.DurabilityPolicy.TRANSIENT_LOCAL,
+                             reliability=api.ReliabilityPolicy.RELIABLE)
+        subscription = self.node.create_subscription(api.String, '/robot_description', receive, qos)
+        try:
+            deadline = time.monotonic() + timeout
+            while not received.wait(.02) and time.monotonic() < deadline:
+                if not self.ok():
+                    raise RuntimeError('ROS stopped while reading robot_description')
+            if not messages or subscription.get_publisher_count() != 1:
+                raise RuntimeError('need one authoritative /robot_description publisher from persistent UR bringup')
+            return messages[-1]
+        finally:
+            self.node.destroy_subscription(subscription)
 
     def gripper_connected(self):
         return (self.ok() and self.gripper_subscription.get_publisher_count() > 0

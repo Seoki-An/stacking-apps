@@ -1,13 +1,28 @@
 # Hand-eye capture and accuracy experiment
 
+Current priority: [multi-view RGB/FEMTO scene capture](tabletop-rgb-scene.md),
+using wrist RGB MVS for complementary geometry and fixed FEMTO as the operational
+reference. Stacked-scene pose solvers remain downstream work. The depth-calibration
+capture sequence is paused; existing depth results remain comparison evidence,
+not an accepted D435 correction.
+
+The [automated scene capture CLI](tabletop-automated-scene-capture.md) now generates
+near and oblique wrist views from one seed and brackets them with FEMTO captures,
+using persistent UR bringup. Offline tests pass, and the first live board/table
+sequence (`scene_capture_001`) completed with verified replay. Stone-surface ICP
+comparison and physical accuracy validation remain pending.
+
 Status: first implementation milestone, 2026-09-15. The
 [calibration consistency audit and snapshots](tabletop-hand-eye-calibration.md)
 are implemented and verified on the local recorded calibration inputs. The
 [native RGB-D recorder and raw offline inspection](tabletop-hand-eye-capture.md)
 are implemented with offline tests. [PCD replay, multi-view assembly and
 synthetic visualizations](tabletop-hand-eye-replay.md) are implemented too.
-Live device verification, known-stone replay matching and the physical experiment
-below remain pending.
+Initial live D435 captures and calibrated replay have now been exercised on the
+local hardware. Spatial table consistency diagnostics and a
+[RGB/FEMTO scene workflow](tabletop-rgb-scene.md) are available. Board-pose
+analysis, known-stone replay matching and independent
+physical accuracy validation remain pending.
 
 ## Objective
 

@@ -146,3 +146,14 @@ def test_mid_capture_geometry_or_depth_scale_change_is_rejected(profile_path):
         state.sensors['depth'].scale *= 2.
         with pytest.raises(ValueError, match='units changed'):
             camera.read()
+
+
+def test_unresolved_stream_request_reports_pinned_device_and_modes(profile_path):
+    calibration = HandEyeCalibration.load(profile_path)
+    api, _state = sdk(calibration)
+    class RejectedPipeline:
+        def __init__(self, _context): pass
+        def start(self, _config): raise RuntimeError("Couldn't resolve requests")
+    api.pipeline = RejectedPipeline
+    with pytest.raises(RuntimeError, match=r'pinned D435 camera-A.*1280x720.*848x480.*15 fps'):
+        RealSenseCamera(calibration, rs=api)

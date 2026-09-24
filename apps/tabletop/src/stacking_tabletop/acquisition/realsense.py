@@ -76,7 +76,16 @@ class RealSenseCamera:
             config.enable_stream(rs.stream.depth, *depth_size, rs.format.z16, fps)
             pipeline = rs.pipeline(self.context)
             # Start first, so opening a busy camera fails before changing options.
-            active = pipeline.start(config)
+            try:
+                active = pipeline.start(config)
+            except RuntimeError as error:
+                raise RuntimeError(
+                    f'pinned D435 {calibration.profile.serial} could not start color '
+                    f'{calibration.width}x{calibration.height} RGB8 and depth '
+                    f'{depth_size[0]}x{depth_size[1]} Z16 at {fps} fps: {error}. '
+                    'Check camera power, USB connection and external camera drivers; '
+                    'then run hand_eye_capture_cli profiles.'
+                ) from error
             self.pipeline = pipeline
             self.device = active.get_device()
             self.sensors = self.device.query_sensors()
