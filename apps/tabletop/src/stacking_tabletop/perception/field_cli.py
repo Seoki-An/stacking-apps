@@ -21,11 +21,12 @@ from .field_source import resolve_field_capture_directory
 from .segmentation import TabletopFieldSegmenter
 
 
-def add_identification_arguments(parser):
+def add_identification_arguments(parser, *, include_output=True):
     parser.add_argument('--repository', type=Path, default=Path.cwd())
     parser.add_argument('--perception-config', type=Path)
     parser.add_argument('--stone-directory', type=Path, help='directory containing measured model_<id>.pcd files')
-    parser.add_argument('--identification-output', type=Path, help='new result directory for re-identifying an existing capture')
+    if include_output:
+        parser.add_argument('--identification-output', type=Path, help='new result directory for re-identifying an existing capture')
     parser.add_argument('--pick-table-height', type=float, help='designated pickup height in metres; default: perception profile')
     parser.add_argument('--automatic-ordering', action='store_true', help='match all models to clusters without the ID assignment window')
     parser.add_argument('--manual-init-gui', action='store_true')

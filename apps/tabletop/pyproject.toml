@@ -44,6 +44,7 @@ stacking-tabletop-audit-hand-eye = "stacking_tabletop.acquisition.hand_eye_cli:m
 stacking-tabletop-capture-hand-eye = "stacking_tabletop.acquisition.hand_eye_capture_cli:main"
 stacking-tabletop-replay-hand-eye = "stacking_tabletop.acquisition.hand_eye_replay_cli:main"
 stacking-tabletop-capture-scene = "stacking_tabletop.acquisition.scene_capture_cli:main"
+stacking-tabletop-scan-pick-scene = "stacking_tabletop.acquisition.pick_scene_workflow:main"
 stacking-tabletop-capture-femto = "stacking_tabletop.acquisition.cli:main"
 stacking-tabletop-scan-field = "stacking_tabletop.acquisition.field_workflow:main"
 stacking-tabletop-identify-field = "stacking_tabletop.perception.field_cli:main"

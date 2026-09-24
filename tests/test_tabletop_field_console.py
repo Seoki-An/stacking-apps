@@ -1,4 +1,5 @@
 """Qt process supervision and planning handoff for the field workflow."""
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -12,7 +13,7 @@ pytest.importorskip('PySide6')
 from PySide6.QtCore import QProcess
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QWidget
-from stacking_tabletop.gui.operations.field_scan import FieldScanDialog
+from stacking_tabletop.gui.operations.field_scan import FieldScanDialog, inspect_joint_pick_output
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -53,6 +54,52 @@ def test_field_dialog_builds_cli_and_rejects_camera_conflict(app, tmp_path):
         dialog.close()
 
 
+def test_field_dialog_builds_integrated_wrist_rgb_femto_workflows(app, tmp_path):
+    dialog = FieldScanDialog(ROOT)
+    capture = tmp_path / 'capture'
+    capture.mkdir()
+    try:
+        dialog.mode.setCurrentIndex(2)
+        dialog.output.setText(str(tmp_path / 'pick-live'))
+        args = dialog.arguments()
+        assert args[2:4] == ['stacking_tabletop.acquisition.pick_scene_workflow', 'run']
+        assert '--plan' not in args and '--approve' not in args
+        assert '--output' in args and '--camera' in args
+        assert not dialog.automatic.isEnabled()
+        assert 'before the first' in dialog.note.text()
+        dialog.camera.setCurrentIndex(2)
+        with pytest.raises(ValueError, match='one fixed FEMTO'):
+            dialog.arguments()
+        dialog.camera.setCurrentIndex(0)
+        dialog.mode.setCurrentIndex(3)
+        dialog.output.setText(str(tmp_path / 'pick-existing'))
+        dialog.source.setText(str(capture))
+        args = dialog.arguments()
+        assert args[2:4] == ['stacking_tabletop.acquisition.pick_scene_workflow', 'process']
+        assert str(capture) in args and '--output' in args
+    finally:
+        dialog.close()
+
+
+def test_field_dialog_resumes_failed_joint_fit_without_capture_or_mvs(app, tmp_path):
+    failed = tmp_path / 'failed-pick'
+    failed.mkdir()
+    (failed / 'pick_scene_workflow.json').write_text('{}')
+    dialog = FieldScanDialog(ROOT)
+    try:
+        dialog.mode.setCurrentIndex(4)
+        dialog.source.setText(str(failed))
+        dialog.manual.setChecked(True)
+        args = dialog.arguments()
+        assert args[2:4] == ['stacking_tabletop.acquisition.pick_scene_workflow', 'resume']
+        assert str(failed) in args and '--manual-init-gui' in args
+        assert '--output' not in args and '--camera' not in args
+        assert not dialog.output.isEnabled()
+        assert 'No camera capture or MVS reconstruction is repeated.' in dialog.note.text()
+    finally:
+        dialog.close()
+
+
 def test_completed_process_enables_explicit_planning_handoff(app, tmp_path, monkeypatch):
     dialog = FieldScanDialog(ROOT)
     destination = tmp_path / 'new-field'
@@ -75,6 +122,77 @@ def test_completed_process_enables_explicit_planning_handoff(app, tmp_path, monk
         assert 'Identification finished' in dialog.log.toPlainText()
         dialog.plan_button.click()
         assert received == [destination / 'pose_data.pkl']
+    finally:
+        dialog.close()
+
+
+def test_pick_workbench_uses_only_rgb_bound_joint_poses_and_opens_rgb_cloud(app, tmp_path, monkeypatch):
+    root = tmp_path / 'joint-pick'
+    dense = root / 'rgb_dense'
+    report_dir = root / 'pose_identification'
+    geometry = root / 'femto_geometry'
+    fused = root / 'fused_identification'
+    for directory in (dense / 'refined', dense / 'rgb_only', report_dir, geometry, fused / 'comparison'):
+        directory.mkdir(parents=True, exist_ok=True)
+    (dense / 'summary.json').write_text('{"status":"complete"}')
+    (geometry / 'geometry.json').write_text('{"catalog_pose_fitted":false}')
+    (dense / 'refined/rgb_dense_voxel_1mm.pcd').write_text('RGB cloud fixture')
+    viewer = dense / 'rgb_only/overview.html'
+    viewer.write_text('<html>RGB only</html>')
+    pose_viewer = fused / 'comparison/overview.html'
+    pose_viewer.write_text('<html>Joint pose comparison</html>')
+    (fused / 'pose_data.pkl').write_bytes(b'joint-pose')
+    (root / 'pose_data.pkl').write_bytes(b'joint-pose')
+    report = {'status': 'complete', 'pose_source': 'rgb_femto_first_joint_icp',
+              'kind': 'femto_rgb_joint_pose_identification',
+              'source_sha256': {'dense_summary.json': hashlib.sha256(
+                  (dense / 'summary.json').read_bytes()).hexdigest(),
+                  'femto_geometry.json': hashlib.sha256(
+                  (geometry / 'geometry.json').read_bytes()).hexdigest()},
+              'poses': [{'stone_id': 9}]}
+    (report_dir / 'stone_poses.json').write_text(json.dumps(report))
+    (root / 'pick_scene_workflow.json').write_text(json.dumps({
+        'schema_version': 2, 'status': 'complete', 'production_pose_accepted': True,
+        'pose_sequence': 'femto_regions_rgb_mvs_joint_catalog_fit',
+        'dense_dir': str(dense), 'fused_pose_data': str(fused / 'pose_data.pkl'),
+        'pose_viewer': str(pose_viewer)}))
+    published = {'status': 'complete', 'production_pose_accepted': True,
+                 'pose_source': 'rgb_femto_first_joint_icp',
+                 'preliminary_femto_identification': None,
+                 'coarse_femto_geometry': 'femto_geometry/geometry.json',
+                 'pose_viewer': 'fused_identification/comparison/overview.html',
+                 'pose_data': str(root / 'pose_data.pkl'),
+                 'joint_identification': str(report_dir / 'stone_poses.json'),
+                 'pose_warnings': [{'stone_id': 9}]}
+    (root / 'pick_scene_poses.json').write_text(json.dumps(published))
+
+    dialog = FieldScanDialog(ROOT)
+    opened = []
+    monkeypatch.setattr('stacking_tabletop.gui.operations.field_scan.QDesktopServices.openUrl',
+                        lambda url: opened.append(url.toLocalFile()) or True)
+    try:
+        dialog.mode.setCurrentIndex(3)
+        dialog.output.setText(str(root))
+        dialog._finished(0, QProcess.ExitStatus.NormalExit)
+        assert dialog.pose_path == root / 'pose_data.pkl'
+        assert dialog.rgb_viewer == viewer
+        assert dialog.pose_viewer == pose_viewer
+        assert dialog.rgb_button.isEnabled() and dialog.pose_button.isEnabled()
+        assert dialog.plan_button.isEnabled()
+        assert opened == [str(pose_viewer)]
+        dialog.rgb_button.click()
+        dialog.pose_button.click()
+        assert opened == [str(pose_viewer), str(viewer), str(pose_viewer)]
+        assert 'joint FEMTO/RGB' in dialog.log.toPlainText()
+        assert 'Pose warnings' in dialog.log.toPlainText()
+        (dense / 'summary.json').write_text('{"status":"different"}')
+        with pytest.raises(ValueError, match='bound to the selected RGB'):
+            inspect_joint_pick_output(root)
+        (dense / 'summary.json').write_text('{"status":"complete"}')
+        published.pop('pose_source')
+        (root / 'pick_scene_poses.json').write_text(json.dumps(published))
+        with pytest.raises(ValueError, match='not from joint FEMTO/RGB'):
+            inspect_joint_pick_output(root)
     finally:
         dialog.close()
 

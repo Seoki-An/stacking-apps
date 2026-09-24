@@ -10,8 +10,11 @@ The capture CLI supplies fixed-field capture and already-settled in-hand views
 without commanding the robot. The Operations Console also composes acquisition
 with automatic wrist/pivot motion at the saved execution's held-object review
 gate. Fixed-field stone identification is available through the combined CLI
-and console workflow below. Live in-hand registration and online replanning
-remain later work.
+and console workflow below. A separate pick-scene mode moves through a reviewed
+hand-eye plan, reconstructs wrist RGB geometry and validates the FEMTO pickup
+poses before publishing them; see
+[wrist RGB and FEMTO scene capture](tabletop-rgb-scene.md#integrated-pick-scene-identification).
+Live in-hand registration and online replanning remain later work.
 
 ## Field capture and identification in the Operations Console
 
@@ -19,7 +22,8 @@ Install the entry points and perception/GUI dependencies, then source ROS in
 the terminal used to start the console:
 
 ```bash
-python -m pip install -e 'apps/tabletop[acquisition,perception,operations]'
+python -m pip install -e \
+  'apps/tabletop[acquisition,hand-eye,perception,operations,hand-eye-rgb,hand-eye-mvs]'
 source /opt/ros/jazzy/setup.bash
 source ~/ros2_ws/install/setup.bash
 stacking-tabletop-operations .
@@ -27,6 +31,11 @@ stacking-tabletop-operations .
 
 Choose **File → Field scan / identify…**, or the same action in the Planning
 toolbar. No saved `.stack` file is needed.
+
+The first two workflow choices retain the fixed FEMTO-only behavior described
+below. **Capture wrist RGB + FEMTO and identify** generates the standard
+nine-view route from the robot's current central view and moves the UR5e. It
+publishes planning poses only after the FEMTO stability and RGB MVS gates pass.
 
 1. Select **Capture and identify** and **Primary**, **Secondary**, or **Both
    FEMTO cameras**. Choose a new output directory and verify the pickup table
