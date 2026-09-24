@@ -15,8 +15,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+rgb = ["opencv-python-headless>=4.10"]
 test = [
-  "pytest>=8",
+  "pytest>=8,<9",
 ]
 perception = [
   "coacd>=1.0.7",

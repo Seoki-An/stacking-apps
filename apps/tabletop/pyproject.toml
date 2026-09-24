@@ -17,6 +17,8 @@ execution = ["scipy>=1.13"]
 acquisition = ["scipy>=1.13"]
 hand-eye = ["scipy>=1.13", "pyrealsense2>=2.55"]
 hand-eye-replay = ["matplotlib>=3.8", "plotly>=5", "open3d>=0.19"]
+hand-eye-rgb = ["opencv-python-headless>=4.10", "matplotlib>=3.8", "plotly>=5", "open3d>=0.19"]
+hand-eye-mvs = ["pycolmap-cuda12==4.2.0", "cuda-toolkit[cudart,curand]==12.8.0", "matplotlib>=3.8", "plotly>=5", "open3d>=0.19"]
 benchmark = ["open3d>=0.19"]
 perception = [
   "coacd>=1.0.7",

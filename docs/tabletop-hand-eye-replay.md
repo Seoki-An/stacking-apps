@@ -5,6 +5,11 @@ FEMTO before/after references, synthetic data and offline visualizations.
 All processing runs without ROS or a camera SDK. This path produces scene
 observations for identification; it does not build new stone models.
 
+For spatial consistency maps of an existing session, use the `diagnose` command
+described in the [RGB/FEMTO scene workflow](tabletop-rgb-scene.md).
+It compares unchanged table observations in common XY cells and does not
+require a known board-to-base pose.
+
 ## See a complete synthetic example
 
 From the repository root, using the tabletop app's `hand-eye-replay` extra:

@@ -10,10 +10,11 @@ from stacking_common.pointcloud import PointCloudData, validate_rigid_transform
 COLORS = ('#18a999', '#ef8354', '#548cfa', '#b873d9', '#e9b949', '#8797a5')
 
 
-def render_clouds(directory, layers, camera_poses, *, title, frame='base_link'):
+def render_clouds(directory, layers, camera_poses, *, title, frame='base_link', object_poses=None):
     """Write standalone interactive HTML and a PNG; decimation is display-only.
 
-    layers maps labels to Nx3 arrays; camera_poses maps labels to frame_T_camera.
+    layers maps labels to Nx3 arrays; camera_poses and object_poses map labels
+    to transforms in the rendered frame.
     The caller owns provenance. This renderer knows nothing about camera drivers.
     """
     import matplotlib
@@ -54,6 +55,19 @@ def render_clouds(directory, layers, camera_poses, *, title, frame='base_link'):
         axes.plot(*segments.T, color='#24334a', linewidth=1.)
         axes.text(*origin, label, fontsize=8)
         extents.append(np.vstack((origin, corners)))
+    for label, value in (object_poses or {}).items():
+        pose = validate_rigid_transform(value)
+        origin = pose[:3, 3]
+        ends = origin + .025 * pose[:3, :3].T
+        for axis_name, end, color in zip('XYZ', ends, ('#d62728', '#2ca02c', '#1f77b4')):
+            figure.add_trace(go.Scatter3d(
+                x=[origin[0], end[0]], y=[origin[1], end[1]], z=[origin[2], end[2]],
+                mode='lines+markers', name=f'{label} {axis_name}',
+                line=dict(color=color, width=7), marker=dict(color=color, size=3)))
+            axes.plot([origin[0], end[0]], [origin[1], end[1]],
+                      [origin[2], end[2]], color=color, linewidth=2.5)
+        axes.text(*origin, label, fontsize=8)
+        extents.append(np.vstack((origin, ends)))
     if extents:
         all_points = np.concatenate(extents)
         centre = (all_points.min(axis=0) + all_points.max(axis=0))/2
