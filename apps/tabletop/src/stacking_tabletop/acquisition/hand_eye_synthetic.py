@@ -52,21 +52,23 @@ def rays_for(info):
     return optical_rays(info['width'], info['height'], info['K'])
 
 
-def calibration_fixture(directory):
+def calibration_fixture(directory, *, color_size=(320, 240), color_matrix=None, tool_T_color=None):
     directory.mkdir(parents=True)
-    color = geometry(320, 240)
-    matrix = np.asarray(color['K'])
+    color = geometry(*color_size)
+    matrix = np.asarray(color['K'] if color_matrix is None else color_matrix)
     transform = np.eye(4)
     transform[:3, :3] = Rotation.from_euler('xyz', [8., -12., 17.], degrees=True).as_matrix()
     transform[:3, 3] = [-.03, -.075, .083]
+    if tool_T_color is not None:
+        transform = np.asarray(tool_T_color).copy()
     np.savez(directory / 'hand_eye.npz', T_gripper_to_camera=transform, T_EE_to_cam1=transform,
         T_gripper_to_camera_tf=transform, cameraMatrix=matrix, distCoeffs=np.zeros(5), method='Tsai',
         robot_pose_source='tf', robot_pose_parent_frame='base', robot_pose_child_frame='tool0',
         camera_serial='SYNTHETIC-D435', synthetic_fixture=True)
     np.savez(directory / 'intrinsics.npz', K=matrix, dist=np.zeros(5), K_factory=matrix,
         dist_factory=np.zeros(5), camera='D435_COLOR', method='d435_handeye_log_charuco_intrinsic',
-        image_size=[320, 240], distortion_model='k3', camera_serial='SYNTHETIC-D435', synthetic_fixture=True)
-    params = dict(rs_serial='SYNTHETIC-D435', rs_width=320, rs_height=240,
+        image_size=list(color_size), distortion_model='k3', camera_serial='SYNTHETIC-D435', synthetic_fixture=True)
+    params = dict(rs_serial='SYNTHETIC-D435', rs_width=color_size[0], rs_height=color_size[1],
                   tf_base_frame='base', tf_tool_frame='tool0', robot_pose_source='tf', synthetic_fixture=True)
     (directory / 'installation.yml').write_text(yaml.safe_dump(dict(handeye_calib=dict(ros__parameters=params))))
     profile = dict(schema_version=1, serial='SYNTHETIC-D435', color_frame='synthetic_color_optical_frame',
@@ -139,11 +141,14 @@ class SyntheticCamera:
             pose_source='synthetic_exact_pose; joints are fixture values, not robot FK')
 
 
-def synthetic_femto(directory, clock):
-    """Exercise the existing seven-frame fixed-field writer with analytic inputs."""
-    pose, info = look_at(np.array([.025, -.025, .82])), geometry(160, 120)
+def synthetic_femto(directory, clock, *, pose=None, info=None, depth=None,
+                    crop_min=(-.25, -.21, 0.), crop_max=(.25, .21, .3), voxel_size=.002):
+    """Exercise the existing seven-frame fixed-field writer with synthetic inputs."""
+    pose = look_at(np.array([.025, -.025, .82])) if pose is None else pose
+    info = geometry(160, 120) if info is None else info
     rays = rays_for(info)
-    depth, _ = raycast_ellipsoids(rays, pose, **SCENE)
+    if depth is None:
+        depth, _ = raycast_ellipsoids(rays, pose, **SCENE)
     raw = np.rint(depth/.00025).astype(np.uint16)
     points, _ = backproject_depth(raw, rays, .00025)
     artifacts = {}
@@ -153,11 +158,11 @@ def synthetic_femto(directory, clock):
         artifacts[name] = buffer.getvalue()
     import hashlib
     calibration = NS(profile=NS(serial='SYNTHETIC-FEMTO', base_frame='base_link',
-        crop_min=(-.25, -.21, 0.), crop_max=(.25, .21, .3), voxel_size=.002),
-        depth=NS(depth_mode='SYNTHETIC_160x120', depth_frame='synthetic_depth_optical_frame', scale=1., offset=0.),
+        crop_min=crop_min, crop_max=crop_max, voxel_size=voxel_size),
+        depth=NS(depth_mode=f'SYNTHETIC_{info["width"]}x{info["height"]}', depth_frame='synthetic_depth_optical_frame', scale=1., offset=0.),
         pose=NS(correction='synthetic_exact'), artifacts=artifacts,
         hashes={name: hashlib.sha256(data).hexdigest() for name, data in artifacts.items()}, base_T_depth=pose)
-    camera_info = dict(width=160, height=120, k=np.asarray(info['K']).ravel().tolist(), d=[0.]*5,
+    camera_info = dict(width=info['width'], height=info['height'], k=np.asarray(info['K']).ravel().tolist(), d=[0.]*5,
                        distortion_model='plumb_bob', frame_id='synthetic_depth_optical_frame')
     burst = []
     for _ in range(7):

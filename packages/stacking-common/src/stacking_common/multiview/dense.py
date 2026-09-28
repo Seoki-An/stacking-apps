@@ -50,6 +50,16 @@ def depth_bounds_from_roi(poses, minimum, maximum):
     return float(min(depths)-.02), float(max(depths)+.02)
 
 
+
+def depth_bounds_from_boxes(poses, boxes):
+    """Bound depth over actual regions without including empty workspace corners."""
+    poses = tuple(poses)
+    values = np.asarray(boxes, dtype=float)
+    if values.ndim != 3 or values.shape[1:] != (2, 3) or not len(values):
+        raise ValueError('depth bounds need nonempty 3D boxes')
+    bounds = [depth_bounds_from_roi(poses, low, high) for low, high in values]
+    return min(value[0] for value in bounds), max(value[1] for value in bounds)
+
 def read_colmap_depth(path):
     """Read COLMAP's width&height&channels& plus float32 Fortran-order payload."""
     with Path(path).open('rb') as stream:

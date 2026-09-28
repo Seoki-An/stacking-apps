@@ -7,7 +7,7 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 from stacking_common.multiview.dense import (
-    write_known_cameras, depth_bounds_from_roi, read_colmap_depth,
+    write_known_cameras, depth_bounds_from_boxes, read_colmap_depth,
     backproject_colmap_depth, projected_roi_crop, write_pinhole_cameras,
     select_source_views,
 )
@@ -23,6 +23,25 @@ from .storage import write_xyz_pcd
 
 
 PRODUCTION_REFERENCE_VIEWS = (0, 5, 6, 7, 8)
+
+
+def production_reference_views(session):
+    """Use each oblique/side endpoint when a reviewed route is available."""
+    session = Path(session).resolve()
+    # dense_rgb_session verifies the full session once; avoid hashing every image twice.
+    manifest = read_json(session / 'session.json')
+    route = session.parent / 'executed_plan.json'
+    if route.is_file():
+        plan = read_json(route)
+        if (plan.get('kind') == 'tabletop_wrist_scene_plan'
+                and plan.get('viewpoint_pattern') in ('coverage13', 'coverage17')
+                and len(plan.get('views', [])) == len(manifest['views'])
+                == {'coverage13': 13, 'coverage17': 17}[plan['viewpoint_pattern']]):
+            return tuple(i for i, view in enumerate(plan['views'])
+                         if view.get('role') in ('overview', 'oblique', 'side'))
+    if len(manifest['views']) == 9:
+        return PRODUCTION_REFERENCE_VIEWS
+    return tuple(range(len(manifest['views'])))
 
 
 def _prepare_dense_workspace(workspace, names, boxes, *, crop_images, maximum_sources):
@@ -111,13 +130,12 @@ def dense_rgb_session(session, baseline, refinement, output, *,
         raise ValueError('dense RGB reference views must be unique valid view indices')
     region = base['region']; low, high = np.array(region['minimum']), np.array(region['maximum'])
     # Keep the full recorded height interval: FEMTO does not constrain stone surface depths.
-    if crop_to_stones:
-        boxes = np.asarray([[[xy[0][0], xy[0][1], low[2]],
-                             [xy[1][0], xy[1][1], high[2]]]
-                            for xy in region['stone_boxes_xy']], dtype=float)
-    else:
-        boxes = np.asarray([[low, high]])
-    bounds = depth_bounds_from_roi(np.concatenate(list(modes.values())), low, high)
+    stone_boxes = np.asarray([[[xy[0][0], xy[0][1], low[2]],
+                               [xy[1][0], xy[1][1], high[2]]]
+                              for xy in region['stone_boxes_xy']], dtype=float)
+    boxes = stone_boxes if crop_to_stones else np.asarray([[low, high]])
+    # A side camera may have empty workspace corners behind it while seeing all stones.
+    bounds = depth_bounds_from_boxes(np.concatenate(list(modes.values())), stone_boxes)
     option_values = dict(gpu_index='0', max_image_size=1280, depth_min=bounds[0],
                          depth_max=bounds[1], num_threads=2, cache_size=2.,
                          write_consistency_graph=True, window_step=window_step,
@@ -135,6 +153,7 @@ def dense_rgb_session(session, baseline, refinement, output, *,
                   options=dict(photometric=photometric_options.todict(),
                                geometric=geometric_options.todict()), region=region,
                   reference_views=list(reference_views), crop_to_stones=crop_to_stones,
+                  depth_range_region="stone_boxes_full_height",
                   crop_world_boxes=boxes.tolist(), maximum_sources=maximum_sources,
                   accuracy_1mm_verified=False,modes={})
     atomic_json(output/'summary.json',report)
@@ -271,10 +290,10 @@ def dense_rgb_session(session, baseline, refinement, output, *,
 
 
 def dense_rgb_production_session(session, baseline, refinement, output):
-    """Reconstruct the refined route once using the five widest-baseline reference views."""
+    """Reconstruct overview, oblique and side views from the reviewed route."""
     return dense_rgb_session(session, baseline, refinement, output,
                              mode_names=('refined',),
-                             reference_views=PRODUCTION_REFERENCE_VIEWS,
+                             reference_views=production_reference_views(session),
                              crop_to_stones=True, maximum_sources=4)
 
 
@@ -282,4 +301,4 @@ def dense_rgb_full_session(session, baseline, refinement, output):
     """Full-image, all-source retry with the same refined poses and reference views."""
     return dense_rgb_session(session, baseline, refinement, output,
                              mode_names=('refined',),
-                             reference_views=PRODUCTION_REFERENCE_VIEWS)
+                             reference_views=production_reference_views(session))

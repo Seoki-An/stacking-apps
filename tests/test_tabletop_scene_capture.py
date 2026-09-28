@@ -65,6 +65,58 @@ def test_views_translate_look_at_one_target_and_return_on_same_branch(route):
         validate_views(changed, kin, calibration)
 
 
+
+def test_side_route_adds_tilted_views_with_kinematic_paths(route):
+    _, kin, calibration = route
+    plan = build_views(kin, calibration, SEED, distance=.4, pattern='coverage13')
+    assert plan['schema_version'] == 3
+    assert len(plan['views']) == 13
+    assert [view['label'] for view in plan['views'][9:]] == [
+        'side_left', 'side_right', 'side_up', 'side_down']
+    reference = camera_pose(kin, calibration, SEED)
+    target = np.asarray(plan['target'])
+    for view in plan['views'][9:]:
+        path = np.asarray(view['path'])
+        assert len(path) > 20
+        np.testing.assert_array_equal(path[0], SEED)
+        assert np.all(path >= kin.lower) and np.all(path <= kin.upper)
+        reached = camera_pose(kin, calibration, path[-1])
+        np.testing.assert_allclose(np.linalg.norm(reached[:3, 3] - target), .4, atol=2e-4)
+        np.testing.assert_allclose(view['view_angle_deg'], 30.)
+        np.testing.assert_allclose(np.linalg.norm(view['camera_offset_xy_m']), .2)
+        assert (reached[:3, 3] - reference[:3, 3]) @ reference[:3, 2] > 0
+    validate_views(plan, kin, calibration)
+    changed = copy.deepcopy(plan)
+    changed['side_angle_deg'] = 35.
+    with pytest.raises(ValueError, match='side angle'):
+        validate_views(changed, kin, calibration)
+
+def test_extended_route_preserves_old_views_and_adds_wider_stereo_pairs(route):
+    _, kin, calibration = route
+    seed = np.deg2rad([90, -131, 117, -114, -90, 0])
+    old = build_views(kin, calibration, seed, distance=.3, pattern='coverage13')
+    wide = build_views(kin, calibration, seed, distance=.3, pattern='coverage17')
+    assert wide['schema_version'] == 4
+    assert wide['views'][:13] == old['views']
+    assert [v['label'] for v in wide['views'][13:]] == [
+        'side_left_45', 'side_right_45', 'side_left_60', 'side_right_60']
+    for view, degrees in zip(wide['views'][13:], [45, 45, 60, 60]):
+        path = np.array(view['path'])
+        np.testing.assert_array_equal(path[0], seed)
+        assert np.max(np.abs(np.diff(path, axis=0))) <= np.deg2rad(10)
+        assert view['view_angle_deg'] == degrees
+        np.testing.assert_allclose(np.linalg.norm(view['camera_offset_xy_m']),
+                                   .3 * np.sin(np.deg2rad(degrees)))
+        reached = camera_pose(kin, calibration, path[-1])
+        local = np.linalg.solve(reached, np.r_[wide['target'], 1.])
+        np.testing.assert_allclose(local[:3], [0, 0, .3], atol=2e-4)
+    validate_views(wide, kin, calibration)
+    changed = copy.deepcopy(wide)
+    changed['views'][-1]['view_angle_deg'] = 30.
+    with pytest.raises(ValueError, match='saved path differs'):
+        validate_views(changed, kin, calibration)
+
+
 def test_invalid_geometry_and_ik_branches_fail_before_execution(route):
     _, kin, calibration = route
     for distance, offset in ((float('nan'), .04), (.4, -.1), (.4, .5)):
@@ -241,3 +293,55 @@ def test_settling_checks_measured_joints_and_times_out():
 def test_offline_plan_requires_explicit_robot_model(tmp_path):
     assert main(['plan', '--distance', '.4', '--seed-view', str(tmp_path),
                  '--output', str(tmp_path / 'out')]) == 1
+
+
+def test_simulated_pick_stones_use_pose_solver_and_seat_render_meshes_on_table():
+    from stacking_tabletop.acquisition.scene_capture_simulation import synthesize_stones, matrix, transformed
+    from stacking_tabletop.composition import TabletopApplication
+    import open3d as o3d
+
+    app = TabletopApplication.from_repository(ROOT)
+    meshes, records = synthesize_stones(app, (9, 10, 11), np.array([.1, -.65, .2]))
+    table = next(box for box in app.planning_profile.obstacles if box.obstacle_id == 'pick_table')
+    for (vertices, faces), record in zip(meshes, records):
+        np.testing.assert_allclose(vertices[:, 2].min(), table.maximum[2], atol=1e-12)
+        original = np.asarray(record['posegen_world_pose'])
+        adjusted = np.asarray(record['world_pose'])
+        np.testing.assert_allclose(adjusted - original, [0, 0, record['mesh_seating_z_m'], 0, 0, 0, 0])
+        source = o3d.io.read_triangle_mesh(record['mesh'])
+        np.testing.assert_allclose(vertices, transformed(source.vertices, matrix(adjusted)))
+        assert record['pose_solver_converged'] is True
+        assert record['posegen_ground_height_m'] == table.maximum[2]
+        assert record['solver_diagnostics']['posegen_force_converged'] is True
+        assert np.isfinite(record['c_feq']) and np.isfinite(record['c_gap_m'])
+        assert len(faces) > 0
+
+
+def test_simulation_exports_gui_capture_contract(tmp_path):
+    from stacking_tabletop.acquisition.hand_eye_synthetic import calibration_fixture, geometry
+    from stacking_tabletop.acquisition.simulation_capture import SimulatedCapture
+    from stacking_tabletop.acquisition.pick_scene_workflow import _verify_capture
+    from stacking_tabletop.acquisition.hand_eye_replay import inspect_session
+    from stacking_tabletop.acquisition.calibration import BASE_LINK_T_UR_BASE
+
+    calibration = calibration_fixture(tmp_path/'calibration', color_size=(32, 24))
+    pose = np.eye(4)
+    pose[:3, :3] = np.diag([1., -1., -1.])
+    pose[:3, 3] = [0., 0., .7]
+    views = [dict(label=f'view_{index}', path=[SEED.tolist()], base_link_T_color=pose.tolist())
+             for index in range(3)]
+    plan = dict(kind='tabletop_wrist_scene_plan', views=views)
+    capture = SimulatedCapture(tmp_path/'captures', calibration, plan,
+        np.full((24, 32), .6), pose, geometry(32, 24), ([-1., -1., 0.], [1., 1., 1.]))
+    for view in views:
+        capture.add(view, np.full((24, 32, 3), 120, dtype=np.uint8), np.full((24, 32), .6))
+    capture.finish()
+    assert _verify_capture(tmp_path/'captures') == tmp_path/'captures'
+    manifest = inspect_session(tmp_path/'captures/session')
+    assert manifest['data_origin'] == 'synthetic'
+    assert len(manifest['views']) == 3
+    frame = json.loads((tmp_path/'captures/session/views/000/frames/0000.json').read_text())
+    np.testing.assert_allclose(frame['base_link_T_color'], pose, atol=1e-12)
+    np.testing.assert_allclose(frame['robot']['joint_positions'][-1], SEED)
+    assert (tmp_path/'captures/femto_before/field_scan.json').is_file()
+    assert (tmp_path/'captures/femto_after/field_scan.json').is_file()

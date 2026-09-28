@@ -59,6 +59,136 @@ and angular diversity for side surfaces. They are still modest angles and cannot
 guarantee visibility of hidden lower sides. Their benefit must be evaluated from
 the resulting MVS coverage rather than assumed from camera count.
 
+### Wider RGB coverage
+
+Use `--viewpoint-pattern coverage13` to add four orbital views at 30° from
+the seed optical axis, one from each side. At a 0.4-m target distance their
+camera centers are about 0.20 m sideways from the seed and about 0.054 m
+closer to the target. This gathers more side-surface evidence and expands the
+set of camera positions. All thirteen views still aim at one target; a
+different target or a tiled route is needed to inspect a separate area of the
+table. Dense RGB processing uses the center, four oblique, and four side
+images as reference depth maps for this route.
+
+Generate the route and inspect `preview.html` before moving the robot:
+
+```bash
+python -m stacking_tabletop.acquisition.scene_capture_cli plan \
+  --distance 0.4 --offset 0.04 --oblique-offset 0.08 \
+  --viewpoint-pattern coverage13 \
+  --output apps/tabletop/data/experiments/scene_plan_side_001
+```
+
+The preview verifies IK, joint limits, and the camera paths. It does not check
+collisions or guarantee RGB overlap. Inspect clearance around the table,
+stones, camera, cables and wrist for all four lower, farther-reaching legs.
+The integrated `pick_scene_workflow run` now defaults to this thirteen-view
+route. Operations exposes **Wrist viewpoints → Wider: 13 views** and **Compact:
+9 views**. CLI `--viewpoint-pattern coverage9` selects the compact route. The
+standalone plan CLI retains its nine-view default so existing plan commands
+keep their behavior. No new route is executed by an offline simulation.
+
+### Extended lateral coverage: seventeen views
+
+Use `coverage17` when the 30° side route does not expose enough stone surface.
+It preserves the original thirteen poses and adds left/right pairs at **45° and
+60° relative to the central camera axis**. The two extra angles give stereo
+partners for newly visible sides. Up/down remain at 30° because steeper arcs
+were unreachable from the recorded `view_005` seed. At 0.4 m target distance,
+maximum lateral camera travel increases from 0.20 m to approximately **0.35 m**.
+The region is still centered on the same target.
+
+A generated offline plan is at
+`apps/tabletop/data/experiments/scene_wide_preview_001/preview.html`.
+Its simulation, RGB gallery and comparison are at
+`apps/tabletop/data/experiments/scene_wide_simulation_001/overview.html`.
+Select that simulation's **`captures`** directory for identification in Operations.
+This is a new route; `scene_side_preview_001` remains the original thirteen views.
+
+Reproduce with fresh output directory names:
+
+```bash
+python -m stacking_tabletop.acquisition.scene_capture_cli plan \
+  --distance 0.4 --offset 0.04 --oblique-offset 0.08 \
+  --viewpoint-pattern coverage17 \
+  --seed-view apps/tabletop/data/captures/hand_eye/view_005 \
+  --urdf apps/tabletop/data/experiments/scene_side_preview_001/robot.urdf \
+  --output apps/tabletop/data/experiments/scene_wide_preview_002
+
+python -m stacking_tabletop.acquisition.scene_capture_simulation \
+  --plan apps/tabletop/data/experiments/scene_wide_preview_002 \
+  --output apps/tabletop/data/experiments/scene_wide_simulation_002
+```
+
+On the same synthetic stone placements, side-surface samples visible from at
+least two camera positions improved as follows:
+
+| Stone | 13 views | 17 views |
+|---|---:|---:|
+| 9 | 63.3% | 78.9% |
+| 10 | 71.9% | 83.8% |
+| 11 | 57.1% | 69.9% |
+
+These are geometric visibility measurements, including modeled occlusions and
+parallax; actual MVS accuracy and hardware clearance remain unvalidated. A tested
+alternative seed with four 45° sides provided less support than this route.
+
+Operations exposes **Wrist viewpoints → Extended: 17 views**. The integrated CLI
+accepts `--viewpoint-pattern coverage17`; its default remains thirteen views.
+Dense processing uses center, oblique and all eight side images as reference
+maps (thirteen references instead of nine), so capture and reconstruction take
+more time. Complete IK paths are checked, but collisions are not; selecting this
+route for live capture requires clearance for its larger robot/tool envelope.
+
+### Offline simulation in the Operations cell
+
+Use a saved thirteen-view plan to test camera coverage without ROS or hardware:
+
+```bash
+python -m stacking_tabletop.acquisition.scene_capture_simulation \
+  --plan apps/tabletop/data/experiments/scene_side_preview_001 \
+  --output apps/tabletop/data/experiments/scene_side_simulation_002
+```
+
+The experiment uses the Operations tables, FEMTO obstruction, UR5e and gripper
+meshes, the saved plan's robot kinematics and hand-eye calibration, and catalog
+stone meshes 9, 10 and 11. Native posegen synthesizes separated pick placements
+on the configured pick table. Its convergence and residuals are recorded per
+stone; a nonconverged candidate is not a verified stable placement. Rendered
+meshes are seated vertically on the table after the DSF solve; both original
+and adjusted poses and the height corrections are retained.
+
+Open `overview.html` for the robot/view slider, generated RGB images, and the
+nine-versus-thirteen-view coverage comparison. Each view also saves ideal axial
+depth and `ideal_cloud.pcd` in `base_link`. These are raycast geometry, not MVS
+output. The images use procedural texture and ideal pinhole cameras. Coverage
+uses area samples and first-hit occlusion, including the modeled robot. The
+reported two-view support requires at least one degree of parallax. It measures
+an opportunity for stereo, not a successful match or an accuracy guarantee.
+
+The simulator also creates a complete `captures/` directory containing
+`capture.json`, timestamped `wrist/` frames, `femto_before/`, `femto_after/`,
+and a hash-verified `session/`. In Operations, open **Scene capture and stone
+identification**, select **Identify existing wrist RGB + FEMTO capture**, and
+choose this `captures/` directory as the source. Choose a fresh output folder
+and keep the pickup-table height at 0.100 m. The normal RGB reconstruction and
+joint pose identification run, including the stone-ID assignment window.
+All generated observations and workflow outputs retain synthetic provenance.
+The modeled FEMTO view is positioned at the top of its Operations obstruction
+box and aimed at the stones; it is not a measured fixed-camera calibration.
+
+For these synthetic placements, posegen explicitly uses the table top as
+`ground_height` (0.100 m in this cell). The simulation overrides contact-force
+absolute and relative tolerances to `1e-7`; the ordinary tabletop solver profile
+is unchanged. The earlier `1e-3`/`1e-4` force tolerances caused stones 10 and 11
+to reach the pose optimizer's 75-iteration limit. Moving the equivalent ground
+plane from local zero to world 0.100 m alone did not change those results.
+Solver flags, iterations, gradient, trust radius and residuals are retained.
+
+The experiment does not authorize motion or perform collision validation.
+Camera housing, cables, and unmodeled objects are absent. It does not establish
+real-world lighting robustness or real-camera millimetre accuracy.
+
 ### 1. Prepare without moving
 
 Source ROS Jazzy and the existing ROS workspace in the same environment used

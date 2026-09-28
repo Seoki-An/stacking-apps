@@ -109,3 +109,32 @@ def test_source_selection_rejects_a_region_without_shared_visibility():
              [[.13, -.02, .4], [.15, .02, .42]]]
     with pytest.raises(ValueError, match='every ROI'):
         select_source_views([matrix]*5, [(640, 480)]*5, poses, boxes, maximum_sources=3)
+
+
+@pytest.mark.parametrize('count', [13, 17])
+def test_production_references_include_reviewed_side_views(tmp_path, count):
+    import json
+    import stacking_tabletop.acquisition.hand_eye_dense as dense
+
+    session = tmp_path / 'capture' / 'session'
+    session.mkdir(parents=True)
+    (session / 'session.json').write_text(json.dumps(
+        {'views': [{'path': str(i)} for i in range(count)]}))
+    roles = ['overview'] + ['near'] * 4 + ['oblique'] * 4 + ['side'] * (count - 9)
+    (session.parent / 'executed_plan.json').write_text(json.dumps({
+        'kind': 'tabletop_wrist_scene_plan',
+        'viewpoint_pattern': f'coverage{count}',
+        'views': [{'role': role} for role in roles],
+    }))
+    assert dense.production_reference_views(session) == (0, *range(5, count))
+
+
+def test_depth_bounds_use_visible_boxes_even_when_unused_workspace_is_behind_camera():
+    from stacking_common.multiview.dense import depth_bounds_from_boxes
+    pose = np.eye(4)
+    with pytest.raises(ValueError, match='in front'):
+        depth_bounds_from_roi([pose], [-2., -2., -.1], [2., 2., 1.])
+    boxes = [[[-.1, -.1, .3], [.1, .1, .5]], [[.2, -.1, .4], [.3, .1, .6]]]
+    assert depth_bounds_from_boxes([pose], boxes) == pytest.approx((.28, .62))
+    with pytest.raises(ValueError, match='in front'):
+        depth_bounds_from_boxes([pose], [[[-.1, -.1, -.1], [.1, .1, .5]]])

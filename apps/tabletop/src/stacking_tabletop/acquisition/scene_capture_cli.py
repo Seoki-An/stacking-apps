@@ -1,4 +1,4 @@
-"""Preview and execute a nine-view wrist scan bracketed by fixed FEMTO captures."""
+"""Preview and execute a wrist scan bracketed by fixed FEMTO captures."""
 
 import argparse
 from contextlib import contextmanager
@@ -83,7 +83,8 @@ def prepare_plan(args):
     urdf.write_text(description)
     kinematics = UR5eKinematics(urdf)
     plan = build_views(kinematics, calibration, seed, distance=args.distance,
-                       offset=args.offset, oblique_offset=args.oblique_offset)
+                       offset=args.offset, oblique_offset=args.oblique_offset,
+                       pattern=getattr(args, 'viewpoint_pattern', 'coverage9'))
     plan.update(robot_urdf_sha256=digest(urdf), source=source,
                 hand_eye_profile_sha256=digest(directory / 'calibration/profile.yml'))
     render_preview(plan, kinematics, calibration, directory / 'preview.html')
@@ -197,6 +198,8 @@ def build_parser():
     plan.add_argument('--offset', type=float, default=.04, help='translated offset from center in metres')
     plan.add_argument('--oblique-offset', type=float, default=.08,
                       help='radial offset of four diagonal oblique views in metres')
+    plan.add_argument('--viewpoint-pattern', choices=('coverage9', 'coverage13', 'coverage17'),
+                      default='coverage9', help='coverage13 adds 30-degree side views; coverage17 also adds 45/60-degree left/right views; review path clearance')
     plan.add_argument('--seed-view', type=Path, help='offline planning from a recorded view instead of live feedback')
     plan.add_argument('--urdf', type=Path, help='verified URDF for offline --seed-view planning')
     plan.add_argument('--output', type=Path, required=True)

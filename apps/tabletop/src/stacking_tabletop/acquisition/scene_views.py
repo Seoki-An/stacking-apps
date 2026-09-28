@@ -37,26 +37,38 @@ def camera_pose(kinematics, calibration, joints):
     return BASE_LINK_T_UR_BASE @ kinematics.pose(joints) @ calibration.tool_T_color
 
 
+SIDE_ANGLE_DEG = 30.
+EXTENDED_SIDE_ANGLES = {'side_left_45': 45., 'side_right_45': 45.,
+                        'side_left_60': 60., 'side_right_60': 60.}
+
+
 def _view_specs(pattern, offset, oblique_offset):
     if pattern == 'legacy5':
         return [('center', (0., 0.), 'overview'), ('left', (-offset, 0.), 'near'),
                 ('right', (offset, 0.), 'near'), ('up', (0., -offset), 'near'),
                 ('down', (0., offset), 'near')]
-    if pattern != 'coverage9':
+    if pattern not in ('coverage9', 'coverage13', 'coverage17'):
         raise ValueError('unsupported wrist viewpoint pattern')
     diagonal = oblique_offset / np.sqrt(2)
-    return [('center', (0., 0.), 'overview'), ('left', (-offset, 0.), 'near'),
-            ('right', (offset, 0.), 'near'), ('up', (0., -offset), 'near'),
-            ('down', (0., offset), 'near'),
-            ('oblique_left_up', (-diagonal, -diagonal), 'oblique'),
-            ('oblique_right_up', (diagonal, -diagonal), 'oblique'),
-            ('oblique_right_down', (diagonal, diagonal), 'oblique'),
-            ('oblique_left_down', (-diagonal, diagonal), 'oblique')]
+    views = [('center', (0., 0.), 'overview'), ('left', (-offset, 0.), 'near'),
+             ('right', (offset, 0.), 'near'), ('up', (0., -offset), 'near'),
+             ('down', (0., offset), 'near'),
+             ('oblique_left_up', (-diagonal, -diagonal), 'oblique'),
+             ('oblique_right_up', (diagonal, -diagonal), 'oblique'),
+             ('oblique_right_down', (diagonal, diagonal), 'oblique'),
+             ('oblique_left_down', (-diagonal, diagonal), 'oblique')]
+    if pattern in ('coverage13', 'coverage17'):
+        views += [('side_left', (-1., 0.), 'side'), ('side_right', (1., 0.), 'side'),
+                  ('side_up', (0., -1.), 'side'), ('side_down', (0., 1.), 'side')]
+    if pattern == 'coverage17':
+        views += [(label, (-1., 0.) if 'left' in label else (1., 0.), 'side')
+                  for label in EXTENDED_SIDE_ANGLES]
+    return views
 
 
 def build_views(kinematics, calibration, seed, *, distance, offset=.04,
                 oblique_offset=.08, pattern='coverage9', check=lambda: None):
-    """Nine overlapping views about one seed, with explicit reverse-path returns.
+    """Overlapping views about one seed, with explicit reverse-path returns.
 
     IK and joint/cable limits are checked; this does not check collisions.
     The target lies distance metres along the seed camera's optical +Z axis.
@@ -67,7 +79,7 @@ def build_views(kinematics, calibration, seed, *, distance, offset=.04,
         raise ValueError('target distance must be between 0.1 and 1 metre')
     if not np.isfinite(offset) or not 0 < offset <= min(.12, distance / 2):
         raise ValueError('offset must be positive and at most 0.12 m and half the target distance')
-    if pattern == 'coverage9' and (not np.isfinite(oblique_offset)
+    if pattern in ('coverage9', 'coverage13', 'coverage17') and (not np.isfinite(oblique_offset)
             or not offset < oblique_offset <= min(.12, distance / 2)):
         raise ValueError('oblique offset must exceed the near offset and be at most 0.12 m and half the target distance')
     seed = validate_joint_path([seed])[0]
@@ -77,11 +89,19 @@ def build_views(kinematics, calibration, seed, *, distance, offset=.04,
     for label, xy, role in _view_specs(pattern, offset, oblique_offset):
         q = seed.copy()
         path = [q.copy()]
-        steps = max(1, int(np.ceil(np.linalg.norm(xy) / .005)))
+        side = role == 'side'
+        angle_deg = EXTENDED_SIDE_ANGLES.get(label, SIDE_ANGLE_DEG) if side else 0.
+        angle = np.deg2rad(angle_deg)
+        steps = max(1, int(np.ceil((distance * angle if side else np.linalg.norm(xy)) / .005)))
         for fraction in np.linspace(0, 1, steps + 1)[1:]:
             check()
             pose = reference.copy()
-            pose[:3, 3] += reference[:3, :2] @ (fraction * np.asarray(xy))
+            if side:
+                theta = fraction * angle
+                pose[:3, 3] = (target - distance * np.cos(theta) * reference[:3, 2]
+                               + distance * np.sin(theta) * (reference[:3, :2] @ xy))
+            else:
+                pose[:3, 3] += reference[:3, :2] @ (fraction * np.asarray(xy))
             z = target - pose[:3, 3]
             z /= np.linalg.norm(z)
             x = reference[:3, 0] - z * (z @ reference[:3, 0])
@@ -100,32 +120,40 @@ def build_views(kinematics, calibration, seed, *, distance, offset=.04,
         reached = camera_pose(kinematics, calibration, q)
         if not np.allclose(reached, pose, atol=2e-4, rtol=0):
             raise ValueError(f'{label}: camera target FK does not match IK')
-        radial_offset = float(np.linalg.norm(xy))
-        views.append(dict(label=label, role=role, camera_offset_xy_m=list(xy),
-                          view_angle_deg=float(np.rad2deg(np.arctan2(radial_offset, distance))),
+        radial_offset = distance * np.sin(angle) if side else float(np.linalg.norm(xy))
+        offset_xy = (radial_offset * np.asarray(xy)).tolist() if side else list(xy)
+        views.append(dict(label=label, role=role, camera_offset_xy_m=offset_xy,
+                          view_angle_deg=float(angle_deg if side else np.rad2deg(np.arctan2(radial_offset, distance))),
                           path=path.tolist(), base_link_T_color=reached.tolist()))
-    return dict(schema_version=2, kind='tabletop_wrist_scene_plan', output_frame='base_link',
+    return dict(schema_version={'coverage17': 4, 'coverage13': 3}.get(pattern, 2),
+                kind='tabletop_wrist_scene_plan', output_frame='base_link',
                 seed_joints=seed.tolist(), target=target.tolist(), distance_m=float(distance),
                 viewpoint_pattern=pattern, offset_m=float(offset),
-                oblique_offset_m=float(oblique_offset), views=views, collision_checked=False,
+                oblique_offset_m=float(oblique_offset),
+                side_angle_deg=SIDE_ANGLE_DEG if pattern in ('coverage13', 'coverage17') else None,
+                views=views, collision_checked=False,
                 return_policy='reverse_each_leg_to_seed', held_object=False)
 
 
 def validate_views(plan, kinematics, calibration):
     """Validate the complete saved route before any hardware command."""
-    if (plan.get('schema_version') not in (1, 2) or plan.get('kind') != 'tabletop_wrist_scene_plan'
+    if (plan.get('schema_version') not in (1, 2, 3, 4) or plan.get('kind') != 'tabletop_wrist_scene_plan'
             or plan.get('output_frame') != 'base_link' or plan.get('held_object') is not False
             or plan.get('return_policy') != 'reverse_each_leg_to_seed'):
         raise ValueError('unsupported scene scan plan')
     seed = validate_joint_path([plan['seed_joints']])[0]
     legacy = plan['schema_version'] == 1
     pattern = 'legacy5' if legacy else plan.get('viewpoint_pattern')
-    expected_count = 5 if legacy else 9
+    if {'legacy5': 1, 'coverage9': 2, 'coverage13': 3, 'coverage17': 4}.get(pattern) != plan['schema_version']:
+        raise ValueError('scene scan schema and viewpoint pattern disagree')
+    expected_count = {'legacy5': 5, 'coverage9': 9, 'coverage13': 13, 'coverage17': 17}[pattern]
     if len(plan['views']) != expected_count:
         raise ValueError(f'scene scan requires the {expected_count} generated viewpoints')
     expected = build_views(kinematics, calibration, seed, distance=plan['distance_m'],
                            offset=plan['offset_m'],
                            oblique_offset=plan.get('oblique_offset_m', .08), pattern=pattern)
+    if pattern in ('coverage13', 'coverage17') and plan.get('side_angle_deg') != SIDE_ANGLE_DEG:
+        raise ValueError('saved side angle differs from the generated route')
     if not np.allclose(plan['target'], expected['target'], atol=1e-9, rtol=0):
         raise ValueError('saved target disagrees with the seed view')
     for view, original in zip(plan['views'], expected['views']):
@@ -151,7 +179,7 @@ def render_preview(plan, kinematics, calibration, output):
                                      mode='lines+markers', name=name, **kwargs))
     names = ('base_link', 'shoulder_link', 'upper_arm_link', 'forearm_link',
              'wrist_1_link', 'wrist_2_link', 'wrist_3_link', 'tool0')
-    role_colors = {'overview': '#24334a', 'near': '#18a999', 'oblique': '#ef8354'}
+    role_colors = {'overview': '#24334a', 'near': '#18a999', 'oblique': '#ef8354', 'side': '#7953c6'}
     for view in plan['views']:
         path = np.asarray(view['path'])
         centers = [camera_pose(kinematics, calibration, q)[:3, 3] for q in path]
@@ -173,6 +201,6 @@ def render_preview(plan, kinematics, calibration, output):
     figure.update_layout(title=f'Wrist scan preview — {len(plan["views"])} views; link skeletons; not collision checked',
                          scene=dict(aspectmode='data', xaxis_title='base_link X (m)',
                                     yaxis_title='Y (m)', zaxis_title='Z (m)'),
-                         annotations=[dict(text='Gray: overview · teal: near views · orange: oblique views · every leg returns to seed',
+                         annotations=[dict(text='Gray: overview · teal: near · orange: oblique · purple: side · every leg returns to seed; verify clearance',
                                            x=0, y=-.08, xref='paper', yref='paper', showarrow=False)])
     figure.write_html(str(Path(output)), include_plotlyjs=True)
