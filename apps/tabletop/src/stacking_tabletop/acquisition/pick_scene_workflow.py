@@ -317,6 +317,7 @@ def _publish_poses(root, identification, validation, *, validation_dir=None):
     source = _json(reports / 'stone_poses.json')
     atomic_json(root / 'pick_scene_poses.json', dict(schema_version=1,
                 kind='validated_pick_scene_poses', status='complete', pose_data=str(pose),
+                data_origin=_json(root / 'pick_scene_workflow.json').get('data_origin', 'hardware'),
                 pose_source=source.get('pose_source', 'unknown'),
                 joint_identification=str(reports / 'stone_poses.json'),
                 preliminary_femto_identification=(
@@ -403,6 +404,7 @@ def _run_femto_first_workflow(args, *, plan_runner=None, capture_runner=None, id
         stage('verify_capture')
         capture = _verify_capture(capture)
         status['capture_dir'] = str(capture)
+        status['data_origin'] = _json(capture / 'session/session.json')['data_origin']
         identification = root / 'femto_identification'
         identify_args = copy(args)
         identify_args.identification_output = identification
@@ -515,12 +517,27 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
     args.perception_config = (args.perception_config or
                               args.repository / 'apps/tabletop/config/perception.yml').resolve()
     profile, catalog = preflight(args)
+    backend = getattr(args, 'dense_backend', 'fast-foundation-stereo')
+    pose_backend = getattr(args, 'pose_backend', 'foundationpose')
+    if pose_backend == 'foundationpose' and backend != 'fast-foundation-stereo':
+        raise ValueError('FoundationPose requires --dense-backend fast-foundation-stereo; COLMAP supports --pose-backend icp')
+    if pose_backend == 'foundationpose' and (args.manual_init_gui or args.manual_init_stones is not None):
+        raise ValueError('manual model alignment requires --pose-backend icp')
+    if pose_backend == 'foundationpose':
+        from .foundation_pose_runtime import check_runtime
+        check_runtime(args.repository)
+    if backend == 'fast-foundation-stereo' and dense_runner is None:
+        from functools import partial
+        from .hand_eye_fast_stereo import reconstruct_with_runtime
+        vendor = args.repository / '.data/vendor/Fast-FoundationStereo'
+        dense_runner = partial(reconstruct_with_runtime, repository=vendor,
+            checkpoint=vendor / 'weights/23-36-37/model_best_bp2_serialize.pth')
     root.mkdir(parents=True)
     manifest = root / 'pick_scene_workflow.json'
     status = dict(schema_version=2, kind='wrist_rgb_femto_pick_workflow', status='running',
                   mode=args.command, stages=[], production_pose_accepted=False,
                   scene_stability='not_evaluated', accuracy_1mm_verified=False,
-                  pose_sequence='femto_regions_rgb_mvs_joint_catalog_fit')
+                  pose_sequence='femto_regions_rgb_mvs_joint_catalog_fit', pose_backend=pose_backend)
     started = clock()
     current = None
 
@@ -548,7 +565,8 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
             plan_args = argparse.Namespace(
                 profile=ROOT / 'apps/tabletop/config/hand_eye.yml',
                 distance=STANDARD_DISTANCE_M, offset=STANDARD_NEAR_OFFSET_M,
-                oblique_offset=STANDARD_OBLIQUE_OFFSET_M, seed_view=None,
+                oblique_offset=STANDARD_OBLIQUE_OFFSET_M,
+                viewpoint_pattern=args.viewpoint_pattern, seed_view=None,
                 urdf=None, output=plan)
             stage('capture_route')
             planned = plan_runner(plan_args)
@@ -556,7 +574,7 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
             if not approval or digest(plan / 'plan.json') != approval:
                 raise ValueError('integrated capture route did not produce a valid plan hash')
             status.update(capture_plan_dir=str(plan), capture_plan_sha256=approval,
-                          capture_route='standard_coverage9')
+                          capture_route=f'standard_{args.viewpoint_pattern}')
             capture = root / 'capture'
             scene_args = argparse.Namespace(plan=plan, approve=approval,
                 femto_config=args.femto_config, camera=args.camera, depth_size=args.depth_size,
@@ -568,6 +586,7 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
         stage('verify_capture')
         capture = _verify_capture(capture)
         status['capture_dir'] = str(capture)
+        status['data_origin'] = _json(capture / 'session/session.json')['data_origin']
         geometry_dir = root / 'femto_geometry'
         region_file = root / 'rgb_region.json'
         stage('femto_regions')
@@ -578,6 +597,8 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
         refined = root / 'rgb_refinement'
         stage('rgb_refinement')
         refine_rgb_session(capture / 'session', sparse, refined)
+        status['dense_backend'] = backend
+        status['accepted_dense_backend'] = None
         status['dense_fallback_used'] = False
         for suffix, reconstruct in (('', dense_runner or dense_rgb_production_session),
                                     ('_full', fallback_dense_runner or dense_rgb_full_session)):
@@ -590,6 +611,7 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
                 stage('joint_pose_identification'+suffix)
                 fused_pose = Path(identify_from_rgb_and_femto(
                     dense, region_file, geometry_dir, catalog, profile, identification,
+                    pose_backend=pose_backend, repository=args.repository,
                     automatic_ordering=args.automatic_ordering,
                     manual_init_gui=args.manual_init_gui,
                     manual_init_stones=args.manual_init_stones,
@@ -612,13 +634,14 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
                     rejected = [str(item['stone_id']) for item in validation['stones'] if not item['accepted']]
                     raise FusedPoseRejected(f'wrist RGB rejected pickup poses for stones {", ".join(rejected)}')
             except FusedPoseRejected as error:
-                if suffix:
+                if suffix or pose_backend == 'foundationpose':
                     raise
                 status.update(dense_fallback_used=True, dense_fallback_reason=str(error))
                 atomic_json(manifest, status)
-                print(f'Joint RGB/FEMTO pose check rejected: {error}; retrying full images', flush=True)
+                print(f'Joint RGB/FEMTO pose check rejected: {error}; retrying COLMAP with full images', flush=True)
                 continue
             break
+        status['accepted_dense_backend'] = 'colmap' if suffix else backend
         stage('publish')
         pose = _publish_poses(root, identification, validation, validation_dir=validation_dir)
         now = clock()
@@ -642,23 +665,80 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
         raise
 
 
+def _prepare_reidentification(args):
+    """Branch a completed fit, copying only final clouds/viewers, not MVS workspaces."""
+    source = Path(args.workflow).expanduser().resolve()
+    previous = _json(source / 'pick_scene_workflow.json')
+    if (previous.get('schema_version') != 2 or previous.get('status') != 'complete'
+            or not previous.get('production_pose_accepted')):
+        raise ValueError('reidentify requires a completed RGB-first workflow')
+    dense = Path(previous['dense_dir']).resolve()
+    if not dense.is_relative_to(source):
+        raise ValueError('RGB reconstruction is outside the source workflow')
+    report = _json(source / 'pose_identification/stone_poses.json')
+    hashes = report.get('source_sha256', {})
+    for label, path in [('dense_summary.json', dense / 'summary.json'),
+                        ('femto_geometry.json', source / 'femto_geometry/geometry.json'),
+                        ('rgb_region.json', source / 'rgb_region.json')]:
+        if hashes.get(label) != digest(path):
+            raise ValueError(f'cached input changed since pose identification: {label}')
+    if not (dense / 'refined/rgb_dense_voxel_1mm.pcd').is_file():
+        raise ValueError('completed RGB point cloud is missing')
+    capture = _verify_capture(previous['capture_dir'])
+    root = Path(args.output).expanduser().resolve()
+    if root == source or root.is_relative_to(source):
+        raise ValueError('choose a new output directory outside the source workflow')
+    root.mkdir(parents=True, exist_ok=False)
+    cached = root / 'rgb_dense'
+    cached.mkdir()
+    for name in ('summary.json', 'refined/rgb_dense_voxel_1mm.pcd', 'rgb_only', 'comparison'):
+        src, dst = dense / name, cached / name
+        if src.is_dir():
+            shutil.copytree(src, dst)
+        elif src.is_file():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+    for pattern in ('pair_*.npz', 'pair_*.png'):
+        for src in (dense / 'refined').glob(pattern):
+            shutil.copy2(src, cached / 'refined' / src.name)
+    shutil.copytree(source / 'femto_geometry', root / 'femto_geometry')
+    shutil.copy2(source / 'rgb_region.json', root / 'rgb_region.json')
+    status = dict(schema_version=2, kind='wrist_rgb_femto_pick_workflow',
+                  mode='reidentify', status='ready', stage='joint_pose_identification', stages=[],
+                  capture_dir=str(capture), data_origin=previous.get('data_origin', 'hardware'),
+                  production_pose_accepted=False, scene_stability='not_evaluated',
+                  accuracy_1mm_verified=False, pose_sequence=previous['pose_sequence'],
+                  reidentification_source=str(source),
+                  source_workflow_sha256=digest(source / 'pick_scene_workflow.json'),
+                  suggested_assignments=report.get('cluster_assignments', {}),
+                  reused_dense_dir=str(dense), resume_dense_dir=str(cached))
+    atomic_json(root / 'pick_scene_workflow.json', status)
+    return root, status
+
+
 def resume_joint_workflow(args, *, preflight=load_inputs, clock=time.monotonic):
-    """Resume a failed joint pose fit from its recorded RGB MVS output."""
+    """Review IDs and fit again using cached RGB MVS and FEMTO geometry."""
     from .pick_scene_rgb_first import identify_from_rgb_and_femto, validate_selected_femto_stability
 
     if args.automatic_ordering:
         raise ValueError('automatic RGB/FEMTO stone ID assignment is not validated; review cluster IDs manually')
-    root = Path(args.workflow).expanduser().resolve()
+    if args.command == 'reidentify':
+        root, status = _prepare_reidentification(args)
+    else:
+        root = Path(args.workflow).expanduser().resolve()
+        status = _json(root / 'pick_scene_workflow.json')
+        if (status.get('schema_version') != 2 or status.get('status') not in ('failed', 'cancelled')
+                or not status.get('stage', '').startswith('joint_pose_identification')
+                or status.get('production_pose_accepted')
+                or (root / 'pose_data.pkl').exists()):
+            raise ValueError('resume requires a failed RGB-first workflow at joint pose identification')
     manifest = root / 'pick_scene_workflow.json'
-    status = _json(manifest)
     failed_stage = status.get('stage', '')
-    if (status.get('schema_version') != 2 or status.get('status') != 'failed'
-            or not failed_stage.startswith('joint_pose_identification')
-            or status.get('production_pose_accepted')
-            or (root / 'pose_data.pkl').exists()):
-        raise ValueError('resume requires a failed RGB-first workflow at joint pose identification')
     capture = _verify_capture(status['capture_dir'])
-    dense = root / ('rgb_dense_full' if 'full' in failed_stage else 'rgb_dense')
+    dense = Path(status.get('resume_dense_dir') or
+                 root / ('rgb_dense_full' if 'full' in failed_stage else 'rgb_dense')).resolve()
+    if not dense.is_relative_to(root):
+        raise ValueError('cached RGB reconstruction is outside the workflow')
     if not (dense / 'summary.json').is_file():
         raise ValueError('completed RGB MVS output is missing from the failed workflow')
     geometry_dir = root / 'femto_geometry'
@@ -680,7 +760,7 @@ def resume_joint_workflow(args, *, preflight=load_inputs, clock=time.monotonic):
     current = None
     status.update(status='running', resume_count=attempt, resumed_from=failed_stage,
                   previous_failure=status.pop('error', None),
-                  resume_dense_dir=str(dense))
+                  resume_dense_dir=str(dense), pose_backend=args.pose_backend)
     atomic_json(manifest, status)
 
     def stage(name):
@@ -698,11 +778,13 @@ def resume_joint_workflow(args, *, preflight=load_inputs, clock=time.monotonic):
         stage('joint_pose_identification_resume')
         fused_pose = Path(identify_from_rgb_and_femto(
             dense, region_file, geometry_dir, catalog, profile, identification,
+            pose_backend=args.pose_backend, repository=args.repository,
             manual_init_gui=args.manual_init_gui,
             manual_init_stones=args.manual_init_stones,
             manual_init_translation_step=args.manual_init_translation_step,
             manual_init_rotation_step=args.manual_init_rotation_step,
-            visualize=args.visualize))
+            visualize=args.visualize,
+            suggested_assignments=status.get('suggested_assignments')))
         print(f'Pose-identification viewer: {identification / "comparison/overview.html"}', flush=True)
         stage('femto_stability_resume')
         stability = validate_selected_femto_stability(
@@ -764,12 +846,21 @@ def build_parser():
     resume = commands.add_parser('resume', help='finish a failed joint pose fit using saved RGB MVS')
     add_identification_arguments(resume, include_output=False)
     resume.add_argument('workflow', type=Path, help='failed RGB-first workflow directory')
+    reidentify = commands.add_parser('reidentify', help='review model IDs again using saved RGB/FEMTO clouds')
+    add_identification_arguments(reidentify, include_output=False)
+    reidentify.add_argument('workflow', type=Path, help='completed RGB-first workflow directory')
+    reidentify.add_argument('--output', type=Path, required=True, help='new identification workflow directory')
     for name in ('run', 'process'):
         command = commands.add_parser(name, help=('capture and identify with the standard live route' if name == 'run'
                                       else 'identify an existing complete scene capture'))
         add_identification_arguments(command, include_output=False)
         command.add_argument('--output', type=Path, required=True, help='new workflow directory')
+        command.add_argument('--dense-backend', choices=('colmap', 'fast-foundation-stereo'),
+                             default='fast-foundation-stereo', help='Fast-FoundationStereo (default) or COLMAP MVS')
         if name == 'run':
+            command.add_argument('--viewpoint-pattern', choices=('coverage9', 'coverage13', 'coverage17'),
+                                 default='coverage13',
+                                 help='coverage17 adds 45/60-degree left/right views; coverage13 uses 30-degree sides; coverage9 is compact')
             command.add_argument('--femto-config', type=Path,
                                  default=ROOT / 'apps/tabletop/config/femto.yml')
             command.add_argument('--camera', choices=('primary', 'secondary'), default='primary')
@@ -778,6 +869,9 @@ def build_parser():
             command.add_argument('--count', type=int, default=10)
         else:
             command.add_argument('capture', type=Path)
+    for command in (resume, reidentify, *[commands.choices[name] for name in ('run', 'process')]):
+        command.add_argument('--pose-backend', choices=('foundationpose', 'icp'), default='foundationpose',
+                             help='FoundationPose (default, learned stereo required) or multistart ICP')
     return parser
 
 
@@ -787,7 +881,7 @@ def main(argv=None):
         raise KeyboardInterrupt
     previous = signal.signal(signal.SIGTERM, terminate)
     try:
-        result = resume_joint_workflow(args) if args.command == 'resume' else run_workflow(args)
+        result = resume_joint_workflow(args) if args.command in ('resume', 'reidentify') else run_workflow(args)
         print(json.dumps(dict(status='complete', output=str(result.root),
                               pose_data=str(result.pose_data), validation=str(result.validation)), indent=2))
         return 0

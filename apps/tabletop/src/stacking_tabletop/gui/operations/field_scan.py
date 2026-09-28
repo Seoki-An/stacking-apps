@@ -13,7 +13,7 @@ from PySide6.QtCore import QProcess, QProcessEnvironment, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout,
-    QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget,
+    QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget,
 )
 
 
@@ -29,6 +29,12 @@ def inspect_joint_pick_output(directory):
         raise ValueError('pick-scene workflow did not accept the pickup poses')
     expected_source = ('rgb_femto_first_joint_icp' if workflow.get('schema_version') == 2
                        else 'balanced_femto_rgb_joint_icp')
+    if workflow.get('pose_backend') == 'foundationpose':
+        expected_source = 'foundationpose_rgb_femto_validated'
+        if report.get('icp_refinement_applied') is not False:
+            raise ValueError('FoundationPose result unexpectedly applied ICP refinement')
+    elif workflow.get('pose_backend', 'icp') != 'icp':
+        raise ValueError('unknown pickup pose backend')
     if (published.get('pose_source') != expected_source
             or report.get('pose_source') != expected_source
             or report.get('kind') != 'femto_rgb_joint_pose_identification'
@@ -81,9 +87,11 @@ class FieldScanDialog(QDialog):
         self.repository = Path(repository).resolve()
         self.can_start = lambda: True
         self.pose_path = None
+        self._completed_workflow = None
         self.rgb_viewer = None
         self.pose_viewer = None
         self._stopping = False
+        self._result_directory = None
         self.setWindowTitle('Scene capture and stone identification')
         self.resize(850, 650)
         layout = QVBoxLayout(self)
@@ -101,6 +109,18 @@ class FieldScanDialog(QDialog):
         self.camera = QComboBox()
         for label, value in [('Primary FEMTO', 'primary'), ('Secondary FEMTO', 'secondary'), ('Both FEMTO cameras', 'both')]:
             self.camera.addItem(label, value)
+        self.viewpoints = QComboBox()
+        self.viewpoints.addItem('Wider: 13 views, including four side views', 'coverage13')
+        self.viewpoints.addItem('Compact: 9 near and oblique views', 'coverage9')
+        self.viewpoints.addItem('Extended: 17 views, including 45°/60° left and right', 'coverage17')
+        self.viewpoints.currentIndexChanged.connect(self._mode_changed)
+        self.dense_backend = QComboBox()
+        self.dense_backend.addItem('Fast-FoundationStereo (default)', 'fast-foundation-stereo')
+        self.dense_backend.addItem('COLMAP MVS (ICP pose estimation)', 'colmap')
+        self.pose_backend = QComboBox()
+        self.pose_backend.addItem('FoundationPose (default)', 'foundationpose')
+        self.pose_backend.addItem('Multistart ICP', 'icp')
+        self.pose_backend.currentIndexChanged.connect(self._mode_changed)
         self.output = QLineEdit(str(self.repository / '.data/field_pcd' /
                                    f'field_{datetime.now():%Y%m%d_%H%M%S}_{uuid4().hex[:8]}'))
         self.source = QLineEdit()
@@ -120,7 +140,10 @@ class FieldScanDialog(QDialog):
         self.visualize.setChecked(True)
         form.addRow('Workflow', self.mode)
         form.addRow('Camera', self.camera)
-        for label, field in [('New output directory', self.output), ('Existing capture', self.source),
+        form.addRow('Wrist viewpoints', self.viewpoints)
+        form.addRow('RGB reconstruction', self.dense_backend)
+        form.addRow('Pose estimation', self.pose_backend)
+        for label, field in [('New output directory', self.output), ('Existing capture / workflow', self.source),
                              ('Model PCD directory', self.models)]:
             row = QHBoxLayout()
             row.addWidget(field)
@@ -192,6 +215,13 @@ class FieldScanDialog(QDialog):
         self.source.setEnabled(existing)
         self.output.setEnabled(not resume)
         self.camera.setEnabled(not existing)
+        self.viewpoints.setEnabled(mode == 'pick_capture')
+        self.dense_backend.setEnabled(wrist and not resume)
+        self.pose_backend.setEnabled(wrist)
+        learned = wrist and self.pose_backend.currentData() == 'foundationpose'
+        self.manual.setEnabled(not learned)
+        if learned:
+            self.manual.setChecked(False)
         self.running_camera.setEnabled(mode == 'field_capture')
         if mode != 'field_capture':
             self.running_camera.setChecked(False)
@@ -201,28 +231,34 @@ class FieldScanDialog(QDialog):
         if wrist:
             if resume:
                 self.note.setText('Resume a failed joint pose identification using its saved RGB MVS output. '
-                                  'Choose the failed workflow directory, then review stone IDs and manual alignment. '
+                                  'Choose the failed workflow directory, then review stone IDs and estimate their poses. '
                                   'No camera capture or MVS reconstruction is repeated.')
             elif existing:
                 self.note.setText('Reprocesses the saved wrist RGB + FEMTO capture without robot motion. '
                                   'FEMTO supplies coarse stone regions; wrist RGB MVS runs before the first '
-                                  'catalog pose fit, which uses both clouds. Review stone IDs after MVS. '
+                                  'catalog pose estimate. Both RGB and FEMTO validate the result. Review stone IDs after reconstruction. '
                                   'Close each review window to continue the workflow.')
             else:
-                self.note.setText('Wrist capture moves the UR5e through the standard nine-view route around its '
-                                  'current central view. Keep bringup running, use an empty tool, clear the full '
-                                  '0.08 m capture volume and stop external camera drivers. '
+                route = {
+                    'coverage9': '9 near/oblique views (camera lateral travel up to 0.08 m)',
+                    'coverage13': '13 views with four 30° side orbits (camera lateral travel up to 0.20 m)',
+                    'coverage17': '17 views with 45°/60° left/right orbits (camera lateral travel up to 0.35 m)',
+                }[self.viewpoints.currentData()]
+                self.note.setText(f'Wrist capture moves the UR5e through {route} around its current central view. '
+                                  'Keep bringup running, use an empty tool, check clearance for the full robot/tool '
+                                  'path and stop external camera drivers. Routes are not collision checked. '
                                   'FEMTO provides coarse regions; wrist RGB MVS runs before the first catalog '
-                                  'pose fit, which uses both clouds. Review stone IDs after MVS.')
+                                  'pose estimate. Both clouds validate the result. Review stone IDs after reconstruction.')
         else:
             self.note.setText('The fixed FEMTO workflow sends no robot or gripper commands. Assign an ID or Skip '
                               'to each cluster in the identification window. Stop external camera drivers before capture.')
 
-    def arguments(self):
-        mode = self.mode.currentData()
+    def arguments(self, *, reidentify_source=None):
+        mode = 'pick_reidentify' if reidentify_source is not None else self.mode.currentData()
         field = mode.startswith('field_')
         wrist = mode.startswith('pick_')
         resume = mode == 'pick_resume'
+        reidentify = mode == 'pick_reidentify'
         capture = mode.endswith('_capture')
         if not resume and not self.output.text().strip():
             raise ValueError('choose a new output directory')
@@ -252,22 +288,28 @@ class FieldScanDialog(QDialog):
             args += ['--identification-output', self.output.text()]
         else:
             args = ['-u', '-m', 'stacking_tabletop.acquisition.pick_scene_workflow',
-                    'resume' if resume else 'run' if capture else 'process']
-            if resume:
-                source = Path(self.source.text()).expanduser()
+                    'reidentify' if reidentify else 'resume' if resume else 'run' if capture else 'process']
+            if resume or reidentify:
+                source = Path(reidentify_source or self.source.text()).expanduser()
                 if not (source / 'pick_scene_workflow.json').is_file():
-                    raise ValueError('choose a failed wrist+FEMTO workflow directory')
+                    raise ValueError('choose a wrist+FEMTO workflow directory')
                 args.append(str(source))
             elif capture:
                 if self.camera.currentData() == 'both':
                     raise ValueError('wrist scene capture supports one fixed FEMTO camera')
                 if self.running_camera.isChecked():
                     raise ValueError('wrist scene capture must own FEMTO driver scheduling')
-                args += ['--camera', self.camera.currentData()]
+                args += ['--camera', self.camera.currentData(),
+                         '--viewpoint-pattern', self.viewpoints.currentData()]
             else:
                 if not self.source.text().strip() or not Path(self.source.text()).expanduser().is_dir():
                     raise ValueError('choose an existing complete wrist+FEMTO scene capture')
                 args.append(self.source.text())
+            args += ['--pose-backend', self.pose_backend.currentData()]
+            if not resume and not reidentify:
+                if self.pose_backend.currentData() == 'foundationpose' and self.dense_backend.currentData() != 'fast-foundation-stereo':
+                    raise ValueError('FoundationPose needs Fast-FoundationStereo reconstruction; choose ICP for COLMAP')
+                args += ['--dense-backend', self.dense_backend.currentData()]
             if not resume:
                 args += ['--output', self.output.text()]
         args += ['--repository', str(self.repository), '--pick-table-height', str(self.height.value())]
@@ -278,17 +320,18 @@ class FieldScanDialog(QDialog):
                 args.append(flag)
         return args
 
-    def start(self):
+    def start(self, *, reidentify_source=None):
         if self.running:
             return
         try:
             if not self.can_start():
                 raise ValueError('finish active execution or planning before starting a field workflow')
-            args = self.arguments()
+            args = self.arguments(reidentify_source=reidentify_source)
         except ValueError as error:
             self.log.appendPlainText(str(error))
             return
         self.pose_path = None
+        self._completed_workflow = None
         self.rgb_viewer = None
         self.pose_viewer = None
         self._stopping = False
@@ -298,6 +341,9 @@ class FieldScanDialog(QDialog):
         self.inputs.setEnabled(False)
         self.start_button.setEnabled(False)
         self.stop_button.setText('Stop')
+        self._result_directory = Path(
+            self.source.text() if self.mode.currentData() == 'pick_resume' and reidentify_source is None
+            else self.output.text()).expanduser().resolve()
         self.log.appendPlainText('Starting scene workflow…')
         self.process.start(sys.executable, args)
 
@@ -311,6 +357,7 @@ class FieldScanDialog(QDialog):
         self.stop_button.setEnabled(True)
         self.stop_button.setText('Close')
         if code == 0 and exit_status == QProcess.ExitStatus.NormalExit and not self._stopping:
+            review_ids = False
             try:
                 if self.mode.currentData() == 'field_capture':
                     manifest = Path(self.output.text()).expanduser() / 'field_workflow.json'
@@ -319,8 +366,12 @@ class FieldScanDialog(QDialog):
                         raise ValueError('field workflow did not complete')
                     self.pose_path = Path(result['pose_data'])
                 elif self.mode.currentData().startswith('pick_'):
-                    result_dir = self.source.text() if self.mode.currentData() == 'pick_resume' else self.output.text()
+                    result_dir = self._result_directory or (
+                        self.source.text() if self.mode.currentData() == 'pick_resume' else self.output.text())
                     self.pose_path, self.rgb_viewer, self.pose_viewer, warnings = inspect_joint_pick_output(result_dir)
+                    self._completed_workflow = Path(result_dir).expanduser().resolve()
+                    schema = json.loads((self._completed_workflow / 'pick_scene_workflow.json').read_text()).get('schema_version')
+                    review_ids = schema == 2
                     if self.rgb_viewer is not None:
                         self.rgb_button.setEnabled(True)
                         self.log.appendPlainText(f'RGB reconstruction: {self.rgb_viewer}')
@@ -329,21 +380,47 @@ class FieldScanDialog(QDialog):
                         self.log.appendPlainText(f'Identified poses: {self.pose_viewer}')
                         if self.visualize.isChecked():
                             self._open_pose_viewer()
-                    self.log.appendPlainText('Published joint FEMTO/RGB pickup poses')
+                    origin = json.loads((Path(result_dir).expanduser() / 'pick_scene_poses.json').read_text()).get('data_origin', 'hardware')
+                    self.log.appendPlainText(f'Published joint FEMTO/RGB pickup poses (data source: {origin})')
                     if warnings:
                         self.log.appendPlainText(f'Pose warnings: {warnings}')
                 else:
                     self.pose_path = Path(self.output.text()).expanduser() / 'pose_data.pkl'
                 if not self.pose_path.is_file():
                     raise ValueError('pickup pose output is missing')
-                self.plan_button.setEnabled(True)
-                self.log.appendPlainText(f'Ready for planning: {self.pose_path}')
+                if review_ids and self._ask_model_id_review():
+                    self._change_model_ids()
+                else:
+                    self.plan_button.setEnabled(True)
+                    self.log.appendPlainText(f'Ready for planning: {self.pose_path}')
             except (OSError, ValueError, KeyError) as error:
                 self.pose_path = None
                 self.log.appendPlainText(str(error))
         else:
             self.log.appendPlainText('Field workflow stopped or failed; see the log and retained output.')
         self.running_changed.emit()
+
+    def _ask_model_id_review(self):
+        prompt = QMessageBox(self)
+        prompt.setWindowTitle('Review identified poses')
+        prompt.setIcon(QMessageBox.Icon.Question)
+        prompt.setText('Pose identification is complete. Accept these poses or change the model IDs?')
+        prompt.setInformativeText('Changing IDs returns to model selection using the saved RGB/FEMTO clouds. '
+                                  'Capture and reconstruction will not run again. The previous result is preserved.')
+        accept = prompt.addButton('Accept poses', QMessageBox.ButtonRole.AcceptRole)
+        change = prompt.addButton('Change model IDs', QMessageBox.ButtonRole.ActionRole)
+        prompt.setDefaultButton(accept)
+        prompt.setEscapeButton(accept)
+        prompt.exec()
+        return prompt.clickedButton() is change
+
+    def _change_model_ids(self):
+        if self.running or self._completed_workflow is None:
+            return
+        source = self._completed_workflow
+        self.output.setText(str(source.with_name(
+            f'{source.name}_reidentify_{datetime.now():%Y%m%d_%H%M%S}_{uuid4().hex[:8]}')))
+        self.start(reidentify_source=source)
 
     def _open_rgb_viewer(self):
         if self.rgb_viewer is not None and not QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.rgb_viewer))):

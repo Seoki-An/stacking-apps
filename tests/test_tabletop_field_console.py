@@ -10,9 +10,9 @@ from unittest.mock import Mock
 import pytest
 
 pytest.importorskip('PySide6')
-from PySide6.QtCore import QProcess
+from PySide6.QtCore import QProcess, QTimer
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 from stacking_tabletop.gui.operations.field_scan import FieldScanDialog, inspect_joint_pick_output
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,6 +65,17 @@ def test_field_dialog_builds_integrated_wrist_rgb_femto_workflows(app, tmp_path)
         assert args[2:4] == ['stacking_tabletop.acquisition.pick_scene_workflow', 'run']
         assert '--plan' not in args and '--approve' not in args
         assert '--output' in args and '--camera' in args
+        assert args[args.index('--dense-backend') + 1] == 'fast-foundation-stereo'
+        assert args[args.index('--viewpoint-pattern') + 1] == 'coverage13'
+        assert '0.20 m' in dialog.note.text()
+        dialog.viewpoints.setCurrentIndex(1)
+        compact = dialog.arguments()
+        assert compact[compact.index('--viewpoint-pattern') + 1] == 'coverage9'
+        assert '0.08 m' in dialog.note.text()
+        dialog.viewpoints.setCurrentIndex(dialog.viewpoints.findData('coverage17'))
+        extended = dialog.arguments()
+        assert extended[extended.index('--viewpoint-pattern') + 1] == 'coverage17'
+        assert '0.35 m' in dialog.note.text()
         assert not dialog.automatic.isEnabled()
         assert 'before the first' in dialog.note.text()
         dialog.camera.setCurrentIndex(2)
@@ -77,6 +88,14 @@ def test_field_dialog_builds_integrated_wrist_rgb_femto_workflows(app, tmp_path)
         args = dialog.arguments()
         assert args[2:4] == ['stacking_tabletop.acquisition.pick_scene_workflow', 'process']
         assert str(capture) in args and '--output' in args
+        assert '--viewpoint-pattern' not in args and not dialog.viewpoints.isEnabled()
+        assert args[args.index('--dense-backend') + 1] == 'fast-foundation-stereo'
+        assert args[args.index('--pose-backend') + 1] == 'foundationpose'
+        assert not dialog.manual.isEnabled()
+        dialog.pose_backend.setCurrentIndex(dialog.pose_backend.findData('icp'))
+        dialog.dense_backend.setCurrentIndex(dialog.dense_backend.findData('colmap'))
+        args = dialog.arguments()
+        assert args[args.index('--dense-backend') + 1] == 'colmap'
     finally:
         dialog.close()
 
@@ -89,12 +108,14 @@ def test_field_dialog_resumes_failed_joint_fit_without_capture_or_mvs(app, tmp_p
     try:
         dialog.mode.setCurrentIndex(4)
         dialog.source.setText(str(failed))
+        dialog.pose_backend.setCurrentIndex(dialog.pose_backend.findData('icp'))
         dialog.manual.setChecked(True)
         args = dialog.arguments()
         assert args[2:4] == ['stacking_tabletop.acquisition.pick_scene_workflow', 'resume']
         assert str(failed) in args and '--manual-init-gui' in args
         assert '--output' not in args and '--camera' not in args
         assert not dialog.output.isEnabled()
+        assert '--dense-backend' not in args and not dialog.dense_backend.isEnabled()
         assert 'No camera capture or MVS reconstruction is repeated.' in dialog.note.text()
     finally:
         dialog.close()
@@ -126,7 +147,8 @@ def test_completed_process_enables_explicit_planning_handoff(app, tmp_path, monk
         dialog.close()
 
 
-def test_pick_workbench_uses_only_rgb_bound_joint_poses_and_opens_rgb_cloud(app, tmp_path, monkeypatch):
+@pytest.mark.parametrize('backend', ['icp', 'foundationpose'])
+def test_pick_workbench_uses_only_rgb_bound_joint_poses_and_opens_rgb_cloud(app, tmp_path, monkeypatch, backend):
     root = tmp_path / 'joint-pick'
     dense = root / 'rgb_dense'
     report_dir = root / 'pose_identification'
@@ -143,8 +165,8 @@ def test_pick_workbench_uses_only_rgb_bound_joint_poses_and_opens_rgb_cloud(app,
     pose_viewer.write_text('<html>Joint pose comparison</html>')
     (fused / 'pose_data.pkl').write_bytes(b'joint-pose')
     (root / 'pose_data.pkl').write_bytes(b'joint-pose')
-    report = {'status': 'complete', 'pose_source': 'rgb_femto_first_joint_icp',
-              'kind': 'femto_rgb_joint_pose_identification',
+    report = {'status': 'complete', 'pose_source': ('foundationpose_rgb_femto_validated' if backend == 'foundationpose' else 'rgb_femto_first_joint_icp'),
+              'kind': 'femto_rgb_joint_pose_identification', 'icp_refinement_applied': False,
               'source_sha256': {'dense_summary.json': hashlib.sha256(
                   (dense / 'summary.json').read_bytes()).hexdigest(),
                   'femto_geometry.json': hashlib.sha256(
@@ -152,12 +174,12 @@ def test_pick_workbench_uses_only_rgb_bound_joint_poses_and_opens_rgb_cloud(app,
               'poses': [{'stone_id': 9}]}
     (report_dir / 'stone_poses.json').write_text(json.dumps(report))
     (root / 'pick_scene_workflow.json').write_text(json.dumps({
-        'schema_version': 2, 'status': 'complete', 'production_pose_accepted': True,
+        'pose_backend': backend, 'schema_version': 2, 'status': 'complete', 'production_pose_accepted': True,
         'pose_sequence': 'femto_regions_rgb_mvs_joint_catalog_fit',
         'dense_dir': str(dense), 'fused_pose_data': str(fused / 'pose_data.pkl'),
         'pose_viewer': str(pose_viewer)}))
     published = {'status': 'complete', 'production_pose_accepted': True,
-                 'pose_source': 'rgb_femto_first_joint_icp',
+                 'pose_source': ('foundationpose_rgb_femto_validated' if backend == 'foundationpose' else 'rgb_femto_first_joint_icp'),
                  'preliminary_femto_identification': None,
                  'coarse_femto_geometry': 'femto_geometry/geometry.json',
                  'pose_viewer': 'fused_identification/comparison/overview.html',
@@ -167,6 +189,8 @@ def test_pick_workbench_uses_only_rgb_bound_joint_poses_and_opens_rgb_cloud(app,
     (root / 'pick_scene_poses.json').write_text(json.dumps(published))
 
     dialog = FieldScanDialog(ROOT)
+    review = Mock(return_value=False)
+    monkeypatch.setattr(dialog, '_ask_model_id_review', review)
     opened = []
     monkeypatch.setattr('stacking_tabletop.gui.operations.field_scan.QDesktopServices.openUrl',
                         lambda url: opened.append(url.toLocalFile()) or True)
@@ -185,6 +209,23 @@ def test_pick_workbench_uses_only_rgb_bound_joint_poses_and_opens_rgb_cloud(app,
         assert opened == [str(pose_viewer), str(viewer), str(pose_viewer)]
         assert 'joint FEMTO/RGB' in dialog.log.toPlainText()
         assert 'Pose warnings' in dialog.log.toPlainText()
+        review.assert_called_once_with()
+        assert dialog.mode.findData('pick_reidentify') == -1
+        started = Mock()
+        monkeypatch.setattr(dialog.process, 'start', started)
+        review.return_value = True
+        dialog.plan_button.setEnabled(False)
+        dialog._finished(0, QProcess.ExitStatus.NormalExit)
+        assert review.call_count == 2
+        assert dialog.mode.currentData() == 'pick_existing'
+        args = started.call_args.args[1]
+        assert args[2:4] == ['stacking_tabletop.acquisition.pick_scene_workflow', 'reidentify']
+        assert args[4] == str(root)
+        assert Path(args[args.index('--output') + 1]).parent == root.parent
+        assert args[args.index('--output') + 1] != str(root)
+        assert '--camera' not in args
+        assert not dialog.plan_button.isEnabled()
+        assert dialog._result_directory == Path(args[args.index("--output") + 1])
         (dense / 'summary.json').write_text('{"status":"different"}')
         with pytest.raises(ValueError, match='bound to the selected RGB'):
             inspect_joint_pick_output(root)
@@ -276,3 +317,43 @@ def test_console_field_action_passes_only_identified_ids_to_new_plan(app, tmp_pa
     finally:
         window.execution_view.worker = None
         window.close()
+
+
+@pytest.mark.parametrize('choice', ['Accept poses', 'Change model IDs'])
+def test_post_identification_prompt_offers_accept_or_return_to_ids(app, choice):
+    dialog = FieldScanDialog(ROOT)
+    observed = []
+
+    def choose():
+        prompt = QApplication.activeModalWidget()
+        assert isinstance(prompt, QMessageBox)
+        observed.extend(button.text() for button in prompt.buttons())
+        next(button for button in prompt.buttons() if button.text() == choice).click()
+
+    try:
+        QTimer.singleShot(0, choose)
+        assert dialog._ask_model_id_review() == (choice == 'Change model IDs')
+        assert set(observed) == {'Accept poses', 'Change model IDs'}
+    finally:
+        dialog.close()
+
+
+def test_reidentification_after_resume_keeps_new_result_directory(app, tmp_path, monkeypatch):
+    previous = tmp_path / 'previous'
+    previous.mkdir()
+    (previous / 'pick_scene_workflow.json').write_text('{}')
+    dialog = FieldScanDialog(ROOT)
+    started = Mock()
+    monkeypatch.setattr(dialog.process, 'start', started)
+    try:
+        dialog.mode.setCurrentIndex(dialog.mode.findData('pick_resume'))
+        dialog.source.setText(str(previous))
+        dialog._completed_workflow = previous
+        dialog._change_model_ids()
+        args = started.call_args.args[1]
+        assert args[3] == 'reidentify' and args[4] == str(previous)
+        assert dialog._result_directory != previous
+        assert dialog._result_directory == Path(args[args.index('--output') + 1])
+        assert dialog.mode.currentData() == 'pick_resume'
+    finally:
+        dialog.close()

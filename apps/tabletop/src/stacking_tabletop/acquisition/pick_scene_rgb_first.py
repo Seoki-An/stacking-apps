@@ -117,8 +117,9 @@ def render_joint_pose_result(identification):
 def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profile, output, *,
                                 automatic_ordering=False, manual_init_gui=False,
                                 manual_init_stones=None, manual_init_translation_step=.005,
-                                manual_init_rotation_step=5., visualize=False, assignments=None):
-    """Make the first catalog pose fit against both measured point clouds."""
+                                manual_init_rotation_step=5., visualize=False, assignments=None,
+                                suggested_assignments=None, pose_backend="foundationpose", repository=None):
+    """Estimate catalog poses and require independent RGB and FEMTO agreement."""
     dense, region_file, geometry_dir, output = map(lambda p: Path(p).resolve(),
                                                    (dense, region_file, geometry_dir, output))
     summary = _json(dense / 'summary.json')
@@ -132,6 +133,14 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
         raise ValueError('coarse FEMTO input must not contain a catalog pose fit')
     if automatic_ordering:
         raise ValueError('automatic RGB/FEMTO stone ID assignment is not validated; review cluster IDs manually')
+    if pose_backend not in ('foundationpose', 'icp'):
+        raise ValueError('unknown pose backend')
+    if pose_backend == 'foundationpose':
+        if manual_init_gui or manual_init_stones is not None:
+            raise ValueError('manual model alignment is for --pose-backend icp')
+        if summary.get('kind') != 'fast_foundation_stereo_experiment':
+            raise ValueError('FoundationPose requires saved Fast-FoundationStereo pairs; '
+                             'reconstruct with Fast-FoundationStereo or select --pose-backend icp')
     rgb_scene = _read_cloud(dense / 'refined/rgb_dense_voxel_1mm.pcd')
     plane = np.asarray(region['support_plane'], dtype=float)
     planning_T_base = _planning_T_base(geometry)
@@ -151,7 +160,9 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
         gui_clusters.append(_editable_open3d_cloud(combined))
     if assignments is None:
         from stacking_tabletop.gui.field_stone_ordering_gui import assign_cluster_ids_gui
-        assignments = assign_cluster_ids_gui(gui_clusters, list(catalog.object_ids), {})
+        suggested = {int(cluster): int(stone) for cluster, stone in
+                     (suggested_assignments or {}).items() if int(stone) in catalog.object_ids}
+        assignments = assign_cluster_ids_gui(gui_clusters, list(catalog.object_ids), suggested)
     assignments = {int(cluster): int(stone) for cluster, stone in assignments.items()}
     if not assignments or len(set(assignments.values())) != len(assignments):
         raise ValueError('assign unique stone IDs to at least one RGB/FEMTO cluster')
@@ -171,12 +182,15 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
     quality = replace(profile.field_quality, maximum_correction_translation=None,
                       maximum_correction_rotation_degrees=None)
     backend = Open3dRegistrationBackend(profile.field_registration)
-    matcher = TabletopFieldMatcher(catalog, backend, quality, profile.assignment)
+    matcher = (TabletopFieldMatcher(catalog, backend, quality, profile.assignment)
+               if pose_backend == 'icp' else None)
     output.mkdir(parents=True, exist_ok=False)
     report_dir = output / 'pose_identification'
     report_dir.mkdir()
     report = dict(version=2, kind='femto_rgb_joint_pose_identification', status='running',
-                  pose_source='rgb_femto_first_joint_icp', frame_id='world',
+                  pose_source=('foundationpose_rgb_femto_validated' if pose_backend == 'foundationpose'
+                               else 'rgb_femto_first_joint_icp'),
+                  pose_backend=pose_backend, icp_refinement_applied=False, frame_id='world',
                   source_frame_id='base_link',
                   planning_T_base_link=geometry['planning_T_base_link'],
                   table_height_correction_m=geometry['table_height_correction_m'],
@@ -189,6 +203,14 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
                   accuracy_1mm_verified=False)
     atomic_json(report_dir / 'stone_poses.json', report)
     try:
+        learned = {}
+        if pose_backend == 'foundationpose':
+            from .foundation_pose_runtime import estimate_assigned
+            if repository is None:
+                repository = Path(__file__).resolve().parents[5]
+            learned = estimate_assigned(dense, region_file, assignments, catalog, output, repository)
+            report['source_sha256']['foundation_pose_results.json'] = digest(
+                output / 'foundation_pose_results/summary.json')
         for cluster_index, stone_id in sorted(assignments.items()):
             femto_raw, rgb_raw = observations[cluster_index]
             if len(rgb_raw) < minimum:
@@ -197,15 +219,22 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
                 continue
             femto, rgb, combined = _balanced_observation(femto_raw, rgb_raw, voxel, minimum)
             model = catalog.load(stone_id).points
-            candidate = matcher.register_best(stone_id, PointCloudData(combined),
-                                              np.asarray(geometry['table_plane']),
-                                              initial_transform=seeds.get(stone_id))
-            final = candidate.registration.transform
-            results = dict(combined=candidate.registration,
+            if pose_backend == 'foundationpose':
+                final = planning_T_base @ np.asarray(learned[stone_id]['base_link_T_model'])
+                initial = final.copy()
+                combined_result = backend.evaluate(PointCloudData(model), PointCloudData(combined), final)
+            else:
+                candidate = matcher.register_best(stone_id, PointCloudData(combined),
+                                                  np.asarray(geometry['table_plane']),
+                                                  initial_transform=seeds.get(stone_id))
+                final = candidate.registration.transform
+                initial = candidate.initial_transform
+                combined_result = candidate.registration
+            results = dict(combined=combined_result,
                            femto=backend.evaluate(PointCloudData(model), PointCloudData(femto), final),
                            rgb=backend.evaluate(PointCloudData(model), PointCloudData(rgb), final))
             reasons = sorted({f'{name}_{reason}' for name, result in results.items()
-                              for reason in evaluate_registration(result, candidate.initial_transform, quality).reasons})
+                              for reason in evaluate_registration(result, initial, quality).reasons})
             if reasons:
                 report['rejected'].append(dict(stone_id=stone_id, cluster_index=cluster_index,
                                                reasons=reasons, candidate_planning_T_model=final.tolist(),
@@ -214,12 +243,14 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
             pose = np.r_[final[:3, 3], Rotation.from_matrix(final[:3, :3]).as_quat()]
             entry = dict(stone_id=stone_id, cluster_index=cluster_index, pose_xyzw=pose.tolist(),
                          planning_T_model=final.tolist(),
-                         initial_joint_planning_T_model=candidate.initial_transform.tolist(),
+                         initial_joint_planning_T_model=initial.tolist(),
                          rgb_input_points=len(rgb_raw), rgb_used_points=len(rgb),
                          femto_used_points=len(femto), balanced_points=len(combined),
                          sensors={name: _metric(result) for name, result in results.items()},
                          model_file=str(catalog.path(stone_id)),
                          model_sha256=hashlib.sha256(catalog.path(stone_id).read_bytes()).hexdigest())
+            if pose_backend == 'foundationpose':
+                entry['foundationpose'] = learned[stone_id]
             report['poses'].append(entry)
             write_xyz_pcd(report_dir / f'stone_{stone_id}_femto.pcd', femto)
             write_xyz_pcd(report_dir / f'stone_{stone_id}_rgb.pcd', rgb)
@@ -228,7 +259,9 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
         report['status'] = 'complete' if report['poses'] and not report['rejected'] else 'failed'
         report['limitations'] = [
             'Catalog identity is reviewed against clusters containing both FEMTO and RGB points.',
-            'The first catalog pose fit uses equally sampled FEMTO and RGB points without a FEMTO-only pose gate.',
+            ('FoundationPose uses wrist RGB, learned stereo depth and a coarse FEMTO mask; poses are validated against both clouds without ICP.'
+             if pose_backend == 'foundationpose' else
+             'The first catalog pose fit uses equally sampled FEMTO and RGB points without a FEMTO-only pose gate.'),
             'FEMTO still supplies segmentation, table frame and metric scale.',
             'Passing field gates does not verify absolute 1 mm accuracy.',
         ]

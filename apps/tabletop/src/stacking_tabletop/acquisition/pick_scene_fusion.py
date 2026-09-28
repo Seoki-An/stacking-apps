@@ -66,7 +66,7 @@ def _metric(result):
     return dict(
         model_coverage=float(result.source_coverage),
         observed_coverage=float(result.target_coverage),
-        rmse_m=float(result.rmse),
+        rmse_m=float(result.rmse) if np.isfinite(result.rmse) else None,
         correspondences=int(result.correspondences),
     )
 

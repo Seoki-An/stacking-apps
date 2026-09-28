@@ -22,6 +22,13 @@ from stacking_tabletop.acquisition.pick_scene_workflow import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.fixture(autouse=True)
+def isolated_pose_runtime(monkeypatch):
+    # Workflow sequencing tests do not require installed GPU model weights.
+    from stacking_tabletop.acquisition import foundation_pose_runtime
+    monkeypatch.setattr(foundation_pose_runtime, 'check_runtime', lambda repository: None)
+
+
 @pytest.fixture(scope='module')
 def complete_capture(tmp_path_factory):
     root = tmp_path_factory.mktemp('pick-workflow') / 'fixture'
@@ -50,6 +57,7 @@ def test_live_run_materializes_standard_route_and_uses_its_hash(tmp_path):
 
     def plan(values):
         assert values.distance == .4 and values.offset == .04 and values.oblique_offset == .08
+        assert values.viewpoint_pattern == 'coverage13'
         values.output.mkdir()
         (values.output / 'plan.json').write_text('{}')
         return {'approval_sha256': workflow.digest(values.output / 'plan.json')}
@@ -65,7 +73,7 @@ def test_live_run_materializes_standard_route_and_uses_its_hash(tmp_path):
     with pytest.raises(CaptureReached):
         run_workflow(args, plan_runner=plan, capture_runner=capture, preflight=preflight)
     status = json.loads((output / 'pick_scene_workflow.json').read_text())
-    assert status['capture_route'] == 'standard_coverage9'
+    assert status['capture_route'] == 'standard_coverage13'
     assert status['capture_plan_dir'] == str(output / 'capture_plan')
 
 
@@ -279,6 +287,7 @@ def test_production_dense_uses_refined_pose_and_coverage_views(monkeypatch):
         return {'status': 'complete'}
 
     monkeypatch.setattr(dense, 'dense_rgb_session', reconstruct)
+    monkeypatch.setattr(dense, 'production_reference_views', lambda _session: (0, 5, 6, 7, 8))
     result = dense.dense_rgb_production_session('session', 'baseline', 'refinement', 'output')
     assert result == {'status': 'complete'}
     assert called['args'] == ('session', 'baseline', 'refinement', 'output')
@@ -452,3 +461,146 @@ def test_resume_rejects_unfinished_dense_stage(tmp_path):
     args = build_parser().parse_args(['resume', str(output), '--repository', str(ROOT)])
     with pytest.raises(ValueError, match='joint pose identification'):
         resume_joint_workflow(args)
+
+
+@pytest.mark.parametrize('failure', [None, ValueError('fit rejected'), KeyboardInterrupt()])
+def test_reidentify_reuses_clouds_reviews_ids_and_preserves_previous_result(
+        complete_capture, tmp_path, monkeypatch, failure):
+    import stacking_tabletop.acquisition.pick_scene_rgb_first as rgb_first
+    source = tmp_path / 'accepted'
+    dense = source / 'rgb_dense_full'
+    (dense / 'refined/workspace').mkdir(parents=True)
+    (dense / 'summary.json').write_text('{"status":"complete","modes":{"refined":{}}}')
+    (dense / 'refined/rgb_dense_voxel_1mm.pcd').write_bytes(b'saved-rgb')
+    (dense / 'refined/workspace/large-intermediate').write_bytes(b'not-needed')
+    (dense / 'refined/pair_000_001.npz').write_bytes(b'learned-depth')
+    (dense / 'refined/pair_000_001.png').write_bytes(b'rectified-rgb')
+    geometry = source / 'femto_geometry'
+    geometry.mkdir()
+    (geometry / 'geometry.json').write_text('{"catalog_pose_fitted":false}')
+    (geometry / 'cluster_00.pcd').write_bytes(b'saved-femto')
+    (source / 'rgb_region.json').write_text('{}')
+    report_dir = source / 'pose_identification'
+    report_dir.mkdir()
+    report = dict(status='complete', pose_source='rgb_femto_first_joint_icp',
+                  kind='femto_rgb_joint_pose_identification',
+                  cluster_assignments={'0': 9}, source_sha256={
+                      'dense_summary.json': workflow.digest(dense / 'summary.json'),
+                      'femto_geometry.json': workflow.digest(geometry / 'geometry.json'),
+                      'rgb_region.json': workflow.digest(source / 'rgb_region.json')})
+    (report_dir / 'stone_poses.json').write_text(json.dumps(report))
+    (source / 'pose_data.pkl').write_bytes(b'previous-pose')
+    (source / 'pick_scene_workflow.json').write_text(json.dumps(dict(
+        schema_version=2, status='complete', production_pose_accepted=True,
+        capture_dir=str(complete_capture), dense_dir=str(dense), data_origin='synthetic',
+        pose_sequence='femto_regions_rgb_mvs_joint_catalog_fit')))
+    before = {p.relative_to(source): p.read_bytes() for p in source.rglob('*') if p.is_file()}
+    output = tmp_path / 'reviewed'
+    args = build_parser().parse_args(['reidentify', str(source), '--output', str(output), '--pose-backend', 'icp'])
+    events = []
+
+    def identify(cached, region, coarse, catalog, profile, result, **kwargs):
+        events.append('identify')
+        assert kwargs['suggested_assignments'] == {'0': 9}
+        assert (cached / 'refined/rgb_dense_voxel_1mm.pcd').read_bytes() == b'saved-rgb'
+        assert (coarse / 'cluster_00.pcd').read_bytes() == b'saved-femto'
+        assert not (cached / 'refined/workspace').exists()
+        assert (cached / 'refined/pair_000_001.npz').read_bytes() == b'learned-depth'
+        assert (cached / 'refined/pair_000_001.png').read_bytes() == b'rectified-rgb'
+        if failure is not None:
+            raise failure
+        result.mkdir()
+        (result / 'pose_identification').mkdir()
+        report['cluster_assignments'] = {'0': 11}
+        (result / 'pose_identification/stone_poses.json').write_text(json.dumps(report))
+        pose = result / 'pose_data.pkl'
+        pose.write_bytes(b'reviewed-pose')
+        return pose
+
+    monkeypatch.setattr(rgb_first, 'identify_from_rgb_and_femto', identify)
+    monkeypatch.setattr(rgb_first, 'validate_selected_femto_stability',
+                        lambda *a: events.append('stability') or {'scene_stable': True})
+    monkeypatch.setattr(workflow, 'validate_rgb_poses',
+                        lambda *a, **kw: events.append('validate') or {'production_pose_accepted': True})
+    preflight = lambda args: (NS(), NS(model_directory=tmp_path / 'models'))
+    if failure is None:
+        result = workflow.resume_joint_workflow(args, preflight=preflight)
+        assert result.pose_data.read_bytes() == b'reviewed-pose'
+        assert events == ['identify', 'stability', 'validate']
+        published = json.loads((output / 'pick_scene_poses.json').read_text())
+        assert published['data_origin'] == 'synthetic'
+        assert published['production_pose_accepted']
+        from stacking_tabletop.gui.operations.field_scan import inspect_joint_pick_output
+        assert inspect_joint_pick_output(output)[0] == result.pose_data
+    else:
+        with pytest.raises(type(failure)):
+            workflow.resume_joint_workflow(args, preflight=preflight)
+        assert not (output / 'pose_data.pkl').exists()
+        assert events == ['identify']
+    assert {p.relative_to(source): p.read_bytes() for p in source.rglob('*') if p.is_file()} == before
+    manifest = json.loads((output / 'pick_scene_workflow.json').read_text())
+    assert manifest['reidentification_source'] == str(source)
+    assert manifest['resume_dense_dir'] == str(output / 'rgb_dense')
+
+
+def test_fast_foundation_backend_reaches_rgb_reconstruction_before_pose_fit(complete_capture, tmp_path, monkeypatch):
+    from stacking_tabletop.acquisition import hand_eye_fast_stereo, hand_eye_rgb, hand_eye_rgb_refinement, pick_scene_rgb_first
+    args = build_parser().parse_args(['process', str(complete_capture), '--output', str(tmp_path/'fast')])
+    monkeypatch.setattr(pick_scene_rgb_first, 'prepare_femto_regions', lambda *a: None)
+    monkeypatch.setattr(hand_eye_rgb, 'rgb_experiment', lambda *a: None)
+    monkeypatch.setattr(hand_eye_rgb_refinement, 'refine_rgb_session', lambda *a: None)
+    calls = []
+    def reconstruct(session, baseline, refinement, output, **kwargs):
+        calls.append((session, output, kwargs))
+        raise RuntimeError('reached learned stereo')
+    monkeypatch.setattr(hand_eye_fast_stereo, 'reconstruct_with_runtime', reconstruct)
+    with pytest.raises(RuntimeError, match='reached learned stereo'):
+        workflow.run_rgb_first_workflow(args, preflight=lambda a: (NS(), NS(model_directory=tmp_path)))
+    assert calls[0][0] == complete_capture/'session'
+    assert calls[0][1] == tmp_path/'fast/rgb_dense'
+    assert calls[0][2]['checkpoint'].name == 'model_best_bp2_serialize.pth'
+    status = json.loads((tmp_path/'fast/pick_scene_workflow.json').read_text())
+    assert status['dense_backend'] == 'fast-foundation-stereo'
+    assert status['stage'] == 'rgb_dense'
+    assert not (tmp_path/'fast/pose_data.pkl').exists()
+
+
+@pytest.mark.parametrize('pose_backend', ['icp', 'foundationpose'])
+def test_rgb_first_only_icp_retries_colmap_after_pose_rejection(complete_capture, tmp_path, monkeypatch, pose_backend):
+    from stacking_tabletop.acquisition import hand_eye_dense, hand_eye_fast_stereo, hand_eye_rgb, hand_eye_rgb_refinement, pick_scene_rgb_first
+    from stacking_tabletop.acquisition.pick_scene_fusion import FusedPoseRejected
+    args = build_parser().parse_args(['process', str(complete_capture), '--output', str(tmp_path/'retry-default'), '--pose-backend', pose_backend])
+    assert args.dense_backend == 'fast-foundation-stereo'
+    assert build_parser().parse_args(['run', '--output', 'unused', '--dense-backend', 'colmap']).dense_backend == 'colmap'
+    for module, name in [(pick_scene_rgb_first, 'prepare_femto_regions'),
+                         (hand_eye_rgb, 'rgb_experiment'), (hand_eye_rgb_refinement, 'refine_rgb_session')]:
+        monkeypatch.setattr(module, name, lambda *a: None)
+    attempts = []
+    def fast(*a, **kw):
+        attempts.append('fast')
+    def colmap(*a, **kw):
+        attempts.append('colmap')
+    monkeypatch.setattr(hand_eye_fast_stereo, 'reconstruct_with_runtime', fast)
+    monkeypatch.setattr(hand_eye_dense, 'dense_rgb_full_session', colmap)
+    def identify(dense, region, geometry, catalog, profile, output, **kw):
+        if not str(dense).endswith('_full'):
+            raise FusedPoseRejected('test quality rejection')
+        report = output/'pose_identification'
+        report.mkdir(parents=True)
+        (report/'stone_poses.json').write_text(json.dumps({'status': 'complete', 'warnings': []}))
+        return output/'pose_data.pkl'
+    monkeypatch.setattr(pick_scene_rgb_first, 'identify_from_rgb_and_femto', identify)
+    monkeypatch.setattr(pick_scene_rgb_first, 'validate_selected_femto_stability', lambda *a: {'scene_stable': True})
+    monkeypatch.setattr(workflow, 'validate_rgb_poses', lambda *a, **kw: {'production_pose_accepted': True})
+    monkeypatch.setattr(workflow, '_publish_poses', lambda root, *a, **kw: root/'pose_data.pkl')
+    if pose_backend == 'foundationpose':
+        with pytest.raises(FusedPoseRejected, match='test quality rejection'):
+            workflow.run_rgb_first_workflow(args, preflight=lambda a: (NS(), NS(model_directory=tmp_path)))
+        assert attempts == ['fast']
+        assert not (Path(args.output)/'pose_data.pkl').exists()
+        return
+    workflow.run_rgb_first_workflow(args, preflight=lambda a: (NS(), NS(model_directory=tmp_path)))
+    status = json.loads((Path(args.output)/'pick_scene_workflow.json').read_text())
+    assert attempts == ['fast', 'colmap']
+    assert status['dense_fallback_used'] and status['accepted_dense_backend'] == 'colmap'
+    assert status['production_pose_accepted']
