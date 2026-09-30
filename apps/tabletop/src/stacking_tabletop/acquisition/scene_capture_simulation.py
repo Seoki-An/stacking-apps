@@ -140,7 +140,7 @@ def render_rgb(hit, stone_count):
     return np.clip(rgb, 0, 255).astype(np.uint8)
 
 
-def render_report(output, static, robots, plan, cameras, report):
+def render_scene(output, static, robots, plan, cameras):
     import plotly.graph_objects as go
     figure = go.Figure()
     def mesh_trace(vertices, triangles, name, color):
@@ -176,6 +176,10 @@ def render_report(output, static, robots, plan, cameras, report):
         scene=dict(aspectmode='data', xaxis_title='UR base X (m)', yaxis_title='Y (m)', zaxis_title='Z (m)'),
         sliders=[dict(active=0, steps=steps)], height=700)
     figure.write_html(output/'scene.html', include_plotlyjs=True)
+
+
+def render_report(output, static, robots, plan, cameras, report):
+    render_scene(output, static, robots, plan, cameras)
     counts = report['view_counts']
     headings = ''.join(f'<th>Seen: {n} views</th>' for n in counts)
     headings += ''.join(f'<th>Side surface with 2+ views: {n}</th>' for n in counts)

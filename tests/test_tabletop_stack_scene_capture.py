@@ -184,6 +184,24 @@ def test_stack_route_uses_angled_center_if_top_down_is_unreachable(profile_path,
     assert len(route['views']) >= 3
 
 
+def test_synthetic_stack_export_is_wrist_only_with_ideal_calibration(tmp_path):
+    from stacking_tabletop.acquisition.hand_eye_synthetic import calibration_fixture
+    from stacking_tabletop.acquisition.simulation_capture import SimulatedCapture
+    calibration = calibration_fixture(tmp_path/'source_calibration', color_size=(32,24))
+    pose = np.eye(4); pose[:3,:3] = np.diag([1.,-1.,-1.]); pose[2,3] = .6
+    views = [dict(label=f'view_{i}',path=[[0.]*6],base_link_T_color=pose.tolist()) for i in range(3)]
+    exporter = SimulatedCapture(tmp_path/'captures',calibration,dict(views=views))
+    for view in views:
+        exporter.add(view,np.full((24,32,3),120,np.uint8),np.full((24,32),.45))
+    root = exporter.finish()
+    manifest = inspect_session(root/'session')
+    assert manifest['data_origin'] == 'synthetic'
+    assert manifest['references'] == [] and len(manifest['views']) == 3
+    assert not (root/'femto_before').exists() and not (root/'femto_after').exists()
+    replay_calibration = capture.HandEyeCalibration.load(root/'session/views/000/calibration/profile.yml')
+    np.testing.assert_allclose(replay_calibration.color_distortion,0)
+
+
 def test_stack_side_pairs_have_stereo_baseline_and_keep_region_in_frame(profile_path):
     from itertools import product
     from stacking_tabletop.config import load_planning_profile

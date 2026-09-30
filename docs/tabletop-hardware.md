@@ -257,3 +257,60 @@ capture retention, child-process cancellation, and scene-frame conversion. The
 post-placement hardware route still needs commissioning. No 1-mm accuracy is
 claimed; this path currently uses recorded hand-eye poses without RGB camera
 pose refinement or a FEMTO anchor.
+
+### Offline stacked-scene capture simulation
+
+Render a placed-object snapshot from a synthesized MCTS run and reconstruct its
+wrist RGB views without a robot or camera connection:
+
+```bash
+python -m stacking_tabletop.acquisition.stack_scene_simulation \
+  --run .stacks/tabletop_plan1-pending-bbcb79bae7da4682bab6e15f0a96a454.stack \
+  --output apps/tabletop/data/experiments/stacked_scene_sim_002
+```
+
+Choose your saved tabletop search run. The default is its last nonempty scene;
+`--step N` selects a specific snapshot. Snapshot N contains the stones already
+placed before that search step. The example run above produces a five-stone,
+two-layer scene with IDs 3, 7, 6, 10 and 9.
+
+The simulator reuses the production stack region and viewpoint generator,
+Operations tables and robot/gripper meshes, and saved catalog triangle surfaces.
+If a straight-down central camera pose is unreachable, the route tries central
+tilts of 25° then 40° toward the robot, preserving the same target and crop.
+The route prefers low-side pairs at ±45° azimuth relative to the robot-facing
+side, tilted 60°/66° from vertical. Their close spacing supplies stereo overlap
+while observing more exposed sides. If either mate cannot be reached on a
+continuous IK branch, alternative azimuths/shallower tilts are tried; a failed
+pair is omitted together. The ROI is fitted into the camera image throughout
+these side arcs. Each pair is visited on one excursion: center → first mate →
+second mate → first mate → center. The short transition between mates interpolates
+joint positions; it is included in the preview and is not collision checked.
+Central fallback, joint-limit checks, and live route review
+remain active; paths are not collision checked.
+
+`overview.html` links the robot/camera scene, rendered RGB images, RGB-only PCD,
+and ground-truth overlay. `captures/session` is a portable wrist-only session;
+no synthetic FEMTO anchor is added. Ground-truth depth is retained separately
+from the RGB reconstruction inputs. `metrics.json` reports unsigned distances
+to exact stone triangles and reconstructed coverage of surface samples visible
+from at least two useful viewpoints. No ICP alignment is applied.
+
+The `stacked_scene_sim_001` experiment used seven views with a 25° central tilt,
+producing 34,984 stack points. Median/p95 mesh distance was 0.54/1.83 mm. Rendering
+and capture serialization took 8.43 s; RGB reconstruction plus its viewer took
+17.27 s. Those times exclude real robot travel and sensor acquisition. Images
+have ideal camera poses and procedural texture, so these values do not establish
+real-world accuracy. Surface visibility ranged from 22% to 59%; hidden/contact
+surfaces remain unobserved despite multi-view capture.
+
+The revised `stack_paired7` route in `stacked_scene_sim_003` used the same seven
+captures, a 25° center, and both 60°/66° side pairs. The most occluded stone's
+visibility improved from 22.4% to 35.2%, and two-view surface support from 13.4%
+to 29.1%. It produced 34,845 stack points with median/p95 triangle distance
+0.50/1.66 mm. Reconstruction plus viewer took 8.68 s in this run, versus
+17.27 s for the previous route; model loading is included, physical travel and
+exposure are excluded. Lower camera paths may require more robot travel despite
+the unchanged view count. These are single-run, ideal-simulation measurements.
+Contact faces and surfaces hidden behind other stones remain unobserved; the
+capture does not fill them using catalog geometry.

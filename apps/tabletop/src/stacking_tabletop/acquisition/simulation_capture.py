@@ -50,7 +50,7 @@ class RenderedCamera(SyntheticCamera):
 
 class SimulatedCapture:
     """A GUI-readable wrist+FEMTO capture, always labelled synthetic."""
-    def __init__(self, directory, calibration, plan, femto_depth, femto_pose, femto_info, crop):
+    def __init__(self, directory, calibration, plan, femto_depth=None, femto_pose=None, femto_info=None, crop=None):
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=False)
         self.clock = SyntheticClock()
@@ -58,15 +58,18 @@ class SimulatedCapture:
             color_size=(calibration.width, calibration.height), color_matrix=calibration.color_matrix,
             tool_T_color=calibration.tool_T_color)
         self.views = []
-        self.femto = dict(depth=femto_depth, pose=femto_pose, info=femto_info,
+        if (femto_depth is None) != (femto_pose is None) or (femto_depth is None) != (femto_info is None) or (femto_depth is None) != (crop is None):
+            raise ValueError('provide all FEMTO simulation inputs, or none for wrist-only capture')
+        self.femto = None if femto_depth is None else dict(depth=femto_depth, pose=femto_pose, info=femto_info,
                           crop_min=crop[0], crop_max=crop[1], voxel_size=.001)
-        self.status = dict(schema_version=1, kind='automated_scene_capture', status='running',
+        self.status = dict(schema_version=1, kind='automated_scene_capture' if self.femto is not None else 'synthetic_wrist_scene_capture', status='running',
             data_origin='synthetic', output_frame='base_link', completed_views=[],
             motion_sent=False, accuracy_1mm_verified=False,
             scene_stability='synthetic_static', camera_model='ideal_raycaster')
         atomic_json(self.directory/'capture.json', self.status)
         atomic_json(self.directory/'executed_plan.json', dict(plan, data_origin='synthetic', motion_sent=False))
-        synthetic_femto(self.directory/'femto_before', self.clock, **self.femto)
+        if self.femto is not None:
+            synthetic_femto(self.directory/'femto_before', self.clock, **self.femto)
 
     def add(self, view, rgb, depth):
         index = len(self.views)
@@ -79,9 +82,11 @@ class SimulatedCapture:
         atomic_json(self.directory/'capture.json', self.status)
 
     def finish(self):
-        synthetic_femto(self.directory/'femto_after', self.clock, **self.femto)
-        assemble_session(self.directory/'session', self.views,
-                         femto_before=self.directory/'femto_before', femto_after=self.directory/'femto_after')
+        references = {}
+        if self.femto is not None:
+            synthetic_femto(self.directory/'femto_after', self.clock, **self.femto)
+            references = dict(femto_before=self.directory/'femto_before', femto_after=self.directory/'femto_after')
+        assemble_session(self.directory/'session', self.views, **references)
         inspect_session(self.directory/'session')
         self.status.update(status='complete', stage='complete')
         atomic_json(self.directory/'capture.json', self.status)
