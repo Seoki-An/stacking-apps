@@ -67,7 +67,7 @@ def _view_specs(pattern, offset, oblique_offset):
 
 
 def build_views(kinematics, calibration, seed, *, distance, offset=.04,
-                oblique_offset=.08, pattern='coverage9', check=lambda: None):
+                oblique_offset=.08, pattern='coverage9', check=lambda: None, labels=None):
     """Overlapping views about one seed, with explicit reverse-path returns.
 
     IK and joint/cable limits are checked; this does not check collisions.
@@ -86,7 +86,12 @@ def build_views(kinematics, calibration, seed, *, distance, offset=.04,
     reference = camera_pose(kinematics, calibration, seed)
     target = reference[:3, 3] + distance * reference[:3, 2]
     views = []
-    for label, xy, role in _view_specs(pattern, offset, oblique_offset):
+    specs = _view_specs(pattern, offset, oblique_offset)
+    if labels is not None:
+        if not labels or not set(labels).issubset({item[0] for item in specs}):
+            raise ValueError('unknown or empty view subset')
+        specs = [item for item in specs if item[0] in labels]
+    for label, xy, role in specs:
         q = seed.copy()
         path = [q.copy()]
         side = role == 'side'
@@ -126,7 +131,7 @@ def build_views(kinematics, calibration, seed, *, distance, offset=.04,
                           view_angle_deg=float(angle_deg if side else np.rad2deg(np.arctan2(radial_offset, distance))),
                           path=path.tolist(), base_link_T_color=reached.tolist()))
     return dict(schema_version={'coverage17': 4, 'coverage13': 3}.get(pattern, 2),
-                kind='tabletop_wrist_scene_plan', output_frame='base_link',
+                kind='tabletop_wrist_scene_plan' if labels is None else 'tabletop_wrist_scene_subset_plan', output_frame='base_link',
                 seed_joints=seed.tolist(), target=target.tolist(), distance_m=float(distance),
                 viewpoint_pattern=pattern, offset_m=float(offset),
                 oblique_offset_m=float(oblique_offset),
@@ -185,6 +190,9 @@ def render_preview(plan, kinematics, calibration, output):
         centers = [camera_pose(kinematics, calibration, q)[:3, 3] for q in path]
         color = role_colors.get(view.get('role', 'near'), '#8797a5')
         line(centers, view['label'] + ' camera path', line=dict(color=color))
+        if view.get('return_path'):
+            line([camera_pose(kinematics, calibration, q)[:3, 3] for q in view['return_path']],
+                 view['label'] + ' return', opacity=.4, line=dict(color=color, dash='dot'))
         line([centers[-1], plan['target']], view['label'] + ' optical axis',
              opacity=.35, line=dict(color=color))
         points = []
@@ -194,6 +202,10 @@ def render_preview(plan, kinematics, calibration, output):
                 points.append((BASE_LINK_T_UR_BASE @ kinematics._pose(path[-1], link))[:3, 3])
         if points:
             line(points, view['label'] + ' robot links', opacity=.4)
+    for key, label in (('entry_path', 'Entry from execution retreat'), ('return_path', 'Return to execution retreat')):
+        if key in plan:
+            line([camera_pose(kinematics, calibration, q)[:3, 3] for q in plan[key]], label,
+                 line=dict(color='#db5151', dash='dash'))
     target = np.asarray(plan['target'])
     figure.add_trace(go.Scatter3d(x=[target[0]], y=[target[1]], z=[target[2]],
                                  mode='markers', name='shared look-at target',
@@ -201,6 +213,6 @@ def render_preview(plan, kinematics, calibration, output):
     figure.update_layout(title=f'Wrist scan preview — {len(plan["views"])} views; link skeletons; not collision checked',
                          scene=dict(aspectmode='data', xaxis_title='base_link X (m)',
                                     yaxis_title='Y (m)', zaxis_title='Z (m)'),
-                         annotations=[dict(text='Gray: overview · teal: near · orange: oblique · purple: side · every leg returns to seed; verify clearance',
+                         annotations=[dict(text='Gray: overview · teal: near · orange: oblique · purple: side · review paths and return legs; verify clearance',
                                            x=0, y=-.08, xref='paper', yref='paper', showarrow=False)])
     figure.write_html(str(Path(output)), include_plotlyjs=True)

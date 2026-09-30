@@ -1,6 +1,7 @@
 """Supervised saved-plan execution with explicit gates and recovery evidence."""
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
     QFileDialog, QPlainTextEdit, QPushButton, QSlider, QVBoxLayout, QWidget,
@@ -27,12 +28,20 @@ class ExecutionView(QWidget):
         self._aborting = False
         self._scan_pending = False
         self._scan_positions = None
+        self._stack_viewer = None
         layout = QVBoxLayout(self)
         self.status = QLabel("Open a .stack run to validate saved execution.")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         self.start_button = QPushButton("Start supervised execution")
         self.start_button.clicked.connect(self.start)
+        self.stack_capture = QCheckBox('Collect stacked-scene PCD with wrist RGB after each placement')
+        self.stack_capture.setChecked(True)
+        layout.addWidget(self.stack_capture)
+        self.stack_viewer_button = QPushButton('Open stacked-scene PCD')
+        self.stack_viewer_button.setEnabled(False)
+        self.stack_viewer_button.clicked.connect(self.open_stack_viewer)
+        layout.addWidget(self.stack_viewer_button)
         layout.addWidget(self.start_button)
         self.gate_label = QLabel()
         self.gate_label.setWordWrap(True)
@@ -97,6 +106,8 @@ class ExecutionView(QWidget):
             raise ValueError("finish execution before changing the run")
         self.path, self.saved, self.scene = path, None, None
         self.gate = None
+        self._stack_viewer = None
+        self.stack_viewer_button.setEnabled(False)
         self._scan_pending = False
         self._scan_positions = None
         self.scan_preview.setEnabled(False)
@@ -124,6 +135,7 @@ class ExecutionView(QWidget):
     def _controls(self):
         ready = self.saved is not None
         active = self.running and not self._aborting
+        self.stack_capture.setEnabled(not self.running)
         checkpoint = StackRunStore.load_execution_checkpoint(self.path) if ready else None
         self.start_button.setEnabled(ready and not self.running and self.can_start() and bool(checkpoint.pending_steps)
                                      and not checkpoint.requires_reconciliation)
@@ -146,6 +158,7 @@ class ExecutionView(QWidget):
             return
         self.worker = self.worker_factory(self.saved, self)
         self.worker.repository = self.repository
+        self.worker.capture_stack_scene = self.stack_capture.isChecked()
         self.worker.scan_prepared.connect(self.prepare_scan_preview)
         self.worker.gate_changed.connect(self.set_gate)
         self.worker.telemetry.connect(self.receive_telemetry)
@@ -175,7 +188,7 @@ class ExecutionView(QWidget):
         self._controls()
 
     def set_gate(self, gate):
-        if gate is None or gate.name != 'scan_review':
+        if gate is None or gate.name not in ('scan_review', 'stack_scan_review'):
             self._scan_positions = None
             self.scan_preview.setEnabled(False)
             if self.scene is not None:
@@ -265,8 +278,20 @@ class ExecutionView(QWidget):
         self.scene.telemetry = value
         self.state_changed.emit()
 
+    def open_stack_viewer(self):
+        if self._stack_viewer is not None:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._stack_viewer)))
+
     def receive_event(self, event):
         self.history.appendPlainText(f"{event.sequence}: {event.status.value} · {event.diagnostics.get('phase', '')} · {event.reason or ''}")
+        if 'stack_scene_stage' in event.diagnostics:
+            self.scan_label.setText(f"Stacked scene: {event.diagnostics['stack_scene_stage']}\n"
+                                   f"{event.diagnostics['stack_scene_directory']}")
+        if 'stack_scene_completed' in event.diagnostics:
+            from pathlib import Path
+            self._stack_viewer = Path(event.diagnostics['stack_scene_viewer'])
+            self.stack_viewer_button.setEnabled(self._stack_viewer.is_file())
+            self.scan_label.setText(f"Stacked-scene PCD saved: {event.diagnostics['stack_scene_pcd']}")
         if 'scan_view' in event.diagnostics:
             self.scan_label.setText(f"Captured view {event.diagnostics['scan_view']} / {event.diagnostics['scan_view_count']}\n"
                                    f"{event.diagnostics['capture_directory']}")

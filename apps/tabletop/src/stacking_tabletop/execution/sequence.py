@@ -37,13 +37,14 @@ class TabletopMotionExecutor:
     immediate at the next runtime check and never opens the gripper.
     """
 
-    def __init__(self, saved, arm, gripper, *, gate_changed=None, telemetry=None, scan_handler=None):
+    def __init__(self, saved, arm, gripper, *, gate_changed=None, telemetry=None, scan_handler=None, stack_scene_handler=None):
         if arm.gripper is not gripper or arm.runtime is not gripper.runtime:
             raise ValueError("executor needs paired arm/gripper adapters")
         self.saved, self.arm, self.gripper = saved, arm, gripper
         self.runtime = arm.runtime
         self.gate_changed = gate_changed or (lambda value: None)
         self.telemetry = telemetry or (lambda value: None)
+        self.stack_scene_handler = stack_scene_handler
         self.scan_handler = scan_handler
         self._scan_request = None
         self._lock = threading.Lock()
@@ -177,7 +178,7 @@ class TabletopMotionExecutor:
                         "holding": gripper.holding, "phase": self._phase,
                         "object_pose": None if pose is None else np.asarray(pose).tolist()})
 
-    def _gate_wait(self, name, message, *, manual=False):
+    def _gate_wait(self, name, message, *, manual=False, prepared=None):
         self._phase = name
         self._stationary()
         gate = OperatorGate(uuid4().hex, self._command.command_id, self._command.step, name, message, manual)
@@ -188,6 +189,8 @@ class TabletopMotionExecutor:
             self._gate = gate
         self._emit("held", gate=name, gate_token=gate.token, hold_confirmed=True)
         self.gate_changed(gate)
+        if prepared is not None:
+            prepared()
         try:
             while not self._approved.is_set():
                 self._health()
@@ -339,7 +342,12 @@ class TabletopMotionExecutor:
             self._attached = False
             self._grip(self.gripper.open)
             self._profile(False)
+            self._emit('running', release_completed=True, release_pose=self._release_pose.tolist())
             self._move(4, _taper(command.segments[4].positions, place_offset))
+            if self.stack_scene_handler is not None:
+                self._phase = 'stack_scene'
+                self._stationary()
+                self.stack_scene_handler(self)
             self._send_telemetry(force=True)
             event = self._emit("succeeded", release_pose=self._release_pose.tolist())
         except (Exception, KeyboardInterrupt) as error:

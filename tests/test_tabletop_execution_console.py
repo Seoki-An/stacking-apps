@@ -52,6 +52,7 @@ def test_worker_gates_and_abort_leave_durable_recovery_requirement(saved):
         return transport, arm, gripper
     view = ExecutionView(ROOT, worker_factory=lambda saved, parent: ExecutionWorker(saved, parent, device_factory=factory))
     view.load(saved.path)
+    view.stack_capture.setChecked(False)  # This test exercises the existing pickup/abort gates.
     view.start_button.click()
     gates = []
     seen = set()
@@ -166,3 +167,32 @@ def test_scan_directory_dialog_cannot_submit_to_a_departed_gate(saved, tmp_path,
     view.worker = None
     view.close()
     app.processEvents()
+
+
+def test_stack_capture_option_preview_and_observation(saved, tmp_path):
+    import numpy as np
+    from stacking_tabletop.execution.sequence import OperatorGate
+    from stacking_tabletop.acquisition.storage import write_xyz_pcd
+    from stacking_tabletop.acquisition.hand_eye_capture import digest
+    app = QApplication.instance() or QApplication([])
+    view = ExecutionView(ROOT)
+    view.load(saved.path)
+    try:
+        assert view.stack_capture.isChecked() and view.stack_capture.isEnabled()
+        view.worker = SimpleNamespace(executor=None, isRunning=lambda: True)
+        view.set_gate(OperatorGate('token','command',1,'stack_scan_review','Review wrist route'))
+        view.prepare_scan_preview(dict(positions=[[0.]*6,[.1]*6],kind='stacked scene RGB',capture_count=8,output=str(tmp_path)))
+        assert view.scan_preview.isEnabled() and not view.stack_capture.isEnabled()
+        assert not view.scan_controls.isEnabled()
+        pcd=tmp_path/'scene.pcd';write_xyz_pcd(pcd,np.array([[.1,.2,.3]]))
+        viewer=tmp_path/'overview.html';viewer.write_text('<html>PCD</html>')
+        view.receive_event(SimpleNamespace(sequence=1,status=SimpleNamespace(value='held'),reason=None,
+            diagnostics=dict(stack_scene_completed=str(tmp_path),stack_scene_pcd=str(pcd),
+                stack_scene_pcd_sha256=digest(pcd),stack_scene_viewer=str(viewer))))
+        assert view.stack_viewer_button.isEnabled()
+        np.testing.assert_allclose(view.scene.frame().observed_scene_points,[[-.1,-.2,.3]])
+        view.set_gate(OperatorGate('token2','command',1,'stack_scene_result','Review PCD'))
+        assert not view.scan_preview.isEnabled() and view.continue_button.isEnabled()
+    finally:
+        view.worker=None
+        view.close();app.processEvents()

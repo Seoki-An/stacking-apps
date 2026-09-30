@@ -127,6 +127,10 @@ class OperationsSceneView(QtInteractor):
                     self._add_scene_box(component)
         if frame.target is not None and environment_visibility.get("target", True):
             self._add_target(frame.target)
+        observed = getattr(frame, 'observed_scene_points', None)
+        if observed is not None:
+            self.add_mesh(pv.PolyData(np.asarray(observed)), color='#00d6ce', point_size=3,
+                          render_points_as_spheres=False, lighting=False, name='observed/stack_scene')
         collision_overlay = any(value.geometry_kind == "visual" for value in frame.robot_parts)
         for value in frame.robot_parts:
             self._add_robot_part(value, collision_overlay=collision_overlay)
@@ -311,6 +315,7 @@ def _robot_scene_key(frame, environment_visibility):
     if frame.contacts or frame.forces:
         return None
     return (
+        id(getattr(frame, "observed_scene_points", None)),
         frame.step, frame.active_candidate_id, repr(frame.target), repr(frame.camera),
         tuple(sorted(environment_visibility.items())),
         repr(frame.environment_boxes), repr(frame.object_mesh_paths),

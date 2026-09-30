@@ -50,3 +50,21 @@ def test_missing_runtime_explains_colmap_alternative(tmp_path):
     with pytest.raises(RuntimeError, match='--dense-backend colmap'):
         stereo.reconstruct_with_runtime('session', 'baseline', 'refinement', 'output',
             repository=tmp_path/'.data/vendor/model', checkpoint=tmp_path/'weights')
+
+
+def test_recorded_pose_mode_omits_refinement_and_checks_execution_cancellation(tmp_path, monkeypatch):
+    vendor, python, output = setup(tmp_path)
+    child = Mock()
+    child.poll.return_value = None
+    start = Mock(return_value=child)
+    monkeypatch.setattr(stereo.subprocess, 'Popen', start)
+    def cancelled():
+        raise KeyboardInterrupt()
+    with pytest.raises(KeyboardInterrupt):
+        stereo.reconstruct_with_runtime(tmp_path/'session', None, None, output,
+            repository=vendor, checkpoint=vendor/'weights/model.pth',
+            region_file=tmp_path/'region.json', check=cancelled)
+    command = start.call_args.args[0]
+    assert '--baseline' not in command and '--refinement' not in command
+    assert command[command.index('--region-file')+1] == str(tmp_path/'region.json')
+    child.terminate.assert_called_once()

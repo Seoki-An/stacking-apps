@@ -200,3 +200,60 @@ Physical commissioning of the integrated sequence remains pending. Offline tests
 use fake devices; they do not move the UR5e or operate the gripper. FEMTO
 acquisition and automatic scan trajectories are implemented. Live in-hand
 registration remains next.
+
+## Stacked-scene wrist PCD after each placement
+
+In **Execution**, **Collect stacked-scene PCD with wrist RGB after each placement**
+is enabled by default. Choose it before **Start supervised execution**. This
+uses the existing robot/gripper connection and the installed wrist calibration
+and Fast-FoundationStereo environment. Keep UR bringup running; no separate pick
+capture command or FEMTO capture is needed for the place scene.
+
+After each release and the complete saved retreat:
+
+1. Generate at most seven stack-facing views: center/left/right overview views,
+   plus two low-side stereo pairs. Saved placed-object extents plus a 60-mm
+   margin define the capture region; those models are not substituted for
+   observed points. A central pose is accepted only if its two nearby views are
+   reachable too. Unreachable side pairs are omitted together and listed in the
+   saved plan and review message; the three overview views are required.
+2. At the new route-review gate, scrub the cyan robot preview, including entry
+   and return. Joint limits and endpoint kinematics are checked; these paths
+   are not collision checked. **Continue** starts capture.
+3. Record three timestamped RGB-D frames per viewpoint, return to the original
+   execution retreat pose, and close the camera. The RGB images and recorded
+   calibrated robot poses feed Fast-FoundationStereo; RealSense depth is retained
+   as auxiliary evidence and is not used as reconstructed geometry.
+4. Display the resulting scene PCD in cyan in the live viewport. **Open
+   stacked-scene PCD** opens its HTML viewer. Review it and press **Continue**
+   before the next placement starts.
+
+Outputs are stored beside the run:
+
+```text
+<run-name>_scene_captures/step_<number>_<command-id>/
+  plan.json, region.json, robot.urdf, calibration/, preview.html
+  capture.json
+  wrist/                 # Timestamped original views
+  session/               # Portable, hashed wrist-only inputs
+  rgb_dense/refined/rgb_dense_voxel_1mm.pcd
+  rgb_dense/rgb_only/overview.html
+```
+
+The execution journal records the capture location and PCD hash. Captures use
+`base_link`; the viewport converts them to its recorded UR-base world frame.
+The point cloud is a separate observation layer. It does not update catalog
+poses, obstacle geometry, or the saved plan automatically; stacked-scene pose
+identification and online replanning remain separate work.
+
+Hold/Abort remain active during capture and GPU reconstruction. An interrupted
+view is not accepted. Camera, motion, or reconstruction failure stops before the
+next pickup, retains partial data, and requires the existing physical
+reconciliation flow. It never automatically repeats a placement or initiates a
+return motion after capture failure. Review gates remain active for every scan.
+
+Offline checks cover placement ordering, portable session assembly, failed
+capture retention, child-process cancellation, and scene-frame conversion. The
+post-placement hardware route still needs commissioning. No 1-mm accuracy is
+claimed; this path currently uses recorded hand-eye poses without RGB camera
+pose refinement or a FEMTO anchor.
