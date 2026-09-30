@@ -33,10 +33,7 @@ direct:
   joint_grasp_recovery: true
   scene_approach: true
   minimum_approach_up_component: 0.5
-  approach_dir_tool:
-  - 0.0
-  - -1.0
-  - 0.0
+  approach_dir_tool: [0.0, -1.0, 0.0]
   approach_distance: 1.5
   grasp_steps: 10
   max_candidates: 1
@@ -49,10 +46,7 @@ regrasp:
   joint_grasp_recovery: true
   scene_approach: true
   minimum_approach_up_component: 0.5
-  approach_dir_tool:
-  - 0.0
-  - -1.0
-  - 0.0
+  approach_dir_tool: [0.0, -1.0, 0.0]
   approach_distance: 1.5
   grasp_steps: 10
   max_candidates: 1

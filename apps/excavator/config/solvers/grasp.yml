@@ -7,10 +7,7 @@ sampling:
   max_candidates: 0
   max_seeds: 120
   max_target_width: 1.6
-  preferred_parallel_axis:
-  - 0.0
-  - 0.0
-  - 0.0
+  preferred_parallel_axis: [0.0, 0.0, 0.0]
   # Legacy gripper.height (1.5 m) * surface_grasp_offset_scale (0.5).
   retreat_distance: 0.75
   # Legacy secondary seeds: gripper height 1.5 m times [0.65, 0.8, 1.2].
@@ -79,10 +76,7 @@ simulation:
   dt: 0.01
   error_reduction_ratio: 0.2
   friction: 1.0
-  grasp_offset_tol:
-  - 0.5
-  - 1.0
-  - 0.6
+  grasp_offset_tol: [0.5, 1.0, 0.6]
   obstacle_margin: 0.01
   pgs_iters: 80
   plane_obstacle_margin: 0.01

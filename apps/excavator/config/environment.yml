@@ -5,9 +5,7 @@ observation:
   max_poses_per_object: 32
   surface_sample_count: 128
   banned_object_ids: []
-  height_map_resolution:
-  - 128
-  - 128
+  height_map_resolution: [128, 128]
   height_map_margin: 1.0
   render_height_map: true
 reward:
@@ -29,7 +27,7 @@ reward:
     fail_displacement: 0.15
     seed: 0
   weights:
-    stability: 0.5
+    stability: 2.0
     object_containment: 2.0
     target_overlap_increment: 20.0
     place_stability: 2.0

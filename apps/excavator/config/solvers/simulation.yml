@@ -2,10 +2,7 @@
 units: si
 integration:
   dt: 0.01
-  gravity:
-  - 0.0
-  - 0.0
-  - -9.81
+  gravity: [0.0, 0.0, -9.81]
   damping: 0.0
 ground:
   z: 0.0

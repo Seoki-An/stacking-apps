@@ -6,25 +6,11 @@ field_ground_removal: false  # Experimental opt-in; legacy field recovery retain
 minimum_points: 100
 maximum_timestamp_skew_ns: 50000000
 field:
-  voxel_sizes:
-  - 0.1
-  - 0.05
-  - 0.02
-  - 0.01
-  max_iterations:
-  - 50
-  - 30
-  - 14
-  - 7
+  voxel_sizes: [0.1, 0.05, 0.02, 0.01]
+  max_iterations: [50, 30, 14, 7]
 inhand:
-  voxel_sizes:
-  - 0.1
-  - 0.05
-  - 0.02
-  max_iterations:
-  - 50
-  - 30
-  - 14
+  voxel_sizes: [0.1, 0.05, 0.02]
+  max_iterations: [50, 30, 14]
 gripper_alignment_quality:
   minimum_target_coverage: 0.05
   minimum_source_coverage: 0.2
@@ -43,12 +29,7 @@ ambiguity:
   distinct_rotation_degrees: 15.0
 opening:
   # Calibration polynomial coefficients are preserved; polynomial output is radians.
-  coefficients:
-  - -7.418032620929303
-  - 46.96298872999542
-  - -110.41168530520477
-  - 116.254686079056
-  - -47.56854082012381
+  coefficients: [-7.418032620929303, 46.96298872999542, -110.41168530520477, 116.254686079056, -47.56854082012381]
   source_sha256: c419e987d8f8fc976fa5ae3efdde668da9b45615ba46051432035a1f1bc2d1ee
   limits_degrees: [-65.31718864491384, 0.0]
   maximum_measured_difference_degrees: 11.459155902616464

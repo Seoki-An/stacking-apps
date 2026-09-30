@@ -12,21 +12,13 @@ filtering:
   require_solver_convergence: false
   reject_equilibrium_at_threshold: true
 planar:
-  grid_shape:
-  - 32
-  - 32
-  yaw_angles_degrees:
-  - 0
-  - 90
-  - 180
-  - 270
+  grid_shape: [32, 32]
+  yaw_angles_degrees: [0, 90, 180, 270]
   minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.
   target_anchor_inset_scale: 0.6
 orientation:
   pose_from_scan: false
-  roll_angles_degrees:
-  - 0
-  - 180
+  roll_angles_degrees: [0, 180]
 floor:
   # Advance once the current layer covers 60% of the base in top-down projection.
   coverage_mode: projected_footprint
@@ -35,13 +27,7 @@ floor:
   grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.
   max_layers: 8
   minimum_contact_cells: 1
-  score_weights:
-  - -3.0
-  - 2.0
-  - 1.0
-  - 2.0
-  - 1.0
-  - 1.5
+  score_weights: [-3.0, 2.0, 1.0, 2.0, 1.0, 1.5]
 scored_sampling:
   # Active score-mode settings from stacking-planner agent/configs/ablation.yml.
   boltzmann_temperature: 0.3
