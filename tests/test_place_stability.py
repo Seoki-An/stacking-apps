@@ -1,4 +1,4 @@
-"""Legacy noisy-placement trials, isolation, and reward propagation."""
+"""Upward noisy-placement trials, isolation, and reward propagation."""
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace as NS
@@ -20,10 +20,10 @@ def pose(z=.2):
 
 
 @pytest.mark.parametrize('platform,count,std,weight', [
-    ('excavator', 4, [.02, .02, .05], .1),
+    ('excavator', 4, [.02, .02, .02], .1),
     ('tabletop', 8, [.005, .005, .005], .01),
 ])
-def test_platform_profiles_reproduce_legacy_noise(platform, count, std, weight):
+def test_platform_profiles_reproduce_seeded_upward_noise(platform, count, std, weight):
     profile = load_environment_profile(ROOT / f'apps/{platform}/config/environment.yml')
     config = profile.place_stability
     assert config.active and config.n_noise == count
@@ -36,7 +36,8 @@ def test_platform_profiles_reproduce_legacy_noise(platform, count, std, weight):
     actual = list(config.noisy_poses(initial, step=2, object_index=1, object_id=20))
     for noisy in actual:
         expected = initial.copy()
-        expected[:3] += rng.normal(0., std, size=3)
+        position_noise = rng.normal(0., std, size=3)
+        expected[:3] += [position_noise[0], position_noise[1], abs(position_noise[2])]
         noise = rng.normal(0., np.deg2rad(5.), size=3)
         expected[3:] = (Rotation.from_rotvec(noise) * Rotation.from_quat(initial[3:])).as_quat()
         np.testing.assert_allclose(noisy, expected, atol=1e-14)
@@ -255,3 +256,39 @@ def test_trial_simulation_reports_actual_failure(scenario, expected):
     _, reason = _simulate_noisy_place(backend, state, action, pose())
     assert reason == expected
     assert calls and all(dt == .02 for dt in calls)
+
+
+def test_excavator_profile_rejects_failed_or_excessively_displaced_noise_trials():
+    config = load_environment_profile(
+        ROOT / 'apps/excavator/config/environment.yml').place_stability
+    assert not config.failed(.1, [None] * config.n_noise)
+    assert config.failed(.1, ['not_settled'] + [None] * (config.n_noise - 1))
+    assert config.failed(.1, ['target_motion_limit'] + [None] * (config.n_noise - 1))
+    assert config.failed(.16, [None] * config.n_noise)
+    assert config.failed(float('inf'), [None] * config.n_noise)
+
+
+@pytest.mark.parametrize('z_std', [0., .02, .05])
+@pytest.mark.parametrize('base_z', [-.5, .2])
+def test_vertical_noise_never_lowers_pose_and_horizontal_noise_keeps_both_signs(z_std, base_z):
+    config = PlaceStabilityConfig(True, 128, (.02, .02, z_std), 5.)
+    initial = pose(base_z)
+    before = initial.copy()
+    trials = np.array(list(config.noisy_poses(initial, step=7, object_index=1, object_id=2)))
+    offsets = trials[:, :3] - initial[:3]
+    assert np.all(offsets[:, 2] >= 0.)
+    if z_std == 0.:
+        np.testing.assert_array_equal(offsets[:, 2], 0.)
+    else:
+        assert np.any(offsets[:, 2] > 0.)
+    assert np.all(np.any(offsets[:, :2] < 0., axis=0))
+    assert np.all(np.any(offsets[:, :2] > 0., axis=0))
+    np.testing.assert_array_equal(initial, before)
+
+
+def test_step7_stone2_trial3_reflects_downward_noise_upward():
+    # This seed previously translated the third trial 12.57 cm into the ground.
+    config = PlaceStabilityConfig(True, 4, (.02, .02, .05), 5.)
+    initial = pose()
+    trials = list(config.noisy_poses(initial, step=7, object_index=1, object_id=2))
+    np.testing.assert_allclose(trials[2][:3] - initial[:3], [.01022, .01973, .12571], atol=1e-5)

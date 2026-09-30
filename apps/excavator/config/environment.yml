@@ -13,24 +13,25 @@ observation:
 reward:
   overlap_resolution: 0.03
   posegen_threshold: 1.0
-  containment_threshold: 0.7
+  containment_threshold: 0.5
   nonfinite_displacement: 2.0
   max_displacement: 1.0
-  # Noisy-placement trials using this platform's legacy config.yml values.
+  # Placement uncertainty; Z perturbations are always upward.
   place_stability:
     enabled: true
     n_noise: 4
-    position_std: [0.02, 0.02, 0.05]
+    position_std: [0.02, 0.02, 0.02]  # Gaussian scales; Z uses abs(sample).
     rotation_std_deg: 5.0
     rotation_weight: 0.1
     # Reject if any noisy trial exceeds the motion limit or does not settle.
     reject_failed_trials: true
-    fail_displacement: null
+    # Worst trial: translation (m) + rotation_weight * angular distance (rad).
+    fail_displacement: 0.15
     seed: 0
   weights:
     stability: 0.5
     object_containment: 2.0
     target_overlap_increment: 20.0
-    place_stability: 0.5
+    place_stability: 2.0
     large_object_lower: 3.0
     inward_orientation: 3.0

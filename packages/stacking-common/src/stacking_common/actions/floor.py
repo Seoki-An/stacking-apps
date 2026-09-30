@@ -16,11 +16,15 @@ class ActiveFloorPolicy:
         fill_ratio: float, grid_size: int, max_layers: int,
         minimum_contact_cells: int,
         score_weights: tuple[float, float, float, float, float, float],
+        coverage_mode: str = "bottom_slice",
     ) -> None:
         if not np.isfinite(bottom_tolerance) or bottom_tolerance <= 0:
             raise ValueError("floor bottom tolerance must be positive")
         if not 0 < fill_ratio <= 1 or grid_size < 2 or max_layers < 1 or minimum_contact_cells < 0:
             raise ValueError("invalid active-floor limits")
+        if coverage_mode not in {"bottom_slice", "projected_footprint"}:
+            raise ValueError("unsupported floor coverage mode")
+        self.coverage_mode = coverage_mode
         self.inventory = inventory
         self.bottom_tolerance = float(bottom_tolerance)
         self.fill_ratio = float(fill_ratio)
@@ -38,12 +42,20 @@ class ActiveFloorPolicy:
     ) -> tuple[str | None, dict[str, object]]:
         """Reject a settled pose above or disconnected from an unfilled layer."""
 
-        support_z, occupied = self.context(state)
-        return self._reject_at_layer(action, support_z, occupied)
+        context = self.context_details(state)
+        reason, diagnostics = self._reject_at_layer(
+            action, context["support_z"], context["occupied"])
+        diagnostics["fixed_scene_active_layer_coverage_mode"] = self.coverage_mode
+        diagnostics["fixed_scene_completed_layers"] = context["completed_layers"]
+        return reason, diagnostics
 
     def context(self, state: State) -> tuple[float, np.ndarray]:
-        """Find the first unfilled layer using convex-volume slices."""
+        """Find the first layer below the configured coverage threshold."""
+        context = self.context_details(state)
+        return context["support_z"], context["occupied"]
 
+    def context_details(self, state: State) -> dict[str, object]:
+        """Share the active layer's geometry between sampling and validation."""
         entries = [
             self._entry(index, state.object_poses[state.object_ids[index]])
             for index in state.placed_object_indices
@@ -52,6 +64,7 @@ class ActiveFloorPolicy:
         remaining = list(entries)
         layer_entries: list[dict[str, object]] = []
         occupied = self._empty_mask()
+        completed_layers = []
         for _ in range(self.max_layers):
             layer_entries = [
                 entry
@@ -63,11 +76,22 @@ class ActiveFloorPolicy:
                 break
             if not layer_entries:
                 break
+            completed_layers.append({"support_z": support_z,
+                                     "coverage": float(np.mean(occupied))})
             used = {id(entry) for entry in layer_entries}
             remaining = [entry for entry in remaining if id(entry) not in used]
             support_z = max(float(entry["top"]) for entry in layer_entries)
+            # The completed floor's footprint must not occupy the new layer.
+            occupied = self._empty_mask()
 
-        return support_z, occupied
+        lower, upper, xx, yy = self._grid()
+        return {
+            "support_z": support_z, "bottom_tol": self.bottom_tolerance,
+            "lower": lower, "upper": upper, "xx": xx, "yy": yy,
+            "occupied": occupied, "occupied_neighbor": _neighbor_mask(occupied),
+            "occupancy": float(np.mean(occupied)), "coverage_mode": self.coverage_mode,
+            "completed_layers": completed_layers,
+        }
 
     def _reject_at_layer(self, action, support_z, occupied):
         candidate = self._entry(action.object_index, action.pose)
@@ -146,23 +170,32 @@ class ActiveFloorPolicy:
     def _empty_mask(self) -> np.ndarray:
         return np.zeros((self.grid_size, self.grid_size), dtype=bool)
 
-    def _mask(self, entry, support_z: float) -> np.ndarray:
+    def _grid(self):
         target = self.inventory.target
         lower = target.origin[:2] - np.array([target.width, target.length]) / 2.0
         upper = target.origin[:2] + np.array([target.width, target.length]) / 2.0
-        xs = np.linspace(lower[0], upper[0], self.grid_size)
-        ys = np.linspace(lower[1], upper[1], self.grid_size)
+        if self.coverage_mode == "projected_footprint":
+            # Cell centers give equal-area samples without overweighting edges.
+            fractions = (np.arange(self.grid_size) + 0.5) / self.grid_size
+            xs = lower[0] + fractions * (upper[0] - lower[0])
+            ys = lower[1] + fractions * (upper[1] - lower[1])
+        else:
+            xs = np.linspace(lower[0], upper[0], self.grid_size)
+            ys = np.linspace(lower[1], upper[1], self.grid_size)
         xx, yy = np.meshgrid(xs, ys, indexing="xy")
+        return lower, upper, xx, yy
+
+    def _mask(self, entry, support_z: float) -> np.ndarray:
+        _, _, xx, yy = self._grid()
         occupied = self._empty_mask()
         for normals, offsets in entry["volumes"]:
-            occupied |= _volume_slice_mask(
-                normals,
-                offsets,
-                xx,
-                yy,
-                support_z,
-                support_z + self.bottom_tolerance,
-            )
+            if self.coverage_mode == "projected_footprint":
+                # Union the convex components, preserving gaps between them.
+                occupied |= _volume_columns(normals, offsets, xx, yy)[0]
+            else:
+                occupied |= _volume_slice_mask(
+                    normals, offsets, xx, yy, support_z,
+                    support_z + self.bottom_tolerance)
         return occupied
 
 

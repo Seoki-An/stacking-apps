@@ -44,9 +44,11 @@ class _StoneView:
 class ScoredPlanarPoseSampler:
     """Legacy score-mode geometry, representatives, and Boltzmann selection."""
 
-    def __init__(self, inventory, config, orientation_provider, settings, *, seed=0):
+    def __init__(self, inventory, config, orientation_provider, settings, *, seed=0, floor_policy=None):
         if config.minimum_xy_separation != 0:
             raise ValueError("scored selection requires minimum_xy_separation: 0")
+        self.floor_policy = floor_policy
+        self._active_floor = None
         self.inventory = inventory
         self.config = config
         self.orientation_provider = orientation_provider
@@ -115,6 +117,8 @@ class ScoredPlanarPoseSampler:
             self._score_keys.clear()
             self._sampled_scores.clear()
             self._score_context = context
+            self._active_floor = (None if self.floor_policy is None
+                                  else self.floor_policy.context_details(state))
         view = self.view(state, observation)
         quaternions = self.quaternions(state, observation, object_index)
         rows, columns = self.config.grid_shape
@@ -131,7 +135,8 @@ class ScoredPlanarPoseSampler:
             self._kernels[key] = [bottom_height_kernel(self.stones[object_index].points, q, dx, dy)
                                   for q in quaternions]
         scores = floor.score_xy_debug_map(view, self.state_view(state), object_index,
-            scene_height_map=observation.scene_height_map, support_kernels=self._kernels[key])
+            scene_height_map=observation.scene_height_map, support_kernels=self._kernels[key],
+            active_floor=self._active_floor)
         self._scores[object_index] = (observation, scores)
         self._score_keys[object_index] = key
         self._sampled_scores.pop(object_index, None)
@@ -142,8 +147,25 @@ class ScoredPlanarPoseSampler:
         candidates = scores.get("candidates", [])
         if not candidates:
             return ()
-        selected = floor.sample_scored_candidates(self.view(state, observation), candidates,
-            count, True, rng=self.rng)
+        view = self.view(state, observation)
+        pools = [candidates]
+        if sampling_priority == "lower_floor_first" and state.placed_object_indices:
+            layer = (self._active_floor if self.floor_policy is not None
+                     else floor.active_floor_context(view, self.state_view(state)))
+            if layer is not None:
+                ceiling = layer["support_z"] + layer["bottom_tol"]
+                # Preserve score/diversity sampling within each pool, but spend
+                # the proposal budget on the unfilled active floor first.
+                pools = [
+                    [item for item in candidates if item["height"] <= ceiling],
+                    [item for item in candidates if item["height"] > ceiling],
+                ]
+        selected = []
+        for pool in pools:
+            remaining = count - len(selected)
+            if pool and remaining > 0:
+                selected.extend(floor.sample_scored_candidates(
+                    view, pool, remaining, True, rng=self.rng))
         quaternions = self.quaternions(state, observation, object_index)
         proposals = tuple(PlanarPlacement(
             pose=np.r_[item["xy"], 0., quaternions[item["orientation_index"]]],

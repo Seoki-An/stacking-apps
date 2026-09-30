@@ -41,8 +41,12 @@ def test_scored_maps_and_seeded_poses_match_legacy_capture(label):
     with np.load(FIXTURE) as recorded:
         observation = SimpleNamespace(scene_height_map=recorded[label + "_height"],
             height_map_xlim=np.array(META["xlim"]), height_map_ylim=np.array(META["ylim"]))
+        # This capture predates the excavator's coarse projected-floor policy.
+        legacy_settings = {**app.sampling_settings, "floor_fill": {
+            **app.sampling_settings["floor_fill"],
+            "lower_floor_occupancy_grid": 32, "lower_floor_fill_ratio": .9}}
         sampler = ScoredPlanarPoseSampler(inventory, app.action_generation_profile.planar,
-            app.build_orientation_provider(), app.sampling_settings, seed=META["seed"])
+            app.build_orientation_provider(), legacy_settings, seed=META["seed"])
         index = META["candidate_index"]
         scores = sampler.score_map(state, observation, index)
         for key in ("scores", "candidate_mask", "placement_height", "support_likelihood",
@@ -50,7 +54,8 @@ def test_scored_maps_and_seeded_poses_match_legacy_capture(label):
             np.testing.assert_allclose(scores[key], recorded[label + "_" + key],
                                        atol=1e-12, rtol=0, equal_nan=True)
         rng_before = np.random.get_state()
-        proposals = sampler.sample(inventory, state, observation, index, 32, "lower_floor_first")
+        # Unprioritized sampling preserves the captured legacy draw.
+        proposals = sampler.sample(inventory, state, observation, index, 32, None)
         rng_after = np.random.get_state()
         np.testing.assert_array_equal(rng_before[1], rng_after[1])
         assert rng_before[2:] == rng_after[2:]
@@ -291,3 +296,32 @@ def test_cem_mutations_recompute_the_parent_objects_score(monkeypatch):
         assert sum(round.mutation_attempts for round in cem.last_statistics.rounds) > 0
     finally:
         generator.close()
+
+
+@pytest.mark.parametrize("support_z,heights,count,expected_lower", [
+    (0., [0., .1, .8, .9], 2, 2),
+    (0., [0., .1, .8, .9], 4, 2),
+    (0., [.8, .9], 2, 0),
+    (.8, [.8, 1., 1.5, 1.6], 2, 2),
+])
+def test_scored_priority_spends_budget_on_active_floor_before_higher_scores(
+    monkeypatch, support_z, heights, count, expected_lower,
+):
+    from stacking_common.actions import scored
+    app, inventory, state = inputs(placed=True)
+    sampler = ScoredPlanarPoseSampler(inventory, app.action_generation_profile.planar,
+        app.build_orientation_provider(), app.sampling_settings, seed=17)
+    ceiling = support_z + .2
+    candidates = [dict(xy=np.array([float(i), 0.]), height=height,
+        score=100. if height > ceiling else 0., orientation_index=0)
+        for i, height in enumerate(heights)]
+    monkeypatch.setattr(sampler, "score_map", lambda *args: {"candidates": candidates})
+    monkeypatch.setattr(scored.floor, "active_floor_context",
+        lambda *args: {"support_z": support_z, "bottom_tol": .2})
+    observation = SimpleNamespace(height_map_xlim=[-2., 2.], height_map_ylim=[-2., 2.])
+    proposals = sampler.sample(inventory, state, observation, 2, count, "lower_floor_first")
+    indices = [int(proposal.pose[0]) for proposal in proposals]
+    assert len(indices) == count
+    assert len(set(indices)) == count
+    assert [heights[i] <= ceiling for i in indices] == (
+        [True] * expected_lower + [False] * (count - expected_lower))

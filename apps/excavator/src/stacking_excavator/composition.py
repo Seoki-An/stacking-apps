@@ -129,7 +129,7 @@ class ExcavatorApplication(StackingSearchApplication):
         floor_policy = self.build_floor_policy(inventory)
         sampler = ScoredPlanarPoseSampler(inventory, profile.planar,
             orientation_provider or self.build_orientation_provider(), self.sampling_settings,
-            seed=self.mcts_profile.root_cem.seed)
+            seed=self.mcts_profile.root_cem.seed, floor_policy=floor_policy)
         return ScoredPlacementActionGenerator(
             inventory=inventory, config=profile.generator, planar_sampler=sampler,
             initializer=PlyHeightInitializer(self.repository_root / self.inventory_profile.model_directory,

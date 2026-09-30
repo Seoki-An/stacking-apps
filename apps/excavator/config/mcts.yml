@@ -23,12 +23,13 @@ generation:
   min_feasible_children: 3
   attempt_multiplier: 3.0
   evaluation_batch_size: 12
+  # Sample the unfilled active floor before higher placements at every depth.
   root_sampling_priority: lower_floor_first
   deeper_sampling_priority: lower_floor_first
 validation:
   max_candidates: 8
   root_before_search: true
-  rejected_root_retry_rounds: 1
+  rejected_root_retry_rounds: 3
   time_reserve: 30.0
   max_state_drift: 0.1
 final_selection:
@@ -48,10 +49,11 @@ root_cem:
   keep: 12
   mutation_xy_std: 0.1
   mutation_yaw_std_degrees: 15.0
-  fresh_fraction: 0.3
+  fresh_fraction: 0.5
   duplicate_xy_threshold: 0.03
   duplicate_yaw_threshold_degrees: 5.0
-  max_per_object: 8
+  # Keep validation slots available for different stones.
+  max_per_object: 2
   height_map_score_weight: 1.0
   seed: 0
 bootstrap:

@@ -4,8 +4,75 @@
 simulation, and native direct/regrasp motion planning. It uses the commissioned
 VDK23 and stone-grab models from `stacking-planner`. This delivery implements
 planning, persistence, and the offline Operations Console. Excavator action
-sampling follows the legacy ablation score policy through common array kernels;
-tabletop retains its existing sampler and filters.
+sampling uses the legacy ablation score kernels, with explicit lower-floor
+priority; tabletop retains its existing sampler and filters.
+
+## Stability and floor-filling settings
+
+The excavator profile rejects a placement if any noisy-placement trial fails
+or its worst trial displacement exceeds `reward.place_stability.fail_displacement`
+(currently `0.15`). Displacement is translation in metres plus angular distance
+in radians times `rotation_weight` (`0.1` m/rad), measured from the perturbed pose.
+The four trials use the configured XYZ Gaussian scales (currently 2 cm on each
+axis) and 5 degree rotation noise. The common sampler takes the absolute value
+of the Z sample, so translation noise only raises the stone; X/Y remain signed.
+This preserves the seeded X/Y and rotation draws. Rotation can still lower a
+stone's corners; upward Z noise alone does not guarantee collision-free geometry.
+These trials move the candidate with previous stones fixed; the structural
+simulation separately checks motion of the stack. `max_displacement` clips the
+reward penalty and is not a rejection threshold.
+
+Both structural phases now require normalized energy below `0.00001` to count
+quiet steps and reject a velocity integral above `0.2`. The contact validation
+gap is `0.02` m. Among accepted candidates, the robustness reward weight is `2.0`.
+These are stricter starting settings, to be evaluated on representative scenes;
+more rejections or longer settling can reduce search throughput.
+
+`generation.root_sampling_priority` and `deeper_sampling_priority` remain
+`lower_floor_first`. The scored sampler and strict floor filter now share the
+same `floor` policy. The excavator uses `coverage_mode: projected_footprint`:
+coverage is the union of the layer stones' full XY footprints, clipped to the
+target base and estimated on a coarse **16×16 cell-center grid**. Overlapping
+footprints count once. The placement search still uses its 32×32 grid.
+
+Once projected coverage reaches `floor.fill_ratio: 0.6`, the policy immediately
+advances to the next layer; it does not wait for search exhaustion. The new support
+height is the highest top of the completed layer, and that layer's stones are
+removed from the next layer's occupancy calculation. `bottom_tolerance: 0.2` m
+still determines which stones belong to each layer and how far above its support
+height a candidate may begin. Candidate diagnostics record the coverage mode and
+completed layers' support heights and coverage values.
+
+The sampler prioritizes proposals whose predicted contact height is at most the
+active floor's support height plus the bottom tolerance. It retains Boltzmann and
+spatial-diversity sampling within that pool, then fills unused slots from higher
+candidates. `filtering.strict_floor_first: true` rejects solved placements above
+the active layer, including CEM mutations. The motion coordinator checks the same
+policy again after fixed-scene settling. Physics and individual-stone containment
+remain independent acceptance checks.
+
+For `excavator_plan4.stack` after ten placements, the previous bottom-slice estimate
+was 56.5%; the coarse projected estimate is 68.75%, allowing immediate advancement
+at 60%. A native search from that scene found seven valid candidates out of twelve
+and selected a settled stone-3 placement above the ground layer in about 17 seconds.
+A different recorded scene at roughly 55% projected coverage still rejects higher
+placements. Strict filling can still exhaust search below the coverage threshold.
+
+The shared policy defaults to bottom-slice coverage for existing callers such as
+tabletop. The standalone scored sampler retains the legacy calculation when no
+floor policy is supplied; the legacy capture test supplies its original 32×32
+occupancy settings. The legacy `lower_floor_fill_reject_stacked` key is not a
+rejection gate; `strict_floor_first` controls enforcement. Start a new run to use
+the changed profile, since resume validates the original saved settings.
+
+CEM retains at most two candidates per stone, uses 50% fresh proposals in each
+refinement round, and allows up to three rejected-root retries within the search
+time budget. This addresses batches dominated by similar poses of a few stones.
+A controlled search from `excavator_plan2.stack` after five placements rejected
+all 24 candidates with the previous settings; these settings found two valid
+stone-52 placements among 24 candidates in about 17 seconds, with the same floor
+and stability checks. This verifies recovery of that scene, not completion of a
+full stacking run.
 
 ## Run
 

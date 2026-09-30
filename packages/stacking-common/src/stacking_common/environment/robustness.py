@@ -1,4 +1,4 @@
-"""Legacy noisy-placement robustness, independent of the physics backend."""
+"""Noisy-placement robustness with upward-only vertical perturbations."""
 
 from dataclasses import dataclass
 from collections.abc import Mapping
@@ -68,7 +68,10 @@ class PlaceStabilityConfig:
         rng = np.random.default_rng(seed)
         for _ in range(self.n_noise if self.active else 0):
             noisy = np.array(pose, dtype=float, copy=True)
-            noisy[:3] += rng.normal(0.0, self.position_std, size=3)
+            position_noise = rng.normal(0.0, self.position_std, size=3)
+            # Model release from above; never translate a trial below its base pose.
+            position_noise[2] = abs(position_noise[2])
+            noisy[:3] += position_noise
             if self.rotation_std_deg > 0:
                 noise = rng.normal(0.0, np.deg2rad(self.rotation_std_deg), size=3)
                 angle = np.linalg.norm(noise)

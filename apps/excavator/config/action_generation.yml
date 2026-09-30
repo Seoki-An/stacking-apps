@@ -7,7 +7,8 @@ initialization:
 filtering:
   posegen_gap_threshold: 0.005
   posegen_equilibrium_threshold: 1.0
-  strict_floor_first: false
+  # Reject solved placements above the lowest layer until its fill target is met.
+  strict_floor_first: true
   require_solver_convergence: false
   reject_equilibrium_at_threshold: true
 planar:
@@ -27,9 +28,11 @@ orientation:
   - 0
   - 180
 floor:
+  # Advance once the current layer covers 60% of the base in top-down projection.
+  coverage_mode: projected_footprint
   bottom_tolerance: 0.2
-  fill_ratio: 0.9
-  grid_size: 32
+  fill_ratio: 0.6
+  grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.
   max_layers: 8
   minimum_contact_cells: 1
   score_weights:
@@ -61,8 +64,8 @@ scored_sampling:
     u_shape_filter: false
     u_shape_footprint_scale: 0.9
     u_shape_min_frontier_contact_cells: 1
-    lower_floor_fill_ratio: 0.9
-    lower_floor_occupancy_grid: 32
+    lower_floor_fill_ratio: 0.6
+    lower_floor_occupancy_grid: 16
     lower_floor_bottom_z_tolerance: 0.2
     lower_floor_max_layers: 8
     lower_floor_fill_reject_stacked: false
