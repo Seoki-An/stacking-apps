@@ -6,7 +6,7 @@ import signal
 import sqlite3
 import sys
 
-from PySide6.QtCore import QProcess, QProcessEnvironment, Signal
+from PySide6.QtCore import QProcess, QProcessEnvironment, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QVBoxLayout, QWidget,
@@ -20,13 +20,18 @@ class PlanningRunDialog(QDialog):
     run_available = Signal(object)
 
     def __init__(self, repository, source=None, destination=None, config=None, parent=None):
-        super().__init__(parent)
+        super().__init__(parent, Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint
+                         | Qt.WindowType.WindowCloseButtonHint)
         self.repository = Path(repository).resolve()
         self.source = None if source is None else Path(source).resolve()
         self.destination = None if destination is None else Path(destination).resolve()
         self.config = Path(config) if config is not None else self.repository / "apps/tabletop/config/mcts.yml"
         self.can_start = lambda: True
         self._run_output = None
+        self._announced_path = None
+        self._run_timer = QTimer(self)
+        self._run_timer.setInterval(500)
+        self._run_timer.timeout.connect(self._check_run_available)
         self.setWindowTitle("Resume tabletop planning" if self.source else "New tabletop planning run")
         self.resize(900, 650)
         layout = QVBoxLayout(self)
@@ -181,7 +186,24 @@ class PlanningRunDialog(QDialog):
         self.start_button.setEnabled(False)
         self.open_button.setEnabled(False)
         self.stop_button.setText("Stop planning")
+        self._announced_path = None
+        self._run_timer.start()
         self.process.start(sys.executable, arguments)
+
+    def _check_run_available(self, *, final=False):
+        path = self.destination
+        if path is None or not path.is_file() or (not final and path == self._announced_path):
+            return
+        try:
+            StackRunStore.info(path)
+            StackRunStore.load_mcts(path)
+        except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
+            # Creation and the first committed header need not be simultaneous.
+            return
+        self._announced_path = path
+        self._run_timer.stop()
+        self.open_button.setEnabled(True)
+        self.run_available.emit(path)
 
     @property
     def running(self):
@@ -193,6 +215,7 @@ class PlanningRunDialog(QDialog):
         self.log.verticalScrollBar().setValue(self.log.verticalScrollBar().maximum())
 
     def _finished(self, code, status):
+        self._run_timer.stop()
         self._read_output()
         self.log.appendPlainText(f"\nPlanning process exited: {code}")
         self.inputs.setEnabled(True)
@@ -205,12 +228,7 @@ class PlanningRunDialog(QDialog):
             except (OSError, ValueError, sqlite3.Error) as error:
                 self.log.appendPlainText(f"Could not replace existing run: {error}")
             self.log.appendPlainText(f"Result path: {self.destination}")
-        if self.destination is not None and self.destination.is_file():
-            try:
-                StackRunStore.info(self.destination)
-            except (OSError, ValueError, sqlite3.Error):
-                return
-            self.open_button.setEnabled(True)
+        self._check_run_available(final=True)
 
     def _error(self, error):
         self.log.appendPlainText(self.process.errorString())

@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from stacking_common.artifacts import StackRunStore, decode_legacy_mcts_debug
+from stacking_common.artifacts import PlanningRunContext, StackRunStore, decode_legacy_mcts_debug
 from stacking_common.workflows.planning_output import PlanningRunOutput
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,6 +65,9 @@ def test_gui_overwrite_process_and_open_result(tmp_path, monkeypatch, platform, 
     app = QApplication.instance() or QApplication([])
     target = run_file(tmp_path / 'existing.stack', 'original')
     template = run_file(tmp_path / 'replacement.stack', 'replacement')
+    if platform == 'excavator':
+        with StackRunStore.open_append(template) as writer:
+            writer.append_run_context(PlanningRunContext('world', ('joint',), {}, ()))
     original = target.read_bytes()
     dialog = PlanningRunDialog(ROOT)
     dialog.output_path.setText(str(target))
@@ -104,6 +107,11 @@ def test_gui_overwrite_process_and_open_result(tmp_path, monkeypatch, platform, 
             dialog.reject()
         wait_for(lambda: not dialog.running)
         assert dialog.open_button.isEnabled()
+        # Completion auto-opens the published path, including after promotion
+        # of the pending replacement. The explicit button remains available.
+        assert opened and opened[-1] == dialog.destination
+        assert all(path in (staged[0], dialog.destination) for path in opened)
+        opened.clear()
         dialog.open_button.click()
         if outcome == 'success':
             assert StackRunStore.info(target).metadata['label'] == 'replacement'

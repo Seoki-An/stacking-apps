@@ -25,6 +25,7 @@ class SearchInspector(QWidget):
     """Controls for inspecting search content from one loaded run."""
 
     open_requested = Signal()
+    refresh_requested = Signal()
     video_requested = Signal(float)
     state_changed = Signal()
 
@@ -47,9 +48,14 @@ class SearchInspector(QWidget):
         source_layout = QVBoxLayout(source)
         self.open_button = QPushButton("Open stacking run…")
         self.open_button.clicked.connect(lambda: self.open_requested.emit())
+        self.refresh_button = QPushButton("Refresh run")
+        self.refresh_button.setEnabled(False)
+        self.refresh_button.setToolTip("Reload committed updates from the open .stack file (Ctrl+R)")
+        self.refresh_button.clicked.connect(lambda: self.refresh_requested.emit())
         self.source_label = QLabel("No run loaded")
         self.source_label.setWordWrap(True)
         source_layout.addWidget(self.open_button)
+        source_layout.addWidget(self.refresh_button)
         source_layout.addWidget(self.source_label)
         layout.addWidget(source)
 

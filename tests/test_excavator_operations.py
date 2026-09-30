@@ -175,6 +175,49 @@ def test_console_navigation_and_playback(tmp_path, monkeypatch):
         window.close()
 
 
+def test_refresh_preserves_excavator_plan_and_search_tab(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QApplication, QWidget
+    import stacking_excavator.gui.operations.window as windows
+    app = QApplication.instance() or QApplication([])
+    path = tmp_path / "refresh.stack"
+    record, _ = replay_run(path)
+
+    class View(QWidget):
+        def __init__(self, parent, *args):
+            super().__init__(parent)
+            self.resets = []
+        def render_frame(self, frame, **kwargs):
+            self.resets.append(kwargs["reset_camera"])
+        def show_empty(self):
+            pass
+
+    monkeypatch.setattr(windows, "OperationsSceneView", View)
+    window = windows.ExcavatorOperationsWindow(ROOT, path)
+    try:
+        window.tabs.setCurrentWidget(window.search_inspector)
+        window.controller.select_plan_segment(1)
+        window.controller.set_plan_sample(7)
+        window.controller.set_plan_interpolation(.4)
+        with StackRunStore.open_append(path) as writer:
+            writer.append_placement_plan(replace(record, attempt=record.attempt + 1))
+            window.search_inspector.refresh_button.click()
+            assert len(window.controller.current_plans) == 2
+            assert window.controller.plan_attempt == record.attempt
+            assert window.controller.plan_segment_index == 1
+            assert window.controller.plan_sample_index == 7
+            assert window.controller.plan_sample_fraction == .4
+            assert window.tabs.currentWidget() is window.search_inspector
+            assert window.scene_view.resets[-1] is False
+            assert "Refreshed" in window.statusBar().currentMessage()
+            writer.append_placement_plan(replace(record, step=record.step + 1))
+            window.refresh_action.trigger()
+            assert window.search_inspector.step_selector.count() == 2
+            assert window.controller.current_step.step == record.step
+    finally:
+        window.close()
+        app.processEvents()
+
+
 def test_plan_step_selector_replays_all_steps_and_syncs_tabs(tmp_path, monkeypatch):
     from PySide6.QtWidgets import QApplication, QWidget
     from PySide6.QtTest import QTest

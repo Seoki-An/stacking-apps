@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import os
+import sqlite3
 import tempfile
 
 from PySide6.QtCore import Qt
@@ -51,6 +52,7 @@ class ExcavatorOperationsWindow(QMainWindow):
         self.tabs.addTab(self.session.history, "History")
         self.tabs.setCurrentWidget(self.search_inspector)
         self.search_inspector.open_requested.connect(self._choose_artifact)
+        self.search_inspector.refresh_requested.connect(self._reload)
         self.search_inspector.video_requested.connect(self._save_trajectory_video)
         self.search_inspector.state_changed.connect(self._refresh_scene)
         self.plan_view.state_changed.connect(self._refresh_scene)
@@ -68,7 +70,7 @@ class ExcavatorOperationsWindow(QMainWindow):
             ("New planning run…", self._new_planning, "Ctrl+N"),
             ("Open stacking run…", self._choose_artifact, "Ctrl+O"),
             ("Resume planning…", self._resume_planning, None),
-            ("Reload run", self._reload, "Ctrl+R"),
+            ("Refresh run", self._reload, "Ctrl+R"),
             ("Export summary…", self._export_summary, None),
         ):
             action = QAction(label, self)
@@ -77,6 +79,9 @@ class ExcavatorOperationsWindow(QMainWindow):
                 action.setShortcut(shortcut)
             menu.addAction(action)
             toolbar.addAction(action)
+            if slot == self._reload:
+                self.refresh_action = action
+                action.setEnabled(False)
         reset = QAction("Reset camera", self)
         reset.setShortcut("R")
         reset.triggered.connect(self._reset_camera)
@@ -108,20 +113,32 @@ class ExcavatorOperationsWindow(QMainWindow):
         self.scene_view.set_object_geometry_mode(self.object_geometry_selector.currentData())
         self._refresh_scene()
 
-    def open_artifact(self, path):
+    def open_artifact(self, path, *, refresh=False):
         if self._video_exporting:
             return
+        self.plan_view._stop_playback()
+        self.search_inspector._timeline_render_timer.stop()
         try:
-            self.controller.load(path)
-        except (OSError, ValueError, TypeError, KeyError, RuntimeError) as error:
-            QMessageBox.critical(self, "Cannot open excavator run", str(error))
+            if refresh:
+                self.controller.reload(path)
+            else:
+                self.controller.load(path)
+        except (OSError, ValueError, TypeError, KeyError, RuntimeError, sqlite3.Error) as error:
+            QMessageBox.critical(self, "Cannot refresh excavator run" if refresh else "Cannot open excavator run", str(error))
             return
         self._artifact_path = Path(path).resolve()
+        self.refresh_action.setEnabled(True)
+        self.search_inspector.refresh_button.setEnabled(True)
         self.search_inspector.refresh(str(self._artifact_path))
         self.plan_view.refresh()
-        if self.controller.current_plan is not None:
+        if not refresh and self.controller.current_plan is not None:
             self.tabs.setCurrentWidget(self.plan_view)
         self._refresh_scene()
+        if refresh:
+            self.statusBar().showMessage(
+                f"Refreshed {self._artifact_path.name}: {len(self.controller.artifact.steps)} steps, "
+                f"{len(self.controller.planning_records)} planning attempts"
+            )
 
     def _choose_artifact(self):
         filename, _ = QFileDialog.getOpenFileName(self, "Open excavator run",
@@ -131,7 +148,10 @@ class ExcavatorOperationsWindow(QMainWindow):
 
     def _reload(self):
         if self._artifact_path:
-            self.open_artifact(self._artifact_path)
+            if self._video_exporting:
+                self.statusBar().showMessage("Finish video export before refreshing the run.")
+                return
+            self.open_artifact(self._artifact_path, refresh=True)
 
     def _new_planning(self):
         self._show_planning()
@@ -154,15 +174,18 @@ class ExcavatorOperationsWindow(QMainWindow):
 
     def _show_planning(self, source=None):
         if self._planning_dialog is not None and self._planning_dialog.running:
-            self._planning_dialog.show()
+            self._planning_dialog.showNormal()
             self._planning_dialog.raise_()
             return
         if self._planning_dialog is not None:
             self._planning_dialog.close()
             self._planning_dialog.deleteLater()
         self._planning_dialog = PlanningRunDialog(self.repository, source, self)
-        self._planning_dialog.run_available.connect(self.open_artifact)
+        self._planning_dialog.run_available.connect(self._open_planning_run)
         self._planning_dialog.show()
+
+    def _open_planning_run(self, path):
+        self.open_artifact(path, refresh=Path(path).resolve() == self._artifact_path)
 
     def _export_summary(self):
         if self._artifact_path is None:

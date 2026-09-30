@@ -173,6 +173,36 @@ class OperationsController:
         self.set_artifact(artifact, planning_records=planning_records)
         return artifact
 
+    def reload(self, path: str | Path) -> MCTSDebugArtifact:
+        """Read newly committed run data while retaining valid viewer selections."""
+        step = self.current_step
+        candidate_id = self.active_candidate_id
+        replay_frame = self.timeline_frame
+        attempt = self.plan_attempt
+        segment = self.plan_segment_index
+        sample = self.plan_sample_index
+        fraction = self.plan_sample_fraction
+        camera_reset = self._camera_reset_requested
+        artifact = self.load(path)
+        if step is not None:
+            index = next((index for index, value in enumerate(artifact.steps)
+                          if value.step == step.step), None)
+            if index is not None:
+                self.select_step(index)
+                if any(value.candidate_id == candidate_id for value in self.current_step.candidates):
+                    self.select_candidate(candidate_id)
+                    if self.timeline_frame_count:
+                        self.set_timeline_frame(min(replay_frame, self.timeline_frame_count - 1))
+                if any(value.attempt == attempt for value in self.current_plans):
+                    self.select_plan_attempt(attempt)
+                    if self.current_plan.result.segments:
+                        self.select_plan_segment(min(segment, len(self.current_plan.result.segments) - 1))
+                        if self.plan_sample_count:
+                            self.set_plan_sample(min(sample, self.plan_sample_count - 1))
+                            self.set_plan_interpolation(fraction)
+            self._camera_reset_requested = camera_reset
+        return artifact
+
     def set_artifact(
         self,
         artifact: MCTSDebugArtifact,

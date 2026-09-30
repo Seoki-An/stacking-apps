@@ -137,6 +137,8 @@ def test_cli_search_completes_and_open_result_emits_path(qt, tmp_path, scan_over
         assert not StackRunStore.load_execution_commands(output)
         assert dialog.inputs.isEnabled() and dialog.start_button.isEnabled()
         assert dialog.open_button.isEnabled()
+        assert opened and all(path == output for path in opened)
+        opened.clear()
         dialog.open_button.click()
         assert opened == [output]
     finally:
@@ -208,7 +210,7 @@ def test_window_new_action_single_dialog_and_hardware_guard(qt, monkeypatch, tmp
         dialog = window._planning_dialog
         assert dialog is not None and not dialog.running
         # Refocus a running process instead of starting a second planner.
-        active = SimpleNamespace(running=True, show=lambda: None, raise_=lambda: None)
+        active = SimpleNamespace(running=True, showNormal=lambda: None, raise_=lambda: None)
         window._planning_dialog = active
         action.trigger()
         assert window._planning_dialog is active

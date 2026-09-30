@@ -3,6 +3,7 @@
 from pathlib import Path
 from dataclasses import replace
 import os
+import sqlite3
 import tempfile
 
 from PySide6.QtGui import QAction
@@ -107,6 +108,7 @@ class StackingOperationsWindow(QMainWindow):
         self.tabs.addTab(self.execution_view, "Execution")
         self.tabs.setCurrentWidget(self.search_inspector)
         self.search_inspector.open_requested.connect(self._choose_artifact)
+        self.search_inspector.refresh_requested.connect(self._reload)
         self.search_inspector.video_requested.connect(self._save_trajectory_video)
         self.search_inspector.state_changed.connect(self._refresh_scene)
         self.plan_view.state_changed.connect(self._refresh_scene)
@@ -135,6 +137,12 @@ class StackingOperationsWindow(QMainWindow):
         open_action.setShortcut("Ctrl+O")
         open_action.triggered.connect(self._choose_artifact)
         file_menu.addAction(open_action)
+        self.refresh_action = QAction("Refresh run", self)
+        self.refresh_action.setShortcut("Ctrl+R")
+        self.refresh_action.setEnabled(False)
+        self.refresh_action.triggered.connect(self._reload)
+        file_menu.addAction(self.refresh_action)
+        planning_toolbar.addAction(self.refresh_action)
         export_action = QAction("Export run summary…", self)
         export_action.triggered.connect(self._export_summary)
         file_menu.addAction(export_action)
@@ -166,24 +174,43 @@ class StackingOperationsWindow(QMainWindow):
         self.scene_view.set_object_geometry_mode(self.object_geometry_selector.currentData())
         self._refresh_scene()
 
-    def open_artifact(self, path: str | Path) -> None:
+    def open_artifact(self, path: str | Path, *, refresh: bool = False) -> None:
         if self._video_exporting or self.execution_running:
             return
         path = Path(path).resolve()
+        self.plan_view._stop_playback()
+        self.search_inspector._timeline_render_timer.stop()
         try:
-            self.controller.load(path)
-        except (OSError, TypeError, ValueError, KeyError) as error:
+            if refresh:
+                self.controller.reload(path)
+            else:
+                self.controller.load(path)
+        except (OSError, TypeError, ValueError, KeyError, RuntimeError, sqlite3.Error) as error:
             QMessageBox.critical(
                 self,
-                "Cannot open stacking run",
+                "Cannot refresh stacking run" if refresh else "Cannot open stacking run",
                 str(error),
             )
             return
         self.search_inspector.refresh(str(path))
         self._artifact_path = path
+        self.refresh_action.setEnabled(path.suffix.lower() == ".stack")
+        self.search_inspector.refresh_button.setEnabled(self.refresh_action.isEnabled())
         self.plan_view.refresh()
         self.execution_view.load(path)
         self._refresh_scene()
+        if refresh:
+            self.statusBar().showMessage(
+                f"Refreshed {path.name}: {len(self.controller.artifact.steps)} steps, "
+                f"{len(self.controller.planning_records)} planning attempts"
+            )
+
+    def _reload(self):
+        if self._artifact_path is not None and self._artifact_path.suffix.lower() == ".stack":
+            if self._video_exporting or self.execution_running:
+                self.statusBar().showMessage("Finish video export or execution before refreshing the run.")
+                return
+            self.open_artifact(self._artifact_path, refresh=True)
 
     def _export_summary(self):
         if self._artifact_path is None or self._artifact_path.suffix != ".stack":
@@ -235,7 +262,7 @@ class StackingOperationsWindow(QMainWindow):
         if self.execution_running or self.field_running or self._video_exporting:
             return
         if self._planning_dialog is not None and self._planning_dialog.running:
-            self._planning_dialog.show()
+            self._planning_dialog.showNormal()
             self._planning_dialog.raise_()
             return
         if self._planning_dialog is not None:
@@ -244,14 +271,14 @@ class StackingOperationsWindow(QMainWindow):
         from .planning_run import PlanningRunDialog
         self._planning_dialog = PlanningRunDialog(self.repository, parent=self)
         self._planning_dialog.can_start = lambda: not self.execution_running and not self.field_running and not self._video_exporting
-        self._planning_dialog.run_available.connect(self.open_artifact)
+        self._planning_dialog.run_available.connect(self._open_planning_run)
         self._planning_dialog.show()
 
     def _resume_planning(self):
         if self.execution_running or self.field_running or self._video_exporting:
             return
         if self._planning_dialog is not None and self._planning_dialog.running:
-            self._planning_dialog.show()
+            self._planning_dialog.showNormal()
             self._planning_dialog.raise_()
             return
         try:
@@ -280,7 +307,7 @@ class StackingOperationsWindow(QMainWindow):
             self._planning_dialog.deleteLater()
         self._planning_dialog = PlanningRunDialog(self.repository, self._artifact_path,
                                                   destination, config, self)
-        self._planning_dialog.run_available.connect(self.open_artifact)
+        self._planning_dialog.run_available.connect(self._open_planning_run)
         self._planning_dialog.show()
 
     def _choose_artifact(self) -> None:
@@ -292,6 +319,9 @@ class StackingOperationsWindow(QMainWindow):
         )
         if filename:
             self.open_artifact(filename)
+
+    def _open_planning_run(self, path):
+        self.open_artifact(path, refresh=Path(path).resolve() == self._artifact_path)
 
     def _planning_frame(self):
         projector = self.controller.trajectory_projector

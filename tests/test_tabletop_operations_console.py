@@ -66,6 +66,46 @@ def test_operations_controller_loads_native_stack_run(tmp_path: Path) -> None:
     assert controller.current_step.selected_candidate_id == "step-1-candidate-1"
 
 
+def test_refresh_reads_committed_steps_without_resetting_selection(tmp_path):
+    artifact = _artifact()
+    path = tmp_path / "growing.stack"
+    with StackRunStore.create_mcts(path, replace(artifact, steps=())) as writer:
+        writer.append_mcts_step(artifact.steps[0])
+        controller = OperationsController()
+        controller.load(path)
+        controller.consume_camera_reset_request()
+        candidate_id = controller.active_candidate_id
+        controller.set_pose_mode(CandidatePoseMode.TRAJECTORY)
+        controller.set_timeline_frame(1)
+        writer.append_mcts_step(artifact.steps[1])
+        controller.reload(path)
+        assert len(controller.artifact.steps) == 2
+        assert controller.current_step.step == artifact.steps[0].step
+        assert controller.active_candidate_id == candidate_id
+        assert controller.timeline_frame == 1
+        assert controller.pose_mode is CandidatePoseMode.TRAJECTORY
+        assert not controller.consume_camera_reset_request()
+        loaded = controller.artifact
+        with pytest.raises((OSError, ValueError)):
+            controller.reload(tmp_path / "missing.stack")
+        assert controller.artifact is loaded
+        assert controller.timeline_frame == 1
+
+
+def test_refresh_of_initially_empty_run_shows_first_committed_step(tmp_path):
+    artifact = _artifact()
+    path = tmp_path / "empty.stack"
+    with StackRunStore.create_mcts(path, replace(artifact, steps=())) as writer:
+        controller = OperationsController()
+        controller.load(path)
+        assert controller.current_step is None
+        controller.consume_camera_reset_request()
+        writer.append_mcts_step(artifact.steps[0])
+        controller.reload(path)
+        assert controller.current_step.step == artifact.steps[0].step
+        assert controller.consume_camera_reset_request()
+
+
 def test_tabletop_visualization_profile_preserves_environment_layers() -> None:
     profile = load_visualization_profile(
         ROOT / "apps/tabletop/config/visualization.yml"

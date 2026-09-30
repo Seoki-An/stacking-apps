@@ -6,7 +6,7 @@ import signal
 import sqlite3
 import sys
 
-from PySide6.QtCore import QProcess, QProcessEnvironment, Signal
+from PySide6.QtCore import QProcess, QProcessEnvironment, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout, QLineEdit,
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QVBoxLayout, QWidget,
@@ -21,11 +21,16 @@ class PlanningRunDialog(QDialog):
     run_available = Signal(object)
 
     def __init__(self, repository, source=None, parent=None):
-        super().__init__(parent)
+        super().__init__(parent, Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint
+                         | Qt.WindowType.WindowCloseButtonHint)
         self.repository = Path(repository).resolve()
         self.source = None if source is None else Path(source)
         self.destination = None
         self._run_output = None
+        self._announced_path = None
+        self._run_timer = QTimer(self)
+        self._run_timer.setInterval(500)
+        self._run_timer.timeout.connect(self._check_run_available)
         self.setWindowTitle("Resume excavator planning" if source else "New excavator planning run")
         self.resize(850, 650)
         layout = QVBoxLayout(self)
@@ -172,13 +177,33 @@ class PlanningRunDialog(QDialog):
         self.start_button.setEnabled(False)
         self.open_button.setEnabled(False)
         self.stop_button.setText("Stop planning")
+        self._announced_path = None
+        self._run_timer.start()
         self.process.start(sys.executable, arguments)
+
+    def _check_run_available(self, *, final=False):
+        path = self.destination
+        if path is None or not path.is_file() or (not final and path == self._announced_path):
+            return
+        try:
+            StackRunStore.info(path)
+            StackRunStore.load_mcts(path)
+            # The viewer requires context, committed separately from the header.
+            if not StackRunStore.load_run_contexts(path):
+                return
+        except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
+            return
+        self._announced_path = path
+        self._run_timer.stop()
+        self.open_button.setEnabled(True)
+        self.run_available.emit(path)
 
     def _read_output(self):
         self.log.insertPlainText(bytes(self.process.readAllStandardOutput()).decode("utf-8", errors="replace"))
         self.log.verticalScrollBar().setValue(self.log.verticalScrollBar().maximum())
 
     def _finished(self, code, status):
+        self._run_timer.stop()
         self._read_output()
         self.log.appendPlainText(f"\nPlanning process exited: {code}")
         self.inputs.setEnabled(True)
@@ -191,12 +216,7 @@ class PlanningRunDialog(QDialog):
             except (OSError, ValueError, sqlite3.Error) as error:
                 self.log.appendPlainText(f"Could not replace existing run: {error}")
             self.log.appendPlainText(f"Result path: {self.destination}")
-        if self.destination and self.destination.is_file():
-            try:
-                StackRunStore.info(self.destination)
-            except (OSError, ValueError, sqlite3.Error):
-                return
-            self.open_button.setEnabled(True)
+        self._check_run_available(final=True)
 
     def _error(self, error):
         self.log.appendPlainText(self.process.errorString())

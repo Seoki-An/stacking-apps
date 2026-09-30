@@ -134,6 +134,26 @@ pose-mode, diagnostic-layer, environment-layer, planning-attempt, and tab
 changes. Camera reset occurs only when a new run is loaded or the operator
 explicitly selects **Reset camera**.
 
+Both operations consoles provide **Refresh run** beside the open-file controls
+and in the Planning toolbar / File menu (`Ctrl+R`). This rereads committed
+updates from the currently open `.stack` without reopening the file picker,
+including when a planning process is still writing the run. Existing step,
+candidate, planning-attempt and replay selections are retained where available;
+new steps and attempts appear in their selectors. Refresh pauses playback and
+preserves the current tab, camera and rendering toggles. It is unavailable
+before a `.stack` is opened, and requests during video export or active tabletop
+execution are blocked.
+
+Starting planning in either console automatically opens its output `.stack`
+as soon as the committed header is readable (and, for excavator, the recorded
+planning context is available). The viewer may initially have no completed
+steps; use **Refresh run** during planning to inspect newly committed results.
+Completion automatically loads the final result, including the published path
+when replacing an existing run. Planning progress is a non-modal window with
+its own minimize/maximize controls: minimizing it leaves the viewer usable and
+planning running. Selecting **New planning run** again restores an active
+minimized progress window instead of launching another planner.
+
 Scene replacement is render-suppressed until all actors and the preserved
 camera are ready, preventing a blank intermediate frame. Replay slider changes
 are coalesced over a short interval so rapid scrubbing does not enqueue a full
