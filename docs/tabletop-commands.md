@@ -257,3 +257,13 @@ QT_QPA_PLATFORM=offscreen python -m pytest -q \
 
 These tests use simulated devices and do not command the hardware. Append
 `--help` to any CLI above to inspect all available options.
+
+
+## Placement robustness tuning
+
+The tabletop `apps/tabletop/config/environment.yml` file controls the
+`reward.place_stability` noisy-placement trials and the separate
+`reward.weights.place_stability` reward weight. Trials are enabled with eight
+samples, 5 mm XYZ noise, 5 degree rotation noise, and 0.01 m/rad rotation weight.
+See [placement robustness settings](excavator-simulation.md#placement-robustness-reward)
+for the shared algorithm, rejection threshold, reward clipping, and runtime cost.

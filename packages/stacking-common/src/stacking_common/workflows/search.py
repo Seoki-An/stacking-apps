@@ -58,6 +58,7 @@ class StackingSearchApplication:
         return CorePlacementBackend.from_profile(
             inventory.models,
             profile,
+            place_stability=self.environment_profile.place_stability,
         )
 
     def build_pose_solver(

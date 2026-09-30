@@ -143,3 +143,64 @@ xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 \
   tests/test_tabletop_operations_console.py tests/test_tabletop_execution_console.py \
   tests/test_dsf_rendering.py tests/test_plan_playback_rendering.py -q
 ```
+
+
+## Placement robustness reward
+
+Both platform `config/environment.yml` files now expose `reward.place_stability`.
+This restores the noisy-placement trials from `stacking-planner` and
+`stacking-tabletop`; it is distinct from the ordinary structural motion limit.
+After initial settling, each trial perturbs that settled pose, creates a fresh
+simulation with previously placed stones fixed at their pre-action poses, and
+moves only the new stone. The metric is the maximum across trials of
+translation distance plus `rotation_weight` times shortest rotation angle in
+radians, measured from the noisy start to the final pose. Trials never replace
+the nominal scene or action pose. Seeds depend on configured seed, placement
+step, inventory index and object ID, as in the legacy implementations.
+
+| Field under `reward.place_stability` | Excavator | Tabletop |
+| --- | --- | --- |
+| `enabled` | `true` | `true` |
+| `n_noise` | 4 | 8 |
+| `position_std` (XYZ, metres) | `[0.02, 0.02, 0.05]` | `[0.005, 0.005, 0.005]` |
+| `rotation_std_deg` | 5 | 5 |
+| `rotation_weight` (metres/radian) | 0.1 | 0.01 |
+| `reject_failed_trials` | `true` | `false` |
+| `fail_displacement` | `null` | `null` |
+| `seed` | 0 | 0 |
+
+Noise values follow each legacy project's `agent/configs/config.yml`. The excavator
+legacy ablation profile disabled robustness and used smaller XY noise;
+set `enabled: false` to skip the trials. Missing sections in older profiles
+also leave trials disabled. More trials increase candidate evaluation cost.
+Trials use the selected short/long structural phase's stopping thresholds,
+twice its time step, and the corresponding structural physics in fresh
+simulators. Existing placements remain at rest throughout each trial.
+
+`reward.weights.place_stability` multiplies the negative worst displacement.
+The existing `reward.max_displacement` caps only the reward value;
+`reward.nonfinite_displacement` supplies its nonfinite fallback.
+`reject_failed_trials: true` rejects a candidate if **any** noisy trial exceeds
+its structural `velocity_integral_threshold`, produces nonfinite simulation
+values, or stops without settling. Settling requires energy below
+`energy_threshold` for the phase's extra steps after `min_time`; reaching
+`max_time` without that rest period fails. The legacy near-motion-limit stopping
+shortcut is retained for scoring but does not count as genuine rest. The option
+is enabled for excavator and defaults to false when omitted; tabletop exposes
+it as false so its existing acceptance behavior is preserved. Both short search
+and long validation apply it. Failures use rejection reason `place_robustness`,
+so another reward term cannot compensate for a failed trial.
+
+The independent `fail_displacement` option rejects a result whose worst trial
+displacement exceeds its numeric limit (including nonfinite results).
+`reject_failed_trials: false` together with `fail_displacement: null` leaves
+robustness as a soft reward signal. Unlike the old pre-rejection clipping, the hard check uses
+the raw displacement so the reward cap cannot hide failure.
+
+Action diagnostics retain per-trial and raw displacement, enabled/failed flags,
+and `place_robustness_trial_failure_reasons` (one entry per trial: `null` for a
+pass, otherwise `target_motion_limit`, `not_settled`, or `nonfinite_simulation`),
+plus `simulation_robustness_wall_seconds`. The measured value propagates through
+`PlacementResult`, action history, and saved action artifacts into the reward.
+Ordinary structural acceptance still uses `velocity_integral_threshold` in
+`config/solvers/simulation.yml`; it is not a substitute for these noisy trials.

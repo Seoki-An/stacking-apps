@@ -20,6 +20,7 @@ from stacking_common.planning import (
 )
 
 from .transition import PlacementResult
+from .robustness import PlaceStabilityConfig, evaluate_place_stability
 
 
 @dataclass
@@ -341,6 +342,7 @@ class CorePlacementBackend:
         models: Mapping[int, object],
         profile: CoreSimulationProfile,
         *,
+        place_stability: PlaceStabilityConfig | None = None,
         core_module=None,
     ) -> "CorePlacementBackend":
         core = core_module
@@ -357,6 +359,7 @@ class CorePlacementBackend:
             profile.placement,
             simulation_config=profile.native_config(core),
             settling_simulation_config=profile.settling_native_config(core),
+            place_stability=place_stability,
             core_module=core,
         )
 
@@ -367,6 +370,7 @@ class CorePlacementBackend:
         simulation_config=None,
         *,
         settling_simulation_config=None,
+        place_stability: PlaceStabilityConfig | None = None,
         core_module=None,
     ) -> None:
         if core_module is None:
@@ -381,6 +385,7 @@ class CorePlacementBackend:
         self.core = core_module
         self.models = {int(key): value for key, value in models.items()}
         self.config = config
+        self.place_stability = place_stability or PlaceStabilityConfig()
         self.simulation_config = simulation_config
         self.settling_simulation_config = settling_simulation_config
         self.object_ids: list[int] = []
@@ -488,6 +493,23 @@ class CorePlacementBackend:
             finite,
             diagnostics,
         )
+        robustness_started = time.perf_counter()
+        displacement, trials, trial_failure_reasons = evaluate_place_stability(
+            self, state, action,
+            np.asarray(settling_scene.body_pose(self.scene_builder.entity_id(action.object_index)), dtype=float),
+        )
+        robustness_failed = self.place_stability.failed(displacement, trial_failure_reasons)
+        if robustness_failed and rejection_reason is None:
+            rejection_reason = 'place_robustness'
+        diagnostics.update({
+            'place_robustness_enabled': self.place_stability.active,
+            'place_robustness_trial_displacements': trials,
+            'place_robustness_trial_failure_reasons': trial_failure_reasons,
+            'place_robustness_raw_displacement': displacement,
+            'place_robustness_failed': robustness_failed,
+            'simulation_robustness_wall_seconds': time.perf_counter() - robustness_started,
+            'simulation_total_wall_seconds': time.perf_counter() - placement_started,
+        })
         if rejection_reason is not None:
             diagnostics["rejection_reason"] = rejection_reason
         return PlacementResult(
@@ -496,6 +518,7 @@ class CorePlacementBackend:
             contact_points=contacts,
             failed=bool(rejection_reason is not None),
             settled=bool(finite and structural_result.settled),
+            place_robustness_displacement=displacement,
             diagnostics=diagnostics,
         )
 

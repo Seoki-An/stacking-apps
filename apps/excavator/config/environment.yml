@@ -16,6 +16,17 @@ reward:
   containment_threshold: 0.7
   nonfinite_displacement: 2.0
   max_displacement: 1.0
+  # Noisy-placement trials using this platform's legacy config.yml values.
+  place_stability:
+    enabled: true
+    n_noise: 4
+    position_std: [0.02, 0.02, 0.05]
+    rotation_std_deg: 5.0
+    rotation_weight: 0.1
+    # Reject if any noisy trial exceeds the motion limit or does not settle.
+    reject_failed_trials: true
+    fail_displacement: null
+    seed: 0
   weights:
     stability: 0.5
     object_containment: 2.0

@@ -224,6 +224,7 @@ class TabletopApplication(StackingSearchApplication):
         placement_backend = CorePlacementBackend.from_profile(
             inventory.models,
             self.short_simulation_profile,
+            place_stability=self.environment_profile.place_stability,
             core_module=core_module,
         )
         placement_backend.reset(inventory.object_ids)

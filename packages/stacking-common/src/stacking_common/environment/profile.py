@@ -1,12 +1,13 @@
 """Typed common contract for a resolved environment profile."""
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
 from .observation import ObservationConfig
 from .reward import RewardConfig, RewardWeights
+from .robustness import PlaceStabilityConfig
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,7 @@ class EnvironmentProfile:
     height_map_margin: float
     overlap_resolution: float
     reward: RewardConfig
+    place_stability: PlaceStabilityConfig = field(default_factory=PlaceStabilityConfig)
 
     def __post_init__(self) -> None:
         if self.surface_sample_count <= 0:
@@ -100,6 +102,7 @@ class EnvironmentProfile:
                 _required(reward, "overlap_resolution")
             ),
             reward=reward_config,
+            place_stability=PlaceStabilityConfig.from_mapping(reward.get("place_stability", {})),
         )
 
 
