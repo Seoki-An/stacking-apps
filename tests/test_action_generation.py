@@ -1124,3 +1124,211 @@ def test_cem_retry_changes_seed_and_excludes_previous_roots() -> None:
         )
         for candidate in retry.candidates
     )
+
+
+def test_batched_solver_keeps_initial_rejections_order_and_filters():
+    inventory = _inventory(3)
+    calls = []
+
+    class BatchSolver(_PoseSolver):
+        def solve_batch(self, inventory, requests):
+            calls.append(tuple(requests))
+            return [_PoseSolver.solve(self, inventory, *job) for job in requests]
+
+    generator = PlacementActionGenerator(inventory, PlacementActionGeneratorConfig(
+        max_poses_per_object=1, initial_height_clearance=.01, initial_height_xy_padding=0.,
+        posegen_gap_threshold=.001, banned_object_ids=(30,),
+    ), _PlanarSampler(), _Initializer(), BatchSolver())
+    state = _state(inventory)
+    result = generator.build_candidates(state, [(2, PlanarPlacement(_pose())),
+        (1, PlanarPlacement(_pose())), (0, PlanarPlacement(_pose()))])
+    assert [job[1] for job in calls[0]] == [1, 0]
+    assert result[0] == (None, 'banned_object')
+    assert result[1] == (None, 'posegen_gap')
+    assert result[2][0].action.object_id == 10
+    assert generator._executor is None
+    assert generator.build_candidates(state, []) == ()
+    assert len(calls) == 1
+    assert generator.build_candidates(_state(inventory, (0,)), [(0, PlanarPlacement(_pose()))]) == (
+        (None, 'object_already_placed'),)
+    assert len(calls) == 1
+
+
+def test_batched_solver_combines_multiple_states():
+    inventory = _inventory()
+    calls = []
+
+    class BatchSolver(_PoseSolver):
+        def solve_batch(self, inventory, requests):
+            calls.append(tuple(requests))
+            return [_PoseSolver.solve(self, inventory, *job) for job in requests]
+
+    generator = PlacementActionGenerator(inventory, PlacementActionGeneratorConfig(
+        max_poses_per_object=1, initial_height_clearance=.01, initial_height_xy_padding=0.,
+        posegen_gap_threshold=None,
+    ), _PlanarSampler(), _Initializer(), BatchSolver())
+    states = (_state(inventory), _state(inventory, (0,)))
+    results = generator.generate_batch(states, (None, None), (
+        ActionGenerationRequest(max_candidates=1), ActionGenerationRequest(max_candidates=1)))
+    assert len(calls) == 1
+    assert [job[0] for job in calls[0]] == list(states)
+    assert [result.candidates[0].action.object_id for result in results] == [10, 20]
+
+
+@pytest.mark.parametrize('require_convergence', [False, True])
+def test_invalid_solver_result_cannot_become_an_action(require_convergence):
+    inventory = _inventory()
+    generator = PlacementActionGenerator(inventory, PlacementActionGeneratorConfig(
+        max_poses_per_object=1, initial_height_clearance=.01, initial_height_xy_padding=0.,
+        posegen_gap_threshold=None,
+    ), _PlanarSampler(), _Initializer(), _PoseSolver())
+    generator.filters = ()  # Unconditional rejection must not rely on filters.
+    failed = PlacementSolveResult(_pose(), 0., 0., converged=False,
+                                  rejection_reason='posegen_geometry_failure', valid=False)
+    assert generator._finish_candidate(_state(inventory), 0, PlanarPlacement(_pose()),
+                                       InitializedPlacement(_pose(), 0.), failed) == (
+        None, 'posegen_geometry_failure')
+    from stacking_common.actions.filtering import PosegenFeasibilityFilter
+    assert not PosegenFeasibilityFilter(None, None,
+        require_solver_convergence=require_convergence).evaluate(None, None, None, None, failed).accepted
+
+
+def test_invalid_solver_result_requires_explicit_failure():
+    with pytest.raises(ValueError, match='invalid placement solve'):
+        PlacementSolveResult(_pose(), 0., 0., valid=False)
+    with pytest.raises(ValueError, match='invalid placement solve'):
+        PlacementSolveResult(_pose(), 0., 0., converged=False, valid=False)
+
+
+def test_batched_ply_bounds_match_scalar_and_refresh_after_state_changes(tmp_path, monkeypatch):
+    from stacking_common.actions.ply_height import PlyHeightInitializer
+
+    inventory = _inventory(3)
+    initializer = PlyHeightInitializer(tmp_path, clearance=.01, xy_padding=.005)
+    first = _state(inventory, (0, 1))  # Equal-height supports must retain their order.
+    second = first.copy()
+    second.object_poses[10][0] = 1.
+    second.object_poses[20][2] = .08
+    empty = _state(inventory)
+    rotated = _pose(x=.01)
+    rotated[3:] = Rotation.from_euler('xyz', [.1, .2, .3]).as_quat()
+    jobs = [(0, first, 2, PlanarPlacement(rotated)),
+            (1, second, 2, PlanarPlacement(_pose())),
+            (2, empty, 2, PlanarPlacement(_pose())),
+            (0, first, 2, PlanarPlacement(_pose())),
+            (1, second, 2, PlanarPlacement(rotated))]
+
+    class BatchSolver:
+        fail = False
+        requests = ()
+
+        def solve_batch(self, inventory, requests):
+            self.requests = tuple(requests)
+            if self.fail:
+                raise RuntimeError('test solver failure')
+            return [PlacementSolveResult(initial.pose, 0., 0.) for _, _, initial in requests]
+
+    solver = BatchSolver()
+    generator = PlacementActionGenerator(inventory, PlacementActionGeneratorConfig(
+        max_poses_per_object=1, initial_height_clearance=.01, initial_height_xy_padding=.005,
+        posegen_gap_threshold=None,
+    ), _PlanarSampler(), initializer, solver)
+    calls = []
+    prepare = initializer.prepare_scene
+
+    def counted(inventory, state):
+        calls.append(state)
+        return prepare(inventory, state)
+
+    monkeypatch.setattr(initializer, 'prepare_scene', counted)
+
+    def check():
+        expected = [initializer.initialize(inventory, state, index, proposal)
+                    for _, state, index, proposal in jobs]
+        calls.clear()
+        actual = generator._build_jobs(jobs)
+        assert [id(state) for state in calls] == [id(first), id(second), id(empty)]
+        for (candidate, reason), (_, _, initial), ref in zip(actual, solver.requests, expected):
+            assert reason is None
+            np.testing.assert_array_equal(candidate.action.pose, ref.pose)
+            np.testing.assert_array_equal(initial.pose, ref.pose)
+            assert initial.support_height == ref.support_height
+            assert initial.support_object_indices == ref.support_object_indices
+            assert initial.diagnostics == ref.diagnostics
+        return actual
+
+    before = check()
+    assert solver.requests[3][2].support_object_indices == (0, 1)
+    first.object_poses[10][2] += .1  # Same State instance, new contents next batch.
+    after = check()
+    assert after[0][0].action.pose[2] > before[0][0].action.pose[2]
+    solver.fail = True
+    with pytest.raises(RuntimeError, match='test solver failure'):
+        generator._build_jobs(jobs)
+    first.object_poses[10][2] += .1
+    solver.fail = False
+    check()  # A failed batch must not retain prepared bounds either.
+
+
+@pytest.mark.parametrize('coverage_mode', ['bottom_slice', 'projected_footprint'])
+def test_batched_floor_context_matches_scalar_for_mixed_states_and_refreshes(coverage_mode, monkeypatch):
+    inventory = _inventory()
+    policy = TabletopPlacementSafety(inventory)
+    policy.coverage_mode = coverage_mode
+    first = _state(inventory, (0,))
+    second = first.copy()
+    second.object_poses[10][0] = -.1
+    empty = _state(inventory)
+
+    class Initializer:
+        def initialize(self, inventory, state, index, proposal):
+            return InitializedPlacement(proposal.pose, 0.)
+
+    class BatchSolver(_PoseSolver):
+        def solve_batch(self, inventory, requests):
+            return [self.solve(inventory, *request) for request in requests]
+
+    solver = BatchSolver()
+    generator = PlacementActionGenerator(inventory, PlacementActionGeneratorConfig(
+        max_poses_per_object=1, initial_height_clearance=.01, initial_height_xy_padding=0.,
+        posegen_gap_threshold=None,
+    ), _PlanarSampler(), Initializer(), solver, filters=(ActiveFloorFilter(policy),))
+    jobs = [(0, first, 1, PlanarPlacement(_pose(x=.04, z=.02))),
+            (1, second, 1, PlanarPlacement(_pose(x=.04, z=.02))),
+            (2, empty, 1, PlanarPlacement(_pose(x=.04, z=.02))),
+            (0, first, 1, PlanarPlacement(_pose(z=.08))),
+            (1, second, 1, PlanarPlacement(_pose(x=-.06, z=.02))),
+            (0, first, 1, PlanarPlacement(_pose(x=-.10, z=.02)))]
+    calls = []
+    context_details = policy.context_details
+
+    def counted(state):
+        calls.append(state)
+        return context_details(state)
+
+    monkeypatch.setattr(policy, 'context_details', counted)
+
+    def check():
+        expected = [generator._build_candidate_with_solver(solver, state, index, proposal)
+                    for _, state, index, proposal in jobs]
+        calls.clear()
+        actual = generator._build_jobs(jobs)
+        assert [id(state) for state in calls] == [id(first), id(second), id(empty)]
+        for (candidate, reason), (ref, ref_reason) in zip(actual, expected):
+            assert reason == ref_reason
+            assert (candidate is None) == (ref is None)
+            if candidate is not None:
+                np.testing.assert_array_equal(candidate.action.pose, ref.action.pose)
+                assert candidate.diagnostics == ref.diagnostics
+        return actual
+
+    before = check()
+    assert before[0][1] is None
+    assert before[1][1] == 'active_floor_disconnected_active_layer'
+    assert before[3][1] == 'active_floor_above_active_layer'
+    first.object_poses[10][0] = .12
+    after = check()
+    assert after[0][1] == 'active_floor_disconnected_active_layer'
+    # Returning to an old pose still builds a fresh per-batch context.
+    first.object_poses[10][0] = 0.
+    check()

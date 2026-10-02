@@ -28,6 +28,21 @@ from .types import PlanarPlacement
 ObservationT = TypeVar("ObservationT")
 
 
+def _prepared_scene_kwargs(service, inventory, state, contexts):
+    """Optional preparation, owned only by this batch of read-only states.
+
+    The job list retains the states and the generator retains its services, so
+    identity keys cannot be recycled during the batch. Nothing survives it.
+    """
+    prepare = getattr(service, "prepare_scene", None)
+    if contexts is None or not callable(prepare):
+        return {}
+    key = (id(service), id(state))
+    if key not in contexts:
+        contexts[key] = prepare(inventory, state)
+    return {"scene_context": contexts[key]}
+
+
 class PlacementActionGenerator(Generic[ObservationT]):
     """Build bounded common actions from injected proposal and solve services."""
 
@@ -162,6 +177,8 @@ class PlacementActionGenerator(Generic[ObservationT]):
         """Solve ordered, potentially multi-state jobs on owned workers."""
 
         jobs = tuple(jobs)
+        if callable(getattr(self.pose_solver, "solve_batch", None)):
+            return self._build_batched_jobs(jobs)
         if len(self.pose_solvers) == 1 or len(jobs) <= 1:
             return tuple(
                 self._build_candidate_with_solver(
@@ -198,6 +215,28 @@ class PlacementActionGenerator(Generic[ObservationT]):
         results.sort(key=lambda item: item[0])
         return tuple(result for _, result in results)
 
+    def _build_batched_jobs(self, jobs):
+        results = [None for _ in jobs]
+        requests = []
+        prepared = []
+        scene_contexts = {}
+        for index, (_, state, object_index, proposal) in enumerate(jobs):
+            initial, reason = self._initialize_candidate(
+                state, object_index, proposal, scene_contexts=scene_contexts)
+            if reason is not None:
+                results[index] = (None, reason)
+            else:
+                requests.append((state, object_index, initial))
+                prepared.append((index, state, object_index, proposal, initial))
+        if requests:
+            solved = tuple(self.pose_solver.solve_batch(self.inventory, requests))
+            if len(solved) != len(requests):
+                raise RuntimeError("batched pose solver returned the wrong number of results")
+            for (index, state, object_index, proposal, initial), result in zip(prepared, solved):
+                results[index] = self._finish_candidate(
+                    state, object_index, proposal, initial, result, scene_contexts=scene_contexts)
+        return tuple(results)
+
     def close(self) -> None:
         """Release the lazily-created pose-generation worker pool."""
 
@@ -212,24 +251,35 @@ class PlacementActionGenerator(Generic[ObservationT]):
         object_index: int,
         proposal: PlanarPlacement,
     ) -> tuple[ActionCandidate | None, str | None]:
+        initial, reason = self._initialize_candidate(state, object_index, proposal)
+        if reason is not None:
+            return None, reason
+        solved = pose_solver.solve(self.inventory, state, object_index, initial)
+        return self._finish_candidate(state, object_index, proposal, initial, solved)
+
+    def _initialize_candidate(self, state, object_index, proposal, *, scene_contexts=None):
         self._validate_state(state)
         if object_index in state.placed_object_indices:
             return None, "object_already_placed"
-        stack_object = self.inventory[object_index]
-        if stack_object.object_id in self.config.banned_object_ids:
+        if self.inventory[object_index].object_id in self.config.banned_object_ids:
             return None, "banned_object"
-        initial = self.initializer.initialize(
-            self.inventory, state, object_index, proposal
-        )
-        solved = pose_solver.solve(self.inventory, state, object_index, initial)
+        kwargs = _prepared_scene_kwargs(self.initializer, self.inventory, state, scene_contexts)
+        return self.initializer.initialize(self.inventory, state, object_index, proposal, **kwargs), None
+
+    def _finish_candidate(self, state, object_index, proposal, initial, solved, *, scene_contexts=None):
+        if not solved.valid:
+            return None, solved.rejection_reason
+        stack_object = self.inventory[object_index]
         filter_diagnostics: dict[str, object] = {}
         for placement_filter in self.filters:
+            kwargs = _prepared_scene_kwargs(placement_filter, self.inventory, state, scene_contexts)
             decision = placement_filter.evaluate(
                 self.inventory,
                 state,
                 object_index,
                 initial,
                 solved,
+                **kwargs,
             )
             filter_diagnostics.update(decision.diagnostics)
             if not decision.accepted:

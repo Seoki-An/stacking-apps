@@ -74,6 +74,109 @@ stone-52 placements among 24 candidates in about 17 seconds, with the same floor
 and stability checks. This verifies recovery of that scene, not completion of a
 full stacking run.
 
+## CUDA pose generation
+
+The excavator profile currently selects the experimental FP32 backend with
+`backend: cuda` in `apps/excavator/config/solvers/posegen.yml`. Install the sibling
+core into the active Python environment and run from this checkout:
+
+```bash
+python -m pip install -e ../stacking-core/python
+stacking-excavator-plan --repository . \
+  --config apps/excavator/config/mcts.yml --search-only --steps 1
+```
+
+The core pip build includes CUDA automatically when `nvcc` is on `PATH` or
+`CUDACXX` specifies a CUDA compiler. Set `STACKING_CORE_ENABLE_CUDA=ON` for the
+install command to require it explicitly. Verify with
+`python -c "import stacking_core as c; print(c.cuda_capabilities())"`;
+`compiled` and `posegen_solve` should both be true. No path override is needed
+with a CUDA-enabled installation. For testing a separate CMake build without
+installing it, prefix the planner command with
+`PYTHONPATH="$PWD/../stacking-core/build-cuda/python${PYTHONPATH:+:$PYTHONPATH}"`.
+
+The startup line reports `posegen=cuda`. A CPU-only installation or missing GPU
+raises an explicit startup error. Loading the CUDA bindings alone does not
+select GPU pose generation; the profile must select it too. Use `backend: cpu`
+to select CPU pose generation. Saved contexts record CUDA selection; resume requires a
+matching profile, so start a new run when changing backends.
+
+One reusable GPU workspace processes batches of up to 128 initialized candidates,
+including candidates from different MCTS states. Each of the four continuation
+stages consumes that candidate's preceding pose and gap feedback. Geometry,
+sharpness, objective weights, tolerances, and placement filters are unchanged.
+Simulation continues to use the existing CPU workers.
+
+Batched action generation prepares placed-stone PLY bounds and active-floor
+context once per input State, sharing them only among proposals in that call.
+Contexts are lazy and local to the call, keyed by collaborator and State
+identity; input states must remain read-only until the call finishes. Different
+MCTS states stay separate. Contexts are discarded on success or exception, so
+pose changes between calls always trigger fresh preparation. Candidate geometry,
+support order, padding and all filter thresholds are unchanged. Initializers
+and filters can opt in through `prepare_scene(inventory, state)` and a
+`scene_context=` keyword; existing scalar calls remain supported.
+
+On the fixed 512-proposal recorded22 benchmark, these two changes reduce GPU
+pipeline time from 7.26 s to 5.24 s with identical recorded results and zero CPU
+pose retries. The fresh 12-worker CPU control takes 5.30 s, approximately equal
+wall time; CPU still accepts more candidates (217 versus 183) due to the existing
+numerical differences. This does not measure simulation or full MCTS throughput.
+See the [scene-reuse measurements](../../stacking-core/docs/gpu-step6.md#implemented-batch-local-scene-reuse)
+for intermediate timings and mixed-state regression coverage.
+
+A `precision_limit` or outer `iteration_limit` status uses the last accepted
+GPU pose and gap for continuation, provided a finite result exists and the inner
+force solver converged. At the final stage it returns that pose with
+`converged=False` and the original limit reason. Existing platform filters decide
+acceptance: excavator permits feasible nonconverged poses; profiles requiring
+convergence reject them. Solver tolerances and physical validation are unchanged.
+
+Geometry/numerical failures, unsupported input, capacity overflow, missing or
+nonfinite results, and unconverged inner force solves reject that candidate.
+There are **no automatic CPU pose retries**. Other candidates continue their
+schedule. Native runtime errors still propagate explicitly. CPU pose generation
+remains available through `backend: cpu`; simulation, initialization and filters
+continue to execute on CPU even when pose solving uses CUDA.
+
+`PlacementSolveResult.valid=False` distinguishes an unusable result from a usable
+nonconverged pose. Such results carry only placeholder pose/cost fields and an
+explicit reason. Action generation rejects them before invoking any optional
+filters, including profiles that allow nonconvergence or disable feasibility
+thresholds. They must never become actions.
+
+Diagnostics include `posegen_cuda_stage_statuses`, `posegen_cuda_failure_reason`
+and `posegen_result_valid`. `posegen_result_backend` is always `cuda`, and
+`posegen_cpu_retry` is always false on this path. Small workspace capacity limits
+reject oversized candidates instead of truncating contacts. This mode remains
+experimental and does not claim CPU/GPU search parity or an end-to-end speedup.
+
+The measurements below describe earlier policies; the GPU-only follow-up in the
+[Step 6 report](../../stacking-core/docs/gpu-step6.md) records the current policy.
+
+Before allowing precision-limited results, a local RTX 5060 Ti smoke run with
+49 objects, the three-round CEM
+population of 96, and a two-iteration depth-one search selected a physically
+validated placement in 9.41 seconds (search wall time, excluding setup). Of 288
+pose candidates, 52 completed all stages on GPU and 236 restarted on CPU: 167
+iteration limits, 67 precision limits, and two geometry failures. This is a
+single integration check, not a speed comparison. The native CPU/GPU search
+tests and CUDA adapter tests also pass; full multi-step search parity remains
+unqualified.
+
+The subsequent [Step 6 measurements](../../stacking-core/docs/gpu-step6.md) use
+this precision-limit policy and a 128-job workspace (about 727 MiB). Core CUDA
+Graph replay and larger chunks preserve the tested GPU results exactly. On 288
+frozen empty-scene proposals, generation drops from 3.41 s (previous GPU, 32-job
+chunks) to 1.88 s; the 12-worker CPU baseline is still faster at 0.33 s. There
+are 169 CPU retries. In the recorded 22-stone scene, 128 proposals take 4.91 s
+on the hybrid GPU path versus 1.40 s on CPU, with 22 retries and three differing
+placement-filter decisions. Two three-placement search sequences per backend
+produce validated selections, but CUDA is slower and selects different sequences.
+Neither backend finds a validated placement in a separate 15-second search from
+the 22-stone state. These bounded checks do not close the throughput or parity
+gates. The core benchmark harness retains timings, retries, and quality evidence.
+
 ## Run
 
 From the `stacking-apps` checkout, with the sibling `stacking-core` checkout:

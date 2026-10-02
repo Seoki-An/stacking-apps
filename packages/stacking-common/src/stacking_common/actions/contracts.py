@@ -45,7 +45,12 @@ class ObjectOrientationProvider(Protocol[ObservationT]):
 
 
 class PlacementInitializer(Protocol):
-    """Raise one planar proposal above its inferred support surface."""
+    """Raise one planar proposal above its inferred support surface.
+
+    An optional ``prepare_scene(inventory, state)`` hook may return shared
+    geometry for a batch's read-only state. Implementations exposing it also
+    accept ``scene_context=`` in initialize; scalar callers need neither.
+    """
 
     def initialize(
         self,
@@ -70,8 +75,24 @@ class PlacementPoseSolver(Protocol):
         """Return a native-backend-independent pose solve result."""
 
 
+class BatchedPlacementPoseSolver(PlacementPoseSolver, Protocol):
+    """Optional batch capability used instead of per-candidate worker calls."""
+
+    def solve_batch(
+        self,
+        inventory: ObjectInventory,
+        requests: Sequence[tuple[State, int, InitializedPlacement]],
+    ) -> Sequence[PlacementSolveResult]:
+        """Return one result per request, preserving input order."""
+
+
 class PlacementFilter(Protocol):
-    """Accept or reject one solved placement with an explicit reason."""
+    """Accept or reject one solved placement with an explicit reason.
+
+    Filters may expose ``prepare_scene(inventory, state)`` and accept its result
+    as ``scene_context=`` in evaluate. Preparation is lazy, shared only within
+    one batch's read-only state, and never retained across batches.
+    """
 
     def evaluate(
         self,

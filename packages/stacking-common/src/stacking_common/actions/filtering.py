@@ -20,10 +20,13 @@ class ActiveFloorFilter:
     def __init__(self, policy) -> None:
         self.policy = policy
 
-    def evaluate(self, inventory, state, object_index, initial, solved):
+    def prepare_scene(self, inventory, state):
+        return self.policy.context_details(state)
+
+    def evaluate(self, inventory, state, object_index, initial, solved, *, scene_context=None):
         action = Action(object_index, solved.pose, initial.pose,
                         object_id=inventory[object_index].object_id)
-        reason, diagnostics = self.policy.active_floor_rejection(state, action)
+        reason, diagnostics = self.policy.active_floor_rejection(state, action, context=scene_context)
         if reason is not None:
             return PlacementFilterDecision.reject(f"active_floor_{reason}", **diagnostics)
         return PlacementFilterDecision.accept(**diagnostics)
@@ -116,6 +119,8 @@ class PosegenFeasibilityFilter:
             "posegen_c_gap": solved.c_gap,
             "posegen_gap_threshold": self.gap_threshold,
         }
+        if not solved.valid:
+            return PlacementFilterDecision.reject(solved.rejection_reason, **diagnostics)
         if self.require_solver_convergence and not solved.converged:
             return PlacementFilterDecision.reject(
                 solved.rejection_reason or "pose_solver",

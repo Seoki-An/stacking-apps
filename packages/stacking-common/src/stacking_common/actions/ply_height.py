@@ -77,17 +77,24 @@ class PlyHeightInitializer:
                                              else obj.mesh_arrays()[0])
         return self._vertices[obj.object_id]
 
-    def initialize(self, inventory, state, object_index, proposal):
+    def prepare_scene(self, inventory, state):
+        """Compute placed-body bounds for one read-only batch input state."""
+        bounds = []
+        for index in state.placed_object_indices:
+            obj = inventory[index]
+            placed = transform_points(self.vertices(obj), state.object_poses[obj.object_id])
+            bounds.append((index, placed.min(axis=0), placed.max(axis=0)))
+        return tuple(bounds)
+
+    def initialize(self, inventory, state, object_index, proposal, *, scene_context=None):
         pose = proposal.pose.copy()
         pose[2] = 0.
         points = transform_points(self.vertices(inventory[object_index]), pose)
         low, high = points.min(axis=0), points.max(axis=0)
         height = float(inventory.target.origin[2])
         supports = []
-        for index in state.placed_object_indices:
-            obj = inventory[index]
-            placed = transform_points(self.vertices(obj), state.object_poses[obj.object_id])
-            p_low, p_high = placed.min(axis=0), placed.max(axis=0)
+        bounds = self.prepare_scene(inventory, state) if scene_context is None else scene_context
+        for index, p_low, p_high in bounds:
             # Each footprint expands by padding, exactly as legacy initialize_height.
             if np.all(high[:2] + 2*self.xy_padding >= p_low[:2]) and np.all(p_high[:2] + 2*self.xy_padding >= low[:2]):
                 if p_high[2] > height:

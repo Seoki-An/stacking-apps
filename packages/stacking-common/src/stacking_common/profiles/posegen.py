@@ -19,6 +19,7 @@ def load_posegen_profile(path: str | Path) -> CorePosegenProfile:
         raise ValueError("posegen profile units must be 'si'")
     scene = _mapping(values, "scene")
     return CorePosegenProfile(
+        backend=values.get("backend", "cpu"),
         frame_id=int(_required(scene, "frame_id")),
         target_model_id=int(_required(scene, "target_model_id")),
         target_entity_id=int(_required(scene, "target_entity_id")),

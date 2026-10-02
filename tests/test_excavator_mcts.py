@@ -6,6 +6,8 @@ from pathlib import Path
 import random
 
 import numpy as np
+import pytest
+import stacking_core as core
 from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation
 
@@ -36,8 +38,13 @@ def test_principal_orientation_rolls_preserve_asset_axes_and_ignore_scan():
     assert np.linalg.norm(provider.quaternions(inventory, None, None, 0)[0]) > .99
 
 
-def test_native_excavator_mcts_selects_a_validated_recorded_object():
+@pytest.mark.parametrize("backend", ["cpu", "cuda"])
+def test_native_excavator_mcts_selects_a_validated_recorded_object(backend):
+    if backend == "cuda" and not (core.cuda_capabilities().get("posegen_solve")
+                                  and core.cuda_capabilities().get("devices")):
+        pytest.skip("requires CUDA-enabled stacking-core and GPU")
     application = ExcavatorApplication.from_repository(ROOT)
+    application = replace(application, posegen_profile=replace(application.posegen_profile, backend=backend))
     reference = json.loads((ROOT / "tests/fixtures/legacy_planner/reference.json").read_text())
     ids = [56, 58, 8]
     inventory = application.load_inventory(ids, {
@@ -53,12 +60,16 @@ def test_native_excavator_mcts_selects_a_validated_recorded_object():
         application.build_core_backend(inventory, EvaluationFidelity.SHORT))
     reset = environment.reset()
     search = application.build_mcts(inventory, rng=random.Random(0))
+    if backend == "cuda":
+        assert len(search.action_generator.pose_solvers) == 1
     try:
         result = search.search(MCTSNode(state=reset.state, observation=reset.observation), request)
         assert result.generated_candidates > 0
         assert result.selected is not None
         assert result.selected.action.object_id in ids
         assert result.selected.selectable
+        if backend == "cuda":
+            assert result.selected.action.diagnostics["posegen_backend"] == "cuda"
         assert not result.selected.state.failed
         assert len(result.selected.state.placed_object_indices) == 1
         # Search owns candidate states; the source scene has not advanced.

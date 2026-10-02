@@ -69,7 +69,11 @@ class StackingSearchApplication:
     ) -> CorePlacementPoseSolver:
         """Build native pose generation for the platform target and objects."""
 
-        return CorePlacementPoseSolver(
+        solver_type = CorePlacementPoseSolver
+        if self.posegen_profile.backend == "cuda":
+            from stacking_common.actions.cuda_solver import CudaPlacementPoseSolver
+            solver_type = CudaPlacementPoseSolver
+        return solver_type(
             inventory,
             self.posegen_profile,
             core_module=core_module,
@@ -136,7 +140,9 @@ class StackingSearchApplication:
         solvers = (
             [pose_solver]
             if pose_solver is not None
-            else [self.build_pose_solver(inventory) for _ in range(worker_count)]
+            else [self.build_pose_solver(inventory) for _ in range(
+                1 if self.posegen_profile.backend == "cuda" else worker_count
+            )]
         )
         generator = self.build_action_generator(
             inventory,

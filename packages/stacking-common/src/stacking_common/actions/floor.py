@@ -39,12 +39,15 @@ class ActiveFloorPolicy:
         self,
         state: State,
         action: Action,
+        *, context: dict[str, object] | None = None,
     ) -> tuple[str | None, dict[str, object]]:
         """Reject a settled pose above or disconnected from an unfilled layer."""
 
-        context = self.context_details(state)
+        if context is None:
+            context = self.context_details(state)
         reason, diagnostics = self._reject_at_layer(
-            action, context["support_z"], context["occupied"])
+            action, context["support_z"], context["occupied"],
+            neighbors=context["occupied_neighbor"], grid=(context["xx"], context["yy"]))
         diagnostics["fixed_scene_active_layer_coverage_mode"] = self.coverage_mode
         diagnostics["fixed_scene_completed_layers"] = context["completed_layers"]
         return reason, diagnostics
@@ -93,11 +96,12 @@ class ActiveFloorPolicy:
             "completed_layers": completed_layers,
         }
 
-    def _reject_at_layer(self, action, support_z, occupied):
+    def _reject_at_layer(self, action, support_z, occupied, *, neighbors=None, grid=None):
         candidate = self._entry(action.object_index, action.pose)
         above = float(candidate["bottom"]) > support_z + self.bottom_tolerance
-        candidate_cells = self._mask(candidate, support_z)
-        neighbors = _neighbor_mask(occupied)
+        candidate_cells = self._mask(candidate, support_z, grid=grid)
+        if neighbors is None:
+            neighbors = _neighbor_mask(occupied)
         cell_count = int(np.count_nonzero(candidate_cells))
         overlap = int(np.count_nonzero(candidate_cells & occupied))
         unfilled = candidate_cells & ~occupied
@@ -185,8 +189,8 @@ class ActiveFloorPolicy:
         xx, yy = np.meshgrid(xs, ys, indexing="xy")
         return lower, upper, xx, yy
 
-    def _mask(self, entry, support_z: float) -> np.ndarray:
-        _, _, xx, yy = self._grid()
+    def _mask(self, entry, support_z: float, *, grid=None) -> np.ndarray:
+        xx, yy = self._grid()[2:] if grid is None else grid
         occupied = self._empty_mask()
         for normals, offsets in entry["volumes"]:
             if self.coverage_mode == "projected_footprint":

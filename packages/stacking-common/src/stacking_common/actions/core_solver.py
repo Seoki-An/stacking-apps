@@ -86,8 +86,11 @@ class CorePosegenProfile:
     objective: Mapping[str, object] = field(default_factory=dict)
     force_solver: Mapping[str, object] = field(default_factory=dict)
     schedule: Mapping[str, object] = field(default_factory=dict)
+    backend: str = field(default="cpu", metadata={"omit_default_from_context": True})
 
     def __post_init__(self) -> None:
+        if self.backend not in {"cpu", "cuda"}:
+            raise ValueError("posegen backend must be 'cpu' or 'cuda'")
         if self.boundary_radius is not None and (not math.isfinite(self.boundary_radius) or self.boundary_radius < 0):
             raise ValueError("posegen boundary radius must be finite and nonnegative")
         for name in ("frame_id", "target_model_id", "target_entity_id"):
@@ -213,6 +216,23 @@ class CorePlacementPoseSolver:
         object_index: int,
         initial: InitializedPlacement,
     ) -> PlacementSolveResult:
+        self._validate_request(inventory, state, object_index)
+        pose = initial.pose
+        c_gap = 0.0
+        result = None
+        schedule_times = self.profile.schedule["times"]
+        for step, schedule_time in enumerate(schedule_times):
+            self.generator.config = self._scheduled_config(
+                float(schedule_time), c_gap, final=step == len(schedule_times) - 1,
+            )
+            result = self.generator.solve(self._problem(state, object_index, pose))
+            pose = np.asarray(result.optimal_pose, dtype=float)
+            c_gap = float(result.c_gap)
+        if result is None:
+            raise RuntimeError("posegen schedule did not execute")
+        return self._placement_result(result)
+
+    def _validate_request(self, inventory, state, object_index):
         if inventory is not self.inventory:
             raise ValueError("pose solver inventory does not match its composition")
         if tuple(state.object_ids) != inventory.object_ids:
@@ -220,6 +240,7 @@ class CorePlacementPoseSolver:
         if object_index in state.placed_object_indices:
             raise ValueError("posegen candidate is already placed")
 
+    def _scene_objects(self, state):
         objects = [
             SceneObjectInstance(
                 object_index=placed_index,
@@ -229,52 +250,51 @@ class CorePlacementPoseSolver:
             )
             for placed_index in state.placed_object_indices
         ]
-        candidate = self.scene_builder.entity_id(object_index)
         boundaries = (
             [self.scene_builder.entity_id(index) for index in state.placed_object_indices]
             if self.profile.placed_as_boundaries
             else []
         )
         if not self.profile.placed_as_boundaries and self.profile.boundary_radius is not None:
-            target = inventory.target
+            target = self.inventory.target
             half = np.array([target.width, target.length]) / 2.0
             boundaries = [self.scene_builder.entity_id(index)
                 for index in state.placed_object_indices
                 if np.linalg.norm(np.maximum(np.abs(
                     state.object_poses[state.object_ids[index]][:2] - target.origin[:2]
                 ) - half, 0.0)) > self.profile.boundary_radius]
-        pose = initial.pose
-        c_gap = 0.0
-        result = None
-        schedule_times = self.profile.schedule["times"]
-        for step, schedule_time in enumerate(schedule_times):
-            self.generator.config = self._scheduled_config(
-                float(schedule_time),
-                c_gap,
-                final=step == len(schedule_times) - 1,
-            )
-            candidate_object = SceneObjectInstance(
-                object_index=object_index,
-                object_id=state.object_ids[object_index],
-                pose=pose,
-                mobility=SceneMobility.DYNAMIC,
-            )
-            scene = self.scene_builder.build(
-                [*objects, candidate_object],
-                fixed_bodies=(self.target_body,),
-            )
-            result = self.generator.solve(
-                self.core.PosegenProblem(
-                    scene,
-                    candidate,
-                    targets=[self.profile.target_entity_id],
-                    boundaries=boundaries,
-                )
-            )
-            pose = np.asarray(result.optimal_pose, dtype=float)
-            c_gap = float(result.c_gap)
-        if result is None:
-            raise RuntimeError("posegen schedule did not execute")
+        return objects, boundaries
+
+    def _prepare_problem_scene(self, state):
+        objects, boundaries = self._scene_objects(state)
+        scene = self.scene_builder.build(objects, fixed_bodies=(self.target_body,))
+        return scene.bodies, boundaries
+
+    def _problem(self, state, object_index, pose, *, scene_context=None):
+        if scene_context is None:
+            objects, boundaries = self._scene_objects(state)
+            fixed_bodies = (self.target_body,)
+        else:
+            fixed_bodies, boundaries = scene_context
+            objects = []
+        candidate = self.scene_builder.entity_id(object_index)
+        candidate_object = SceneObjectInstance(
+            object_index=object_index,
+            object_id=state.object_ids[object_index],
+            pose=pose,
+            mobility=SceneMobility.DYNAMIC,
+        )
+        scene = self.scene_builder.build(
+            [*objects, candidate_object], fixed_bodies=fixed_bodies,
+        )
+        return self.core.PosegenProblem(
+            scene, candidate, targets=[self.profile.target_entity_id], boundaries=boundaries,
+        )
+
+    def _placement_result(self, result):
+        return PlacementSolveResult(**self._placement_values(result))
+
+    def _placement_values(self, result):
         stats = result.solver
         diagnostics = {
             "posegen_iterations": int(stats.iters),
@@ -301,8 +321,8 @@ class CorePlacementPoseSolver:
             ),
             default=float(result.c_feq),
         )
-        mass_scale = max(stack_object.mass for stack_object in inventory)
-        return PlacementSolveResult(
+        mass_scale = max(stack_object.mass for stack_object in self.inventory)
+        return dict(
             pose=np.asarray(result.optimal_pose, dtype=float),
             c_feq=wrench_norm / mass_scale,
             c_gap=float(result.c_gap),

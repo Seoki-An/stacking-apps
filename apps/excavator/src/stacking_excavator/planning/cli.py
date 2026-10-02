@@ -190,7 +190,8 @@ def run(args):
         writer, checkpoint = branch_excavator_run(args.resume_run, args.save_run, context)
     config_path = (args.config or args.repository / "apps/excavator/config/mcts.yml").resolve()
     print(f"config: {config_path}", flush=True)
-    print("debug mode: real excavator assets/actions/rewards; native pose solve; "
+    print("debug mode: real excavator assets/actions/rewards; "
+          f"posegen={application.posegen_profile.backend}; "
           f"core transition; search_workers={application.mcts_profile.parallel.effective_workers}; "
           f"motion_planning={not args.search_only}", flush=True)
     print(f"inventory source: {scene.source}", flush=True)

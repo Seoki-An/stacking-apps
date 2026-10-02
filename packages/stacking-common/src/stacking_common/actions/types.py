@@ -62,6 +62,9 @@ class PlacementSolveResult:
     converged: bool = True
     rejection_reason: str | None = None
     diagnostics: Mapping[str, object] = field(default_factory=dict)
+    # Invalid results carry a reason and placeholder pose/costs only. They must
+    # never become actions, even when a platform permits nonconverged solves.
+    valid: bool = True
 
     def __post_init__(self) -> None:
         c_feq = float(self.c_feq)
@@ -74,6 +77,10 @@ class PlacementSolveResult:
             if not reason:
                 raise ValueError("placement rejection reason must not be empty")
         converged = bool(self.converged)
+        valid = bool(self.valid)
+        if not valid and (converged or reason is None):
+            raise ValueError("an invalid placement solve needs nonconvergence and a reason")
+        object.__setattr__(self, "valid", valid)
         if reason is not None and converged:
             raise ValueError("a rejected placement solve cannot be converged")
         object.__setattr__(self, "pose", pose_array(self.pose, "solved pose"))
