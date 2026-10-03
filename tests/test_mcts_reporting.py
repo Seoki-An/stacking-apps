@@ -21,7 +21,7 @@ def test_excavator_cli_reports_search_and_stops_heartbeat(tmp_path, monkeypatch,
     reference = json.loads((ROOT / "tests/fixtures/legacy_planner/reference.json").read_text())
     pickup = tmp_path / "pick.json"
     pickup.write_text(json.dumps({str(i): reference["pickup_poses"][str(i)] for i in (56, 58, 8)}))
-    values = yaml.safe_load((ROOT / "apps/excavator/config/mcts.yml").read_text())
+    values = yaml.safe_load((ROOT / "apps/excavator/config/mcts_cpu.yml").read_text())
     values["parallel"].update(enabled=False, workers=1)
     # Exercise successful native validation with the narrower ablation target.
     values["root_cem"].update(population=96, elite=24, iterations=1, keep=12)

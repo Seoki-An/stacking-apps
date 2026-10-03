@@ -36,6 +36,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--backend', choices=('cpu', 'cuda'), required=True)
     parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--config', type=Path, help='Use the same profile for controlled CPU/CUDA comparisons.')
+    parser.add_argument('--iterations', type=int)
+    parser.add_argument('--generation-batch-size', type=int)
+    parser.add_argument('--posegen-batch-size', type=int)
     parser.add_argument('--state', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--evaluation-batch-size', type=int)
@@ -45,12 +49,18 @@ def main():
     args = parser.parse_args()
     if args.output.exists():
         raise FileExistsError(args.output)
-    for name in ('evaluation_batch_size', 'cuda_batch_size', 'root_candidates'):
+    for name in ('evaluation_batch_size', 'cuda_batch_size', 'root_candidates',
+                 'iterations', 'generation_batch_size', 'posegen_batch_size'):
         value = getattr(args, name)
         if value is not None and value <= 0:
             parser.error(f'{name} must be positive')
     if args.cuda_batch_size is not None and args.backend != 'cuda':
         parser.error('--cuda-batch-size requires --backend cuda')
+    if args.posegen_batch_size is not None:
+        if args.backend != 'cuda':
+            parser.error('--posegen-batch-size requires --backend cuda')
+        from stacking_common.actions.cuda_solver import CudaPlacementPoseSolver
+        CudaPlacementPoseSolver.batch_size = args.posegen_batch_size
     cuda_calls = []
     if args.backend == 'cuda':
         from stacking_common.environment import cuda_backend
@@ -87,10 +97,16 @@ def main():
         # Process-local benchmark override; production defaults stay unchanged.
         cuda_backend.CudaPlacementBackend = MeasuredCudaBackend
     started = time.perf_counter()
-    app = ExcavatorApplication.from_repository(ROOT)
-    app = replace(app, posegen_profile=replace(app.posegen_profile, backend=args.backend),
-                  mcts_profile=replace(app.mcts_profile, root_cem=replace(app.mcts_profile.root_cem, seed=args.seed)))
+    app = ExcavatorApplication.from_repository(ROOT, mcts_config=args.config)
+    app = replace(app, mcts_profile=replace(app.mcts_profile,
+        parallel=replace(app.mcts_profile.parallel,
+                         posegen_backend=args.backend, simulation_backend=args.backend),
+        root_cem=replace(app.mcts_profile.root_cem, seed=args.seed)))
     profile = app.mcts_profile
+    if args.iterations is not None:
+        profile = replace(profile, request=replace(profile.request, iterations=args.iterations))
+    if args.generation_batch_size is not None:
+        profile = replace(profile, tree=replace(profile.tree, generation_batch_size=args.generation_batch_size))
     if args.evaluation_batch_size is not None:
         profile = replace(profile, tree=replace(
             profile.tree, evaluation_batch_size=args.evaluation_batch_size))
@@ -126,8 +142,12 @@ def main():
         row.update(backend=args.backend, seed=args.seed, placed=len(state.placed_object_indices),
                    object_count=len(ids), setup_seconds=setup_seconds,
                    requested_iterations=request.iterations, max_time_seconds=request.max_time_seconds,
+                   evaluated_nodes_per_second=result.evaluated_candidates / elapsed,
+                   nonfailed_evaluations_per_second=(result.evaluated_candidates - result.failed_evaluations) / elapsed,
                    benchmark_overrides={name: getattr(args, name) for name in (
-                       'evaluation_batch_size', 'cuda_batch_size', 'root_candidates')},
+                       'evaluation_batch_size', 'cuda_batch_size', 'root_candidates',
+                       'iterations', 'generation_batch_size', 'posegen_batch_size')},
+                   config_path=str(args.config.resolve()) if args.config else None,
                    cuda_simulation_calls=cuda_calls,
                    benchmark_script_sha256=digest(__file__),
                    state_sha256=digest(args.state) if args.state else None,
@@ -150,7 +170,8 @@ def main():
         args.output.write_text(json.dumps(row, indent=2) + '\n')
         print(json.dumps({k: row[k] for k in (
             'backend','seed','placed','elapsed_seconds','completed_iterations','timed_out',
-            'generated_candidates','evaluated_candidates','selected')}), flush=True)
+            'generated_candidates','evaluated_candidates','evaluated_nodes_per_second',
+            'nonfailed_evaluations_per_second','selected')}), flush=True)
     finally:
         search.close()
         environment.close()

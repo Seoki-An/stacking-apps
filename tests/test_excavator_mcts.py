@@ -38,13 +38,18 @@ def test_principal_orientation_rolls_preserve_asset_axes_and_ignore_scan():
     assert np.linalg.norm(provider.quaternions(inventory, None, None, 0)[0]) > .99
 
 
-@pytest.mark.parametrize("backend", ["cpu", "cuda"])
-def test_native_excavator_mcts_selects_a_validated_recorded_object(backend):
-    if backend == "cuda" and not (core.cuda_capabilities().get("posegen_solve")
-                                  and core.cuda_capabilities().get("devices")):
+@pytest.mark.parametrize("posegen_backend", ["cpu", "cuda"])
+@pytest.mark.parametrize("simulation_backend", ["cpu", "cuda"])
+def test_native_excavator_mcts_selects_a_validated_recorded_object(posegen_backend, simulation_backend):
+    capabilities = core.cuda_capabilities()
+    if ((posegen_backend == "cuda" and not capabilities.get("posegen_solve"))
+            or (simulation_backend == "cuda" and not capabilities.get("simulation_solve"))
+            or ("cuda" in (posegen_backend, simulation_backend) and not capabilities.get("devices"))):
         pytest.skip("requires CUDA-enabled stacking-core and GPU")
     application = ExcavatorApplication.from_repository(ROOT)
-    application = replace(application, posegen_profile=replace(application.posegen_profile, backend=backend))
+    application = replace(application, mcts_profile=replace(application.mcts_profile,
+        parallel=replace(application.mcts_profile.parallel,
+            posegen_backend=posegen_backend, simulation_backend=simulation_backend)))
     reference = json.loads((ROOT / "tests/fixtures/legacy_planner/reference.json").read_text())
     ids = [56, 58, 8]
     inventory = application.load_inventory(ids, {
@@ -60,16 +65,25 @@ def test_native_excavator_mcts_selects_a_validated_recorded_object(backend):
         application.build_core_backend(inventory, EvaluationFidelity.SHORT))
     reset = environment.reset()
     search = application.build_mcts(inventory, rng=random.Random(0))
-    if backend == "cuda":
-        assert len(search.action_generator.pose_solvers) == 1
+    from stacking_common.environment.core_backend import CorePlacementBackend
+    from stacking_common.environment.cuda_backend import CudaPlacementBackend
+    from stacking_common.search import StackingEnvironmentEvaluator
+
+    expected_backend = CudaPlacementBackend if simulation_backend == "cuda" else CorePlacementBackend
+    assert type(environment.transition.backend) is expected_backend
+    assert isinstance(search.transition_evaluator, StackingEnvironmentEvaluator) == (simulation_backend == "cuda")
+    assert len(search.action_generator.pose_solvers) == (
+        1 if posegen_backend == "cuda" else application.mcts_profile.parallel.effective_workers
+    )
     try:
         result = search.search(MCTSNode(state=reset.state, observation=reset.observation), request)
         assert result.generated_candidates > 0
         assert result.selected is not None
         assert result.selected.action.object_id in ids
         assert result.selected.selectable
-        if backend == "cuda":
+        if posegen_backend == "cuda":
             assert result.selected.action.diagnostics["posegen_backend"] == "cuda"
+        if simulation_backend == "cuda":
             assert result.selected.state.action_history[-1].diagnostics["simulation_backend"] == "cuda"
         assert not result.selected.state.failed
         assert len(result.selected.state.placed_object_indices) == 1

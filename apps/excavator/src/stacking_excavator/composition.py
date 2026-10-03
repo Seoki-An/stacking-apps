@@ -89,7 +89,7 @@ class ExcavatorApplication(StackingSearchApplication):
                    load_action_generation_profile(config / "action_generation.yml",
                        max_poses_per_object=environment.observation.max_poses_per_object,
                        banned_object_ids=environment.observation.banned_object_ids),
-                   load_mcts_profile(mcts_config or config / "mcts.yml"), planning, settings,
+                   load_mcts_profile(mcts_config or config / "mcts_cpu.yml"), planning, settings,
                    action["floor"], scan,
                    tuple(np.deg2rad(action["orientation"]["roll_angles_degrees"])),
                    action["scored_sampling"])

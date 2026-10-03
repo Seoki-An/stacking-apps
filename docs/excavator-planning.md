@@ -77,38 +77,43 @@ full stacking run.
 ## CUDA pose generation
 
 The excavator profile currently selects the experimental FP32 backend with
-`backend: cuda` in `apps/excavator/config/solvers/posegen.yml`. Install the sibling
+`parallel.posegen_backend: cuda` in `apps/excavator/config/mcts_cuda.yml`. Install the sibling
 core into the active Python environment and run from this checkout:
 
 ```bash
 python -m pip install -e ../stacking-core/python
 stacking-excavator-plan --repository . \
-  --config apps/excavator/config/mcts.yml --search-only --steps 1
+  --config apps/excavator/config/mcts_cuda.yml --search-only --steps 1
 ```
 
 The core pip build includes CUDA automatically when `nvcc` is on `PATH` or
 `CUDACXX` specifies a CUDA compiler. Set `STACKING_CORE_ENABLE_CUDA=ON` for the
 install command to require it explicitly. Verify with
 `python -c "import stacking_core as c; print(c.cuda_capabilities())"`;
-`compiled`, `posegen_solve`, and `simulation_solve` should all be true. No path override is needed
+`compiled` and `posegen_solve` must be true for GPU pose generation;
+GPU simulation also requires `simulation_solve`. No path override is needed
 with a CUDA-enabled installation. For testing a separate CMake build without
 installing it, prefix the planner command with
 `PYTHONPATH="$PWD/../stacking-core/build-cuda/python${PYTHONPATH:+:$PYTHONPATH}"`.
 
 The startup line reports `posegen=cuda; simulation=cuda`. A CPU-only installation or missing GPU
 raises an explicit startup error. Loading the CUDA bindings alone does not
-select GPU pose generation; the profile must select it too. Use `backend: cpu`
-to select CPU pose generation and simulation. Saved contexts record CUDA selection; resume requires a
-matching profile, so start a new run when changing backends.
+select GPU pose generation; the MCTS profile must select it too. Use
+`parallel.posegen_backend: cpu` to select CPU pose generation and
+`parallel.simulation_backend: cpu` for CPU simulation. Solver YAML files contain
+physical and numerical settings, not backend selection; old `backend` keys there
+raise a migration error. Saved contexts record both selections; resume requires
+a matching profile, so start a new run when changing backends or migrating an
+older CUDA context.
 
 One reusable GPU workspace processes batches of up to 128 initialized candidates,
 including candidates from different MCTS states. Each of the four continuation
 stages consumes that candidate's preceding pose and gap feedback. Geometry,
 sharpness, objective weights, tolerances, and placement filters are unchanged.
-The same backend selection now also controls placement simulation: one GPU
+Placement simulation is selected independently with `parallel.simulation_backend`: one GPU
 workspace per fidelity evaluates up to 32 independent placements per batch.
-This replaces the CPU simulation worker pool in CUDA mode; `parallel.workers`
-continues to control the CPU path.
+CUDA simulation replaces the CPU simulation worker pool; `parallel.workers`
+controls CPU simulation and CPU pose generation independently.
 
 Batched action generation prepares placed-stone PLY bounds and active-floor
 context once per input State, sharing them only among proposals in that call.
@@ -139,7 +144,7 @@ Geometry/numerical failures, unsupported input, capacity overflow, missing or
 nonfinite results, and unconverged inner force solves reject that candidate.
 There are **no automatic CPU pose retries**. Other candidates continue their
 schedule. Native runtime errors still propagate explicitly. CPU pose generation
-remains available through `backend: cpu`; initialization and filters continue
+remains available through `parallel.posegen_backend: cpu`; initialization and filters continue
 to execute on CPU in either mode.
 
 `PlacementSolveResult.valid=False` distinguishes an unusable result from a usable
@@ -182,7 +187,44 @@ gates. The core benchmark harness retains timings, retries, and quality evidence
 
 ### GPU placement simulation
 
-CUDA mode runs the platform's settling physics (3D single-point contacts) and
+Select compute resources in the chosen MCTS YAML file:
+
+```yaml
+parallel:
+  enabled: true
+  workers: 12  # CPU workers; does not set GPU batch capacity
+  posegen_backend: cuda  # cpu or cuda
+  simulation_backend: cuda  # cpu or cuda
+```
+
+This setting applies to short and long simulation, robustness trials, and
+fixed-scene resettling. `mcts_cuda.yml` selects CUDA for both stages; either can be switched to CPU
+independently. The app and operations console default to `mcts_cpu.yml`. Omitted backend keys default to CPU.
+`parallel.enabled` controls the CPU worker pool; it does not override the selected
+backends.
+
+Explicit excavator profiles allow independent resource tuning:
+
+| Profile | Pose generation / simulation | CPU workers | Evaluation batch limit |
+| --- | --- | --- | --- |
+| `mcts_cpu.yml` | CPU / CPU | 12 | 12 |
+| `mcts_cuda.yml` | CUDA / CUDA | 12 (used only by CPU stages) | 32 |
+
+```bash
+stacking-excavator-plan --repository . --search-only --steps 1 \
+  --config apps/excavator/config/mcts_cpu.yml
+stacking-excavator-plan --repository . --search-only --steps 1 \
+  --config apps/excavator/config/mcts_cuda.yml
+```
+
+These are independent complete profiles. CPU currently uses 200 iterations and
+12 retained root candidates; CUDA uses 300 iterations and 32 retained candidates.
+Editing one profile does not modify the other. The old `mcts.yml` is removed. The evaluation batch limits are starting points, not measured
+optima. Actual batches depend on available candidates and each profile's root CEM retention. GPU core count does not map directly to useful batch size.
+The simulation workspace still chunks at 32 placements and pose generation at
+128 proposals; increasing the MCTS batch limit does not raise those capacities.
+
+CUDA simulation runs the platform's settling physics (3D single-point contacts) and
 structural physics (4D limit-surface contacts) using `CudaSimulator`. Settling
 keeps the background fixed. Its downloaded final contacts select the same
 support-chain/freeze-radius policy before structural evaluation; structurally
@@ -225,6 +267,113 @@ check, CPU and GPU both rejected scene motion at both fidelities, froze the same
 10 stones for short validation, and agreed within 0.049 mm in final translation.
 The latter check disables robustness to isolate physics. These limited checks
 do not qualify full-run search parity.
+
+### CUDA throughput and host-side bottlenecks (2026-10-03)
+
+The [batch sweep and profiles](benchmarks/excavator-cuda-throughput-tuning.json)
+compare both backends using the same 49-object inventory, frozen nine-stone
+state, root retention of 32, and numerical/search settings. Runs are sequential
+fresh processes on a Ryzen 9 9900X and RTX 5060 Ti, with BLAS/OpenMP threads set
+to one. Only `search.search` is timed. CPU uses 12 workers; CUDA posegen capacity
+remains 128. Simulation capacity changes are process-local benchmark overrides,
+not changes to the production workspace of 32.
+
+Throughput means `evaluated_candidates / elapsed_seconds`: it includes failed
+physical evaluations and excludes the pre-evaluated root. In these runs it also
+equals `(tree.evaluated - 1) / elapsed_seconds`. Iterations are not evaluated
+nodes. In the empty scene, 300 iterations still evaluate only 32 root candidates.
+
+Seed-0 screening at 120 iterations:
+
+| Backend | MCTS evaluation limit | GPU simulation capacity | Search (s) | Evaluated nodes | Nodes/s |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| CPU | 12 | — | 41.54 | 157 | 3.78 |
+| CPU | 32 | — | 41.94 | 165 | 3.93 |
+| CUDA | 32 | 32 | 68.21 | 198 | 2.90 |
+| CUDA | 64 | 128 | 65.53 | 216 | 3.30 |
+| CUDA | 128 | 128 | 60.87 | 207 | 3.40 |
+| CUDA | 128 | 256 | 60.06 | 207 | 3.45 |
+| CUDA | 256 | 256 | 60.21 | 207 | 3.44 |
+
+The last screening run cannot establish a benefit for a 256-node evaluation
+limit: the remaining 120-iteration budget caps reservations, and its actual
+largest batch was 85, identical to the 128-limit runs. Capacity 256 can still
+batch more robustness trials, which outnumber placement candidates.
+
+Across seeds 0, 1, and 2 at 120 iterations, CPU evaluation limit 32 achieved a
+median **3.80 nodes/s** versus CUDA evaluation limit 128/capacity 256 at
+**3.45 nodes/s**. Median nonfailed evaluation rates were **2.23** and **2.06
+nodes/s**, respectively. All searches completed without timeout and selected
+a candidate accepted by their own backend. Different rejection outcomes,
+explored nodes, and selected actions prevent interpreting this as exact
+CPU/GPU simulation parity or equal long-horizon solution quality.
+
+At the configured 300 iterations, seed 0 in the nine-stone scene gave CPU
+**352 evaluations / 93.98 s = 3.75 nodes/s** and CUDA (128/256)
+**434 / 120.16 s = 3.61 nodes/s**. In the empty depth-one scene both evaluated
+32 candidates: CPU took **6.37 s (5.03 nodes/s)** and CUDA **7.39 s
+(4.33 nodes/s)**. These full-budget/empty checks are single-seed observations.
+A final nine-stone run at 300 iterations with evaluation limit 256/capacity 256
+reached an actual batch of 144 and evaluated **397 nodes in 112.64 s
+(3.52 nodes/s)**. It finished sooner than limit 128 but did less work and had
+lower node throughput. Limit 128 is the better measured starting point here;
+neither configuration beat CPU.
+
+The timer-only 120-iteration CUDA 128/128 profile explains the remaining gap:
+
+| Stage | Wall time (s) | Relationship |
+| --- | ---: | --- |
+| Whole search | 61.29 | Total |
+| Pose generation and priors | 28.39 | Includes native pose generation |
+| Native CUDA pose-generation calls | 8.96 | Subset of generation |
+| Transition evaluation batches | 31.17 | Includes physics and result processing |
+| Native CUDA simulation calls | 11.66 | Subset of transitions |
+| Voxel overlap | 8.80 | Across generation and rewards |
+| Observation construction | 5.29 | Within transitions |
+| State construction, including trajectory copies | 5.16 | Across search stages |
+
+Inclusive rows overlap and must not be added. The two native CUDA call categories
+sum to **20.62 s**; **40.67 s** remains outside them. Native call timings include
+transfers/binding conversion, not just GPU kernels. CPU worker timer totals
+also overlap across threads; the corresponding CPU timer-only search took
+41.01 s, with 15.73 s in generation and 23.79 s in transition batches.
+
+Scoped cProfile identifies the main generation hotspot in
+`actions/_scored_floor.py`: 419 `score_xy_debug_map` builds, about 384,000
+`target_boundary_proximity` calls, and about 385,000 `target_anchor_bounds`
+calls. That diagnostic run adds profiling overhead (73.60 s total), so its
+function times are attribution evidence rather than benchmark timings.
+The CUDA run attempted 670 pose proposals versus CPU's 501; CUDA also reported
+97 posegen geometry rejections versus none on CPU. More attempted work and
+different tree traversal contribute to the total-time difference.
+
+CPU parallelism is the next useful experiment. The CUDA path batches native
+solvers but builds reward/observation results sequentially in
+`StackingEnvironment.step_batch`. Independent result evaluators with private
+caches could use CPU workers without allocating additional GPU simulators.
+For the floor sampler, first vectorize scalar grid calculations and reuse the
+state-map bundle across stones. If it remains dominant, use a persistent process
+pool for independent state/object score maps; keep RNG sampling, result order,
+and tree updates coordinated. Python-heavy loops will not automatically scale
+with threads, and shipping full trajectory histories to processes could erase
+the gain. Current `parallel.workers` does not enable these host workers for CUDA.
+No host-parallel speedup has been measured yet.
+
+Reproduce a controlled run with the frozen YAML stored in the JSON report:
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+python tests/benchmark_excavator_cuda_mcts.py \
+  --config /tmp/frozen-mcts.yml --backend cuda --seed 0 --iterations 120 \
+  --evaluation-batch-size 128 --cuda-batch-size 256 \
+  --state /tmp/state9.pkl --output /tmp/cuda-search.json
+```
+
+The state pickle must be a trusted local export matching the report's state
+hash. For CPU use `--backend cpu --evaluation-batch-size 32` and omit
+`--cuda-batch-size`. `tests/profile_excavator_cuda_mcts.py` accepts the same
+arguments plus `--profile-output`; it now supports either backend. Profiled
+runs are excluded from the throughput summary.
 
 ## Run
 
@@ -323,7 +472,7 @@ for both. An inconsistent explicit pair is rejected before search begins.
 
 ```bash
 stacking-excavator-plan --repository . \
-  --config apps/excavator/config/mcts.yml \
+  --config apps/excavator/config/mcts_cuda.yml \
   --search-only --steps 10 --save-run /tmp/excavator-search3.stack
 ```
 
@@ -502,7 +651,7 @@ established by this delivery.
 | Source | Migrated boundary |
 | --- | --- |
 | `agent/configs/config.yml`: production Q network disabled | Heuristic prior/value bootstrap; no Torch/Ray/model loader |
-| `agent/configs/ablation.yml`: MCTS depth 3 after 10 placements, 200 iterations, 240 seconds; CEM 96/24/3/12 | `config/mcts.yml`; shared tree/search/sequence implementation |
+| `agent/configs/ablation.yml`: MCTS depth 3 after 10 placements, 200 iterations, 240 seconds; CEM 96/24/3/12 | `config/mcts_cpu.yml` / `config/mcts_cuda.yml`; shared tree/search/sequence implementation |
 | Principal axes, rolls 0/180°, yaws 0/90/180/270°, scan mode false | Common principal-axis provider and platform orientation selection |
 | Production catalog/density 1000; ablation target 2 × 3.5 × 2.5 m, 5° taper, origin (0, 0, 0) | `inventory.yml`; asset mass and inertia multiplied by density once |
 | Observation, rewards, fast settling/full structural phases | `environment.yml`, `solvers/simulation.yml` |

@@ -119,6 +119,8 @@ final_selection:
   require_validated_descendant: false
 
 parallel:
+  posegen_backend: cpu  # cpu or cuda
+  simulation_backend: cpu  # cpu or cuda
   enabled: true
   workers: 12
 

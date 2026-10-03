@@ -1,4 +1,4 @@
-"""Profile CUDA transition stages during the existing MCTS benchmark.
+"""Profile CPU or CUDA search stages during the existing MCTS benchmark.
 
 Example (all remaining arguments go to benchmark_excavator_cuda_mcts.py):
   python tests/profile_excavator_cuda_mcts.py --profile-output /tmp/stages.json \
@@ -28,7 +28,10 @@ from stacking_common.environment.observation import ArrayObservationBuilder
 from stacking_common.environment.overlap import VoxelOverlapEvaluator
 from stacking_common.environment.reward import StackingReward
 from stacking_common.environment.transition import SimulationTransition
-from stacking_common.search.adapters import StackingEnvironmentEvaluator
+from stacking_common.search.adapters import StackingEnvironmentEvaluator, ParallelTransitionEvaluator
+from stacking_common.actions.core_solver import CorePlacementPoseSolver
+from stacking_common.actions.cuda_solver import CudaPlacementPoseSolver
+from stacking_common.environment import robustness
 from stacking_common.search.mcts.search import MonteCarloTreeSearch
 
 
@@ -37,7 +40,7 @@ class StageTimers:
         self.local = threading.local()
         self.active = False
         self.totals = defaultdict(lambda: dict(calls=0, inclusive_seconds=0.,
-            exclusive_seconds=0., thread_cpu_seconds=0., max_seconds=0.))
+            exclusive_seconds=0., thread_cpu_seconds=0., max_seconds=0., jobs=0))
         self.profile_stage = profile_stage
         self.profile = cProfile.Profile() if profile_stage else None
 
@@ -70,6 +73,12 @@ class StageTimers:
                     stack[-1][0] += elapsed
                 row = self.totals[label]
                 row['calls'] += 1
+                if label == 'cuda_posegen_native':
+                    row['jobs'] += len(args[1])
+                elif label == 'cuda_posegen_batch':
+                    row['jobs'] += len(args[2])
+                elif label == 'cpu_posegen_worker':
+                    row['jobs'] += 1
                 row['inclusive_seconds'] += elapsed
                 row['exclusive_seconds'] += elapsed - frame[0]
                 row['thread_cpu_seconds'] += cpu
@@ -84,13 +93,18 @@ def main():
     args, remaining = parser.parse_known_args()
     if args.profile_output.exists() or args.profile_output.with_suffix('.prof').exists():
         raise FileExistsError(args.profile_output)
-    if '--backend' not in remaining or remaining[remaining.index('--backend') + 1] != 'cuda':
-        parser.error('this profiler requires --backend cuda')
     timers = StageTimers(args.cprofile_stage)
     targets = [
         (MonteCarloTreeSearch, 'search', 'search'),
         (MonteCarloTreeSearch, '_expand_many', 'pose_generation_and_priors'),
         (StackingEnvironmentEvaluator, 'evaluate_batch', 'transition_batch'),
+        (ParallelTransitionEvaluator, 'evaluate_batch', 'cpu_transition_batch_wall'),
+        (CorePlacementPoseSolver, 'solve', 'cpu_posegen_worker'),
+        (CudaPlacementPoseSolver, 'solve_batch', 'cuda_posegen_batch'),
+        (CorePlacementBackend, 'place', 'cpu_placement_worker'),
+        (CorePlacementBackend, '_settle', 'cpu_settling_worker'),
+        (CorePlacementBackend, '_simulate_structural', 'cpu_structural_worker'),
+        (robustness, '_simulate_noisy_place', 'cpu_robustness_trial_worker'),
         (StackingEnvironmentEvaluator, 'evaluate', 'transition_single'),
         (StackingEnvironment, 'step_batch', 'environment_batch'),
         (SimulationTransition, 'step_batch', 'transition_apply_batch'),
@@ -116,6 +130,8 @@ def main():
         (ArrayObservationBuilder, 'build', 'observation'),
         (VoxelOverlapEvaluator, '_intersection_volume', 'voxel_overlap'),
     ]
+    if hasattr(benchmark.core, 'CudaPoseGenerator'):
+        targets.append((benchmark.core.CudaPoseGenerator, 'solve', 'cuda_posegen_native'))
     if args.cprofile_stage and args.cprofile_stage not in {t[2] for t in targets}:
         parser.error('unknown cProfile stage')
     for owner, name, label in targets:
@@ -141,7 +157,7 @@ def main():
         cprofile_stage=args.cprofile_stage,
         profiler_sha256=benchmark.digest(__file__),
         benchmark_arguments=remaining,
-        note='Search-only wall timers; inclusive values overlap. Exclusive values subtract instrumented child calls; native calls include immediate return handling, not pure kernel time.',
+        note='Search-only wall timers; inclusive values overlap. CPU worker times sum overlapping threads and are not search wall time. Exclusive values subtract instrumented child calls on the same thread; native calls include immediate return handling, not pure kernel time.',
     )
     args.profile_output.write_text(json.dumps(report, indent=2) + '\n')
     if timers.profile:

@@ -451,6 +451,14 @@ def test_constraint_scaling_round_trip_is_independent_of_physical_damping(tmp_pa
             replace(profile, solver_constraint_scale_reference=value)
 
 
+def test_simulation_rejects_old_backend_location(tmp_path):
+    path = tmp_path / "simulation.yml"
+    source = ROOT / "apps/tabletop/config/solvers/simulation.yml"
+    path.write_text(source.read_text() + "\nbackend: cuda\n")
+    with pytest.raises(ValueError, match="parallel.simulation_backend"):
+        load_simulation_profile(path)
+
+
 def test_inventory_profile_and_component_asset_loading(tmp_path: Path) -> None:
     profile = load_inventory_profile(
         ROOT / "apps" / "tabletop" / "config" / "inventory.yml"

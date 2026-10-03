@@ -17,9 +17,10 @@ def load_posegen_profile(path: str | Path) -> CorePosegenProfile:
         raise TypeError("posegen profile root must be a mapping")
     if values.get("units") != "si":
         raise ValueError("posegen profile units must be 'si'")
+    if "backend" in values:
+        raise ValueError("move posegen backend to parallel.posegen_backend in the MCTS profile")
     scene = _mapping(values, "scene")
     return CorePosegenProfile(
-        backend=values.get("backend", "cpu"),
         frame_id=int(_required(scene, "frame_id")),
         target_model_id=int(_required(scene, "target_model_id")),
         target_entity_id=int(_required(scene, "target_entity_id")),

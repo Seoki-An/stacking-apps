@@ -39,7 +39,7 @@ class PlanningRunDialog(QDialog):
         self.pick_path = QLineEdit()
         self.pick_path.setPlaceholderText("Optional for search-only unless pose_from_scan is enabled")
         self.output_path = QLineEdit()
-        self.config_path = QLineEdit(str(self.repository / "apps/excavator/config/mcts.yml"))
+        self.config_path = QLineEdit(str(self.repository / "apps/excavator/config/mcts_cpu.yml"))
         if self.source:
             self.output_path.setText(str(self.source.with_name(self.source.stem + "-resumed.stack")))
             metadata = StackRunStore.info(self.source).metadata

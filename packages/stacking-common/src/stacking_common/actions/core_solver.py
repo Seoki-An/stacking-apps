@@ -86,11 +86,8 @@ class CorePosegenProfile:
     objective: Mapping[str, object] = field(default_factory=dict)
     force_solver: Mapping[str, object] = field(default_factory=dict)
     schedule: Mapping[str, object] = field(default_factory=dict)
-    backend: str = field(default="cpu", metadata={"omit_default_from_context": True})
 
     def __post_init__(self) -> None:
-        if self.backend not in {"cpu", "cuda"}:
-            raise ValueError("posegen backend must be 'cpu' or 'cuda'")
         if self.boundary_radius is not None and (not math.isfinite(self.boundary_radius) or self.boundary_radius < 0):
             raise ValueError("posegen boundary radius must be finite and nonnegative")
         for name in ("frame_id", "target_model_id", "target_entity_id"):

@@ -234,6 +234,8 @@ class CoreSimulationProfile(CorePhysicsProfile):
 
         if values.get("units") != "si":
             raise ValueError("simulation profile units must be 'si'")
+        if "backend" in values:
+            raise ValueError("move simulation backend to parallel.simulation_backend in the MCTS profile")
         integration = _profile_mapping(values, "integration")
         if "physics" in values or "phases" in values:
             # Do not silently ignore settings left behind during migration.

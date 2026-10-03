@@ -1,7 +1,7 @@
 """Loading of resolved platform MCTS and root-proposal settings."""
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -19,12 +19,17 @@ from stacking_common.search import (
 
 @dataclass(frozen=True)
 class MCTSParallelConfig:
-    """Platform CPU allocation for independent native search workers."""
+    """Platform compute backends and CPU allocation for native search."""
 
     enabled: bool
     workers: int
+    posegen_backend: str = field(default="cpu", metadata={"omit_default_from_context": True})
+    simulation_backend: str = field(default="cpu", metadata={"omit_default_from_context": True})
 
     def __post_init__(self) -> None:
+        for name in ("posegen_backend", "simulation_backend"):
+            if getattr(self, name) not in ("cpu", "cuda"):
+                raise ValueError(f"MCTS parallel {name} must be 'cpu' or 'cuda'")
         if not isinstance(self.enabled, bool):
             raise TypeError("MCTS parallel enabled flag must be boolean")
         if not isinstance(self.workers, int) or self.workers <= 0:
@@ -161,6 +166,8 @@ def load_mcts_profile(path: str | Path) -> MCTSProfile:
         parallel=MCTSParallelConfig(
             enabled=_required(parallel, "enabled"),
             workers=int(_required(parallel, "workers")),
+            posegen_backend=parallel.get("posegen_backend", "cpu"),
+            simulation_backend=parallel.get("simulation_backend", "cpu"),
         ),
         bootstrap_mean_reward=float(_required(bootstrap, "mean_reward")),
         bootstrap_horizon=int(_required(bootstrap, "horizon")),

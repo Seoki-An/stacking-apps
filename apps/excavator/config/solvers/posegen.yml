@@ -1,8 +1,5 @@
 # stacking-planner contexts.get_posegen, PoseSolver schedule, and diffsim defaults.
 units: si
-# Shared search mode: cuda enables pose generation and placement simulation.
-# Requires CUDA-enabled stacking-core; unusable GPU results reject the candidate.
-backend: cuda
 trust_region:
   delta_expansion_rate: 2.0
   delta_init: 0.125

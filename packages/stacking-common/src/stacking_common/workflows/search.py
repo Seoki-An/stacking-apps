@@ -56,7 +56,7 @@ class StackingSearchApplication:
             else self.simulation_profile
         )
         backend_type = CorePlacementBackend
-        if self.posegen_profile.backend == "cuda":
+        if self.mcts_profile.parallel.simulation_backend == "cuda":
             from stacking_common.environment.cuda_backend import CudaPlacementBackend
             backend_type = CudaPlacementBackend
         return backend_type.from_profile(
@@ -74,7 +74,7 @@ class StackingSearchApplication:
         """Build native pose generation for the platform target and objects."""
 
         solver_type = CorePlacementPoseSolver
-        if self.posegen_profile.backend == "cuda":
+        if self.mcts_profile.parallel.posegen_backend == "cuda":
             from stacking_common.actions.cuda_solver import CudaPlacementPoseSolver
             solver_type = CudaPlacementPoseSolver
         return solver_type(
@@ -124,7 +124,8 @@ class StackingSearchApplication:
         profile = self.mcts_profile
         worker_count = profile.parallel.effective_workers
         if transition_evaluator is None:
-            if environments is not None or worker_count == 1 or self.posegen_profile.backend == "cuda":
+            cuda_simulation = profile.parallel.simulation_backend == "cuda"
+            if environments is not None or worker_count == 1 or cuda_simulation:
                 transition_evaluator = StackingEnvironmentEvaluator(
                     environments or self.build_search_environments(inventory)
                 )
@@ -145,7 +146,7 @@ class StackingSearchApplication:
             [pose_solver]
             if pose_solver is not None
             else [self.build_pose_solver(inventory) for _ in range(
-                1 if self.posegen_profile.backend == "cuda" else worker_count
+                1 if self.mcts_profile.parallel.posegen_backend == "cuda" else worker_count
             )]
         )
         generator = self.build_action_generator(

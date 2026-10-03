@@ -192,20 +192,12 @@ def test_unavailable_cuda_does_not_silently_select_cpu(capabilities):
         CudaPlacementPoseSolver(None, None, core_module=SimpleNamespace(cuda_capabilities=lambda: capabilities))
 
 
-def test_profile_backend_round_trip_and_validation(tmp_path):
+def test_posegen_rejects_old_backend_location(tmp_path):
     path = ROOT / 'apps/excavator/config/solvers/posegen.yml'
-    configured_profile = load_posegen_profile(path)
-    # Test CPU context compatibility independently of the platform's selection.
-    profile = replace(configured_profile, backend='cpu')
-    assert profile.backend == 'cpu'
-    from stacking_common.artifacts.planning_context import _values
-    assert 'backend' not in _values(profile)  # Keep older CPU run contexts compatible.
-    assert _values(replace(profile, backend='cuda'))['backend'] == 'cuda'
     configured = tmp_path / 'posegen.yml'
-    configured.write_text(path.read_text().replace(f'backend: {configured_profile.backend}', 'backend: cuda'))
-    assert load_posegen_profile(configured).backend == 'cuda'
-    with pytest.raises(ValueError, match='backend'):
-        replace(profile, backend='gpu_typo')
+    configured.write_text(path.read_text() + '\nbackend: cuda\n')
+    with pytest.raises(ValueError, match='parallel.posegen_backend'):
+        load_posegen_profile(configured)
 
 
 def test_native_cuda_excavator_schedule(monkeypatch):
@@ -213,7 +205,7 @@ def test_native_cuda_excavator_schedule(monkeypatch):
         pytest.skip('requires a CUDA-enabled stacking-core build and GPU')
     from test_excavator_action_parity import inputs
     app, inventory, state = inputs()
-    gpu = CudaPlacementPoseSolver(inventory, replace(app.posegen_profile, backend='cuda'))
+    gpu = CudaPlacementPoseSolver(inventory, app.posegen_profile)
     initial = InitializedPlacement(pose(), 0.)
     monkeypatch.setattr(CorePlacementPoseSolver, 'solve',
                         lambda *args: pytest.fail('unexpected CPU pose solve'))

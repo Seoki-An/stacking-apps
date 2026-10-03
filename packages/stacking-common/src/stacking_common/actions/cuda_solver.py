@@ -21,7 +21,7 @@ class CudaPlacementPoseSolver(CorePlacementPoseSolver):
         if not capabilities.get("posegen_solve") or not capabilities.get("devices"):
             raise RuntimeError(
                 "posegen backend 'cuda' requires a CUDA-enabled stacking-core build "
-                "and a visible CUDA device; load build-cuda/python or select backend: cpu"
+                "and a visible CUDA device; install CUDA bindings or set parallel.posegen_backend: cpu in the MCTS profile"
             )
         super().__init__(inventory, profile, core_module=core_module)
         self.cuda_generator = core_module.CudaPoseGenerator(

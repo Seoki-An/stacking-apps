@@ -293,7 +293,7 @@ retry, no lift accumulation, interruption, checkpoint integrity, and branching.
 Proposed public commands follow the existing tabletop run conventions:
 
 ```bash
-stacking-excavator-plan --config apps/excavator/config/mcts.yml \
+stacking-excavator-plan --config apps/excavator/config/mcts_cpu.yml \
   --pick-pose-data /path/to/pose_data.pkl --save-run /tmp/excavator.stack
 stacking-excavator-plan --resume-run /tmp/excavator.stack \
   --save-run /tmp/excavator-resumed.stack --steps 2
