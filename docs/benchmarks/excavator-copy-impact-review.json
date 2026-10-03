@@ -1,0 +1,305 @@
+{
+  "date": "2026-10-03",
+  "scope": "Cross-module review of trajectory-copy and batch-restore optimization",
+  "full_suite": {
+    "name": "pytest",
+    "errors": "19",
+    "failures": "9",
+    "skipped": "0",
+    "tests": "1183",
+    "time": "194.587",
+    "timestamp": "2026-10-03T02:36:26.931452+09:00",
+    "hostname": "inrol-excavator"
+  },
+  "baseline_failure_recheck": {
+    "name": "pytest",
+    "errors": "19",
+    "failures": "9",
+    "skipped": "0",
+    "tests": "28",
+    "time": "3.786",
+    "timestamp": "2026-10-03T02:40:56.152702+09:00",
+    "hostname": "inrol-excavator"
+  },
+  "failures": {
+    "tests/test_excavator_closed_loop.py::test_measured_world_and_both_review_gates": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_changed_rejected_or_missing_stone_prevents_transfer[0.1-True-True]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_changed_rejected_or_missing_stone_prevents_transfer[0.0-False-True]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_changed_rejected_or_missing_stone_prevents_transfer[0.0-False-False]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[capture_id-old-job]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[product_id-wrong-product]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[source_manifest_sha256-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[scene_revision-99]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[kind-scene]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[objects-value5]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_late_final_scene_acceptance_cannot_bypass_device_health[lease]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_late_final_scene_acceptance_cannot_bypass_device_health[feedback]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_cancel_kills_owned_capture_and_restart_preserves_world": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_world_snapshot_is_not_mutable_and_missed_pickup_stays_in_field": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_owner_crash_at_review_never_consumes_the_pending_proposal": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_worker_start_failure_stops_motion": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_live_execution_console_gate_and_world_layers": {
+      "kind": "failure",
+      "message": "ValueError: Recorded replay asset differs: object/1"
+    },
+    "tests/test_excavator_closed_loop.py::test_real_commands_raycast_transfer_icp_and_review": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_real_fault_scan_blocks_transfer[missed_pickup]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_real_fault_scan_blocks_transfer[grasp_offset]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_pcd_emulation.py::test_real_mesh_rays_and_sensor_coordinates_match_legacy[field]": {
+      "kind": "failure",
+      "message": "AssertionError: \nNot equal to tolerance rtol=1e-07, atol=1e-12\n\nMismatched elements: 8 / 16 (50%)\nFirst 5 mismatches are at indices:\n [0, 0]: -0.8660255668562877 (ACTUAL), 0.8660252407124965 (DESIRED)\n [0, 1]: -0.039028275302697535 (ACTUAL), -0.03902828379294446 (DESIRED)\n [0, 2]: -0.49847418316111636 (ACTUAL), -0.49847474912280154 (DESIRED)\n [0, 3]: 3.727387435714915 (ACTUAL), 3.623464387260783 (DESIRED)\n [1, 0]: 0.49999971755116507 (ACTUAL), 0.5000002824487824 (DESIRED)\nMax absolute difference among violations: 12.73204884\nMax relative difference among violations: 2.00000038\n ACTUAL: array([[-8.660256e-01, -3.902828e-02, -4.984742e-01,  3.727387e+00],\n       [ 4.999997e-01, -6.759897e-02, -8.633833e-01,  6.336024e+00],\n       [ 2.061873e-08, -9.969489e-01,  7.805656e-02,  3.971490e+00],\n       [ 0.000000e+00,  0.000000e+00,  0.000000e+00,  1.000000e+00]])\n DESIRED: array([[ 8.660252e-01, -3.902828e-02, -4.984747e-01,  3.623464e+00],\n       [ 5.000003e-01,  6.759896e-02,  8.633829e-01, -6.396024e+00],\n       [ 2.061872e-08, -9.969489e-01,  7.805656e-02,  3.971490e+00],\n       [ 0.000000e+00,  0.000000e+00,  0.000000e+00,  1.000000e+00]])"
+    },
+    "tests/test_excavator_pcd_emulation.py::test_real_mesh_rays_and_sensor_coordinates_match_legacy[inhand]": {
+      "kind": "failure",
+      "message": "AssertionError: \nNot equal to tolerance rtol=1e-07, atol=1e-12\n\nMismatched elements: 4 / 32 (12.5%)\nMismatch at indices:\n [0, 0, 3]: 0.7020190567681617 (ACTUAL), 0.5980960027953688 (DESIRED)\n [0, 1, 3]: 4.792085090538266 (ACTUAL), -7.852085093724465 (DESIRED)\n [1, 0, 3]: 1.2020190567681617 (ACTUAL), 1.0980960027953688 (DESIRED)\n [1, 1, 3]: 7.792085090538266 (ACTUAL), -4.852085093724465 (DESIRED)\nMax absolute difference among violations: 12.64417018\nMax relative difference among violations: 2.60592507\n ACTUAL: array([[[ 0.842152, -0.447214,  0.301297,  0.702019],\n        [ 0.421076,  0.894427,  0.150649,  4.792085],\n        [-0.336861,  0.      ,  0.941554,  4.523473],...\n DESIRED: array([[[ 0.842152, -0.447214,  0.301297,  0.598096],\n        [ 0.421076,  0.894427,  0.150649, -7.852085],\n        [-0.336861,  0.      ,  0.941554,  4.523473],..."
+    },
+    "tests/test_excavator_pcd_emulation.py::test_real_mesh_rays_and_sensor_coordinates_match_legacy[scene]": {
+      "kind": "failure",
+      "message": "AssertionError: \nNot equal to tolerance rtol=1e-07, atol=1e-12\n\nMismatched elements: 8 / 16 (50%)\nFirst 5 mismatches are at indices:\n [0, 0]: -0.8660255668562877 (ACTUAL), 0.8660252407124965 (DESIRED)\n [0, 1]: -0.039028275302697535 (ACTUAL), -0.03902828379294446 (DESIRED)\n [0, 2]: -0.49847418316111636 (ACTUAL), -0.49847474912280154 (DESIRED)\n [0, 3]: 3.727387435714915 (ACTUAL), 3.623464387260783 (DESIRED)\n [1, 0]: 0.49999971755116507 (ACTUAL), 0.5000002824487824 (DESIRED)\nMax absolute difference among violations: 12.73204884\nMax relative difference among violations: 2.00000038\n ACTUAL: array([[-8.660256e-01, -3.902828e-02, -4.984742e-01,  3.727387e+00],\n       [ 4.999997e-01, -6.759897e-02, -8.633833e-01,  6.336024e+00],\n       [ 2.061873e-08, -9.969489e-01,  7.805656e-02,  3.971490e+00],\n       [ 0.000000e+00,  0.000000e+00,  0.000000e+00,  1.000000e+00]])\n DESIRED: array([[ 8.660252e-01, -3.902828e-02, -4.984747e-01,  3.623464e+00],\n       [ 5.000003e-01,  6.759896e-02,  8.633829e-01, -6.396024e+00],\n       [ 2.061872e-08, -9.969489e-01,  7.805656e-02,  3.971490e+00],\n       [ 0.000000e+00,  0.000000e+00,  0.000000e+00,  1.000000e+00]])"
+    },
+    "tests/test_excavator_scan_orientation.py::test_scan_support_maps_and_seeded_placements_match_legacy[placed]": {
+      "kind": "failure",
+      "message": "AssertionError: \nNot equal to tolerance rtol=0, atol=1e-12\n\nnan location mismatch:\n ACTUAL: array([[nan, nan, nan, ..., nan, nan, nan],\n       [nan, nan, nan, ..., nan, nan, nan],\n       [nan, nan, nan, ..., nan, nan, nan],...\n DESIRED: array([[nan, nan, nan, ..., nan, nan, nan],\n       [nan, nan, nan, ..., nan, nan, nan],\n       [nan, nan, nan, ..., nan, nan, nan],..."
+    },
+    "tests/test_plan_playback_rendering.py::test_execution_and_scan_preview_honor_robot_geometry_mode[visual-12]": {
+      "kind": "failure",
+      "message": "AttributeError: 'types.SimpleNamespace' object has no attribute 'observed_scene_points'"
+    },
+    "tests/test_plan_playback_rendering.py::test_execution_and_scan_preview_honor_robot_geometry_mode[collision-14]": {
+      "kind": "failure",
+      "message": "AttributeError: 'types.SimpleNamespace' object has no attribute 'observed_scene_points'"
+    },
+    "tests/test_plan_playback_rendering.py::test_execution_and_scan_preview_honor_robot_geometry_mode[visual_collision-26]": {
+      "kind": "failure",
+      "message": "AttributeError: 'types.SimpleNamespace' object has no attribute 'observed_scene_points'"
+    },
+    "tests/test_tabletop_scene_capture.py::test_simulated_pick_stones_use_pose_solver_and_seat_render_meshes_on_table": {
+      "kind": "failure",
+      "message": "assert False is True"
+    }
+  },
+  "baseline_failure_messages": {
+    "tests/test_excavator_closed_loop.py::test_measured_world_and_both_review_gates": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_changed_rejected_or_missing_stone_prevents_transfer[0.1-True-True]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_changed_rejected_or_missing_stone_prevents_transfer[0.0-False-True]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_changed_rejected_or_missing_stone_prevents_transfer[0.0-False-False]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[capture_id-old-job]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[product_id-wrong-product]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[source_manifest_sha256-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[scene_revision-99]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[kind-scene]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[objects-value5]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_late_final_scene_acceptance_cannot_bypass_device_health[lease]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_late_final_scene_acceptance_cannot_bypass_device_health[feedback]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_cancel_kills_owned_capture_and_restart_preserves_world": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_world_snapshot_is_not_mutable_and_missed_pickup_stays_in_field": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_owner_crash_at_review_never_consumes_the_pending_proposal": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_worker_start_failure_stops_motion": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_live_execution_console_gate_and_world_layers": {
+      "kind": "failure",
+      "message": "ValueError: Recorded replay asset differs: object/1"
+    },
+    "tests/test_excavator_closed_loop.py::test_real_commands_raycast_transfer_icp_and_review": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_real_fault_scan_blocks_transfer[missed_pickup]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_closed_loop.py::test_real_fault_scan_blocks_transfer[grasp_offset]": {
+      "kind": "error",
+      "message": "failed on setup with \"ValueError: Recorded replay asset differs: object/1\""
+    },
+    "tests/test_excavator_pcd_emulation.py::test_real_mesh_rays_and_sensor_coordinates_match_legacy[field]": {
+      "kind": "failure",
+      "message": "AssertionError: \nNot equal to tolerance rtol=1e-07, atol=1e-12\n\nMismatched elements: 8 / 16 (50%)\nFirst 5 mismatches are at indices:\n [0, 0]: -0.8660255668562877 (ACTUAL), 0.8660252407124965 (DESIRED)\n [0, 1]: -0.039028275302697535 (ACTUAL), -0.03902828379294446 (DESIRED)\n [0, 2]: -0.49847418316111636 (ACTUAL), -0.49847474912280154 (DESIRED)\n [0, 3]: 3.727387435714915 (ACTUAL), 3.623464387260783 (DESIRED)\n [1, 0]: 0.49999971755116507 (ACTUAL), 0.5000002824487824 (DESIRED)\nMax absolute difference among violations: 12.73204884\nMax relative difference among violations: 2.00000038\n ACTUAL: array([[-8.660256e-01, -3.902828e-02, -4.984742e-01,  3.727387e+00],\n       [ 4.999997e-01, -6.759897e-02, -8.633833e-01,  6.336024e+00],\n       [ 2.061873e-08, -9.969489e-01,  7.805656e-02,  3.971490e+00],\n       [ 0.000000e+00,  0.000000e+00,  0.000000e+00,  1.000000e+00]])\n DESIRED: array([[ 8.660252e-01, -3.902828e-02, -4.984747e-01,  3.623464e+00],\n       [ 5.000003e-01,  6.759896e-02,  8.633829e-01, -6.396024e+00],\n       [ 2.061872e-08, -9.969489e-01,  7.805656e-02,  3.971490e+00],\n       [ 0.000000e+00,  0.000000e+00,  0.000000e+00,  1.000000e+00]])"
+    },
+    "tests/test_excavator_pcd_emulation.py::test_real_mesh_rays_and_sensor_coordinates_match_legacy[inhand]": {
+      "kind": "failure",
+      "message": "AssertionError: \nNot equal to tolerance rtol=1e-07, atol=1e-12\n\nMismatched elements: 4 / 32 (12.5%)\nMismatch at indices:\n [0, 0, 3]: 0.7020190567681617 (ACTUAL), 0.5980960027953688 (DESIRED)\n [0, 1, 3]: 4.792085090538266 (ACTUAL), -7.852085093724465 (DESIRED)\n [1, 0, 3]: 1.2020190567681617 (ACTUAL), 1.0980960027953688 (DESIRED)\n [1, 1, 3]: 7.792085090538266 (ACTUAL), -4.852085093724465 (DESIRED)\nMax absolute difference among violations: 12.64417018\nMax relative difference among violations: 2.60592507\n ACTUAL: array([[[ 0.842152, -0.447214,  0.301297,  0.702019],\n        [ 0.421076,  0.894427,  0.150649,  4.792085],\n        [-0.336861,  0.      ,  0.941554,  4.523473],...\n DESIRED: array([[[ 0.842152, -0.447214,  0.301297,  0.598096],\n        [ 0.421076,  0.894427,  0.150649, -7.852085],\n        [-0.336861,  0.      ,  0.941554,  4.523473],..."
+    },
+    "tests/test_excavator_pcd_emulation.py::test_real_mesh_rays_and_sensor_coordinates_match_legacy[scene]": {
+      "kind": "failure",
+      "message": "AssertionError: \nNot equal to tolerance rtol=1e-07, atol=1e-12\n\nMismatched elements: 8 / 16 (50%)\nFirst 5 mismatches are at indices:\n [0, 0]: -0.8660255668562877 (ACTUAL), 0.8660252407124965 (DESIRED)\n [0, 1]: -0.039028275302697535 (ACTUAL), -0.03902828379294446 (DESIRED)\n [0, 2]: -0.49847418316111636 (ACTUAL), -0.49847474912280154 (DESIRED)\n [0, 3]: 3.727387435714915 (ACTUAL), 3.623464387260783 (DESIRED)\n [1, 0]: 0.49999971755116507 (ACTUAL), 0.5000002824487824 (DESIRED)\nMax absolute difference among violations: 12.73204884\nMax relative difference among violations: 2.00000038\n ACTUAL: array([[-8.660256e-01, -3.902828e-02, -4.984742e-01,  3.727387e+00],\n       [ 4.999997e-01, -6.759897e-02, -8.633833e-01,  6.336024e+00],\n       [ 2.061873e-08, -9.969489e-01,  7.805656e-02,  3.971490e+00],\n       [ 0.000000e+00,  0.000000e+00,  0.000000e+00,  1.000000e+00]])\n DESIRED: array([[ 8.660252e-01, -3.902828e-02, -4.984747e-01,  3.623464e+00],\n       [ 5.000003e-01,  6.759896e-02,  8.633829e-01, -6.396024e+00],\n       [ 2.061872e-08, -9.969489e-01,  7.805656e-02,  3.971490e+00],\n       [ 0.000000e+00,  0.000000e+00,  0.000000e+00,  1.000000e+00]])"
+    },
+    "tests/test_excavator_scan_orientation.py::test_scan_support_maps_and_seeded_placements_match_legacy[placed]": {
+      "kind": "failure",
+      "message": "AssertionError: \nNot equal to tolerance rtol=0, atol=1e-12\n\nnan location mismatch:\n ACTUAL: array([[nan, nan, nan, ..., nan, nan, nan],\n       [nan, nan, nan, ..., nan, nan, nan],\n       [nan, nan, nan, ..., nan, nan, nan],...\n DESIRED: array([[nan, nan, nan, ..., nan, nan, nan],\n       [nan, nan, nan, ..., nan, nan, nan],\n       [nan, nan, nan, ..., nan, nan, nan],..."
+    },
+    "tests/test_plan_playback_rendering.py::test_execution_and_scan_preview_honor_robot_geometry_mode[visual-12]": {
+      "kind": "failure",
+      "message": "AttributeError: 'types.SimpleNamespace' object has no attribute 'observed_scene_points'"
+    },
+    "tests/test_plan_playback_rendering.py::test_execution_and_scan_preview_honor_robot_geometry_mode[collision-14]": {
+      "kind": "failure",
+      "message": "AttributeError: 'types.SimpleNamespace' object has no attribute 'observed_scene_points'"
+    },
+    "tests/test_plan_playback_rendering.py::test_execution_and_scan_preview_honor_robot_geometry_mode[visual_collision-26]": {
+      "kind": "failure",
+      "message": "AttributeError: 'types.SimpleNamespace' object has no attribute 'observed_scene_points'"
+    },
+    "tests/test_tabletop_scene_capture.py::test_simulated_pick_stones_use_pose_solver_and_seat_render_meshes_on_table": {
+      "kind": "failure",
+      "message": "assert False is True"
+    }
+  },
+  "exact_failure_message_matches": {
+    "tests/test_excavator_closed_loop.py::test_measured_world_and_both_review_gates": true,
+    "tests/test_excavator_closed_loop.py::test_changed_rejected_or_missing_stone_prevents_transfer[0.1-True-True]": true,
+    "tests/test_excavator_closed_loop.py::test_changed_rejected_or_missing_stone_prevents_transfer[0.0-False-True]": true,
+    "tests/test_excavator_closed_loop.py::test_changed_rejected_or_missing_stone_prevents_transfer[0.0-False-False]": true,
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[capture_id-old-job]": true,
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[product_id-wrong-product]": true,
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[source_manifest_sha256-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb]": true,
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[scene_revision-99]": true,
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[kind-scene]": true,
+    "tests/test_excavator_closed_loop.py::test_wrong_capture_cannot_authorize_motion[objects-value5]": true,
+    "tests/test_excavator_closed_loop.py::test_late_final_scene_acceptance_cannot_bypass_device_health[lease]": true,
+    "tests/test_excavator_closed_loop.py::test_late_final_scene_acceptance_cannot_bypass_device_health[feedback]": true,
+    "tests/test_excavator_closed_loop.py::test_cancel_kills_owned_capture_and_restart_preserves_world": true,
+    "tests/test_excavator_closed_loop.py::test_world_snapshot_is_not_mutable_and_missed_pickup_stays_in_field": true,
+    "tests/test_excavator_closed_loop.py::test_owner_crash_at_review_never_consumes_the_pending_proposal": true,
+    "tests/test_excavator_closed_loop.py::test_worker_start_failure_stops_motion": true,
+    "tests/test_excavator_closed_loop.py::test_live_execution_console_gate_and_world_layers": true,
+    "tests/test_excavator_closed_loop.py::test_real_commands_raycast_transfer_icp_and_review": true,
+    "tests/test_excavator_closed_loop.py::test_real_fault_scan_blocks_transfer[missed_pickup]": true,
+    "tests/test_excavator_closed_loop.py::test_real_fault_scan_blocks_transfer[grasp_offset]": true,
+    "tests/test_excavator_pcd_emulation.py::test_real_mesh_rays_and_sensor_coordinates_match_legacy[field]": true,
+    "tests/test_excavator_pcd_emulation.py::test_real_mesh_rays_and_sensor_coordinates_match_legacy[inhand]": true,
+    "tests/test_excavator_pcd_emulation.py::test_real_mesh_rays_and_sensor_coordinates_match_legacy[scene]": true,
+    "tests/test_excavator_scan_orientation.py::test_scan_support_maps_and_seeded_placements_match_legacy[placed]": true,
+    "tests/test_plan_playback_rendering.py::test_execution_and_scan_preview_honor_robot_geometry_mode[visual-12]": true,
+    "tests/test_plan_playback_rendering.py::test_execution_and_scan_preview_honor_robot_geometry_mode[collision-14]": true,
+    "tests/test_plan_playback_rendering.py::test_execution_and_scan_preview_honor_robot_geometry_mode[visual_collision-26]": true,
+    "tests/test_tabletop_scene_capture.py::test_simulated_pick_stones_use_pose_solver_and_seat_render_meshes_on_table": true
+  },
+  "baseline_method": "Restore the prior trajectory copy constructor and twice-restored batch transition behavior inside a separate pytest process. Adapt only the private _validate call to the explicit-state signature. Working-tree production files are not changed.",
+  "baseline_script": "\"\"\"Restore the two pre-optimization behaviors only in this pytest process.\"\"\"\nimport sys\nfrom pathlib import Path\nroot=Path.cwd()\nfor directory in ('packages/stacking-common/src','apps/tabletop/src','apps/excavator/src'):\n    sys.path.insert(0,str(root/directory))\nfrom stacking_common.domain import StackObjectTrajectory\nfrom stacking_common.environment import SimulationTransition\n\n\ndef old_copy(self):\n    return StackObjectTrajectory(\n        object_id=self.object_id, poses=[pose.copy() for pose in self.poses],\n        energy=self.energy, vel_integral=self.vel_integral,\n        settle_pose_count=self.settle_pose_count,\n        settle_position_delta=self.settle_position_delta,\n        settle_path_length=self.settle_path_length,\n        times=None if self.times is None else self.times.copy())\n\n\ndef old_batch(self, states, actions):\n    if len(states)!=len(actions):\n        raise ValueError('transition batch states and actions must align')\n    prepared=[]\n    for state,action in zip(states,actions):\n        self.restore(state)\n        self._validate(action,self._state)\n        candidate=action.copy()\n        candidate.object_id=self.object_ids[candidate.object_index]\n        prepared.append(candidate)\n    results=self.backend.place_batch(states,prepared)\n    if len(results)!=len(prepared):\n        raise RuntimeError('placement batch returned the wrong number of results')\n    outputs=[]\n    for state,candidate,result in zip(states,prepared,results):\n        self.restore(state)\n        outputs.append(self._apply_result(candidate,result))\n    return tuple(outputs)\n\n\nStackObjectTrajectory.copy=old_copy\nSimulationTransition.step_batch=old_batch\nimport pytest\nraise SystemExit(pytest.main(sys.argv[1:]))\n",
+  "command": "OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 QT_QPA_PLATFORM=xcb xvfb-run -a python -m pytest -q --disable-warnings",
+  "environment_note": "QT_QPA_PLATFORM=offscreen caused native X BadWindow termination; the isolated GUI test and full suite complete under Xvfb with xcb.",
+  "regression_tests_added": [
+    "checkpoint history remains independent of source and decoded state",
+    "decode rejects nonfinite poses",
+    "decode rejects zero quaternions",
+    "decode rejects decreasing timestamps",
+    "decode rejects negative trajectory IDs"
+  ],
+  "code_review": [
+    "No production trajectory subclasses or other batch placement backends were found.",
+    "Both platforms, planning checkpoints, and visualization use the shared copy path.",
+    "All discovered trajectory producers construct validated values or use add_pose; CPU settling retains an already validated final pose and sets its structural time origin.",
+    "CPU single-step restore/snapshot behavior is unchanged.",
+    "Directly mutating an existing trajectory into an invalid state is no longer detected by copy; construction/add_pose/decode continue validating incoming data."
+  ],
+  "source_sha256": {
+    "packages/stacking-common/src/stacking_common/domain/trajectory.py": "4b39be7b4d2f820f5c639a566485bcd37c9f475a1bc70297e8173c819bac9314",
+    "packages/stacking-common/src/stacking_common/environment/transition.py": "d3a53c61dd8fab28f5ccc83bfcdd13ca2edebe1a9de7a3032ec603452ec20316",
+    "tests/test_execution_artifacts.py": "d4fef4e026fc5211666601018d8d1ddb26a22823e3859d3133b75190497ea971"
+  }
+}

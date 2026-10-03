@@ -344,3 +344,50 @@ def test_committed_plan_loader_rejects_search_only_run(tmp_path):
     path = StackRunStore.save_mcts(artifact, tmp_path / "search.stack")
     with pytest.raises(ValueError, match="selected successful motion plan"):
         StackRunStore.load_committed_placement_plans(path)
+
+
+def _checkpoint_with_trajectory():
+    trajectory = StackObjectTrajectory(22, [POSE, POSE], times=[0., .2])
+    state = State([11, 22], [1], {22: POSE}, [{22: trajectory}], [])
+    return state, PlanningCheckpoint(
+        1, _context().sha256, state,
+        PickSceneSnapshot('world', {11: POSE, 22: POSE}, 'recorded'),
+        FrameTransform('world', 'stack', [0, 0, 0, 0, 0, 0, 1]),
+    )
+
+
+def test_checkpoint_trajectory_history_isolated_from_source_and_decoded_copy():
+    from stacking_common.artifacts.planning_checkpoint import (
+        decode_planning_checkpoint, encode_planning_checkpoint,
+    )
+    state, checkpoint = _checkpoint_with_trajectory()
+    state.trajectories[0][22].poses[0][0] = 8.
+    state.trajectories[0][22].times[0] = .1
+    encoded = encode_planning_checkpoint(checkpoint)
+    decoded = decode_planning_checkpoint(encoded)
+    decoded.state.trajectories[0][22].poses[0][0] = 9.
+    decoded.state.trajectories[0][22].times[0] = .05
+    assert checkpoint.state.trajectories[0][22].poses[0][0] == POSE[0]
+    assert checkpoint.state.trajectories[0][22].times == [0., .2]
+    assert encoded['state']['trajectories'][0]['22']['poses'][0][0] == POSE[0]
+    assert encoded['state']['trajectories'][0]['22']['times'] == [0., .2]
+
+
+@pytest.mark.parametrize('invalid', ['nonfinite_pose', 'zero_quaternion', 'decreasing_times', 'negative_id'])
+def test_checkpoint_decode_still_validates_incoming_trajectory(invalid):
+    from stacking_common.artifacts.planning_checkpoint import (
+        decode_planning_checkpoint, encode_planning_checkpoint,
+    )
+    _, checkpoint = _checkpoint_with_trajectory()
+    encoded = encode_planning_checkpoint(checkpoint)
+    trajectory = encoded['state']['trajectories'][0]['22']
+    if invalid == 'nonfinite_pose':
+        trajectory['poses'][0][0] = float('nan')
+    elif invalid == 'zero_quaternion':
+        trajectory['poses'][0][3:] = [0., 0., 0., 0.]
+    elif invalid == 'decreasing_times':
+        trajectory['times'] = [.2, 0.]
+    else:
+        trajectory['object_id'] = -1
+    with pytest.raises(ValueError):
+        decode_planning_checkpoint(encoded)

@@ -1,5 +1,6 @@
 """Stack-object motion recorded during one simulation stage."""
 
+from copy import copy as shallow_copy
 from dataclasses import dataclass, field
 from typing import Iterator
 
@@ -56,16 +57,15 @@ class StackObjectTrajectory:
         self.poses.append(pose)
 
     def copy(self) -> "StackObjectTrajectory":
-        return StackObjectTrajectory(
-            object_id=self.object_id,
-            poses=[pose.copy() for pose in self.poses],
-            energy=self.energy,
-            vel_integral=self.vel_integral,
-            settle_pose_count=self.settle_pose_count,
-            settle_position_delta=self.settle_position_delta,
-            settle_path_length=self.settle_path_length,
-            times=None if self.times is None else self.times.copy(),
-        )
+        """Copy owned arrays without revalidating previously accepted history.
+
+        Construction and add_pose validate incoming poses. A branch copy keeps
+        the same values and gives every mutable pose/time container a new owner.
+        """
+        copied = shallow_copy(self)
+        copied.poses = [pose.copy() for pose in self.poses]
+        copied.times = None if self.times is None else self.times.copy()
+        return copied
 
     def __len__(self) -> int:
         return len(self.poses)

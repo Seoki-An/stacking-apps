@@ -64,7 +64,7 @@ class SimulationTransition:
         return self.snapshot()
 
     def step(self, action: Action) -> State:
-        self._validate(action)
+        self._validate(action, self._state)
         candidate = action.copy()
         candidate.object_id = self.object_ids[candidate.object_index]
         result = self.backend.place(self.snapshot(), candidate)
@@ -73,10 +73,13 @@ class SimulationTransition:
     def step_batch(self, states, actions):
         if len(states) != len(actions):
             raise ValueError("transition batch states and actions must align")
+        # A batch backend reads the supplied branch states directly. Validate
+        # against those parents without restoring/copying their full histories.
         prepared = []
         for state, action in zip(states, actions):
-            self.restore(state)
-            self._validate(action)
+            if [int(value) for value in state.object_ids] != self.object_ids:
+                raise ValueError("state inventory does not match this transition")
+            self._validate(action, state)
             candidate = action.copy()
             candidate.object_id = self.object_ids[candidate.object_index]
             prepared.append(candidate)
@@ -85,15 +88,15 @@ class SimulationTransition:
             raise RuntimeError("placement batch returned the wrong number of results")
         outputs = []
         for state, candidate, result in zip(states, prepared, results):
-            self.restore(state)
-            outputs.append(self._apply_result(candidate, result))
+            outputs.append(self._apply_result(candidate, result, state=state))
         return tuple(outputs)
 
-    def _apply_result(self, candidate, result):
+    def _apply_result(self, candidate, result, *, state=None):
+        state = self._state if state is None else state
         self._validate_result(result)
         poses = {
             int(object_id): np.asarray(pose, dtype=float).copy()
-            for object_id, pose in self._state.object_poses.items()
+            for object_id, pose in state.object_poses.items()
         }
         poses.update(
             {
@@ -107,10 +110,10 @@ class SimulationTransition:
         self._apply_action_result(candidate, result)
 
         sequence = [
-            *self._state.placed_object_indices,
+            *state.placed_object_indices,
             candidate.object_index,
         ]
-        identified = set(self._state.pose_identified_object_ids)
+        identified = set(state.pose_identified_object_ids)
         identified.update(
             int(value) for value in result.pose_identified_object_ids
         )
@@ -120,11 +123,11 @@ class SimulationTransition:
             placed_object_indices=sequence,
             object_poses=poses,
             trajectories=[
-                *self._state.trajectories,
+                *state.trajectories,
                 dict(result.trajectories),
             ],
             action_history=[
-                *self._state.action_history,
+                *state.action_history,
                 candidate.copy(),
             ],
             terminated=result.terminated or len(sequence) == len(self.object_ids),
@@ -157,15 +160,15 @@ class SimulationTransition:
             terminated=not self.object_ids,
         )
 
-    def _validate(self, action: Action) -> None:
+    def _validate(self, action: Action, state: State) -> None:
         if not 0 <= action.object_index < len(self.object_ids):
             raise IndexError("action object index is outside the inventory")
         expected_id = self.object_ids[action.object_index]
         if action.object_id not in (-1, expected_id):
             raise ValueError("action object ID does not match its inventory index")
-        if action.object_index in self._state.placed_object_indices:
+        if action.object_index in state.placed_object_indices:
             raise ValueError("action object has already been placed")
-        if self._state.terminated or self._state.failed:
+        if state.terminated or state.failed:
             raise RuntimeError("cannot step a completed environment")
 
     def _validate_result(self, result: PlacementResult) -> None:

@@ -171,3 +171,30 @@ def test_state_copy_and_latest_velocity_integrals() -> None:
     with pytest.raises(ValueError, match="read-only"):
         copied.contact_points[0].point_first[0] = 1.0
     assert state.latest_velocity_integrals() == {7: 0.125}
+
+
+@pytest.mark.parametrize('timed', [False, True])
+def test_trajectory_copy_preserves_metadata_and_owns_arrays(timed):
+    original = StackObjectTrajectory(
+        7, poses=[pose(1.), pose(2.)], times=[0., .1] if timed else None,
+        energy=.25, vel_integral=.125, settle_pose_count=3,
+        settle_position_delta=.2, settle_path_length=.3,
+    )
+    copied = original.copy()
+    for name in ('object_id', 'energy', 'vel_integral', 'settle_pose_count',
+                 'settle_position_delta', 'settle_path_length', 'times'):
+        assert getattr(copied, name) == getattr(original, name)
+    for source, target in zip(original.poses, copied.poses):
+        np.testing.assert_array_equal(source, target)
+        assert not np.shares_memory(source, target)
+    copied.poses[0][0] = 8.
+    original.poses[1][0] = 9.
+    copied.add_pose(pose(3.), time=.2 if timed else None)
+    assert original.poses[0][0] == 1.
+    assert copied.poses[1][0] == 2.
+    assert len(original) == 2
+    if timed:
+        copied.times[0] = .01
+        assert original.times == [0., .1]
+    else:
+        assert copied.times is None
