@@ -55,7 +55,11 @@ class StackingSearchApplication:
             if fidelity is EvaluationFidelity.SHORT
             else self.simulation_profile
         )
-        return CorePlacementBackend.from_profile(
+        backend_type = CorePlacementBackend
+        if self.posegen_profile.backend == "cuda":
+            from stacking_common.environment.cuda_backend import CudaPlacementBackend
+            backend_type = CudaPlacementBackend
+        return backend_type.from_profile(
             inventory.models,
             profile,
             place_stability=self.environment_profile.place_stability,
@@ -120,7 +124,7 @@ class StackingSearchApplication:
         profile = self.mcts_profile
         worker_count = profile.parallel.effective_workers
         if transition_evaluator is None:
-            if environments is not None or worker_count == 1:
+            if environments is not None or worker_count == 1 or self.posegen_profile.backend == "cuda":
                 transition_evaluator = StackingEnvironmentEvaluator(
                     environments or self.build_search_environments(inventory)
                 )

@@ -99,6 +99,10 @@ class StackingEnvironmentEvaluator(Generic[ObservationT]):
             raise ValueError("at least one search evaluation environment is required")
         self.environments = normalized
         self.worker_count = 1
+        for environment in normalized.values():
+            transition = getattr(environment, "transition", None)
+            backend = getattr(transition, "backend", None)
+            self.worker_count = max(self.worker_count, getattr(backend, "batch_size", 1))
         self._initialized: set[EvaluationFidelity] = set()
 
     def evaluate(
@@ -120,6 +124,10 @@ class StackingEnvironmentEvaluator(Generic[ObservationT]):
             self._initialized.add(fidelity)
         environment.restore(state)
         result = environment.step(action)
+        return self._evaluation(result, fidelity)
+
+    @staticmethod
+    def _evaluation(result, fidelity):
         transition_diagnostics = (
             dict(result.state.action_history[-1].diagnostics)
             if result.state.action_history
@@ -147,14 +155,21 @@ class StackingEnvironmentEvaluator(Generic[ObservationT]):
         actions: Sequence[Action],
         fidelity: EvaluationFidelity,
     ) -> tuple[TransitionEvaluation[ObservationT], ...]:
-        """Evaluate a batch sequentially on this single environment set."""
+        """Use batched physics when available, then build each search result."""
 
         if len(states) != len(actions):
             raise ValueError("transition batch states and actions must align")
-        return tuple(
-            self.evaluate(state, action, fidelity)
-            for state, action in zip(states, actions)
-        )
+        fidelity = EvaluationFidelity(fidelity)
+        environment = self.environments.get(fidelity)
+        if environment is not None and callable(getattr(environment, "step_batch", None)):
+            if not states:
+                return ()
+            if fidelity not in self._initialized:
+                environment.reset()
+                self._initialized.add(fidelity)
+            return tuple(self._evaluation(result, fidelity)
+                         for result in environment.step_batch(states, actions))
+        return tuple(self.evaluate(state, action, fidelity) for state, action in zip(states, actions))
 
     def close(self) -> None:
         """Close every distinct environment owned by this adapter once."""

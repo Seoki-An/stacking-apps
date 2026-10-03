@@ -68,8 +68,29 @@ class SimulationTransition:
         candidate = action.copy()
         candidate.object_id = self.object_ids[candidate.object_index]
         result = self.backend.place(self.snapshot(), candidate)
-        self._validate_result(result)
+        return self._apply_result(candidate, result)
 
+    def step_batch(self, states, actions):
+        if len(states) != len(actions):
+            raise ValueError("transition batch states and actions must align")
+        prepared = []
+        for state, action in zip(states, actions):
+            self.restore(state)
+            self._validate(action)
+            candidate = action.copy()
+            candidate.object_id = self.object_ids[candidate.object_index]
+            prepared.append(candidate)
+        results = self.backend.place_batch(states, prepared)
+        if len(results) != len(prepared):
+            raise RuntimeError("placement batch returned the wrong number of results")
+        outputs = []
+        for state, candidate, result in zip(states, prepared, results):
+            self.restore(state)
+            outputs.append(self._apply_result(candidate, result))
+        return tuple(outputs)
+
+    def _apply_result(self, candidate, result):
+        self._validate_result(result)
         poses = {
             int(object_id): np.asarray(pose, dtype=float).copy()
             for object_id, pose in self._state.object_poses.items()

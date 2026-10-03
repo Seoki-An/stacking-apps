@@ -70,6 +70,7 @@ def test_native_excavator_mcts_selects_a_validated_recorded_object(backend):
         assert result.selected.selectable
         if backend == "cuda":
             assert result.selected.action.diagnostics["posegen_backend"] == "cuda"
+            assert result.selected.state.action_history[-1].diagnostics["simulation_backend"] == "cuda"
         assert not result.selected.state.failed
         assert len(result.selected.state.placed_object_indices) == 1
         # Search owns candidate states; the source scene has not advanced.

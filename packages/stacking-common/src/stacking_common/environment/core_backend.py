@@ -455,6 +455,17 @@ class CorePlacementBackend:
         )
         structural_wall_seconds = time.perf_counter() - structural_started
 
+        return self._finish_placement(
+            state, action, settling_scene, structural_result, frozen_indices,
+            settling_wall_seconds, structural_wall_seconds, placement_started,
+        )
+
+    def _finish_placement(
+        self, state, action, settling_scene, structural_result, frozen_indices,
+        settling_wall_seconds, structural_wall_seconds, placement_started,
+        robustness=None,
+    ):
+        indices = [*state.placed_object_indices, action.object_index]
         snapshot = structural_result.snapshot
         trajectories = structural_result.trajectories
         poses = {
@@ -494,9 +505,11 @@ class CorePlacementBackend:
             diagnostics,
         )
         robustness_started = time.perf_counter()
-        displacement, trials, trial_failure_reasons = evaluate_place_stability(
-            self, state, action,
-            np.asarray(settling_scene.body_pose(self.scene_builder.entity_id(action.object_index)), dtype=float),
+        displacement, trials, trial_failure_reasons = (
+            evaluate_place_stability(
+                self, state, action,
+                np.asarray(settling_scene.body_pose(self.scene_builder.entity_id(action.object_index)), dtype=float),
+            ) if robustness is None else robustness
         )
         robustness_failed = self.place_stability.failed(displacement, trial_failure_reasons)
         if robustness_failed and rejection_reason is None:

@@ -33,6 +33,9 @@ class StackingEnvironment(Generic[observation_t]):
 
     def step(self, action: Action) -> StepResult[observation_t]:
         state = self.transition.step(action)
+        return self._step_result(state)
+
+    def _step_result(self, state):
         reward, info = self.reward_evaluator.compute(state)
         return StepResult(
             state=state,
@@ -40,6 +43,19 @@ class StackingEnvironment(Generic[observation_t]):
             reward=float(reward),
             info=dict(info),
         )
+
+    def step_batch(self, states, actions):
+        """Batch physics where supported; retain the usual reward/observation path."""
+        if len(states) != len(actions):
+            raise ValueError("environment batch states and actions must align")
+        backend = getattr(self.transition, "backend", None)
+        if callable(getattr(backend, "place_batch", None)):
+            return tuple(self._step_result(state) for state in self.transition.step_batch(states, actions))
+        results = []
+        for state, action in zip(states, actions):
+            self.restore(state)
+            results.append(self.step(action))
+        return tuple(results)
 
     def restore(self, state: State) -> None:
         self.transition.restore(state)

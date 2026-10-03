@@ -190,9 +190,11 @@ def run(args):
         writer, checkpoint = branch_excavator_run(args.resume_run, args.save_run, context)
     config_path = (args.config or args.repository / "apps/excavator/config/mcts.yml").resolve()
     print(f"config: {config_path}", flush=True)
+    scheduling = ("batched CUDA transitions" if application.posegen_profile.backend == "cuda"
+                  else f"search_workers={application.mcts_profile.parallel.effective_workers}")
     print("debug mode: real excavator assets/actions/rewards; "
-          f"posegen={application.posegen_profile.backend}; "
-          f"core transition; search_workers={application.mcts_profile.parallel.effective_workers}; "
+          f"posegen={application.posegen_profile.backend}; simulation={application.posegen_profile.backend}; "
+          f"core transition; {scheduling}; "
           f"motion_planning={not args.search_only}", flush=True)
     print(f"inventory source: {scene.source}", flush=True)
     orientation_source = "saved run" if old else ("CLI override" if args.pose_from_scan is not None else "profile")

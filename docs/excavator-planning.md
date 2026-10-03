@@ -90,22 +90,25 @@ The core pip build includes CUDA automatically when `nvcc` is on `PATH` or
 `CUDACXX` specifies a CUDA compiler. Set `STACKING_CORE_ENABLE_CUDA=ON` for the
 install command to require it explicitly. Verify with
 `python -c "import stacking_core as c; print(c.cuda_capabilities())"`;
-`compiled` and `posegen_solve` should both be true. No path override is needed
+`compiled`, `posegen_solve`, and `simulation_solve` should all be true. No path override is needed
 with a CUDA-enabled installation. For testing a separate CMake build without
 installing it, prefix the planner command with
 `PYTHONPATH="$PWD/../stacking-core/build-cuda/python${PYTHONPATH:+:$PYTHONPATH}"`.
 
-The startup line reports `posegen=cuda`. A CPU-only installation or missing GPU
+The startup line reports `posegen=cuda; simulation=cuda`. A CPU-only installation or missing GPU
 raises an explicit startup error. Loading the CUDA bindings alone does not
 select GPU pose generation; the profile must select it too. Use `backend: cpu`
-to select CPU pose generation. Saved contexts record CUDA selection; resume requires a
+to select CPU pose generation and simulation. Saved contexts record CUDA selection; resume requires a
 matching profile, so start a new run when changing backends.
 
 One reusable GPU workspace processes batches of up to 128 initialized candidates,
 including candidates from different MCTS states. Each of the four continuation
 stages consumes that candidate's preceding pose and gap feedback. Geometry,
 sharpness, objective weights, tolerances, and placement filters are unchanged.
-Simulation continues to use the existing CPU workers.
+The same backend selection now also controls placement simulation: one GPU
+workspace per fidelity evaluates up to 32 independent placements per batch.
+This replaces the CPU simulation worker pool in CUDA mode; `parallel.workers`
+continues to control the CPU path.
 
 Batched action generation prepares placed-stone PLY bounds and active-floor
 context once per input State, sharing them only among proposals in that call.
@@ -136,8 +139,8 @@ Geometry/numerical failures, unsupported input, capacity overflow, missing or
 nonfinite results, and unconverged inner force solves reject that candidate.
 There are **no automatic CPU pose retries**. Other candidates continue their
 schedule. Native runtime errors still propagate explicitly. CPU pose generation
-remains available through `backend: cpu`; simulation, initialization and filters
-continue to execute on CPU even when pose solving uses CUDA.
+remains available through `backend: cpu`; initialization and filters continue
+to execute on CPU in either mode.
 
 `PlacementSolveResult.valid=False` distinguishes an unusable result from a usable
 nonconverged pose. Such results carry only placeholder pose/cost fields and an
@@ -176,6 +179,52 @@ produce validated selections, but CUDA is slower and selects different sequences
 Neither backend finds a validated placement in a separate 15-second search from
 the 22-stone state. These bounded checks do not close the throughput or parity
 gates. The core benchmark harness retains timings, retries, and quality evidence.
+
+### GPU placement simulation
+
+CUDA mode runs the platform's settling physics (3D single-point contacts) and
+structural physics (4D limit-surface contacts) using `CudaSimulator`. Settling
+keeps the background fixed. Its downloaded final contacts select the same
+support-chain/freeze-radius policy before structural evaluation; structurally
+fixed and pose-identified stones remain static. The structural scene starts
+with zero motion, as in CPU placement. Short and long validation share warm
+contacts, motion integrals, and quiet counts within one resident rollout.
+Platform time bounds map to integer step counts with strict greater-than
+stopping; this avoids accumulated-time roundoff but can differ from the CPU
+loop by one timestep at exact decimal boundaries.
+
+The core continuation API now permits raising `min_steps` and supplies an
+optional cumulative `max_total_steps` cap. Reinstall core after updating both
+repositories. Older simulator bindings fail explicitly instead of changing the
+validation schedule. Both short search and authoritative long validation use
+GPU simulation, as does fixed-scene resettling before motion planning.
+
+Noisy-placement robustness trials are batched on GPU too. Per-step samples
+retain the existing score's angular-energy convention, near-motion-limit
+shortcut, and genuine-rest check on the host. They simulate up to the maximum
+trial duration and use the earliest legacy stopping sample for scoring. This
+can do more GPU work than early stopping and uses extra sample memory.
+
+Geometry, numerical, or workspace-capacity failures reject the affected
+placement with `simulation_cuda_<status>`; there is no CPU simulation retry.
+Finite inner constraint iteration limits are integrated as in core CPU physics,
+with `simulation_cuda_unconverged_steps` reported. Motion, support, containment,
+robustness, and settled-state checks still determine search acceptance. Candidate
+state, reward, and observation construction use the common environment path.
+GPU diagnostics include `simulation_backend`, `simulation_cuda_status`, and
+`simulation_cuda_phase_statuses`. Phase wall times are apportioned across the
+batch for existing per-job timing reports; MCTS batch wall time remains the
+actual end-to-end measurement. GPU execution is experimental; passing an
+integration test does not establish CPU/GPU search parity or a speedup.
+
+The [integration smoke results](benchmarks/excavator-cuda-simulation-smoke.json)
+record a 49-object, two-iteration empty-stack search with both modules on CUDA:
+6.69 seconds, 12 root candidates, a validated selection, and four successful
+robustness trials for the selected placement. On the recorded 22-stone placement
+check, CPU and GPU both rejected scene motion at both fidelities, froze the same
+10 stones for short validation, and agreed within 0.049 mm in final translation.
+The latter check disables robustness to isolate physics. These limited checks
+do not qualify full-run search parity.
 
 ## Run
 

@@ -1,0 +1,89 @@
+{
+  "scope": "Integration checks on RTX 5060 Ti; not a CPU/GPU search speedup or parity benchmark.",
+  "empty_stack_search": {
+    "objects": 49,
+    "search_seconds": 6.693080213968642,
+    "generated": 12,
+    "selected": 50,
+    "selectable": true,
+    "simulation_jobs": {
+      "long_jobs": 72,
+      "long_complete": 60,
+      "long_quiet": 8,
+      "long_motion_limit": 4
+    },
+    "selected_simulation_backend": "cuda",
+    "selected_stage_times": {
+      "short": 0.7000000000000001,
+      "long_extension": 3.6,
+      "total": 4.3
+    },
+    "selected_robustness_trials": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "recorded_22_stone_placement": {
+    "scope": "First 21 recorded poses as background, final recorded stone as candidate; robustness disabled to isolate simulation.",
+    "results": [
+      {
+        "fidelity": "short",
+        "backend": "cpu",
+        "wall_seconds": 0.3070148100377992,
+        "failed": true,
+        "settled": false,
+        "reason": "scene_motion_limit",
+        "frozen": 10,
+        "phase_times": {
+          "structural": 0.5500000000000003,
+          "total": 0.5500000000000003
+        }
+      },
+      {
+        "fidelity": "short",
+        "backend": "cuda",
+        "wall_seconds": 0.3169887299882248,
+        "failed": true,
+        "settled": false,
+        "reason": "scene_motion_limit",
+        "frozen": 10,
+        "phase_times": {
+          "structural": 0.55,
+          "total": 0.55
+        },
+        "max_cpu_pose_translation_error": 4.937465297910209e-06
+      },
+      {
+        "fidelity": "long",
+        "backend": "cpu",
+        "wall_seconds": 0.6406900230795145,
+        "failed": true,
+        "settled": false,
+        "reason": "scene_motion_limit",
+        "frozen": 0,
+        "phase_times": {
+          "short": 0.5600000000000003,
+          "long_extension": 0.0,
+          "total": 0.5600000000000003
+        }
+      },
+      {
+        "fidelity": "long",
+        "backend": "cuda",
+        "wall_seconds": 0.6516287580598146,
+        "failed": true,
+        "settled": false,
+        "reason": "scene_motion_limit",
+        "frozen": 0,
+        "phase_times": {
+          "short": 0.56,
+          "long_extension": 0.0,
+          "total": 0.56
+        },
+        "max_cpu_pose_translation_error": 4.880299238654959e-05
+      }
+    ]
+  }
+}
