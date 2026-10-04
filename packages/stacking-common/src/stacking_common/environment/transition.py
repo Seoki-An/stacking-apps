@@ -101,11 +101,19 @@ class SimulationTransition:
             results = self.backend.place_batch(parents, candidates)
             if len(results) != len(candidates):
                 raise RuntimeError("placement batch returned the wrong number of results")
-            yield tuple(self._apply_result(candidate, result, state=parent)
-                        for parent, candidate, result in zip(parents, candidates, results))
+            # Each child is newly built and owned by the caller. The transition
+            # keeps one independent final snapshot, as a scalar step does.
+            children = tuple(self._result_state(candidate, result, parent)
+                             for parent, candidate, result in zip(parents, candidates, results))
+            self._state = children[-1].copy()
+            yield children
 
-    def _apply_result(self, candidate, result, *, state=None):
-        state = self._state if state is None else state
+    def _apply_result(self, candidate, result):
+        self._state = self._result_state(candidate, result, self._state)
+        return self.snapshot()
+
+    def _result_state(self, candidate, result, state):
+        """Build a child state that owns copies of its parent's history."""
         self._validate_result(result)
         poses = {
             int(object_id): np.asarray(pose, dtype=float).copy()
@@ -131,7 +139,7 @@ class SimulationTransition:
             int(value) for value in result.pose_identified_object_ids
         )
         identified.intersection_update(poses)
-        self._state = State(
+        return State(
             object_ids=self.object_ids.copy(),
             placed_object_indices=sequence,
             object_poses=poses,
@@ -141,7 +149,7 @@ class SimulationTransition:
             ],
             action_history=[
                 *state.action_history,
-                candidate.copy(),
+                candidate,
             ],
             terminated=result.terminated or len(sequence) == len(self.object_ids),
             failed=result.failed,
@@ -149,7 +157,6 @@ class SimulationTransition:
             contact_points=list(result.contact_points),
             pose_identified_object_ids=identified,
         )
-        return self.snapshot()
 
     def restore(self, state: State) -> None:
         if [int(value) for value in state.object_ids] != self.object_ids:

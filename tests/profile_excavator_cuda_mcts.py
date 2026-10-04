@@ -112,7 +112,7 @@ def main():
         (StackingEnvironment, 'step_batch', 'environment_batch'),
         (StackingEnvironment, '_step_results', 'reward_observation_batch_wall'),
         (SimulationTransition, 'step_batch', 'transition_apply_batch'),
-        (SimulationTransition, '_apply_result', 'state_update'),
+        (SimulationTransition, '_result_state', 'state_update'),
         (SimulationTransition, 'restore', 'state_restore'),
         (SimulationTransition, 'snapshot', 'state_snapshot'),
         (State, 'copy', 'state_copy'),

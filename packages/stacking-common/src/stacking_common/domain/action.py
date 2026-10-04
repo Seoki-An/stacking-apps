@@ -44,22 +44,21 @@ class Action:
         self.diagnostics = copy.deepcopy(self.diagnostics)
 
     def copy(self) -> "Action":
-        solved_pose = self.solved_pose
-        return Action(
-            object_index=self.object_index,
-            pose=self.pose.copy(),
-            init_pose=self.init_pose.copy(),
-            solved_pose=(
-                np.asarray(solved_pose, dtype=float).copy()
-                if solved_pose is not None
-                else self.pose.copy()
-            ),
-            object_id=self.object_id,
-            c_feq=self.c_feq,
-            c_gap=self.c_gap,
-            place_robustness_displacement=self.place_robustness_displacement,
-            diagnostics=copy.deepcopy(self.diagnostics),
+        """Copy owned values without revalidating an accepted action.
+
+        Construction validates incoming poses; a copy keeps the same values and
+        owns new pose arrays and one deep copy of the diagnostics.
+        """
+        copied = copy.copy(self)
+        copied.pose = self.pose.copy()
+        copied.init_pose = self.init_pose.copy()
+        copied.solved_pose = (
+            np.asarray(self.solved_pose, dtype=float).copy()
+            if self.solved_pose is not None
+            else self.pose.copy()
         )
+        copied.diagnostics = copy.deepcopy(self.diagnostics)
+        return copied
 
 
 class ActionList:

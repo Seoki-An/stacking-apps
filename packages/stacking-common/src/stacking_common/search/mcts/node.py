@@ -153,13 +153,18 @@ class MCTSNode(Generic[ObservationT]):
         failed: bool | None = None,
         rejection_reason: str | None = None,
         info: Mapping[str, object] | None = None,
+        owned: bool = False,
     ) -> None:
-        """Store one evaluated transition result on this node."""
+        """Store one evaluated transition result on this node.
+
+        ``owned=True`` takes a state that no other holder will use instead of
+        copying it.
+        """
 
         reward = float(reward)
         if not math.isfinite(reward):
             raise ValueError("MCTS transition reward must be finite")
-        self.state = state.copy()
+        self.state = state if owned else state.copy()
         self.observation = observation
         self.reward = reward
         self.terminal = bool(state.terminated or terminal)

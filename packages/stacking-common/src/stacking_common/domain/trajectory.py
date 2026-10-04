@@ -78,9 +78,12 @@ class StackObjectTrajectory:
 
         Construction and add_pose validate incoming poses. A branch copy keeps
         the same values and gives every mutable pose/time container a new owner.
+        It owns them as one packed array, so copies of the copy are cheap.
         """
-        copied = shallow_copy(self)
-        copied.poses = [pose.copy() for pose in self.poses]
+        copied = _PackedTrajectory.__new__(_PackedTrajectory)
+        copied.__dict__.update(self.__dict__)
+        del copied.__dict__["poses"]
+        copied._packed_poses = np.array(self.poses, dtype=float).reshape(-1, 7)
         copied.times = None if self.times is None else self.times.copy()
         return copied
 

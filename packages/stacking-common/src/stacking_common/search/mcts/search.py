@@ -1357,7 +1357,9 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 raise ValueError("transition evaluator returned the wrong fidelity")
             if evaluation.state.object_ids != node.parent.state.object_ids:
                 raise ValueError("transition evaluator changed the object inventory")
-            self._apply_evaluation(node, evaluation)
+            # These evaluations are discarded here, so the node takes the
+            # evaluation's private state instead of copying it again.
+            self._apply_evaluation(node, evaluation, owned=True)
             counters.evaluated_candidates += 1
             counters.failed_evaluations += int(evaluation.failed)
 
@@ -1728,7 +1730,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             counters.long_simulation_jobs += jobs
 
     @staticmethod
-    def _apply_evaluation(node, evaluation, *, authoritative=False) -> None:
+    def _apply_evaluation(node, evaluation, *, authoritative=False, owned=False) -> None:
         info = {**node.info, **evaluation.diagnostics}
         if authoritative:
             info["authoritative_fidelity"] = evaluation.fidelity.value
@@ -1740,6 +1742,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             failed=evaluation.failed,
             rejection_reason=evaluation.rejection_reason,
             info=info,
+            owned=owned,
         )
 
     @staticmethod
