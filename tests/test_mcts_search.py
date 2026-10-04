@@ -1165,3 +1165,82 @@ def test_early_lookahead_prefers_a_placeable_continuation_over_greedy_dead_end()
 
     assert selected_object(3) == 0  # Larger immediate reward, but blocks the next stone.
     assert selected_object(0) == 1
+
+
+class _BatchedLongEvaluator:
+    """Long validation in recorded batches; the path 0 -> 1 fails."""
+
+    worker_count = 8
+    rewards = {(0, 1): 9.0, (0, 2): 3.0, (1, 0): 8.0, (1, 2): 2.0}
+
+    def __init__(self):
+        self.batches = []
+
+    def evaluate(self, state, action, fidelity):
+        self.batches.append(1)  # The search calls evaluate for single jobs.
+        return self._result(state, action, fidelity)
+
+    def _result(self, state, action, fidelity):
+        placed = [*state.placed_object_indices, action.object_index]
+        failed = placed == [0, 1]
+        next_state = State(
+            object_ids=[10, 20, 30], placed_object_indices=placed, object_poses={},
+            trajectories=[], action_history=[*state.action_history, action], failed=failed,
+        )
+        return TransitionEvaluation(
+            state=next_state, observation=tuple(placed), reward=self.rewards[tuple(placed)],
+            fidelity=fidelity, failed=failed,
+        )
+
+    def evaluate_batch(self, states, actions, fidelity):
+        self.batches.append(len(actions))
+        return tuple(self._result(s, a, fidelity) for s, a in zip(states, actions))
+
+
+def test_descendant_validation_batches_roots_and_keeps_serial_order() -> None:
+    def state(placed=(), actions=()):
+        return State(object_ids=[10, 20, 30], placed_object_indices=list(placed),
+                     object_poses={}, trajectories=[], action_history=list(actions),
+                     terminated=not placed)
+
+    root = MCTSNode(state=state(), observation=())
+    for root_index in (0, 1):
+        root_action = _action(root_index)
+        child = root.add_candidate(root_action)
+        child.set_result(state([root_index], [root_action]), (root_index,), 0.0,
+                         info={"authoritative_fidelity": "long"})
+        child.record_visit(0.0)
+        for index in (0, 1, 2):
+            if index == root_index:
+                continue
+            # Short-fidelity results: each root's best-known descendant is tried first.
+            action = _action(index)
+            descendant = child.add_candidate(action)
+            descendant.set_result(state([root_index, index], [root_action, action]),
+                                  (root_index, index),
+                                  _BatchedLongEvaluator.rewards[(root_index, index)])
+    root.expansion_exhausted = True
+    evaluator = _BatchedLongEvaluator()
+    search = MonteCarloTreeSearch(
+        _root_policy_config(
+            validate_root_before_search=False, root_lookahead=False,
+            final_selection=FinalSelectionConfig(
+                mode="max_descendant", validate_descendant_path=True,
+                require_validated_descendant=True),
+        ),
+        _RemainingObjectGenerator(), _ObjectPriorityScorer(), evaluator, _ZeroEstimator(),
+    )
+
+    result = search.search(root, MCTSSearchRequest(
+        iterations=1, reset_statistics=False,
+        final_validation_fidelity=EvaluationFidelity.LONG))
+
+    # Both roots' first descendants share one batch; root 0 then tries its
+    # second descendant after 0 -> 1 fails, as the serial walk would.
+    assert evaluator.batches == [2, 1]
+    assert result.descendant_validation_attempts == 3
+    assert result.descendant_validation_failures == 1
+    assert result.selected.action.object_index == 1
+    scores = {node.action.object_index: node.info["validated_descendant_path_return"]
+              for node in result.ranked_candidates}
+    assert scores == {0: 3.0, 1: 8.0}

@@ -1435,7 +1435,6 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 break
             batch = nodes[start : start + batch_size]
             evaluations = self._evaluate_authoritative(
-                root,
                 batch,
                 fidelity,
                 request,
@@ -1477,7 +1476,6 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     break
                 batch = pending[start : start + batch_size]
                 evaluations = self._evaluate_authoritative(
-                    root,
                     batch,
                     fidelity,
                     request,
@@ -1495,16 +1493,15 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                         evaluation.reward
                     )
 
+        candidates = [
+            child for child in candidates if child.evaluated and child.selectable
+        ]
+        path_scores = self._final_path_scores(
+            candidates, request, counters, deadline
+        )
         scored = []
         for child in candidates:
-            if not child.evaluated or not child.selectable:
-                continue
-            score = self._final_root_score(
-                child,
-                request,
-                counters,
-                deadline,
-            )
+            score = self._final_root_score(child, path_scores.get(child))
             if math.isfinite(score):
                 child.info["final_selection_mode"] = (
                     self.config.final_selection.mode
@@ -1519,16 +1516,17 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
 
     def _evaluate_authoritative(
         self,
-        parent,
         nodes,
         fidelity,
         request,
         counters,
     ):
-        actions = [node.action for node in nodes if node.action is not None]
+        """Evaluate nodes, possibly under different parents, in one batch."""
+        nodes = [node for node in nodes if node.action is not None]
+        actions = [node.action for node in nodes]
         self._record_evaluation_batch(counters, fidelity, len(actions))
         evaluations = self._evaluate_transitions_timed(
-            [parent.state] * len(actions),
+            [node.parent.state for node in nodes],
             actions,
             fidelity,
             counters,
@@ -1536,7 +1534,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         for node, evaluation in zip(nodes, evaluations):
             if evaluation.fidelity is not fidelity:
                 raise ValueError("authoritative evaluator returned the wrong fidelity")
-            if evaluation.state.object_ids != parent.state.object_ids:
+            if evaluation.state.object_ids != node.parent.state.object_ids:
                 raise ValueError("transition evaluator changed the object inventory")
             previous = node.state
             if previous is not None and not evaluation.failed and (
@@ -1549,28 +1547,35 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             counters.failed_evaluations += int(evaluation.failed)
         return evaluations
 
-    def _final_root_score(self, child, request, counters, deadline) -> float:
+    def _final_path_scores(self, candidates, request, counters, deadline):
+        """Return each root candidate's descendant path return, or None."""
+        selection = self.config.final_selection
+        if self._final_selection_weight() <= 0.0:
+            return {}
+        scores = {}
+        walks = {}
+        for child in candidates:
+            depth = min(
+                selection.validate_descendant_depth,
+                max(self.config.max_depth - child.depth, 0),
+            )
+            if depth <= 0:
+                scores[child] = float(child.reward)
+            elif selection.validate_descendant_path:
+                walks[child] = self._validated_descendant_walk(
+                    child, depth, request.final_validation_fidelity
+                )
+            else:
+                scores[child] = self._known_descendant_return(child, depth)
+        scores.update(self._run_validation_walks(walks, request, counters, deadline))
+        return scores
+
+    def _final_root_score(self, child, path_score) -> float:
         selection = self.config.final_selection
         mean_score = self._mean_root_score(child)
-        weight = self._final_selection_weight()
-        if weight <= 0.0:
+        if self._final_selection_weight() <= 0.0:
             return mean_score
-        depth = min(
-            selection.validate_descendant_depth,
-            max(self.config.max_depth - child.depth, 0),
-        )
-        if depth <= 0:
-            path_score = float(child.reward)
-        elif selection.validate_descendant_path:
-            path_score = self._validated_descendant_return(
-                child,
-                depth,
-                request,
-                counters,
-                deadline,
-            )
-        else:
-            path_score = self._known_descendant_return(child, depth)
+        weight = self._final_selection_weight()
         child.info["validated_descendant_path_available"] = bool(
             path_score is not None and math.isfinite(path_score)
         )
@@ -1630,14 +1635,13 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             return None
         return reward + self.config.discount * max(values)
 
-    def _validated_descendant_return(
-        self,
-        node,
-        remaining_depth,
-        request,
-        counters,
-        deadline,
-    ):
+    def _validated_descendant_walk(self, node, remaining_depth, fidelity):
+        """Serial best-first path validation; yields each node to evaluate.
+
+        The caller evaluates yielded nodes and resumes the walk, so several
+        roots' walks can share authoritative batches without changing the
+        order in which each walk tries its children.
+        """
         if node.failed:
             return None
         reward = float(node.reward)
@@ -1650,39 +1654,63 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             ),
             reverse=True,
         )
-        fidelity = request.final_validation_fidelity
         if fidelity is None:
             return self._known_descendant_return(node, remaining_depth)
         for child in children:
             if child.action is None:
                 continue
-            if deadline is not None and time.monotonic() >= deadline:
-                counters.final_validation_timed_out = True
-                return None
             if not self._is_authoritative(child, fidelity):
-                evaluation = self._evaluate_authoritative(
-                    node,
-                    [child],
-                    fidelity,
-                    request,
-                    counters,
-                )[0]
-                counters.descendant_validation_attempts += 1
-                counters.descendant_validation_failures += int(
-                    evaluation.failed
-                )
+                yield child
             if not child.selectable or not child.evaluated:
                 continue
-            tail = self._validated_descendant_return(
-                child,
-                remaining_depth - 1,
-                request,
-                counters,
-                deadline,
+            tail = yield from self._validated_descendant_walk(
+                child, remaining_depth - 1, fidelity
             )
             if tail is not None and math.isfinite(tail):
                 return reward + self.config.discount * tail
         return None
+
+    def _run_validation_walks(self, walks, request, counters, deadline):
+        """Advance every walk, evaluating their pending nodes in shared batches.
+
+        A walk stopped by the deadline returns None, as a serial walk does.
+        """
+        results = {}
+        pending = {}
+
+        def advance(root):
+            try:
+                pending[root] = walks[root].send(None)
+            except StopIteration as stop:
+                results[root] = stop.value
+
+        for root in walks:
+            advance(root)
+        fidelity = request.final_validation_fidelity
+        batch_size = self._authoritative_batch_size()
+        while pending:
+            if deadline is not None and time.monotonic() >= deadline:
+                counters.final_validation_timed_out = True
+                for root in pending:
+                    walks[root].close()
+                    results[root] = None
+                break
+            roots = list(pending)
+            nodes = [pending.pop(root) for root in roots]
+            for start in range(0, len(nodes), batch_size):
+                evaluations = self._evaluate_authoritative(
+                    nodes[start : start + batch_size],
+                    fidelity,
+                    request,
+                    counters,
+                )
+                counters.descendant_validation_attempts += len(evaluations)
+                counters.descendant_validation_failures += sum(
+                    evaluation.failed for evaluation in evaluations
+                )
+            for root in roots:
+                advance(root)
+        return results
 
     def _sortable_path_return(self, node, remaining_depth) -> float:
         value = self._known_descendant_return(node, remaining_depth)
