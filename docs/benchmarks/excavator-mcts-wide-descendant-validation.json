@@ -188,5 +188,222 @@
    "errors": 19,
    "note": "Same pre-existing failures."
   }
+ },
+ "deferred_unknown_returns": {
+  "method": "Same workload with tree.iterations 512 (working profile). Outcome keys are a node's short-fidelity result -> its long-fidelity result.",
+  "change": "Children with a known path return are validated together; the rest are validated only when the walk reaches them.",
+  "before": {
+   "seconds": 76.62437050195877,
+   "long_batch_wall_seconds": 32.896800991962664,
+   "validation_rounds": 9,
+   "validation_jobs": 446,
+   "rounds": [
+    {
+     "jobs": 256,
+     "seconds": 14.48926556110382,
+     "kinds": {
+      "short_passed": 171,
+      "short_failed": 85
+     }
+    },
+    {
+     "jobs": 10,
+     "seconds": 1.1211285690078512,
+     "kinds": {
+      "short_passed": 4,
+      "short_failed": 6
+     }
+    },
+    {
+     "jobs": 92,
+     "seconds": 6.16697659494821,
+     "kinds": {
+      "short_passed": 51,
+      "short_failed": 41
+     }
+    },
+    {
+     "jobs": 42,
+     "seconds": 3.272031692089513,
+     "kinds": {
+      "short_passed": 21,
+      "short_failed": 21
+     }
+    },
+    {
+     "jobs": 17,
+     "seconds": 2.2639402239583433,
+     "kinds": {
+      "short_passed": 6,
+      "short_failed": 11
+     }
+    },
+    {
+     "jobs": 12,
+     "seconds": 1.6960090160137042,
+     "kinds": {
+      "short_failed": 10,
+      "short_passed": 2
+     }
+    },
+    {
+     "jobs": 8,
+     "seconds": 1.4965979879489169,
+     "kinds": {
+      "short_failed": 5,
+      "short_passed": 3
+     }
+    },
+    {
+     "jobs": 6,
+     "seconds": 0.879674082971178,
+     "kinds": {
+      "short_failed": 4,
+      "short_passed": 2
+     }
+    },
+    {
+     "jobs": 3,
+     "seconds": 0.866451820009388,
+     "kinds": {
+      "short_passed": 2,
+      "short_failed": 1
+     }
+    }
+   ],
+   "outcomes": {
+    "short_passed->long_passed": 259,
+    "short_failed->long_failed": 172,
+    "short_failed->long_passed": 12,
+    "short_passed->long_failed": 3
+   },
+   "descendant_validation": {
+    "attempts": 446,
+    "failures": 175
+   },
+   "tree_sha256": "526e1fe0047081e2fd396f28f0683e517cfe4293ad92e86f95bac2b388cb4dd0",
+   "selected": {
+    "object_id": 48,
+    "pose": [
+     0.497161328792572,
+     -0.8097720742225647,
+     0.8668391108512878,
+     -0.02197106773601715,
+     0.6714515784541345,
+     0.6073780744967102,
+     -0.42398340131974427
+    ],
+    "reward": 4.000544905852616,
+    "target_IoU": 0.1384998349490329,
+    "selectable": true
+   },
+   "completed_iterations": 512
+  },
+  "after": {
+   "seconds": 69.50106311496347,
+   "long_batch_wall_seconds": 26.27883605309762,
+   "validation_rounds": 8,
+   "validation_jobs": 311,
+   "rounds": [
+    {
+     "jobs": 168,
+     "seconds": 10.196539614000358,
+     "kinds": {
+      "short_passed": 104,
+      "short_failed": 64
+     }
+    },
+    {
+     "jobs": 57,
+     "seconds": 4.417542051989585,
+     "kinds": {
+      "short_passed": 31,
+      "short_failed": 26
+     }
+    },
+    {
+     "jobs": 40,
+     "seconds": 3.4610749039566144,
+     "kinds": {
+      "short_passed": 21,
+      "short_failed": 19
+     }
+    },
+    {
+     "jobs": 17,
+     "seconds": 2.028607726912014,
+     "kinds": {
+      "short_passed": 6,
+      "short_failed": 11
+     }
+    },
+    {
+     "jobs": 12,
+     "seconds": 1.7103613470681012,
+     "kinds": {
+      "short_failed": 10,
+      "short_passed": 2
+     }
+    },
+    {
+     "jobs": 8,
+     "seconds": 1.5033662900095806,
+     "kinds": {
+      "short_failed": 5,
+      "short_passed": 3
+     }
+    },
+    {
+     "jobs": 6,
+     "seconds": 0.8930593089899048,
+     "kinds": {
+      "short_failed": 4,
+      "short_passed": 2
+     }
+    },
+    {
+     "jobs": 3,
+     "seconds": 0.8752915910445154,
+     "kinds": {
+      "short_passed": 2,
+      "short_failed": 1
+     }
+    }
+   ],
+   "outcomes": {
+    "short_passed->long_passed": 168,
+    "short_failed->long_failed": 132,
+    "short_failed->long_passed": 8,
+    "short_passed->long_failed": 3
+   },
+   "descendant_validation": {
+    "attempts": 311,
+    "failures": 135
+   },
+   "tree_sha256": "580b647f39d58e94cbd3248ebed032aa1179b4e83d711a3f22bcc2125f8fe0ff",
+   "selected": {
+    "object_id": 48,
+    "pose": [
+     0.497161328792572,
+     -0.8097720742225647,
+     0.8668391108512878,
+     -0.02197106773601715,
+     0.6714515784541345,
+     0.6073780744967102,
+     -0.42398340131974427
+    ],
+    "reward": 4.000544905852616,
+    "target_IoU": 0.1384998349490329,
+    "selectable": true
+   },
+   "completed_iterations": 512
+  },
+  "same_selection": true,
+  "full_suite": {
+   "passed": 1246,
+   "failed": 9,
+   "errors": 19,
+   "note": "Same pre-existing failures."
+  }
  }
 }

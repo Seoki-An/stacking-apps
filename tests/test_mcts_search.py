@@ -1245,3 +1245,54 @@ def test_descendant_validation_batches_roots_and_keeps_serial_order() -> None:
     scores = {node.action.object_index: node.info["validated_descendant_path_return"]
               for node in result.ranked_candidates}
     assert scores == {0: 3.0, 1: 8.0}
+
+
+@pytest.mark.parametrize(("long_failures", "batches", "path_return"), [
+    ((), [1], 9.0),            # The known child passes; the short failure is never validated.
+    (((0, 1),), [1, 1], 3.0),  # It fails, so the walk reaches and validates the short failure.
+])
+def test_descendant_validation_defers_children_without_known_returns(
+    long_failures, batches, path_return,
+) -> None:
+    class Evaluator(_BatchedLongEvaluator):
+        def _result(self, state, action, fidelity):
+            result = super()._result(state, action, fidelity)
+            placed = tuple(result.state.placed_object_indices)
+            failed = placed in long_failures
+            result.state.failed = failed
+            return TransitionEvaluation(state=result.state, observation=result.observation,
+                                        reward=result.reward, fidelity=fidelity, failed=failed)
+
+    def state(placed=(), actions=(), failed=False):
+        return State(object_ids=[10, 20, 30], placed_object_indices=list(placed),
+                     object_poses={}, trajectories=[], action_history=list(actions),
+                     terminated=not placed, failed=failed)
+
+    root = MCTSNode(state=state(), observation=())
+    root_action = _action(0)
+    child = root.add_candidate(root_action)
+    child.set_result(state([0], [root_action]), (0,), 0.0, info={"authoritative_fidelity": "long"})
+    child.record_visit(0.0)
+    for index, failed in ((1, False), (2, True)):
+        action = _action(index)
+        descendant = child.add_candidate(action)
+        descendant.set_result(state([0, index], [root_action, action], failed=failed),
+                              (0, index), _BatchedLongEvaluator.rewards[(0, index)])
+    root.expansion_exhausted = True
+    evaluator = Evaluator()
+    search = MonteCarloTreeSearch(
+        _root_policy_config(
+            validate_root_before_search=False, root_lookahead=False, evaluation_batch_size=4,
+            final_selection=FinalSelectionConfig(
+                mode="max_descendant", validate_descendant_path=True,
+                require_validated_descendant=True),
+        ),
+        _RemainingObjectGenerator(), _ObjectPriorityScorer(), evaluator, _ZeroEstimator(),
+    )
+
+    result = search.search(root, MCTSSearchRequest(
+        iterations=1, reset_statistics=False,
+        final_validation_fidelity=EvaluationFidelity.LONG))
+
+    assert evaluator.batches == batches
+    assert result.selected.info["validated_descendant_path_return"] == path_return

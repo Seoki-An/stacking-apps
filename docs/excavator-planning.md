@@ -1479,9 +1479,18 @@ that profile, seed 0 and the nine-stone state:
 | 4 | 124.08 | 25 | 523 | 52.57 |
 | All (implemented) | 124.66 | 18 | 691 | 52.72 |
 
-All runs selected the same candidate. Long validation still exceeds the
-30-second `time_reserve`; a search that uses its whole iteration budget can time
-out validation, which rejects candidates when validated descendants are required.
+All runs selected the same candidate. The CUDA profile reserves 60 seconds for
+final validation; a search that still runs out of time rejects candidates when
+validated descendants are required.
+
+Children whose short-fidelity results give no path return sort last, and 41% of
+validated nodes had already failed at short fidelity. These children are now
+validated only when the walk reaches them, so the wide round holds only children
+with known path returns. With 512 iterations, long validation fell from
+32.90 to 26.28 seconds (446 to 311 jobs) and the search from 76.62 to 69.50
+seconds, with the same selected candidate. Short-fidelity failures still pass
+long validation occasionally (12 of 184 in the earlier run), so they are
+deferred, not skipped.
 
 
 ## Run

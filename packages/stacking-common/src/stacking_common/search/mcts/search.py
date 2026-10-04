@@ -1643,6 +1643,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         are validated together, ahead of need, but the walk still takes the
         first child that passes in the same order: evaluations are independent,
         so the selected path is the one a one-child-at-a-time walk finds.
+        Children without a known path return are deferred until reached.
         """
         if node.failed:
             return None
@@ -1659,13 +1660,20 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         if fidelity is None:
             return self._known_descendant_return(node, remaining_depth)
         children = [child for child in children if child.action is not None]
-        pending = [
-            child for child in children
-            if not self._is_authoritative(child, fidelity)
+        # Children with a known path return sort first. They are validated
+        # together; the rest, which usually fail, only when the walk reaches them.
+        known = [
+            math.isfinite(self._sortable_path_return(child, remaining_depth - 1))
+            for child in children
         ]
-        if pending:
-            yield pending
-        for child in children:
+        for index, child in enumerate(children):
+            if not self._is_authoritative(child, fidelity):
+                yield [
+                    sibling
+                    for sibling, group in zip(children[index:], known[index:])
+                    if group == known[index]
+                    and not self._is_authoritative(sibling, fidelity)
+                ]
             if not child.selectable or not child.evaluated:
                 continue
             tail = yield from self._validated_descendant_walk(
