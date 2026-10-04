@@ -9,10 +9,12 @@ from .types import PlacementSolveResult
 class CudaPlacementPoseSolver(CorePlacementPoseSolver):
     """Own one reusable GPU workspace; calls are serialized by action generation."""
 
-    # Fit the excavator's 96-proposal CEM round in one GPU chunk. The Small
-    # workspace reserves about 727 MiB at 128 jobs; larger frontiers are chunked.
-    # Fixed-proposal tests preserve results across 32/64/128/256-job capacities.
-    batch_size = 128
+    # Fit a full 256-node excavator generation batch in one GPU chunk: each
+    # call costs nearly its trust-region iteration count regardless of size, so
+    # splitting a batch repeats that cost. The Small workspace reserves about
+    # 727 MiB per 128 jobs. Fixed-proposal tests preserve results across
+    # 32/64/128/256-job capacities.
+    batch_size = 256
 
     def __init__(self, inventory, profile, *, core_module=None):
         if core_module is None:

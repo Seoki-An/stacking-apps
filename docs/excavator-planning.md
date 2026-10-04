@@ -106,7 +106,7 @@ raise a migration error. Saved contexts record both selections; resume requires
 a matching profile, so start a new run when changing backends or migrating an
 older CUDA context.
 
-One reusable GPU workspace processes batches of up to 128 initialized candidates,
+One reusable GPU workspace processes batches of up to 256 initialized candidates,
 including candidates from different MCTS states. Each of the four continuation
 stages consumes that candidate's preceding pose and gap feedback. Geometry,
 sharpness, objective weights, tolerances, and placement filters are unchanged.
@@ -223,7 +223,7 @@ These are independent complete profiles. Both use 512 iterations. CPU retains
 Editing one profile does not modify the other. The old `mcts.yml` is removed. The evaluation batch limits are starting points, not measured
 optima. Actual batches depend on available candidates and each profile's root CEM retention. GPU core count does not map directly to useful batch size.
 The simulation workspace still chunks at 32 placements and pose generation at
-128 proposals; increasing the MCTS batch limit does not raise those capacities.
+256 proposals; increasing the MCTS batch limit does not raise those capacities.
 
 CUDA simulation runs the platform's settling physics (3D single-point contacts) and
 structural physics (4D limit-surface contacts) using `CudaSimulator`. Settling
@@ -1254,6 +1254,50 @@ selection fell from 16.87 to 2.11 seconds and score-map kernels from 18.17 to
 field-for-field, and 2469 selections matched chosen candidates and final RNG state.
 Selection consumes one seeded RNG in sequence, so it is not parallelized. This is
 a single-seed, single-scene timing.
+
+
+### CUDA pose-generation call cost
+
+Native CUDA pose generation took 23.5 seconds in 140 calls. An Nsight trace of
+those calls showed the GPU busy for 22.4 seconds: each call runs roughly its
+trust-region iteration limit, and each iteration is a chain of per-job serial
+kernels whose duration barely depends on the number of jobs. Blocking progress
+readbacks left only about 1.7 seconds of GPU idle time.
+
+Four changes reduce that cost without changing any result:
+
+- `CudaPlacementPoseSolver.batch_size` is 256, so a full 256-node generation
+  batch runs as one chunk per schedule stage instead of two. Capacity 512 gave
+  no further gain because batches never exceed 256 jobs.
+- The stacking-core `queries` kernel uses one warp per job instead of one
+  thread. Ballot ranks assign query slots and queue entries in the serial order.
+- Support, contact and Hausdorff queues drain in one launch, so a job's long
+  Hausdorff query overlaps its contact queries.
+- Once at most 64 force jobs remain, one tail launch runs all remaining sweeps.
+  Each block stops at its own convergence or iteration limit, so the per-32-sweep
+  progress readbacks are no longer needed.
+
+All 26 generation calls of the benchmark search (2627 jobs) were captured and
+replayed after each change. Every returned pose, cost, status and diagnostic
+hashed identically. Native time fell from 23.47 to 15.66 seconds; kernel time
+from 22.37 to 14.93 seconds; blocking readbacks from 62320 to 16333.
+
+The [native pose-generation benchmark](benchmarks/excavator-mcts-posegen-native.json)
+repeats the vectorized-sampling workload:
+
+| Measurement | Vectorized sampling | Native call changes |
+| --- | ---: | ---: |
+| Search seconds | 134.94 | 126.05 |
+| Evaluated nodes/s | 7.885 | 8.441 |
+| Nonfailed nodes/s | 4.350 | 4.657 |
+| Pose-generation phase | 52.45 s | 43.86 s |
+
+Evaluated-node throughput improves by **7.1%**, with the same ordered tree hash,
+counts and selected candidate. The remaining native time is mainly per-job ADMM
+force sweeps (8.6 seconds) and single-warp Hausdorff queries; faster versions
+would need kernel redesigns with their own parity work. Rebuild and reinstall
+stacking-core to obtain the native changes; the 256-job workspace reserves about
+1.45 GiB of GPU memory.
 
 
 ## Run
