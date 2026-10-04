@@ -1636,11 +1636,13 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         return reward + self.config.discount * max(values)
 
     def _validated_descendant_walk(self, node, remaining_depth, fidelity):
-        """Serial best-first path validation; yields each node to evaluate.
+        """Best-first path validation; yields lists of nodes to evaluate.
 
-        The caller evaluates yielded nodes and resumes the walk, so several
-        roots' walks can share authoritative batches without changing the
-        order in which each walk tries its children.
+        The caller evaluates each yielded list and resumes the walk, so walks
+        of several roots share authoritative batches. A node's next children
+        are validated together, ahead of need, but the walk still takes the
+        first child that passes in the same order: evaluations are independent,
+        so the selected path is the one a one-child-at-a-time walk finds.
         """
         if node.failed:
             return None
@@ -1656,11 +1658,14 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         )
         if fidelity is None:
             return self._known_descendant_return(node, remaining_depth)
+        children = [child for child in children if child.action is not None]
+        pending = [
+            child for child in children
+            if not self._is_authoritative(child, fidelity)
+        ]
+        if pending:
+            yield pending
         for child in children:
-            if child.action is None:
-                continue
-            if not self._is_authoritative(child, fidelity):
-                yield child
             if not child.selectable or not child.evaluated:
                 continue
             tail = yield from self._validated_descendant_walk(
@@ -1696,7 +1701,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     results[root] = None
                 break
             roots = list(pending)
-            nodes = [pending.pop(root) for root in roots]
+            nodes = [node for root in roots for node in pending.pop(root)]
             for start in range(0, len(nodes), batch_size):
                 evaluations = self._evaluate_authoritative(
                     nodes[start : start + batch_size],

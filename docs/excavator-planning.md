@@ -1456,6 +1456,34 @@ itself falls from 39.9 to 24.2 seconds (settling 2.9, structural 14.0, robustnes
 reward/observation processing that now overlaps less with the GPU.
 
 
+### Wide descendant validation rounds
+
+With `max_depth: 4`, mixed final selection, 32 validation candidates and
+descendant validation depth 3, final long validation took 84 seconds of a
+156-second search. Nearly half of the validated descendants failed, and each
+failure started another single-child round: 72 rounds averaging 6.7 jobs.
+
+Each walk now submits all of a node's not-yet-validated children in one round
+and then takes the first passing child in the same order. Walks of every root
+candidate share rounds. Evaluations are independent, so the selected candidate is
+the one a one-child-at-a-time walk finds; extra siblings carry long-fidelity
+results, so tree hashes change.
+
+The [benchmark](benchmarks/excavator-mcts-wide-descendant-validation.json) used
+that profile, seed 0 and the nine-stone state:
+
+| Children per round | Search seconds | Long rounds | Long jobs | Long-validation seconds |
+| --- | ---: | ---: | ---: | ---: |
+| 1 (previous) | 155.66 | 72 | 480 | 84.04 |
+| 2 | 134.75 | 40 | 495 | 64.32 |
+| 4 | 124.08 | 25 | 523 | 52.57 |
+| All (implemented) | 124.66 | 18 | 691 | 52.72 |
+
+All runs selected the same candidate. Long validation still exceeds the
+30-second `time_reserve`; a search that uses its whole iteration budget can time
+out validation, which rejects candidates when validated descendants are required.
+
+
 ## Run
 
 From the `stacking-apps` checkout, with the sibling `stacking-core` checkout:

@@ -1,0 +1,192 @@
+{
+ "date": "2026-10-04",
+ "method": "Nine-stone start, 49 stones, seed 0, 1024 iterations, one BLAS/OpenMP thread, idle machine. mcts_cuda.yml with max_depth 4, mixed final selection (max_weight 0.5), 32 validation candidates, descendant validation depth 3 and required validated descendants. Width rows set the number of a node's children validated per round through a temporary class attribute; width 1 is the previous behavior.",
+ "change": "Each descendant-validation walk submits all of a node's not-yet-validated children in one round, then takes the first passing child in the same order. Walks of all root candidates share rounds.",
+ "widths": {
+  "1": {
+   "seconds": 155.66391889797524,
+   "evaluated_candidates": 1551,
+   "long_batches": 72,
+   "long_jobs": 480,
+   "long_batch_wall_seconds": 84.03730405878741,
+   "short_batch_wall_seconds": 37.4057134129107,
+   "pose_generation_seconds": 29.537345151999034,
+   "descendant_validation": {
+    "attempts": 448,
+    "failures": 211
+   },
+   "final_validation": {
+    "attempts": 0,
+    "failures": 0,
+    "timed_out": false
+   },
+   "tree_sha256": "ce0f9930756b5cc2e0d01e36b784ae7e659c5ffb4d5fb803e5d4bba8539135dc",
+   "selected": {
+    "object_id": 48,
+    "pose": [
+     0.497161328792572,
+     -0.8097720742225647,
+     0.8668391108512878,
+     -0.02197106773601715,
+     0.6714515784541345,
+     0.6073780744967102,
+     -0.42398340131974427
+    ],
+    "reward": 4.000544905852616,
+    "target_IoU": 0.1384998349490329,
+    "selectable": true
+   },
+   "timed_out": false
+  },
+  "2": {
+   "seconds": 134.75008162506856,
+   "evaluated_candidates": 1566,
+   "long_batches": 40,
+   "long_jobs": 495,
+   "long_batch_wall_seconds": 64.31562857842073,
+   "short_batch_wall_seconds": 36.91440255800262,
+   "pose_generation_seconds": 29.211246986989863,
+   "descendant_validation": {
+    "attempts": 463,
+    "failures": 212
+   },
+   "final_validation": {
+    "attempts": 0,
+    "failures": 0,
+    "timed_out": false
+   },
+   "tree_sha256": "36bc795ce04142febb918037dbd7fe4a6641e1ed69eae88d30f3485a18ff541f",
+   "selected": {
+    "object_id": 48,
+    "pose": [
+     0.497161328792572,
+     -0.8097720742225647,
+     0.8668391108512878,
+     -0.02197106773601715,
+     0.6714515784541345,
+     0.6073780744967102,
+     -0.42398340131974427
+    ],
+    "reward": 4.000544905852616,
+    "target_IoU": 0.1384998349490329,
+    "selectable": true
+   },
+   "timed_out": false
+  },
+  "4": {
+   "seconds": 124.07967820204794,
+   "evaluated_candidates": 1594,
+   "long_batches": 25,
+   "long_jobs": 523,
+   "long_batch_wall_seconds": 52.574272348429076,
+   "short_batch_wall_seconds": 37.29731170402374,
+   "pose_generation_seconds": 29.39121135720052,
+   "descendant_validation": {
+    "attempts": 491,
+    "failures": 220
+   },
+   "final_validation": {
+    "attempts": 0,
+    "failures": 0,
+    "timed_out": false
+   },
+   "tree_sha256": "f39e6e908c01fdba0cb5fb3982f841840c1736042be5f2d104e030977396865d",
+   "selected": {
+    "object_id": 48,
+    "pose": [
+     0.497161328792572,
+     -0.8097720742225647,
+     0.8668391108512878,
+     -0.02197106773601715,
+     0.6714515784541345,
+     0.6073780744967102,
+     -0.42398340131974427
+    ],
+    "reward": 4.000544905852616,
+    "target_IoU": 0.1384998349490329,
+    "selectable": true
+   },
+   "timed_out": false
+  },
+  "all": {
+   "seconds": 125.67829390102997,
+   "evaluated_candidates": 1762,
+   "long_batches": 18,
+   "long_jobs": 691,
+   "long_batch_wall_seconds": 52.94515090622008,
+   "short_batch_wall_seconds": 37.7903978319373,
+   "pose_generation_seconds": 29.679452704964206,
+   "descendant_validation": {
+    "attempts": 659,
+    "failures": 285
+   },
+   "final_validation": {
+    "attempts": 0,
+    "failures": 0,
+    "timed_out": false
+   },
+   "tree_sha256": "ff0cb10de3b95db131a5bac4988b30a95b269998f4c6ad5dedf7ebcd08e45dba",
+   "selected": {
+    "object_id": 48,
+    "pose": [
+     0.497161328792572,
+     -0.8097720742225647,
+     0.8668391108512878,
+     -0.02197106773601715,
+     0.6714515784541345,
+     0.6073780744967102,
+     -0.42398340131974427
+    ],
+    "reward": 4.000544905852616,
+    "target_IoU": 0.1384998349490329,
+    "selectable": true
+   },
+   "timed_out": false
+  }
+ },
+ "final_code": {
+  "seconds": 124.65507343609352,
+  "evaluated_candidates": 1762,
+  "long_batches": 18,
+  "long_jobs": 691,
+  "long_batch_wall_seconds": 52.716241441783495,
+  "short_batch_wall_seconds": 37.3691126172198,
+  "pose_generation_seconds": 29.378523348947056,
+  "descendant_validation": {
+   "attempts": 659,
+   "failures": 285
+  },
+  "final_validation": {
+   "attempts": 0,
+   "failures": 0,
+   "timed_out": false
+  },
+  "tree_sha256": "ff0cb10de3b95db131a5bac4988b30a95b269998f4c6ad5dedf7ebcd08e45dba",
+  "selected": {
+   "object_id": 48,
+   "pose": [
+    0.497161328792572,
+    -0.8097720742225647,
+    0.8668391108512878,
+    -0.02197106773601715,
+    0.6714515784541345,
+    0.6073780744967102,
+    -0.42398340131974427
+   ],
+   "reward": 4.000544905852616,
+   "target_IoU": 0.1384998349490329,
+   "selectable": true
+  },
+  "timed_out": false
+ },
+ "same_selection_all_widths": true,
+ "note": "Extra siblings carry long-fidelity results, so tree hashes differ from width 1 while the selected candidate is unchanged. Long validation (about 53 s) still exceeds the 30 s time_reserve.",
+ "validation": {
+  "full_suite": {
+   "passed": 1244,
+   "failed": 9,
+   "errors": 19,
+   "note": "Same pre-existing failures."
+  }
+ }
+}

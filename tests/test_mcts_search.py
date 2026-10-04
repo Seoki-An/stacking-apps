@@ -1223,7 +1223,7 @@ def test_descendant_validation_batches_roots_and_keeps_serial_order() -> None:
     evaluator = _BatchedLongEvaluator()
     search = MonteCarloTreeSearch(
         _root_policy_config(
-            validate_root_before_search=False, root_lookahead=False,
+            validate_root_before_search=False, root_lookahead=False, evaluation_batch_size=4,
             final_selection=FinalSelectionConfig(
                 mode="max_descendant", validate_descendant_path=True,
                 require_validated_descendant=True),
@@ -1235,10 +1235,11 @@ def test_descendant_validation_batches_roots_and_keeps_serial_order() -> None:
         iterations=1, reset_statistics=False,
         final_validation_fidelity=EvaluationFidelity.LONG))
 
-    # Both roots' first descendants share one batch; root 0 then tries its
-    # second descendant after 0 -> 1 fails, as the serial walk would.
-    assert evaluator.batches == [2, 1]
-    assert result.descendant_validation_attempts == 3
+    # Both roots validate all their children in one shared round. Root 0
+    # still falls back to its second child after 0 -> 1 fails, as a
+    # one-child-at-a-time walk would.
+    assert evaluator.batches == [4]
+    assert result.descendant_validation_attempts == 4
     assert result.descendant_validation_failures == 1
     assert result.selected.action.object_index == 1
     scores = {node.action.object_index: node.info["validated_descendant_path_return"]

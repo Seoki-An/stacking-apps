@@ -3,7 +3,7 @@
 # Native-only controls and CLI override precedence: docs/excavator-planning.md.
 units: si
 tree:
-  max_depth: 3
+  max_depth: 4
   iterations: 1024
   max_search_time: 240.0
   max_children: 16
@@ -31,13 +31,13 @@ validation:
   max_candidates: 32
   root_before_search: true
   rejected_root_retry_rounds: 3
-  time_reserve: 30.0
+  time_reserve: 60.0
   max_state_drift: 0.1
 final_selection:
   mode: mixed
   max_weight: 0.5  # Legacy default for mode: max_descendant.
   validate_descendant_path: true
-  validate_descendant_depth: 2
+  validate_descendant_depth: 3
   require_validated_descendant: true
 parallel:
   posegen_backend: cuda  # cpu or cuda
