@@ -34,7 +34,7 @@ class VoxelOverlapEvaluator:
         self.resolution = float(resolution)
         if not np.isfinite(self.resolution) or self.resolution <= 0.0:
             raise ValueError("overlap resolution must be positive and finite")
-        self._grid_points = self._voxel_centers()
+        self._axes, self._lattice_indices, self._grid_points = self._voxel_centers()
         # Geometry and the target grid are fixed for this evaluator. Keep exact
         # object/pose intersections across CEM re-ranking and reward queries.
         self._intersections = OrderedDict()
@@ -66,7 +66,11 @@ class VoxelOverlapEvaluator:
         ]
         grid = np.meshgrid(*axes, indexing="ij")
         candidates = np.stack(grid, axis=-1).reshape(-1, 3)
-        return candidates[self.target.contains(candidates)]
+        inside = self.target.contains(candidates)
+        # Each lattice cell's row in the retained points, or -1 outside.
+        indices = np.full(len(candidates), -1, dtype=np.int64)
+        indices[inside] = np.arange(np.count_nonzero(inside))
+        return axes, indices.reshape(grid[0].shape), candidates[inside]
 
     def _intersection_volume(
         self, stack_object: StackObject, pose: np.ndarray
@@ -128,8 +132,12 @@ class VoxelOverlapEvaluator:
             upper = np.maximum(upper, np.max(world, axis=0))
         lower -= self.resolution
         upper += self.resolution
-        mask = np.ones(len(self._grid_points), dtype=bool)
-        for axis in range(3):
-            values = self._grid_points[:, axis]
-            mask &= (values >= lower[axis]) & (values <= upper[axis])
-        return self._grid_points[mask]
+        # The points within these bounds form one lattice sub-block. Its kept
+        # rows, in lattice order, equal the full-grid mask in the same order.
+        block = tuple(
+            slice(np.searchsorted(axis, low, side="left"),
+                  np.searchsorted(axis, high, side="right"))
+            for axis, low, high in zip(self._axes, lower, upper)
+        )
+        rows = self._lattice_indices[block].ravel()
+        return self._grid_points[rows[rows >= 0]]

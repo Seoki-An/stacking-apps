@@ -93,7 +93,8 @@ def test_score_map_keeps_candidate_order_height_fallback_and_orientation_ties(al
     contact[1, 1, 0] = np.inf
     original_contact = contact.copy()
     monkeypatch.setattr(floor, "support_likelihood_maps_by_kernel",
-        lambda *args: KernelSupportMaps(support, contact, np.ones_like(support)))
+        lambda *args, cells: KernelSupportMaps(*(values[:, cells[0], cells[1]] for values in (
+            support, contact, np.ones_like(support)))))
     result = floor.score_xy_debug_map(
         inventory, SimpleNamespace(stone_seq=[]), None,
         scene_height_map=np.zeros((2, 2)), support_kernels=[],
@@ -149,3 +150,19 @@ def test_resized_height_maps_take_finite_block_maxima(shape):
             finite = block[np.isfinite(block)]
             expected[row, column] = finite.max() if finite.size else 0.
     np.testing.assert_array_equal(resize_height_map_max(source, shape), expected)
+
+
+def test_support_at_cells_matches_full_maps():
+    from stacking_common.actions._support_maps import (
+        BottomHeightKernel, support_likelihood_maps_by_kernel)
+    surface = np.random.default_rng(2).uniform(0., .3, size=(9, 8))
+    surface[2, 3] = np.nan
+    kernels = [
+        BottomHeightKernel(np.array([0, 1, -1, 2]), np.array([0, -1, 1, 3]), np.array([0., .01, .02, 0.])),
+        BottomHeightKernel(np.zeros(0, dtype=int), np.zeros(0, dtype=int), np.zeros(0)),
+    ]
+    rows, columns = np.nonzero(np.ones(surface.shape, dtype=bool))
+    full = support_likelihood_maps_by_kernel(surface, kernels, .02)
+    cells = support_likelihood_maps_by_kernel(surface, kernels, .02, cells=(rows[::3], columns[::3]))
+    for name in ("support", "contact_height", "placement_height"):
+        np.testing.assert_array_equal(getattr(cells, name), getattr(full, name)[:, rows[::3], columns[::3]])

@@ -458,11 +458,6 @@ def score_xy_debug_map(
                 grid_dy,
             )
         ]
-    kernel_support = support_likelihood_maps_by_kernel(
-        bundle.surface_height,
-        support_kernels,
-        support.contact_gap_tolerance,
-    )
     score_map = np.full(shape, np.nan, dtype=float)
     candidate_mask = np.zeros(shape, dtype=bool)
     height_score_map = np.full(shape, np.nan, dtype=float)
@@ -586,15 +581,18 @@ def score_xy_debug_map(
     # Orientations of one anchor share its xy array, as the dict spread did.
     base_xy_items = [xy.copy() for xy in base_xy]
     target_anchor_base = target_anchor_static(inventory, stone_idx)
+    # Support is only read at the kept anchor cells; rows align with base.
+    kernel_support = support_likelihood_maps_by_kernel(
+        bundle.surface_height,
+        support_kernels,
+        support.contact_gap_tolerance,
+        cells=(base_indices[:, 0], base_indices[:, 1]),
+    )
     parts = []
     for orientation_index in range(kernel_support.support.shape[0]):
-        orientation_support = kernel_support.support[orientation_index]
-        orientation_contact_height = kernel_support.contact_height[orientation_index]
-        orientation_placement_height = kernel_support.placement_height[orientation_index]
-        support_scores = orientation_support[base_indices[:, 0], base_indices[:, 1]]
+        support_scores = kernel_support.support[orientation_index]
         selected = np.flatnonzero(np.isfinite(support_scores))
-        rows, columns = base_indices[selected, 0], base_indices[selected, 1]
-        contact_heights = orientation_contact_height[rows, columns].copy()
+        contact_heights = kernel_support.contact_height[orientation_index][selected].copy()
         for index in np.flatnonzero(~np.isfinite(contact_heights)):
             contact_heights[index] = mean_top_height_at_anchor(
                 inventory, heights, xy_grid, base_xy[selected[index]], stone_idx,
@@ -611,7 +609,7 @@ def score_xy_debug_map(
             np.full(len(selected), orientation_index),
             contact_heights,
             support_scores[selected],
-            orientation_placement_height[rows, columns],
+            kernel_support.placement_height[orientation_index][selected],
             boundary_scores,
         ))
 

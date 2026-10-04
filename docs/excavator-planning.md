@@ -1336,6 +1336,37 @@ counts and selected candidate. Native pose solving (15.5 s), score-map kernels
 and prior containment now dominate the remaining pose-generation time.
 
 
+### Cell-restricted support and lattice voxel crops
+
+Score maps computed support, contact and placement heights for every grid cell
+and orientation but read them only at kept anchor cells.
+`support_likelihood_maps_by_kernel(..., cells=(rows, columns))` now evaluates
+only those cells with the same arithmetic. On 200 captured score-map inputs this
+reduced the cost from 2.47 to 1.51 ms per map with identical outputs.
+
+`VoxelOverlapEvaluator` cropped the target voxel grid with three comparisons over
+all voxel centers for every uncached prior or reward query. The centers form a
+filtered lattice, so the crop now reads one lattice sub-block; its kept rows equal
+the former mask in the same order, and containment receives an identical point
+array. Across a full search, 11046 crops matched exactly; crop time summed over
+the coordinator and reward workers fell from 45.5 to 5.9 seconds.
+
+The [benchmark](benchmarks/excavator-mcts-cell-support-and-voxel-crop.json)
+repeats the host-work workload:
+
+| Measurement | Host-work reuse | Cell support and lattice crops |
+| --- | ---: | ---: |
+| Search seconds | 114.72 | 108.53 |
+| Evaluated nodes/s | 9.275 | 9.804 |
+| Nonfailed nodes/s | 5.117 | 5.409 |
+| Pose-generation phase | 32.69 s | 29.23 s |
+| Short evaluation batches | 68.00 s | 65.93 s |
+
+Evaluated-node throughput improves by **5.7%** with the same ordered tree hash,
+counts and selected candidate. A full-search comparison also matched all 2379
+score maps and 2469 selections with the previous code.
+
+
 ## Run
 
 From the `stacking-apps` checkout, with the sibling `stacking-core` checkout:

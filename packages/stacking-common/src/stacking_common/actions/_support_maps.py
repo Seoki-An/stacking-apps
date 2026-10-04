@@ -307,9 +307,15 @@ def support_likelihood_maps_by_kernel(
     surface_height: np.ndarray,
     kernels: Iterable[BottomHeightKernel],
     contact_tolerance: float,
+    cells: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> KernelSupportMaps:
-    """Return support maps without averaging away the kernel orientation."""
+    """Return support maps without averaging away the kernel orientation.
+
+    With ``cells=(rows, columns)``, evaluate only those anchor cells; each
+    result then has shape (kernels, cells) instead of (kernels, *grid).
+    """
     surface = np.asarray(surface_height, dtype=float)
+    shape = surface.shape if cells is None else (len(cells[0]),)
     tolerance = max(float(contact_tolerance), 0.0)
     support_maps = []
     contact_height_maps = []
@@ -317,14 +323,14 @@ def support_likelihood_maps_by_kernel(
 
     for kernel in kernels:
         if len(kernel) == 0:
-            empty = np.full(surface.shape, np.nan, dtype=float)
+            empty = np.full(shape, np.nan, dtype=float)
             support_maps.append(empty.copy())
             contact_height_maps.append(empty.copy())
             placement_height_maps.append(empty)
             continue
-        samples = _shifted_samples(surface, kernel.y_offsets, kernel.x_offsets, -np.inf)
+        samples = _shifted_samples(surface, kernel.y_offsets, kernel.x_offsets, -np.inf, cells)
         covered = np.all(np.isfinite(samples), axis=0)
-        clearance = samples - kernel.bottom_height[:, None, None]
+        clearance = samples - kernel.bottom_height.reshape(-1, *[1] * len(shape))
         placement = np.max(clearance, axis=0)
         contacts = covered[None, ...] & (
             clearance >= placement[None, ...] - tolerance
@@ -334,7 +340,7 @@ def support_likelihood_maps_by_kernel(
         contact_height = np.divide(
             np.sum(np.where(contacts, samples, 0.0), axis=0),
             contact_count,
-            out=np.full(surface.shape, np.nan, dtype=float),
+            out=np.full(shape, np.nan, dtype=float),
             where=contact_count > 0,
         )
         support[~covered] = np.nan
@@ -344,7 +350,7 @@ def support_likelihood_maps_by_kernel(
         contact_height_maps.append(contact_height)
         placement_height_maps.append(placement)
 
-    empty_shape = (0, *surface.shape)
+    empty_shape = (0, *shape)
     return KernelSupportMaps(
         support=(
             np.stack(support_maps)
@@ -368,14 +374,22 @@ def _shifted_samples(
     y_offsets: np.ndarray,
     x_offsets: np.ndarray,
     fill: float,
+    cells: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> np.ndarray:
-    """Return output[k, y, x] = values[y + dy_k, x + dx_k], or fill outside the grid."""
+    """Return output[k, y, x] = values[y + dy_k, x + dx_k], or fill outside the grid.
+
+    With ``cells=(rows, columns)``, return output[k, i] for those cells only.
+    """
     values = np.asarray(values, dtype=float)
     height, width = values.shape
     y_offsets = np.asarray(y_offsets, dtype=int)
     x_offsets = np.asarray(x_offsets, dtype=int)
     pad = int(max(np.max(np.abs(y_offsets)), np.max(np.abs(x_offsets))))
     padded = np.pad(values, pad, mode="constant", constant_values=fill)
+    if cells is not None:
+        rows = np.asarray(cells[0], dtype=int)[None, :] + (y_offsets + pad)[:, None]
+        columns = np.asarray(cells[1], dtype=int)[None, :] + (x_offsets + pad)[:, None]
+        return padded[rows, columns]
     rows = np.arange(height)[None, :, None] + (y_offsets + pad)[:, None, None]
     columns = np.arange(width)[None, None, :] + (x_offsets + pad)[:, None, None]
     return padded[rows, columns]
