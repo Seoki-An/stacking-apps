@@ -334,3 +334,27 @@ def test_deferred_optional_field_access_does_not_return_dataclass_default(name):
     assert '_builder' in vars(actual)
     np.testing.assert_array_equal(getattr(actual, name), getattr(builder.build(state), name))
     assert '_builder' not in vars(actual)
+
+
+def test_placed_object_padding_stays_infinite_without_warnings() -> None:
+    import warnings
+    inventory = Inventory()
+    inventory.points = np.array([
+        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [np.inf, np.inf, np.inf]],
+        [[0.0, 1.0, 0.0], [np.inf, np.inf, np.inf], [np.inf, np.inf, np.inf]],
+    ])
+    builder = ArrayObservationBuilder(
+        inventory, ObservationConfig(max_poses_per_object=2, height_map_resolution=(2, 3),
+                                     render_height_map=True, action_sample_count=3))
+    rotated = pose(x=2.0)
+    rotated[3:] = [0.0, 0.0, np.sqrt(0.5), np.sqrt(0.5)]  # 90 degrees about z.
+    current = State(object_ids=[10, 20], placed_object_indices=[0],
+                    object_poses={10: rotated}, trajectories=[], action_history=[])
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        observation = builder.build(current)
+
+    np.testing.assert_allclose(observation.stacked_points[0, :2], [[2.0, 0.0, 0.0], [2.0, 1.0, 0.0]], atol=1e-12)
+    assert np.all(np.isposinf(observation.stacked_points[0, 2]))
+    assert np.all(np.isposinf(observation.stacked_points[1]))

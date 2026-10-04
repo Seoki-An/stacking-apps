@@ -292,9 +292,10 @@ class ArrayObservationBuilder:
                 stack_object.object_id,
                 inventory.initial_pose(stack_object.object_id),
             )
-            stacked_points[index] = transform_points(
-                pending_points[index], pose
-            )
+            points = pending_points[index]
+            # Padding rows stay +inf; rotating them would produce NaN.
+            real = np.all(np.isfinite(points), axis=1)
+            stacked_points[index][real] = transform_points(points[real], pose)
             stacked_faces[index] = pending_faces[index]
 
         scene_mask = np.zeros(object_count, dtype=bool)
