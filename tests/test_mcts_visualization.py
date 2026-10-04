@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from stacking_common.domain import (
     Action,
@@ -88,7 +89,11 @@ def _evaluated_state(
     )
 
 
-def test_projection_uses_existing_tree_state_without_mutating_search() -> None:
+@pytest.mark.parametrize("compact", [False, True])
+def test_projection_uses_existing_tree_state_without_mutating_search(compact, monkeypatch) -> None:
+    if compact:
+        monkeypatch.setitem(globals(), '_trajectory', lambda object_id, *poses:
+            StackObjectTrajectory.from_samples(object_id, poses, np.arange(len(poses)) * .1))
     root = MCTSNode(state=_root_state(), observation="root")
     selected_action = _action(1, 22, 0.04)
     selected = root.add_candidate(

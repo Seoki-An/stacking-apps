@@ -252,3 +252,37 @@ def test_native_robustness_matches_older_core_replay_fallback(backends, monkeypa
     for key in ('place_robustness_trial_displacements', 'place_robustness_trial_failure_reasons'):
         assert actual.diagnostics[key] == expected.diagnostics[key]
     assert actual.place_robustness_displacement == expected.place_robustness_displacement
+
+
+def test_bulk_placement_samples_match_snapshot_path(backends, monkeypatch):
+    _, gpu = backends
+    if not hasattr(core.CudaSimulationResult, 'sample_poses'):
+        pytest.skip('requires bulk sample bindings')
+    gpu.place_stability = PlaceStabilityConfig(enabled=True, n_noise=2,
+        position_std=(.001, .001, .001), seed=4)
+    action = Action(1, pose(.5), pose(.5), object_id=20)
+    actual = gpu.place(state(True), action)
+    for trajectory in actual.trajectories.values():
+        assert '_packed_poses' in vars(trajectory)
+    original = gpu._run
+
+    class SnapshotOnly:
+        def __init__(self, value):
+            self.value = value
+        def __getattr__(self, name):
+            if name in ('sample_poses', 'sample_times'):
+                raise AttributeError(name)
+            return getattr(self.value, name)
+
+    monkeypatch.setattr(gpu, '_run', lambda problems: [SnapshotOnly(out) for out in original(problems)])
+    expected = gpu.place(state(True), action)
+    assert actual.failed == expected.failed
+    assert actual.settled == expected.settled
+    assert actual.place_robustness_displacement == expected.place_robustness_displacement
+    for object_id, trajectory in actual.trajectories.items():
+        reference = expected.trajectories[object_id]
+        np.testing.assert_array_equal(actual.object_poses[object_id], expected.object_poses[object_id])
+        np.testing.assert_array_equal(trajectory.poses, reference.poses)
+        assert trajectory.times == reference.times
+        for name in ('energy', 'vel_integral', 'settle_pose_count', 'settle_position_delta', 'settle_path_length'):
+            assert getattr(trajectory, name) == getattr(reference, name)

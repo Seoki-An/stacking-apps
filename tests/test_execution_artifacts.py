@@ -291,7 +291,8 @@ def test_context_assets_accept_embedded_bytes_and_detect_changed_files(tmp_path)
         verify_context_assets(context, {})
 
 
-def test_planning_checkpoint_commits_atomically_and_preserves_domain_state(tmp_path):
+@pytest.mark.parametrize("compact", [False, True])
+def test_planning_checkpoint_commits_atomically_and_preserves_domain_state(tmp_path, compact):
     artifact = decode_legacy_mcts_debug(json.loads(FIXTURE.read_text()))
     context = _context()
     pose = np.array([0.041, 0.001, 0.061, 0, 0, 0, 1])
@@ -304,6 +305,11 @@ def test_planning_checkpoint_commits_atomically_and_preserves_domain_state(tmp_p
     action = Action(1, pose, pose, object_id=22, diagnostics=contact_diagnostics)
     trajectory = StackObjectTrajectory(22, [POSE, pose], 1.5, 2.5, 2, 0.01, 0.02,
                                        times=[0, 0.2])
+    if compact:
+        packed = StackObjectTrajectory.from_samples(22, trajectory.poses, trajectory.times)
+        for name in ('energy', 'vel_integral', 'settle_pose_count', 'settle_position_delta', 'settle_path_length'):
+            setattr(packed, name, getattr(trajectory, name))
+        trajectory = packed
     contact = ContactPoint(1, 2, 0, 1, False, False, [0, 0, 0], [0, 0, 1], [0, 0, 1], 0.001)
     state = State([11, 22], [1], {22: pose}, [{22: trajectory}], [action],
                   contact_points=[contact], pose_identified_object_ids={11, 22})

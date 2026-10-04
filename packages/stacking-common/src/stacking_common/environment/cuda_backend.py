@@ -104,7 +104,9 @@ class CudaPlacementBackend(CorePlacementBackend):
 
     def _settle_trajectory(self, action, out):
         entity = self.scene_builder.entity_id(action.object_index)
-        poses = [action.pose.copy(), *(s.snapshot.body_pose(entity) for s in out.samples)]
+        poses = (np.vstack((action.pose, out.sample_poses(entity)))
+                 if hasattr(out, 'sample_poses') else
+                 [action.pose.copy(), *(s.snapshot.body_pose(entity) for s in out.samples)])
         trajectory = StackObjectTrajectory(action.object_id)
         trajectory.settle_pose_count = len(poses)
         trajectory.settle_position_delta = float(np.linalg.norm(poses[-1][:3] - poses[0][:3]))
@@ -204,11 +206,28 @@ class CudaPlacementBackend(CorePlacementBackend):
         for name in names:
             times.setdefault(name, 0.)
         times['total'] = elapsed
-        for sample in out.samples:
+        if hasattr(out, 'sample_poses'):
+            sample_times, selected = [0.], []
+            for index, sample_time in enumerate(out.sample_times):
+                if sample_time > sample_times[-1]:
+                    selected.append(index)
+                    sample_times.append(float(sample_time))
             for i in indices:
-                trajectory = trajectories[self.object_ids[i]]
-                if sample.time > trajectory.times[-1]:
-                    trajectory.add_pose(sample.snapshot.body_pose(self.scene_builder.entity_id(i)), time=sample.time)
+                object_id = self.object_ids[i]
+                initial = trajectories[object_id]
+                values = out.sample_poses(self.scene_builder.entity_id(i))
+                packed = StackObjectTrajectory.from_samples(
+                    object_id, np.vstack((initial.poses[0], values[selected])), sample_times)
+                packed.settle_pose_count = initial.settle_pose_count
+                packed.settle_position_delta = initial.settle_position_delta
+                packed.settle_path_length = initial.settle_path_length
+                trajectories[object_id] = packed
+        else:
+            for sample in out.samples:
+                for i in indices:
+                    trajectory = trajectories[self.object_ids[i]]
+                    if sample.time > trajectory.times[-1]:
+                        trajectory.add_pose(sample.snapshot.body_pose(self.scene_builder.entity_id(i)), time=sample.time)
         last = out.phases[-1]
         integrals = {}
         for i in indices:

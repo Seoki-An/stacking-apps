@@ -1137,6 +1137,89 @@ GPU chunks equal to and larger than the CPU chunk, including one whole GPU
 batch. Existing failure tests allow the bounded extra lookahead and verify
 worker draining and subsequent reuse.
 
+
+### Earlier CPU placement finalization experiment (reverted)
+
+An experiment moved trajectory, diagnostic and branch-state construction onto
+the CPU coordinator, ahead of reward/observation processing. It preserved the
+ordered search tree and full trajectories but showed no throughput improvement,
+so its implementation, benchmark switch and associated tests were reverted.
+Placement/state finalization runs on the caller again; the existing parallel
+reward/observation pipeline and independent CPU result chunks remain enabled.
+
+The retained [benchmark results](benchmarks/excavator-mcts-early-finalization.json)
+used a nine-stone stack, 49 inventory stones, seed 0, 1024 iterations,
+evaluation256, placement32/native128, CPU chunks32 and four result workers:
+
+| Finalization location | Search seconds | Evaluated nodes/s | Finalization seconds | Overlap with native calls |
+| --- | ---: | ---: | ---: | ---: |
+| Caller control | 168.11 | 6.329 | 13.98 | 0.00 |
+| CPU coordinator (reverted) | 169.25 | 6.287 | 14.48 | 13.15 |
+
+Both runs evaluated 1064 candidates (587 nonfailed), expanded 188 distinct
+parents and made 111 native calls, with identical tree hashes, selected rewards
+and target IoU. These are historical experiment timings, not measurements of
+the restored implementation: both variants used the experiment's refactored
+state construction. The finalization timer covered 1032 short-evaluation
+candidates; 32 root validations remained synchronous.
+
+Settling wrapper time increased from 5.63 to 18.68 seconds while structural and
+robustness timings remained nearly unchanged. Simulated steps and returned
+sample counts matched exactly. The 13.15 seconds of finalization overlap was
+offset by about 13.02 seconds of longer native wrapper intervals. These host
+wall timings do not distinguish host processing/contention, GIL reacquisition
+and actual GPU execution. This single pair demonstrated no overall speedup.
+
+Compact trajectory storage is implemented separately below. Containment uses
+final poses, geometry and voxel resolution, which are preserved.
+
+
+
+### Compact CUDA samples and trajectory histories
+
+Native simulation retains each job/phase's complete sampled poses, motion and
+mobility in owned numerical buffers. Final simulation snapshots remain eager
+and unchanged. Historical `sample.snapshot` values are reconstructed on demand;
+`result.sample_poses(entity_id)` and `result.sample_times` provide bulk FP64 arrays
+with the same canonical normalization as the original snapshots. Native C++
+consumers use `sample.snapshot()` instead of the former snapshot field.
+
+CUDA placement reads these arrays in bulk. `StackObjectTrajectory.from_samples`
+validates and owns a dense pose array; branch copies copy that array without
+constructing a Python array for every timestep. Accessing `trajectory.poses`
+materializes the usual mutable list, preserving viewer and checkpoint contracts.
+All samples and timestamps remain available. Older native installations use the
+existing snapshot path. There are no new YAML settings, precision changes,
+sample reductions, or changes to containment geometry/resolution. The earlier
+CPU finalization handoff remains reverted.
+
+The [matched benchmark](benchmarks/excavator-mcts-compact-samples.json) uses the
+same nine-stone starting stack, 49 inventory stones, seed 0, 1024 iterations,
+evaluation256, placement32/native128, CPU chunks32 and four result workers:
+
+| Sample/history representation | Search seconds | Evaluated nodes/s | Expanded parents/s |
+| --- | ---: | ---: | ---: |
+| Original snapshots/lists | 175.74 | 6.054 | 1.070 |
+| Compact native/Python storage | 164.30 | 6.476 | 1.144 |
+
+This pair improves evaluated-node throughput by **7.0%**, saving 11.44 seconds
+(6.5% of search time). Both runs evaluate 1064 candidates, have 587 nonfailed
+evaluations and 188 distinct expanded parents, make 111 native calls, execute
+770316 simulated steps, and retain 171713 native samples. Ordered tree hashes,
+selected poses, rewards and selected target IoU match exactly. Native wrapper
+time stays near 42 seconds; the measured gain appears in surrounding host work,
+rather than demonstrating faster GPU kernels. This is a single-seed comparison,
+not a general speedup guarantee.
+
+Validation includes **277 Python regression tests**, the native simulator CTest,
+and 80 pose/motion/time/metric arrays compared exactly between old and new
+binaries. Tests cover bulk versus reconstructed snapshots, independent array
+ownership after simulator reuse/destruction, branch copies, pickle, mutable
+pose access, saved checkpoints, both platforms, MCTS and viewer projection.
+A final optional-untimed-history copy check also passes; that compatibility guard
+does not affect the timed histories used in the benchmark.
+
+
 ## Run
 
 From the `stacking-apps` checkout, with the sibling `stacking-core` checkout:
