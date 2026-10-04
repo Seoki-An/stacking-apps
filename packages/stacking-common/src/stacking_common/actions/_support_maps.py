@@ -321,12 +321,7 @@ def support_likelihood_maps_by_kernel(
             contact_height_maps.append(empty.copy())
             placement_height_maps.append(empty)
             continue
-        samples = np.stack(
-            [
-                _shift_for_anchor(surface, int(y), int(x), -np.inf)
-                for y, x in zip(kernel.y_offsets, kernel.x_offsets)
-            ]
-        )
+        samples = _shifted_samples(surface, kernel.y_offsets, kernel.x_offsets, -np.inf)
         covered = np.all(np.isfinite(samples), axis=0)
         clearance = samples - kernel.bottom_height[:, None, None]
         placement = np.max(clearance, axis=0)
@@ -367,24 +362,19 @@ def support_likelihood_maps_by_kernel(
         ),
     )
 
-def _shift_for_anchor(
+def _shifted_samples(
     values: np.ndarray,
-    y_offset: int,
-    x_offset: int,
+    y_offsets: np.ndarray,
+    x_offsets: np.ndarray,
     fill: float,
 ) -> np.ndarray:
-    """Return a grid where output[y, x] is values[y + dy, x + dx]."""
-    values = np.asarray(values)
+    """Return output[k, y, x] = values[y + dy_k, x + dx_k], or fill outside the grid."""
+    values = np.asarray(values, dtype=float)
     height, width = values.shape
-    shifted = np.full(values.shape, fill, dtype=float)
-    dst_y0 = max(0, -y_offset)
-    dst_y1 = min(height, height - y_offset)
-    dst_x0 = max(0, -x_offset)
-    dst_x1 = min(width, width - x_offset)
-    if dst_y0 >= dst_y1 or dst_x0 >= dst_x1:
-        return shifted
-    shifted[dst_y0:dst_y1, dst_x0:dst_x1] = values[
-        dst_y0 + y_offset : dst_y1 + y_offset,
-        dst_x0 + x_offset : dst_x1 + x_offset,
-    ]
-    return shifted
+    y_offsets = np.asarray(y_offsets, dtype=int)
+    x_offsets = np.asarray(x_offsets, dtype=int)
+    pad = int(max(np.max(np.abs(y_offsets)), np.max(np.abs(x_offsets))))
+    padded = np.pad(values, pad, mode="constant", constant_values=fill)
+    rows = np.arange(height)[None, :, None] + (y_offsets + pad)[:, None, None]
+    columns = np.arange(width)[None, None, :] + (x_offsets + pad)[:, None, None]
+    return padded[rows, columns]

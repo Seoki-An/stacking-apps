@@ -1220,6 +1220,42 @@ A final optional-untimed-history copy check also passes; that compatibility guar
 does not affect the timed histories used in the benchmark.
 
 
+### Vectorized floor sampling
+
+A timer-only profile of the compact-sample workload put 48.0 of the 80.1-second
+pose-generation phase in CPU proposal sampling, versus 24.6 seconds in CUDA pose
+solving. Diversity selection drew 32 proposals per call, of which 1.07 were used
+on average, using per-dict Python loops; score maps evaluated about 1000 anchor
+cells one at a time.
+
+Diversity selection now works on candidate-index arrays. Its pools, their order
+and every `rng.choice(n, p=...)` call are unchanged, so seeded draws are identical.
+Score maps evaluate anchor footprints, gap labels and candidate scores as arrays,
+with the same arithmetic order; each map cell keeps its first maximum-score
+candidate. Kernel shifts use one padded gather. Gap components are reused per
+floor occupancy grid and excavator distances per score grid, both evaluated with
+the original scalar code. There are no configuration, RNG or native changes.
+
+The [vectorized-sampling benchmark](benchmarks/excavator-mcts-vectorized-sampling.json)
+repeats the compact-sample workload with the same native module:
+
+| Measurement | Compact samples | Vectorized sampling |
+| --- | ---: | ---: |
+| Search seconds | 164.30 | 134.94 |
+| Evaluated nodes/s | 6.476 | 7.885 |
+| Nonfailed nodes/s | 3.573 | 4.350 |
+| Pose-generation phase | 80.08 s | 52.45 s |
+
+Evaluated-node throughput improves by **21.8%**. Evaluation/failure counts, the
+ordered tree hash and the selected candidate match exactly. In the profiled pair,
+selection fell from 16.87 to 2.11 seconds and score-map kernels from 18.17 to
+6.98 seconds. A separate full search compared every call with the original code:
+2379 score maps (2.63 million candidates) matched array-for-array and
+field-for-field, and 2469 selections matched chosen candidates and final RNG state.
+Selection consumes one seeded RNG in sequence, so it is not parallelized. This is
+a single-seed, single-scene timing.
+
+
 ## Run
 
 From the `stacking-apps` checkout, with the sibling `stacking-core` checkout:

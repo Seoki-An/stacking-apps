@@ -337,6 +337,25 @@ def connected_component_labels(mask: np.ndarray) -> tuple[np.ndarray, dict[int, 
         component_id += 1
     return labels, sizes
 
+_GAP_COMPONENTS: dict = {}
+
+def gap_components(occupied: np.ndarray):
+    """Gap labels, sizes, centers and dilated occupancy for one floor grid.
+
+    Every object scored on the same state shares this result, so it is reused
+    while the occupancy bytes match. Returned arrays must be treated read-only.
+    """
+    occupied = np.asarray(occupied, dtype=bool)
+    key = (occupied.shape, occupied.tobytes())
+    result = _GAP_COMPONENTS.get(key)
+    if result is None:
+        labels, sizes = connected_component_labels(~occupied)
+        result = (labels, sizes, component_centers(labels, sizes), dilated_mask(occupied))
+        if len(_GAP_COMPONENTS) >= 64:
+            _GAP_COMPONENTS.clear()
+        _GAP_COMPONENTS[key] = result
+    return result
+
 def component_centers(labels: np.ndarray, sizes: dict[int, int]) -> dict[int, np.ndarray]:
     centers: dict[int, np.ndarray] = {}
     for component_id in sizes:
@@ -492,108 +511,90 @@ def score_xy_debug_map(
     min_contact = max(int(cfg.get("u_shape_min_frontier_contact_cells", 1)), 0)
     has_occupied = layer is not None and np.any(layer["occupied"])
     if has_occupied:
-        gap_labels, gap_sizes = connected_component_labels(~layer["occupied"])
-        gap_centers = component_centers(gap_labels, gap_sizes)
-        occupied_dilated = dilated_mask(layer["occupied"])
+        gap_labels, gap_sizes, gap_centers, occupied_dilated = gap_components(layer["occupied"])
 
-    base_items = []
-    max_unfilled_cells = 1
     footprint_half = u_shape_footprint_half(inventory, stone_idx, _floor_cfg=cfg)
-    for y_idx, x_idx in np.argwhere(valid):
-        xy = xy_grid[y_idx, x_idx]
-        frontier = 0.0
-        open_area = 1.0
-        unfilled_cells = 0
-        contact_cells = 0
-        gap_component = -1
-        gap_component_size = 0
-        gap_region = None
-
-        if has_occupied:
-            candidate = anchor_occupancy_mask(
-                inventory, layer, xy, stone_idx, _half=footprint_half
-            )
-            cell_count = int(np.count_nonzero(candidate))
-            if cell_count == 0:
-                continue
-            unfilled = candidate & ~layer["occupied"]
-            unfilled_cells = int(np.count_nonzero(unfilled))
-            open_area = float(unfilled_cells / cell_count)
-            if open_area <= 0.0:
-                continue
-            if gap_labels is not None:
-                component_ids, component_counts = np.unique(
-                    gap_labels[unfilled],
-                    return_counts=True,
-                )
-                valid_components = component_ids >= 0
-                if np.any(valid_components):
-                    component_ids = component_ids[valid_components]
-                    component_counts = component_counts[valid_components]
-                    best_idx = int(np.argmax(component_counts))
-                    gap_component = int(component_ids[best_idx])
-                    gap_component_size = int(gap_sizes.get(gap_component, 0))
-                    center = gap_centers.get(gap_component)
-                    if center is not None:
-                        gap_region = (
-                            gap_component,
-                            int(y_idx >= center[0]),
-                            int(x_idx >= center[1]),
-                        )
-            max_unfilled_cells = max(max_unfilled_cells, unfilled_cells)
-            contact_cells = int(
-                np.count_nonzero(candidate & occupied_dilated)
-            )
-            frontier = min(contact_cells / float(cell_count), 1.0)
-            if require_connected and min_contact > 0 and contact_cells < min_contact:
-                continue
-            if bool(cfg.get("u_shape_filter", True)) and creates_u_shape_pocket(
-                inventory,
-                layer,
-                xy,
-                stone_idx,
-                _floor_cfg=cfg,
-                _half=footprint_half,
-                _candidate=candidate,
+    # Anchor cells in row-major order. Every per-cell quantity below is an
+    # array over these cells; filtering keeps that order.
+    grid_index = np.argwhere(valid)
+    cell_xy = xy_grid[grid_index[:, 0], grid_index[:, 1]]
+    count = len(grid_index)
+    keep = np.ones(count, dtype=bool)
+    frontier = np.zeros(count)
+    open_area = np.ones(count)
+    unfilled_cells = np.zeros(count, dtype=int)
+    gap_component = np.full(count, -1, dtype=int)
+    gap_component_size = np.zeros(count, dtype=int)
+    gap_region: list = [None] * count
+    max_unfilled_cells = 1
+    if has_occupied:
+        # Footprint masks on the floor grid, one row per anchor cell, exactly
+        # as anchor_occupancy_mask evaluates them.
+        xx, yy = layer["xx"].ravel(), layer["yy"].ravel()
+        footprints = (
+            (xx >= (cell_xy[:, 0] - footprint_half[0])[:, None])
+            & (xx <= (cell_xy[:, 0] + footprint_half[0])[:, None])
+            & (yy >= (cell_xy[:, 1] - footprint_half[1])[:, None])
+            & (yy <= (cell_xy[:, 1] + footprint_half[1])[:, None])
+        )
+        cell_count = np.count_nonzero(footprints, axis=1)
+        unfilled = footprints & ~layer["occupied"].ravel()
+        unfilled_cells = np.count_nonzero(unfilled, axis=1)
+        keep = cell_count > 0
+        open_area = np.divide(unfilled_cells, cell_count, out=np.zeros(count), where=keep)
+        keep &= open_area > 0.0
+        # Unfilled cells are never occupied, so all carry a gap label. The
+        # most common label wins; ties keep the smallest, as np.unique does.
+        labels = gap_labels.ravel()
+        label_counts = np.stack(
+            [np.count_nonzero(unfilled & (labels == label), axis=1) for label in range(len(gap_sizes))],
+            axis=1,
+        ) if gap_sizes else np.zeros((count, 0), dtype=int)
+        kept = np.flatnonzero(keep)
+        if len(kept):
+            components = np.argmax(label_counts[kept], axis=1)
+            centers = np.array([gap_centers[label] for label in range(len(gap_sizes))])[components]
+            gap_component[kept] = components
+            gap_component_size[kept] = np.array([gap_sizes[label] for label in range(len(gap_sizes))])[components]
+            for index, component, above_y, above_x in zip(
+                kept.tolist(), components.tolist(),
+                (grid_index[kept, 0] >= centers[:, 0]).tolist(),
+                (grid_index[kept, 1] >= centers[:, 1]).tolist(),
             ):
-                continue
-
-        excavator_distance = score_excavator_distance(
-            inventory,
-            xy,
-            excavator_xy,
-            excavator_distance_axis,
+                gap_region[index] = (component, int(above_y), int(above_x))
+        if np.any(keep):
+            max_unfilled_cells = max(max_unfilled_cells, int(np.max(unfilled_cells[keep])))
+        contact_cells = np.count_nonzero(footprints & occupied_dilated.ravel(), axis=1)
+        frontier = np.minimum(
+            np.divide(contact_cells, cell_count, out=np.zeros(count), where=cell_count > 0), 1.0,
         )
-        base_items.append(
-            {
-                "xy": xy.copy(),
-                "contact_cells": contact_cells,
-                "open_area": open_area,
-                "unfilled_cells": unfilled_cells,
-                "gap_component": gap_component,
-                "gap_component_size": gap_component_size,
-                "gap_region": gap_region,
-                "frontier": frontier,
-                "excavator_distance": excavator_distance,
-                "grid_index": (int(y_idx), int(x_idx)),
-            }
-        )
+        if require_connected and min_contact > 0:
+            keep &= contact_cells >= min_contact
+        if bool(cfg.get("u_shape_filter", True)):
+            for index in np.flatnonzero(keep):
+                keep[index] = not creates_u_shape_pocket(
+                    inventory, layer, cell_xy[index], stone_idx, _floor_cfg=cfg,
+                    _half=footprint_half, _candidate=footprints[index].reshape(layer["xx"].shape),
+                )
+    excavator_distance = excavator_distance_grid(
+        inventory, xy_grid, excavator_xy, excavator_distance_axis,
+    )[grid_index[:, 0], grid_index[:, 1]]
 
-    candidate_items = []
+    base = np.flatnonzero(keep)
+    base_indices = grid_index[base]
+    base_xy = cell_xy[base]
+    # Orientations of one anchor share its xy array, as the dict spread did.
+    base_xy_items = [xy.copy() for xy in base_xy]
     target_anchor_base = target_anchor_static(inventory, stone_idx)
-    base_indices = np.asarray(
-        [base["grid_index"] for base in base_items], dtype=int,
-    ).reshape(-1, 2)
-    base_xy = np.asarray([base["xy"] for base in base_items], dtype=float).reshape(-1, 2)
+    parts = []
     for orientation_index in range(kernel_support.support.shape[0]):
         orientation_support = kernel_support.support[orientation_index]
         orientation_contact_height = kernel_support.contact_height[orientation_index]
         orientation_placement_height = kernel_support.placement_height[orientation_index]
         support_scores = orientation_support[base_indices[:, 0], base_indices[:, 1]]
         selected = np.flatnonzero(np.isfinite(support_scores))
-        contact_heights = orientation_contact_height[
-            base_indices[selected, 0], base_indices[selected, 1]
-        ].copy()
+        rows, columns = base_indices[selected, 0], base_indices[selected, 1]
+        contact_heights = orientation_contact_height[rows, columns].copy()
         for index in np.flatnonzero(~np.isfinite(contact_heights)):
             contact_heights[index] = mean_top_height_at_anchor(
                 inventory, heights, xy_grid, base_xy[selected[index]], stone_idx,
@@ -605,24 +606,20 @@ def score_xy_debug_map(
         boundary_scores = target_boundary_proximity(
             base_xy[selected], boundary_lower, boundary_upper,
         )
-        # Keep orientation-major, row-major order for tie breaking and RNG draws.
-        for index, base_index in enumerate(selected):
-            base = base_items[base_index]
-            y_idx, x_idx = base["grid_index"]
-            candidate_items.append(
-                {
-                    **base,
-                    "height": float(contact_heights[index]),
-                    "support_likelihood": float(support_scores[base_index]),
-                    "placement_height": float(
-                        orientation_placement_height[y_idx, x_idx]
-                    ),
-                    "orientation_index": int(orientation_index),
-                    "target_boundary": float(boundary_scores[index]),
-                }
-            )
+        parts.append((
+            selected,
+            np.full(len(selected), orientation_index),
+            contact_heights,
+            support_scores[selected],
+            orientation_placement_height[rows, columns],
+            boundary_scores,
+        ))
 
-    if not candidate_items:
+    # Orientation-major, row-major order for tie breaking and RNG draws.
+    item_base, item_orientation, item_height, item_support, item_placement, item_boundary = (
+        np.concatenate(values) for values in zip(*parts)
+    ) if parts else (np.zeros(0, dtype=int),) * 6
+    if not len(item_base):
         return {
             "x_coords": xy_grid[0, :, 0].astype(float).copy(),
             "y_coords": xy_grid[:, 0, 1].astype(float).copy(),
@@ -632,58 +629,40 @@ def score_xy_debug_map(
             "height": heights.copy(),
             "candidates": [],
         }
-    item_heights = np.asarray([item["height"] for item in candidate_items], dtype=float)
-    h_min = float(np.min(item_heights))
-    h_span = max(float(np.max(item_heights) - h_min), 1e-6)
-    candidates = []
-    for item in candidate_items:
-        height_term = (float(item["height"]) - h_min) / h_span
-        fill_area = float(item["unfilled_cells"] / max_unfilled_cells)
-        score = (
-            w_height * height_term
-            + w_support_likelihood * item["support_likelihood"]
-            + w_open_area * item["open_area"]
-            + w_fill_area * fill_area
-            + w_frontier * item["frontier"]
-            + w_target_boundary * item["target_boundary"]
-            + w_excavator_distance * item["excavator_distance"]
-        )
-        y_idx, x_idx = item["grid_index"]
-        if not candidate_mask[y_idx, x_idx] or score > score_map[y_idx, x_idx]:
-            score_map[y_idx, x_idx] = float(score)
-            candidate_mask[y_idx, x_idx] = True
-            height_score_map[y_idx, x_idx] = float(height_term)
-            support_likelihood_map[y_idx, x_idx] = float(
-                item["support_likelihood"]
-            )
-            open_area_map[y_idx, x_idx] = float(item["open_area"])
-            fill_area_map[y_idx, x_idx] = float(fill_area)
-            frontier_map[y_idx, x_idx] = float(item["frontier"])
-            target_boundary_map[y_idx, x_idx] = float(item["target_boundary"])
-            excavator_distance_map[y_idx, x_idx] = float(
-                item["excavator_distance"]
-            )
-            placement_height_map[y_idx, x_idx] = float(item["placement_height"])
-            orientation_index_map[y_idx, x_idx] = int(item["orientation_index"])
-        candidates.append(
-            {
-                "xy": item["xy"],
-                "score": float(score),
-                "height": item["height"],
-                "support_likelihood": float(item["support_likelihood"]),
-                "placement_height": float(item["placement_height"]),
-                "orientation_index": int(item["orientation_index"]),
-                "gap_component": int(item["gap_component"]),
-                "gap_component_size": int(item["gap_component_size"]),
-                "gap_region": item["gap_region"],
-                "target_boundary": float(item["target_boundary"]),
-            }
-        )
-
-    candidate_scores = np.asarray(
-        [candidate["score"] for candidate in candidates],
-        dtype=float,
+    item_base = item_base.astype(int)
+    cells = base[item_base]
+    h_min = float(np.min(item_height))
+    h_span = max(float(np.max(item_height) - h_min), 1e-6)
+    height_term = (item_height - h_min) / h_span
+    fill_area = unfilled_cells[cells] / max_unfilled_cells
+    # Same terms, in the same left-to-right order, as the scalar sum.
+    candidate_scores = (
+        w_height * height_term
+        + w_support_likelihood * item_support
+        + w_open_area * open_area[cells]
+        + w_fill_area * fill_area
+        + w_frontier * frontier[cells]
+        + w_target_boundary * item_boundary
+        + w_excavator_distance * excavator_distance[cells]
     )
+
+    # Each map cell shows its first maximum-score candidate.
+    flat_cell = grid_index[cells, 0] * shape[1] + grid_index[cells, 1]
+    order = np.lexsort((np.arange(len(cells)), -candidate_scores, flat_cell))
+    winners = order[np.r_[True, flat_cell[order][1:] != flat_cell[order][:-1]]]
+    rows, columns = grid_index[cells[winners], 0], grid_index[cells[winners], 1]
+    score_map[rows, columns] = candidate_scores[winners]
+    candidate_mask[rows, columns] = True
+    height_score_map[rows, columns] = height_term[winners]
+    support_likelihood_map[rows, columns] = item_support[winners]
+    open_area_map[rows, columns] = open_area[cells[winners]]
+    fill_area_map[rows, columns] = fill_area[winners]
+    frontier_map[rows, columns] = frontier[cells[winners]]
+    target_boundary_map[rows, columns] = item_boundary[winners]
+    excavator_distance_map[rows, columns] = excavator_distance[cells[winners]]
+    placement_height_map[rows, columns] = item_placement[winners]
+    orientation_index_map[rows, columns] = item_orientation[winners]
+
     candidate_score_min = float(np.min(candidate_scores))
     candidate_score_span = max(
         float(np.max(candidate_scores) - candidate_score_min),
@@ -692,8 +671,28 @@ def score_xy_debug_map(
     normalized_scores = np.clip(
         (candidate_scores - candidate_score_min) / candidate_score_span, 0.0, 1.0,
     )
-    for candidate, normalized_score in zip(candidates, normalized_scores):
-        candidate["normalized_score"] = float(normalized_score)
+    gap_component = gap_component.tolist()
+    gap_component_size = gap_component_size.tolist()
+    candidates = [
+        {
+            "xy": base_xy_items[item],
+            "score": score,
+            "height": height,
+            "support_likelihood": support,
+            "placement_height": placement,
+            "orientation_index": orientation,
+            "gap_component": gap_component[cell],
+            "gap_component_size": gap_component_size[cell],
+            "gap_region": gap_region[cell],
+            "target_boundary": boundary,
+            "normalized_score": normalized,
+        }
+        for item, cell, score, height, support, placement, orientation, boundary, normalized in zip(
+            item_base.tolist(), cells.tolist(), candidate_scores.tolist(), item_height.tolist(),
+            item_support.tolist(), item_placement.tolist(), item_orientation.astype(int).tolist(),
+            item_boundary.tolist(), normalized_scores.tolist(),
+        )
+    ]
 
     return {
         "x_coords": xy_grid[0, :, 0].astype(float).copy(),
@@ -778,6 +777,32 @@ def score_excavator_distance(
         distance = float(np.linalg.norm(xy - excavator_xy))
         scale = target_diagonal(inventory)
     return min(distance / scale, 1.0)
+
+_EXCAVATOR_DISTANCE_GRIDS: dict = {}
+
+def excavator_distance_grid(
+    inventory,
+    xy_grid: np.ndarray,
+    excavator_xy: np.ndarray,
+    axis: str,
+) -> np.ndarray:
+    """score_excavator_distance for every grid cell, reused while inputs match.
+
+    The scalar function is evaluated per cell so values stay bit-identical.
+    """
+    wall = inventory.target_wall
+    key = (xy_grid.shape, xy_grid.tobytes(), np.asarray(excavator_xy, dtype=float).tobytes(), axis,
+           tuple(inventory.xlim), tuple(inventory.ylim), float(wall.width), float(wall.length))
+    grid = _EXCAVATOR_DISTANCE_GRIDS.get(key)
+    if grid is None:
+        grid = np.array([
+            [score_excavator_distance(inventory, xy, excavator_xy, axis) for xy in row]
+            for row in xy_grid
+        ]).reshape(xy_grid.shape[:2])
+        if len(_EXCAVATOR_DISTANCE_GRIDS) >= 8:
+            _EXCAVATOR_DISTANCE_GRIDS.clear()
+        _EXCAVATOR_DISTANCE_GRIDS[key] = grid
+    return grid
 
 def mean_top_height_at_anchor(
     inventory,
@@ -885,6 +910,12 @@ def sample_scored_candidates(
     random_start: bool,
     *, rng,
 ) -> list[dict]:
+    """Boltzmann/diversity selection over candidate indices.
+
+    Pools, their order and every ``rng.choice(n, p=...)`` call match the
+    original per-dict implementation, so seeded draws are unchanged.
+    Candidates must be distinct objects.
+    """
     k = max(int(k), 1)
     temperature = float(inventory.cfg.action.planar.get("boltzmann_temperature", 1.0))
     if temperature <= 0.0:
@@ -898,168 +929,107 @@ def sample_scored_candidates(
     elite_fraction = float(score_cfg.get("elite_fraction", 0.0))
     if elite_fraction < 0.0:
         raise ValueError("action.planar.score.elite_fraction must be >= 0")
-    by_mode: dict[tuple[int, int], list[dict]] = {}
+    scores = np.asarray([item["score"] for item in candidates], dtype=float)
     heights = np.asarray([item["height"] for item in candidates], dtype=float)
+    xy = np.asarray([item["xy"] for item in candidates], dtype=float).reshape(len(candidates), -1)
     h_min = float(np.min(heights))
     h_span = max(float(np.max(heights) - h_min), 1e-6)
     origin = np.asarray(inventory.target_wall.origin[:2], dtype=float)
-    for item in candidates:
-        xy = np.asarray(item["xy"], dtype=float)
-        h_bin = int(np.clip(np.floor(3.0 * (item["height"] - h_min) / h_span), 0, 2))
-        quadrant = int(xy[0] >= origin[0]) + 2 * int(xy[1] >= origin[1])
-        by_mode.setdefault((h_bin, quadrant), []).append(item)
+    h_bin = np.clip(np.floor(3.0 * (heights - h_min) / h_span), 0, 2).astype(int)
+    quadrant = (xy[:, 0] >= origin[0]).astype(int) + 2 * (xy[:, 1] >= origin[1]).astype(int)
+    by_mode = _index_groups(4 * h_bin + quadrant)
 
-    selected: list[dict] = []
-    selected_ids: set[int] = set()
-    select_y_region_representatives(
-        candidates,
-        selected,
-        selected_ids,
-        temperature,
-        min_probability,
-        k,
-        rng=rng,
-    )
-    select_gap_representatives(
-        candidates,
-        selected,
-        selected_ids,
-        temperature,
-        min_probability,
-        k,
-        rng=rng,
-    )
-    elite_count = min(int(np.ceil(k * min(elite_fraction, 1.0))), len(candidates))
-    if elite_count > 0:
-        for item in sorted(candidates, key=lambda item: item["score"], reverse=True)[
-            :elite_count
-        ]:
+    chosen = np.zeros(len(candidates), dtype=bool)
+    selected: list[int] = []
+
+    def choose(indices) -> bool:
+        index = _weighted_choice(indices, chosen, scores, temperature, min_probability, rng=rng)
+        if index is None:
+            return False
+        selected.append(index)
+        chosen[index] = True
+        return True
+
+    # Representatives of the upper, middle and lower thirds of the Y range.
+    y_min, y_max = float(np.min(xy[:, 1])), float(np.max(xy[:, 1]))
+    if y_max > y_min:
+        region = np.clip(np.floor(3.0 * (xy[:, 1] - y_min) / (y_max - y_min)), 0, 2)
+        for value in (2, 1, 0):
             if len(selected) >= k:
                 break
-            if id(item) in selected_ids:
-                continue
-            selected.append(item)
-            selected_ids.add(id(item))
+            choose(np.flatnonzero(region == value))
 
-    modes = sorted(
-        by_mode.values(),
-        key=lambda items: max(item["score"] for item in items),
-        reverse=True,
-    )
-    for mode_items in modes:
-        if len(selected) >= k:
-            break
-        item = weighted_candidate_choice(mode_items, temperature, min_probability, selected_ids, rng=rng)
-        if item is None:
-            continue
-        selected.append(item)
-        selected_ids.add(id(item))
-
-    remaining = [item for item in candidates if id(item) not in selected_ids]
-    while len(selected) < k and remaining:
-        item = weighted_candidate_choice(remaining, temperature, min_probability, selected_ids, rng=rng)
-        if item is None:
-            break
-        selected.append(item)
-        selected_ids.add(id(item))
-        remaining = [candidate for candidate in remaining if id(candidate) != id(item)]
-
-    if not selected:
-        return []
-    if not random_start:
-        selected.sort(key=lambda item: item["score"], reverse=True)
-    return selected
-
-def select_y_region_representatives(
-    candidates: list[dict],
-    selected: list[dict],
-    selected_ids: set[int],
-    temperature: float,
-    min_probability: float,
-    k: int,
-    *, rng,
-) -> None:
-    if not candidates or len(selected) >= k:
-        return
-    ys = np.asarray([float(np.asarray(item["xy"], dtype=float)[1]) for item in candidates])
-    y_min = float(np.min(ys))
-    y_max = float(np.max(ys))
-    if y_max <= y_min:
-        return
-
-    by_region: dict[int, list[dict]] = {0: [], 1: [], 2: []}
-    for item in candidates:
-        y = float(np.asarray(item["xy"], dtype=float)[1])
-        region = int(np.clip(np.floor(3.0 * (y - y_min) / (y_max - y_min)), 0, 2))
-        by_region[region].append(item)
-
-    for region in (2, 1, 0):
-        if len(selected) >= k:
-            break
-        item = weighted_candidate_choice(
-            by_region[region],
-            temperature,
-            min_probability,
-            selected_ids,
-            rng=rng,
-        )
-        if item is None:
-            continue
-        selected.append(item)
-        selected_ids.add(id(item))
-
-def select_gap_representatives(
-    candidates: list[dict],
-    selected: list[dict],
-    selected_ids: set[int],
-    temperature: float,
-    min_probability: float,
-    k: int,
-    *, rng,
-) -> None:
-    by_gap_region: dict[tuple[int, int, int], list[dict]] = {}
-    for item in candidates:
+    # Gap representatives, largest components first; not capped by k.
+    gap_keys: dict[tuple, int] = {}
+    gap_ids = np.full(len(candidates), -1, dtype=int)
+    gap_sizes = np.zeros(len(candidates), dtype=int)
+    for index, item in enumerate(candidates):
         gap_region = item.get("gap_region", None)
-        if gap_region is None:
-            continue
-        by_gap_region.setdefault(tuple(gap_region), []).append(item)
-    if not by_gap_region:
-        return
+        if gap_region is not None:
+            gap_ids[index] = gap_keys.setdefault(tuple(gap_region), len(gap_keys))
+            gap_sizes[index] = int(item.get("gap_component_size", 0))
+    if gap_keys:
+        has_gap = np.flatnonzero(gap_ids >= 0)
+        gap_groups = sorted(
+            (has_gap[group] for group in _index_groups(gap_ids[has_gap])),
+            key=lambda group: (int(np.max(gap_sizes[group])), float(np.max(scores[group]))),
+            reverse=True,
+        )
+        for group in gap_groups[: min(k, len(gap_groups))]:
+            choose(group)
 
-    max_gap_representatives = min(k, len(by_gap_region))
-    gap_groups = sorted(
-        by_gap_region.values(),
-        key=lambda items: (
-            max(int(item.get("gap_component_size", 0)) for item in items),
-            max(float(item["score"]) for item in items),
-        ),
-        reverse=True,
-    )
-    for items in gap_groups[:max_gap_representatives]:
-        item = weighted_candidate_choice(items, temperature, min_probability, selected_ids, rng=rng)
-        if item is None:
-            continue
-        selected.append(item)
-        selected_ids.add(id(item))
+    elite_count = min(int(np.ceil(k * min(elite_fraction, 1.0))), len(candidates))
+    if elite_count > 0:
+        # Stable descending order, as sorted(..., reverse=True) on finite scores.
+        for index in np.argsort(-scores, kind="stable")[:elite_count]:
+            if len(selected) >= k:
+                break
+            if not chosen[index]:
+                selected.append(index)
+                chosen[index] = True
 
-def weighted_candidate_choice(
-    candidates: list[dict],
+    modes = sorted(by_mode, key=lambda group: float(np.max(scores[group])), reverse=True)
+    for group in modes:
+        if len(selected) >= k:
+            break
+        choose(group)
+
+    remaining = np.flatnonzero(~chosen)
+    while len(selected) < k and choose(remaining):
+        pass
+
+    if not random_start:
+        selected.sort(key=scores.__getitem__, reverse=True)
+    return [candidates[index] for index in selected]
+
+def _index_groups(keys: np.ndarray) -> list[np.ndarray]:
+    """Ascending indices for each key, ordered by the key's first appearance."""
+    if not len(keys):
+        return []
+    order = np.argsort(keys, kind="stable")
+    starts = np.flatnonzero(np.r_[True, keys[order][1:] != keys[order][:-1]])
+    groups = np.split(order, starts[1:])
+    groups.sort(key=lambda group: group[0])
+    return groups
+
+def _weighted_choice(
+    indices: np.ndarray,
+    chosen: np.ndarray,
+    scores: np.ndarray,
     temperature: float,
     min_probability: float,
-    selected_ids: set[int],
     *, rng,
-) -> Optional[dict]:
-    pool = [item for item in candidates if id(item) not in selected_ids]
-    if not pool:
+) -> Optional[int]:
+    pool = indices[~chosen[indices]]
+    if not len(pool):
         return None
-    scores = np.asarray([item["score"] for item in pool], dtype=float)
-    logits = scores / temperature
+    logits = scores[pool] / temperature
     logits = logits - np.max(logits)
     probs = np.exp(logits)
     if min_probability > 0.0:
         probs = np.maximum(probs, min_probability)
     probs = probs / np.sum(probs)
-    return pool[int(rng.choice(len(pool), p=probs))]
+    return int(pool[int(rng.choice(len(pool), p=probs))])
 
 def creates_u_shape_pocket(
     inventory,

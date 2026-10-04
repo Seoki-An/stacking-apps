@@ -111,3 +111,18 @@ def test_score_map_keeps_candidate_order_height_fallback_and_orientation_ties(al
     assert all(item["height"] == 0. for item in candidates)
     assert all(item["normalized_score"] == 0. for item in candidates)
     np.testing.assert_array_equal(result["orientation_index"], [[1, 0], [1, 0]])
+
+
+def test_shifted_samples_match_per_offset_slices():
+    from stacking_common.actions._support_maps import _shifted_samples
+    values = np.arange(12, dtype=float).reshape(3, 4)
+    values[1, 2] = np.nan
+    offsets = [(0, 0), (1, -2), (-1, 3), (2, 2), (-5, 0), (0, 7)]  # Last two leave the grid.
+    actual = _shifted_samples(values, [y for y, _ in offsets], [x for _, x in offsets], -np.inf)
+    for (dy, dx), grid in zip(offsets, actual):
+        expected = np.full(values.shape, -np.inf)
+        for y in range(3):
+            for x in range(4):
+                if 0 <= y + dy < 3 and 0 <= x + dx < 4:
+                    expected[y, x] = values[y + dy, x + dx]
+        np.testing.assert_array_equal(grid, expected)
