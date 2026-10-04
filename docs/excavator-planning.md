@@ -7,6 +7,47 @@ planning, persistence, and the offline Operations Console. Excavator action
 sampling uses the legacy ablation score kernels, with explicit lower-floor
 priority; tabletop retains its existing sampler and filters.
 
+## Current MCTS optimization status
+
+The current implementation includes compact CUDA sample histories, vectorized
+floor scoring and diversity selection, faster native pose-generation queries,
+reuse of scene/grid computations, lattice-based voxel crops, and fewer branch
+history copies. Full trajectories remain available to checkpoints and viewers.
+The CPU placement/state-finalization experiment was reverted; reward/observation
+processing still overlaps subsequent CUDA simulation chunks.
+
+The active excavator CUDA profile uses 1024 iterations, an evaluation batch of
+256 and four CPU result workers. Runtime chunk defaults are:
+
+| Work | Batch size |
+| --- | ---: |
+| CUDA pose generation | 256 jobs |
+| CUDA placement simulation | 128 placements |
+| Native simulation capacity | 512 jobs, allowing four robustness trials per placement |
+| CPU reward/observation processing | 32 results |
+
+The latest [production-default benchmark](benchmarks/excavator-mcts-state-copies-and-chunks.json)
+completed the fixed nine-stone starting scene with 49 inventory stones in
+**71.12 seconds at 14.96 evaluated nodes/s**. It evaluated 1064 candidates under
+the 1024-iteration budget. The optimization comparisons preserved ordered tree
+hashes, evaluation counts and the selected candidate; larger simulation chunks
+also preserved trees for held-out seeds 1 and 2. These are search-only results
+for the recorded workload. The CPU profile uses a different iteration budget,
+so its total search time is not an equal-work CPU/CUDA comparison.
+
+Containment still uses the same final poses, geometry and voxel resolution.
+The lattice crop optimization preserves the selected voxel centers and their
+order. Observation construction now transforms only real mesh points and keeps
+padding at positive infinity, preventing NaNs from rotating padded rows.
+
+See the detailed experiments below for measurements and validation limits:
+[compact samples](#compact-cuda-samples-and-trajectory-histories),
+[floor sampling](#vectorized-floor-sampling),
+[native pose generation](#cuda-pose-generation-call-cost),
+[host-work reuse](#repeated-host-work-in-pose-generation),
+[support/voxel crops](#cell-restricted-support-and-lattice-voxel-crops), and
+[state copies and simulation chunks](#state-copies-and-simulation-chunk-size).
+
 ## Stability and floor-filling settings
 
 The excavator profile rejects a placement if any noisy-placement trial fails

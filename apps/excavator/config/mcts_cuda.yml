@@ -28,17 +28,17 @@ generation:
   root_sampling_priority: lower_floor_first
   deeper_sampling_priority: lower_floor_first
 validation:
-  max_candidates: 8
+  max_candidates: 32
   root_before_search: true
   rejected_root_retry_rounds: 3
   time_reserve: 30.0
   max_state_drift: 0.1
 final_selection:
-  mode: max_descendant
-  max_weight: 1.0  # Legacy default for mode: max_descendant.
-  validate_descendant_path: false
-  validate_descendant_depth: 0
-  require_validated_descendant: false
+  mode: mixed
+  max_weight: 0.5  # Legacy default for mode: max_descendant.
+  validate_descendant_path: true
+  validate_descendant_depth: 2
+  require_validated_descendant: true
 parallel:
   posegen_backend: cuda  # cpu or cuda
   simulation_backend: cuda  # cpu or cuda
