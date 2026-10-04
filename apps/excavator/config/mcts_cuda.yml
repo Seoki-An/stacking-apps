@@ -37,7 +37,7 @@ final_selection:
   mode: mixed
   max_weight: 0.5  # Legacy default for mode: max_descendant.
   validate_descendant_path: true
-  validate_descendant_depth: 3
+  validate_descendant_depth: 2
   require_validated_descendant: true
 parallel:
   posegen_backend: cuda  # cpu or cuda
