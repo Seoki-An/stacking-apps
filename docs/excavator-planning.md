@@ -1367,6 +1367,54 @@ counts and selected candidate. A full-search comparison also matched all 2379
 score maps and 2469 selections with the previous code.
 
 
+### State copies and simulation chunk size
+
+After the pose-generation work, short evaluation batches took 65.9 seconds. Native
+simulation accounted for 40.5 seconds; state copies for another 20.3 seconds on
+the coordinator. Each evaluated candidate's history was duplicated four times:
+when its child state was built, by the transition snapshot, by
+`TransitionEvaluation`, and by the MCTS node. Every copy re-copied the checkpoint
+trajectories pose by pose and deep-copied every action's diagnostics twice.
+
+- `Action.copy` now copies the pose arrays and deep-copies diagnostics once,
+  without reconstructing and revalidating the action.
+- Copying a list-based trajectory returns the packed form, so later branch copies
+  copy one array. Reading `poses` still gives the usual mutable list.
+- Batched transition steps return each newly built child directly and keep one
+  independent final snapshot per chunk.
+- Short MCTS evaluations hand the evaluation's private state to the node
+  (`set_result(..., owned=True)`). Authoritative validation, whose evaluations are
+  returned to callers, still copies.
+
+With CPU result processing cheaper, larger simulation chunks now win:
+`CudaPlacementBackend` uses 128-placement chunks and native capacity 512 (four
+robustness trials per placement). Each native call costs roughly its step limit
+regardless of job count; 256-placement chunks lose the CPU/GPU overlap. Peak GPU
+memory with native capacity 1024 was about 3.2 GiB.
+
+The [benchmark](benchmarks/excavator-mcts-state-copies-and-chunks.json) uses the
+same workload:
+
+| Step | Search seconds | Evaluated nodes/s | Short batches |
+| --- | ---: | ---: | ---: |
+| Cell support and lattice crops | 108.53 | 9.804 | 65.93 s |
+| Cheaper action and trajectory copies | 88.16 | 12.068 | 51.90 s |
+| No per-candidate snapshot or node re-copy | 82.78 | 12.854 | 48.86 s |
+| Placement 64 / native 256 | 73.84 | 14.410 | 40.57 s |
+| Placement 128 / native 512 | 70.43 | 15.108 | 37.18 s |
+| Placement 256 / native 1024 | 71.44 | 14.893 | 37.64 s |
+| **Production defaults (128 / 512)** | **71.12** | **14.961** | **37.66 s** |
+
+Every row has the same ordered tree hash, counts and selected candidate. Seeds 1
+and 2 also kept identical trees per seed and improved from 13.47 to 15.68 and
+from 13.58 to 15.66 evaluated nodes/s with the larger chunks. The CPU profile
+(`mcts_cpu.yml`, 512 iterations) reproduces its recorded tree exactly and now
+takes 32.79 s instead of 60.13 s. With the larger chunks, native simulation
+itself falls from 39.9 to 24.2 seconds (settling 2.9, structural 14.0, robustness
+7.2); the rest of the 37.7-second short evaluation is host work, including
+reward/observation processing that now overlaps less with the GPU.
+
+
 ## Run
 
 From the `stacking-apps` checkout, with the sibling `stacking-core` checkout:

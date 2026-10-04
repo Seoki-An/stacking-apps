@@ -23,7 +23,7 @@ generation:
   expansion_retry_batches: 3
   min_feasible_children: 3
   attempt_multiplier: 3.0
-  evaluation_batch_size: 256  # Stream 32-placement chunks; native robustness capacity is 128.
+  evaluation_batch_size: 256  # Stream 128-placement chunks; native robustness capacity is 512.
   # Sample the unfilled active floor before higher placements at every depth.
   root_sampling_priority: lower_floor_first
   deeper_sampling_priority: lower_floor_first

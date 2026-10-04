@@ -22,8 +22,12 @@ def _steps_after(seconds, dt):
 class CudaPlacementBackend(CorePlacementBackend):
     """One GPU workspace per fidelity; each call starts independent branches."""
 
-    batch_size = 128  # Native capacity: four robustness trials per 32-placement chunk.
-    placement_batch_size = 32  # Branches handed to CPU result processing at once.
+    # Each native call costs about its step limit regardless of job count, so
+    # fewer, larger chunks win once CPU result work is cheap; 256-placement
+    # chunks lose the CPU/GPU overlap. 512 jobs fit four robustness trials per
+    # placement in about 2-3 GiB of GPU memory.
+    batch_size = 512  # Native capacity: four robustness trials per placement chunk.
+    placement_batch_size = 128  # Branches simulated per GPU chunk before CPU results.
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
