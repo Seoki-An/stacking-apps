@@ -697,15 +697,18 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             child.info["root_lookahead_attempted"] = True
             counters.root_lookahead_attempts += 1
 
+        targets = self._allocate_generation_slots(
+            selected_children,
+            evaluation_limit - sum(
+                len(child.pending_children()) for child in selected_children
+            ),
+        )
         self._expand_many(
-            [
-                child
-                for child in selected_children
-                if can_expand(child, self.config)
-            ],
+            list(targets),
             counters,
             request.deeper_sampling_priority,
             request,
+            new_candidate_targets=targets,
         )
 
         selected_nodes = []
@@ -808,8 +811,23 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
 
         if not reservations:
             return 0
+        # Pending siblings consume spare evaluation capacity before new poses.
+        # Retain each state's reservations, then allocate only unused slots.
+        pending = {
+            child
+            for node, needs_expansion in reservations
+            if not needs_expansion and node.parent is not None
+            for child in node.parent.pending_children()
+        }
+        targets = self._allocate_generation_slots(
+            list(expansions),
+            self.config.evaluation_batch_size
+            - len(pending) - sum(expansions.values()),
+            reserved=expansions,
+        )
         self._expand_many(
-            list(expansions), counters, request.deeper_sampling_priority, request
+            list(targets), counters, request.deeper_sampling_priority, request,
+            new_candidate_targets=targets,
         )
 
         selected_nodes = []
@@ -989,14 +1007,45 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             [node], counters, sampling_priority, request
         )
 
+    def _allocate_generation_slots(self, nodes, spare_slots, *, reserved=None):
+        """Share evaluation slots without exceeding the widening allowance."""
+
+        targets = dict(reserved or {})
+        capacities = {
+            node: min(
+                expansion_room(node, self.config), self.config.generation_batch_size
+            )
+            for node in nodes if can_expand(node, self.config)
+        }
+        while spare_slots > 0:
+            available = [
+                node for node, capacity in capacities.items()
+                if targets.get(node, 0) < capacity
+            ]
+            if not available:
+                break
+            for node in available:
+                targets[node] = targets.get(node, 0) + 1
+                spare_slots -= 1
+                if spare_slots == 0:
+                    break
+        return targets
+
     def _expand_many(
         self,
         nodes,
         counters,
         sampling_priority,
         request,
+        *,
+        new_candidate_targets=None,
     ) -> None:
-        """Expand independent nodes through one shared generator work queue."""
+        """Generate poses, optionally bounded by this batch's accepted demand.
+
+        Targets count new children, not existing selectable children. Rejections
+        may be retried within the existing round, attempt and deadline limits.
+        Root admission and serial expansion keep their usual widening policy.
+        """
 
         nodes = list(nodes)
         if not nodes:
@@ -1013,9 +1062,13 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         ]
         if any(generator is not generators[0] for generator in generators[1:]):
             for node in nodes:
-                self._expand(node, counters, sampling_priority, request)
+                self._expand_many(
+                    [node], counters, sampling_priority, request,
+                    new_candidate_targets=new_candidate_targets,
+                )
             return
         generator = generators[0]
+        initial_children = {node: len(node.children) for node in nodes}
         desired = {
             node: min(
                 self.config.min_feasible_children,
@@ -1025,16 +1078,48 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         }
         stopped = set()
         for batch_index in range(self.config.expansion_retry_batches):
+            if (
+                counters.generation_deadline is not None
+                and time.monotonic() >= counters.generation_deadline
+            ):
+                break
+            remaining = (
+                None if new_candidate_targets is None else {
+                    node: new_candidate_targets[node] - (
+                        len(node.children) - initial_children[node]
+                    )
+                    for node in nodes
+                }
+            )
             active = [
                 node
                 for node in nodes
                 if node not in stopped
                 and can_expand(node, self.config)
-                and (
-                    batch_index == 0
-                    or len(node.selectable_children()) < desired[node]
-                )
             ]
+            if remaining is not None:
+                # Exhausted states cannot use their outstanding slots. Reassign
+                # those slots within this selected frontier, without exceeding
+                # the original batch budget or starting extra retry rounds.
+                refill = {
+                    node: min(remaining[node], expansion_room(node, self.config))
+                    for node in active
+                }
+                remaining_slots = sum(remaining.values()) - sum(refill.values())
+                remaining = self._allocate_generation_slots(
+                    active, remaining_slots, reserved=refill
+                )
+                new_candidate_targets = {
+                    node: len(node.children) - initial_children[node]
+                    + remaining.get(node, 0)
+                    for node in nodes
+                }
+                active = [node for node in active if remaining.get(node, 0) > 0]
+            elif batch_index > 0:
+                active = [
+                    node for node in active
+                    if len(node.selectable_children()) < desired[node]
+                ]
             if not active:
                 break
             limits = [
@@ -1044,6 +1129,11 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 )
                 for node in active
             ]
+            if remaining is not None:
+                limits = [
+                    min(limit, remaining[node])
+                    for node, limit in zip(active, limits)
+                ]
             generation_requests = [
                 ActionGenerationRequest(
                     max_candidates=limit,

@@ -307,3 +307,179 @@ def test_serial_only_generator_remains_supported_for_multi_state_expansion():
     assert result.completed_iterations == 2
     assert all(branch.children for branch in root.children)
     assert [branch.visits for branch in root.children] == [2, 2]
+
+
+class PoseBudgetGenerator(Generator):
+    """Supply distinct poses for one remaining object, with optional rejection."""
+
+    def __init__(self, reject_first=False):
+        super().__init__()
+        self.requests = []
+        self.reject_first = reject_first
+
+    def generate(self, previous, observation, request):
+        self.requests.append((tuple(previous.placed_object_indices),
+                              request.max_candidates, request.attempt_offset))
+        index = next(i for i in range(4) if i not in previous.placed_object_indices)
+        rejected = int(self.reject_first and request.attempt_offset == 0)
+        candidates = []
+        for offset in range(rejected, request.max_candidates):
+            candidate = action(index)
+            candidate.pose[0] += (request.attempt_offset + offset) * 0.001
+            candidates.append(ActionCandidate(candidate))
+        return ActionGenerationResult(
+            candidates=tuple(candidates), attempts=request.max_candidates,
+            rejection_counts={'infeasible': rejected} if rejected else {},
+        )
+
+
+def test_frontier_divides_generation_by_reserved_evaluation_slots():
+    root = tree(pending=False, visits=1, means=(10.0, 9.0))
+    generator = PoseBudgetGenerator()
+    result = search(root, generator=generator, iterations=2,
+                    cfg=config(max_children=16, generation_batch_size=16,
+                               evaluation_batch_size=2))
+    assert [size for _, size, _ in generator.requests] == [1, 1]
+    assert result.generated_candidates == result.evaluated_candidates == 2
+    assert all(len(branch.children) == 1 for branch in root.children)
+    assert [branch.visits for branch in root.children] == [2, 2]
+
+
+def test_root_lookahead_shares_spare_capacity_without_overgeneration():
+    root = tree(pending=False, visits=1)
+    generator = PoseBudgetGenerator()
+    result = search(root, generator=generator, iterations=2,
+                    cfg=config(max_children=16, generation_batch_size=16,
+                               evaluation_batch_size=5, root_lookahead=True))
+    assert sorted(size for _, size, _ in generator.requests) == [2, 3]
+    assert result.root_lookahead.attempted == 2
+    assert result.generated_candidates == result.evaluated_candidates == 5
+    assert sum(child.visits for branch in root.children for child in branch.children) == 2
+
+
+def test_existing_pending_siblings_use_capacity_before_extra_generation():
+    root = tree(pending=False, visits=1, means=(10.0, 9.0))
+    for index in (2, 3):
+        root.children[1].add_candidate(action(index), prior=1.0)
+    generator = PoseBudgetGenerator()
+    result = search(root, generator=generator, iterations=2,
+                    cfg=config(max_children=16, generation_batch_size=16,
+                               evaluation_batch_size=3))
+    assert [size for _, size, _ in generator.requests] == [1]
+    assert result.generated_candidates == 1
+    assert result.evaluated_candidates == 3
+    assert all(child.evaluated for branch in root.children for child in branch.children)
+
+
+def test_demand_retries_fill_new_slots_even_when_old_children_are_feasible():
+    from stacking_common.search.mcts.search import _SearchCounters
+
+    root = tree(pending=False)
+    branch = root.children[0]
+    old = branch.add_candidate(action(2))
+    old.set_result(state((0, 2)), (0, 2), 2.0)
+    # Reject the first new proposal, despite the existing feasible child.
+    class RejectOnce(PoseBudgetGenerator):
+        def generate(self, previous, observation, request):
+            if not self.requests:
+                self.requests.append((tuple(previous.placed_object_indices),
+                                      request.max_candidates, request.attempt_offset))
+                return ActionGenerationResult(
+                    candidates=(), attempts=request.max_candidates,
+                    rejection_counts={'infeasible': request.max_candidates},
+                )
+            return super().generate(previous, observation, request)
+
+    generator = RejectOnce()
+    engine = MonteCarloTreeSearch(
+        config(max_children=16, generation_batch_size=16,
+               expansion_retry_batches=3, expansion_attempt_multiplier=3),
+        generator, Scorer(), Evaluator(), ZeroEstimator(),
+    )
+    counters = _SearchCounters()
+    engine._expand_many([branch], counters, None, MCTSSearchRequest(iterations=2),
+                        new_candidate_targets={branch: 2})
+    assert [size for _, size, _ in generator.requests] == [2, 2]
+    assert [offset for _, _, offset in generator.requests] == [1, 3]
+    assert len(branch.children) == 3
+    assert counters.generated_candidates == 2
+
+
+def test_partial_generation_retries_only_the_unfilled_demand():
+    from stacking_common.search.mcts.search import _SearchCounters
+
+    branch = tree(pending=False).children[0]
+    generator = PoseBudgetGenerator(reject_first=True)
+    engine = MonteCarloTreeSearch(
+        config(max_children=16, expansion_retry_batches=3),
+        generator, Scorer(), Evaluator(), ZeroEstimator(),
+    )
+    counters = _SearchCounters()
+    engine._expand_many([branch], counters, None, MCTSSearchRequest(iterations=3),
+                        new_candidate_targets={branch: 3})
+    assert [size for _, size, _ in generator.requests] == [3, 1]
+    assert len(branch.children) == counters.generated_candidates == 3
+    assert branch.rejected_expansions == {'infeasible': 1}
+
+
+@pytest.mark.parametrize('stop', ['deadline', 'rounds', 'attempts', 'exhausted'])
+def test_demand_refill_obeys_all_generation_limits(monkeypatch, stop):
+    from stacking_common.search.mcts.search import _SearchCounters
+
+    now = [0.0]
+    monkeypatch.setattr('stacking_common.search.mcts.search.time.monotonic', lambda: now[0])
+
+    class RejectingGenerator(PoseBudgetGenerator):
+        def generate(self, previous, observation, request):
+            self.requests.append(request.max_candidates)
+            now[0] += 2.0
+            return ActionGenerationResult(
+                candidates=(), attempts=request.max_candidates,
+                exhausted=stop == 'exhausted',
+                rejection_counts={'infeasible': request.max_candidates},
+            )
+
+    branch = tree(pending=False).children[0]
+    generator = RejectingGenerator()
+    cfg = config(max_children=16, expansion_retry_batches=2,
+                 expansion_attempt_multiplier=1)
+    if stop == 'attempts':
+        branch.expansion_attempts = 15
+    engine = MonteCarloTreeSearch(cfg, generator, Scorer(), Evaluator(), ZeroEstimator())
+    counters = _SearchCounters(generation_deadline=1.0 if stop == 'deadline' else None)
+    engine._expand_many([branch], counters, None, MCTSSearchRequest(iterations=3),
+                        new_candidate_targets={branch: 3})
+    assert generator.requests == ([3, 3] if stop == 'rounds' else [1] if stop == 'attempts' else [3])
+    assert not branch.children
+    assert counters.generated_candidates == 0
+
+
+@pytest.mark.parametrize('widening', [False, True])
+def test_exhausted_state_slots_refill_other_states_within_widening(widening):
+    from stacking_common.search.mcts.search import _SearchCounters
+
+    class OneExhaustedBranch(PoseBudgetGenerator):
+        def generate(self, previous, observation, request):
+            if previous.placed_object_indices == [0]:
+                self.requests.append(((0,), request.max_candidates, request.attempt_offset))
+                return ActionGenerationResult(
+                    candidates=(), attempts=request.max_candidates, exhausted=True,
+                    rejection_counts={'infeasible': request.max_candidates},
+                )
+            return super().generate(previous, observation, request)
+
+    root = tree(pending=False)
+    generator = OneExhaustedBranch()
+    engine = MonteCarloTreeSearch(
+        config(max_children=16, expansion_retry_batches=3,
+               widening=ProgressiveWideningConfig(
+                   enabled=widening, coefficient=2, exponent=0)),
+        generator, Scorer(), Evaluator(), ZeroEstimator(),
+    )
+    counters = _SearchCounters()
+    engine._expand_many(root.children, counters, None, MCTSSearchRequest(iterations=4),
+                        new_candidate_targets={node: 2 for node in root.children})
+    assert not root.children[0].children
+    assert len(root.children[1].children) == (2 if widening else 4)
+    assert [size for _, size, _ in generator.requests] == ([2, 2] if widening else [2, 2, 2])
+    assert counters.generated_candidates <= 4

@@ -93,6 +93,9 @@ class StackingSearchApplication:
             fidelity: self.build_environment(
                 inventory,
                 self.build_core_backend(inventory, fidelity),
+                defer_observations=True,
+                result_workers=(self.mcts_profile.parallel.effective_workers
+                                if self.mcts_profile.parallel.simulation_backend == "cuda" else 1),
             )
             for fidelity in (
                 EvaluationFidelity.SHORT,
@@ -225,14 +228,22 @@ class StackingSearchApplication:
         self,
         inventory: ObjectInventory,
         backend: PlacementBackend,
+        *,
+        result_workers: int = 1,
+        defer_observations: bool = False,
     ) -> StackingEnvironment[Observation]:
         """Compose the common environment around platform dependencies."""
 
+        if result_workers < 1:
+            raise ValueError("result worker count must be positive")
         observation_builder, reward_evaluator = self._build_state_evaluators(inventory)
         return StackingEnvironment(
             SimulationTransition(inventory.object_ids, backend),
             observation_builder,
             reward_evaluator,
+            defer_observations=defer_observations,
+            worker_evaluators=[self._build_state_evaluators(inventory)
+                               for _ in range(result_workers - 1)],
         )
 
     def build_committed_state_evaluator(

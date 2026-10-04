@@ -113,7 +113,8 @@ sharpness, objective weights, tolerances, and placement filters are unchanged.
 Placement simulation is selected independently with `parallel.simulation_backend`: one GPU
 workspace per fidelity evaluates up to 32 independent placements per batch.
 CUDA simulation replaces the CPU simulation worker pool; `parallel.workers`
-controls CPU simulation and CPU pose generation independently.
+controls CPU simulation and CPU pose generation independently. With CUDA
+simulation, it also controls parallel CPU reward/observation processing.
 
 Batched action generation prepares placed-stone PLY bounds and active-floor
 context once per input State, sharing them only among proposals in that call.
@@ -208,7 +209,7 @@ Explicit excavator profiles allow independent resource tuning:
 | Profile | Pose generation / simulation | CPU workers | Evaluation batch limit |
 | --- | --- | --- | --- |
 | `mcts_cpu.yml` | CPU / CPU | 12 | 12 |
-| `mcts_cuda.yml` | CUDA / CUDA | 12 (used only by CPU stages) | 32 |
+| `mcts_cuda.yml` | CUDA / CUDA | 4 (reward/observation workers) | 128 |
 
 ```bash
 stacking-excavator-plan --repository . --search-only --steps 1 \
@@ -217,8 +218,8 @@ stacking-excavator-plan --repository . --search-only --steps 1 \
   --config apps/excavator/config/mcts_cuda.yml
 ```
 
-These are independent complete profiles. CPU currently uses 200 iterations and
-12 retained root candidates; CUDA uses 300 iterations and 32 retained candidates.
+These are independent complete profiles. Both use 512 iterations. CPU retains
+12 root candidates; CUDA retains 32.
 Editing one profile does not modify the other. The old `mcts.yml` is removed. The evaluation batch limits are starting points, not measured
 optima. Actual batches depend on available candidates and each profile's root CEM retention. GPU core count does not map directly to useful batch size.
 The simulation workspace still chunks at 32 placements and pose generation at
@@ -241,11 +242,13 @@ repositories. Older simulator bindings fail explicitly instead of changing the
 validation schedule. Both short search and authoritative long validation use
 GPU simulation, as does fixed-scene resettling before motion planning.
 
-Noisy-placement robustness trials are batched on GPU too. Per-step samples
-retain the existing score's angular-energy convention, near-motion-limit
-shortcut, and genuine-rest check on the host. They simulate up to the maximum
-trial duration and use the earliest legacy stopping sample for scoring. This
-can do more GPU work than early stopping and uses extra sample memory.
+Noisy-placement robustness trials are batched on GPU too. When core exposes
+`CudaRobustnessStopping`, trials stop on device using the existing score's
+angular-energy convention, near-motion-limit shortcut, and genuine-rest check.
+They return final snapshots and metrics without per-step sample histories.
+Older core installations retain full-horizon simulation and exact Python replay
+as a compatibility fallback. See the host-work and native-stopping measurements
+below; updating stacking-core is required to obtain the native stopping gain.
 
 Geometry, numerical, or workspace-capacity failures reject the affected
 placement with `simulation_cuda_<status>`; there is no CPU simulation retry.
@@ -356,8 +359,9 @@ state-map bundle across stones. If it remains dominant, use a persistent process
 pool for independent state/object score maps; keep RNG sampling, result order,
 and tree updates coordinated. Python-heavy loops will not automatically scale
 with threads, and shipping full trajectory histories to processes could erase
-the gain. Current `parallel.workers` does not enable these host workers for CUDA.
-No host-parallel speedup has been measured yet.
+the gain. Those measurements predate the CUDA result workers described below. Floor
+score-map generation remains serial; reward/observation processing is now
+parallelized.
 
 Reproduce a controlled run with the frozen YAML stored in the JSON report:
 
@@ -374,6 +378,764 @@ hash. For CPU use `--backend cpu --evaluation-batch-size 32` and omit
 `--cuda-batch-size`. `tests/profile_excavator_cuda_mcts.py` accepts the same
 arguments plus `--profile-output`; it now supports either backend. Profiled
 runs are excluded from the throughput summary.
+
+### Parallel CPU results after CUDA simulation
+
+CUDA search uses `parallel.workers` for CPU reward and observation processing.
+The CUDA profile selects four workers; `parallel.enabled: false` reduces this
+to one without changing either solver backend. CPU simulation keeps its existing
+independent transition workers and does not create nested result pools.
+
+```yaml
+parallel:
+  posegen_backend: cuda
+  simulation_backend: cuda
+  enabled: true
+  workers: 4
+```
+
+Each short/long search environment owns a reusable thread pool and a separate
+reward/observation evaluator pair per worker, including private overlap caches
+and height-map builders. Physics stays batched on the calling thread. Candidate
+states are distributed in ordered buckets after each simulation chunk; results
+are merged in original order before MCTS updates. Multi-chunk CUDA batches can
+overlap these CPU results with the next physics chunk (see below). Empty and single-state batches stay
+serial. Errors drain all submitted work before propagating; closing the search
+joins the pools. Scalar environment calls and committed-state evaluation retain
+their serial behavior. No additional GPU simulators are created for CPU workers.
+
+The [worker-count measurements](benchmarks/excavator-cuda-result-workers.json)
+use the same frozen nine-stone workload as the throughput report: 120 iterations,
+root retention 32, evaluation limit 128, GPU capacity 256, and one BLAS/OpenMP
+thread. The GPU capacity is a benchmark-only override; production remains 32.
+
+| CPU result workers | Reward/observation wall (s) | Whole search (s) | Evaluated nodes/s |
+| ---: | ---: | ---: | ---: |
+| 1 | 12.61 | 59.85 | 3.46 |
+| 4 | 9.89 | 57.17 | 3.62 |
+| 8 | 9.66 | 56.97 | 3.63 |
+| 12 | 10.17 | 57.44 | 3.60 |
+
+All four seed-0 runs evaluated 207 nodes with exactly matching tree statistics,
+CEM history, selected pose and reward. Four workers reduced result-processing
+time by about 22% and total search time by 4.5%. Eight workers were only 0.20 s
+faster overall in this sample. Setup, excluded from search timing, increased
+from 0.39 s with one worker to 0.69/1.14/1.56 s with 4/8/12 workers.
+
+Seed 1 confirmed four workers: reward/observation time fell from 13.04 to
+10.35 s, total search from 57.88 to 55.29 s, and throughput increased from
+3.70 to 3.87 nodes/s. Counts, tree, CEM and selected pose/reward matched exactly.
+At the production evaluation/capacity of 32, seed 0 also preserved all 198
+evaluations and exact search results: result-processing time fell from 11.96
+to 9.44 s, search from 67.72 to 65.16 s, and throughput increased from 2.92
+to 3.04 nodes/s. These measurements predate the floor score-map optimization below and do not
+establish a general speedup over CPU MCTS.
+
+Use `--workers 1`, `4`, `8`, or `12` in
+`tests/benchmark_excavator_cuda_mcts.py` to reproduce the worker ablation. The
+benchmark records `result_processing_batches` separately from CUDA physics
+calls. Threaded profiler substage totals overlap across workers; use
+`reward_observation_batch_wall` for elapsed result-processing time.
+
+### Vectorized floor score maps
+
+Floor scoring now evaluates height-dependent target bounds and boundary
+proximity as arrays for each orientation, normalizes candidate scores in one
+array operation, and computes the occupied-neighbor dilation once per map.
+The sampler also reuses the state's resized/smoothed height-map bundle across
+stones. Its existing content-based cache invalidates that bundle when scene
+heights, placed poses, grid bounds, sampling settings, or grid shape change.
+
+Candidate enumeration retains orientation-major, row-major order. Nonfinite
+support scores are still skipped, missing contact heights still use the original
+footprint-height fallback, and equal scores still retain the first orientation.
+These changes apply to the shared scored sampler used by both CPU and CUDA
+excavator search; the tabletop height-map sampler is unchanged. No backend,
+worker-count, batch-size, or solver-profile changes are required.
+
+The [floor-map measurements](benchmarks/excavator-floor-score-maps.json)
+compare the previous scalar implementation with the optimized implementation.
+Both include the preceding reward/observation worker change. Runs use the same
+49-object inventory, frozen nine-stone state, 120 iterations, root retention 32,
+and one BLAS/OpenMP thread. Search wall time excludes setup; processes run
+sequentially. GPU capacity 256 remains a benchmark-only override.
+
+| Backend / evaluation limit / GPU capacity | Seed | Before (s) | After (s) | Evaluated nodes/s, before → after |
+| --- | ---: | ---: | ---: | ---: |
+| CUDA / 128 / 256, 4 CPU result workers | 0 | 57.56 | 48.53 | 3.60 → 4.27 |
+| CUDA / 128 / 256, 4 CPU result workers | 1 | 55.33 | 46.71 | 3.87 → 4.58 |
+| CUDA / 32 / 32, 4 CPU result workers | 0 | 65.20 | 56.01 | 3.04 → 3.53 |
+| CPU / 32, 12 workers | 0 | 42.02 | 36.67 | 3.93 → 4.50 |
+
+CUDA search time decreased by 14–16%; CPU search time decreased by 13%.
+Before/after pairs preserve evaluated counts, tree statistics, CEM history,
+selected poses and rewards exactly. Counts are 207/214 for the larger CUDA
+batches, 198 for production CUDA batches, and 165 for CPU. CPU and CUDA explore
+different trees, so this is a within-backend optimization comparison, not proof
+of equivalent physics or search quality across backends. CUDA has not established
+a throughput advantage over CPU in this comparison.
+
+A separate timer-only pair attributes the improvement to floor scoring:
+419 score-map builds plus their state-map preparation fell from **12.41 to
+3.71 s**, about **3.35× faster**. State-map builds dropped from 419 to 136.
+Before optimization, state-map construction is nested inside the score-map
+timer; afterward it runs in the sampler before that timer. The 3.71 s total
+therefore includes 3.26 s scoring plus 0.45 s state maps, while 12.41 s already
+includes the old 1.37 s state-map cost. Pose generation/prior processing fell
+from 27.90 to 19.20 s; transition batches stayed near 27.8 s.
+
+Validation: 351 affected shared/tabletop/excavator tests passed. An additional
+12-case comparison against the previous source checks every returned map and
+candidate field, plus seeded samples, exactly for empty/placed scenes and
+normal, flat, and nonfinite height maps. Regression tests cover tapered and
+collapsed target bounds, empty batches, nonfinite support/contact heights,
+orientation tie ordering, and cross-stone cache invalidation.
+
+### User profiles at 512 iterations
+
+The [512-iteration profile benchmark](benchmarks/excavator-mcts-512-profiles.json)
+uses the updated CPU and CUDA YAMLs exactly, with no iteration, batch, worker,
+root-retention, or native CUDA-capacity overrides. One seed-0 search per profile
+ran sequentially on the same 49-stone inventory with nine stones already placed.
+Both completed all 512 iterations at effective depth 3 without timing out.
+Search timings exclude setup.
+
+| Metric | CPU profile | CUDA profile |
+| --- | ---: | ---: |
+| Evaluation batch limit | 12 | 32 |
+| Root candidates retained | 12 | 32 |
+| CPU workers | 12 | 4 |
+| Search wall time | 69.53 s | 133.83 s |
+| Evaluated nodes, including failures | 301 | 501 |
+| Evaluated nodes/s | 4.33 | 3.74 |
+| Nonfailed evaluations | 149 | 279 |
+| Nonfailed evaluations/s | 2.14 | 2.08 |
+| Pose generation wall time | 21.57 s | 49.75 s |
+| Short + long evaluation batch wall time | 43.28 s | 76.44 s |
+
+CUDA evaluated 66% more nodes and took 92% more time; CPU's evaluated-node
+throughput was about 16% higher. Nonfailed-evaluation throughput was much closer.
+Iterations can revisit nodes, and these profiles have different root retention,
+batch limits and search trajectories. This is a comparison of the configured
+profiles, not an isolated CPU/GPU hardware comparison or a multi-seed quality
+study. Evaluated-node counts exclude the already-evaluated root. The report
+includes exact YAML snapshots, source hashes, selected actions and rewards.
+
+### CUDA bottleneck diagnosis at 512 iterations
+
+The [phase and Nsight report](benchmarks/excavator-cuda-512-bottleneck.json)
+profiles the same current CUDA configuration, seed 0, and nine-stone state.
+The timer-only run took 134.21 s versus 133.83 s unprofiled. The separately
+traced run took 140.57 s. Both completed all 512 iterations and exactly
+reproduced the 501 evaluated nodes, tree statistics, CEM history, selected
+pose and reward.
+
+The timer-only wall decomposition is:
+
+| Nonoverlapping category | Seconds |
+| --- | ---: |
+| Native CUDA posegen calls | 27.15 |
+| Native CUDA simulation calls | 36.40 |
+| CPU reward/observation batch wall | 23.42 |
+| Floor-map preparation | 10.60 |
+| Other time outside native calls | 36.63 |
+
+Native call time includes bindings, host preparation, GPU execution, transfers
+and waits. Total time outside those native calls is 70.65 s. Per-worker reward,
+overlap and observation timer sums run concurrently; they must not be added to
+the wall categories above. Native simulation includes settling 3.32 s,
+structural checks 13.49 s, and robustness trials 19.59 s.
+
+Nsight Systems captured search only, with CPU sampling disabled and graph-level
+CUDA graph tracing. Its device-side measurements distinguish actual copies
+from host API waits:
+
+| Transfer | Count | Data | Device copy time |
+| --- | ---: | ---: | ---: |
+| CPU → GPU | 3,385 | 266.10 MB | 0.0124 s |
+| GPU → CPU | 72,584 | 4,438.90 MB | 0.2532 s |
+
+Actual CPU/GPU copies took **0.266 s**, about 0.19% of the traced search.
+GPU kernels took **58.57 s**; the largest were the simulation 4D constraint
+solver at **26.04 s** and posegen force solver's `tail` kernel at **12.93 s**.
+Graph execution contributes another 0.0735 s; the union of kernel, graph,
+copy and memset intervals is 58.92 s. This is active timeline duration,
+not achieved SM occupancy.
+
+A host API summary alone is misleading: `cudaMemcpyAsync` totals 35.33 s.
+There are **70,175 eight-byte device-to-host readbacks**, using pageable host
+memory. They spend **26.24 s inside the API**, but only **0.0350 s copying**.
+Correlated device activity overlaps 23.82 s of that API time. Source inspection
+identifies the posegen two-integer progress buffer and blocking download helper
+in `stacking-core/src/posegen/cuda/pose_generator.cpp` and
+`stacking-core/src/cuda/runtime.hpp`. These are dependent progress readbacks,
+not evidence of saturated transfer bandwidth. Similarly, 26.18 s of the
+26.90 s in kernel-launch APIs overlaps device activity; do not label all of it
+independent launch overhead or add it to kernel execution.
+
+The current bottleneck is therefore a mix of host-side work and GPU solver
+execution. The 4D solver uses 128-thread blocks with at most 32 blocks in this
+trace, on a 36-SM GPU; this suggests limited available parallelism, but achieved
+occupancy and GPU-internal memory bandwidth need a focused Nsight Compute run.
+Prioritize solver work/parallelism and CPU result processing. Reducing progress
+polling may help, but cannot recover all 26.24 s of readback API time because
+most overlaps GPU work. Pinned transfers alone cannot eliminate that work or
+the algorithm's dependency on progress results.
+
+The compact JSON retains CUDA API/kernel/copy summaries, exact input/source
+metadata, correlation results and the capture wrapper. The full local trace is
+`/tmp/mcts-cuda-bottleneck-20261003/cuda-search.nsys-rep`; it is not checked into
+the repository. No runtime code or configuration changed for this diagnosis.
+
+### CUDA constraint solver optimization
+
+The [constraint-kernel report](benchmarks/excavator-cuda-constraint-optimization.json)
+records the next native optimization in the sibling `stacking-core` repository.
+The simulation constraint kernel now uses 256 threads per job, giving eight
+warps for concurrent body updates instead of four. Each warp cooperatively
+loads the triangular factor into shared memory before the serial forward/back
+substitution. The per-body arithmetic order, solver limits, convergence tests,
+physical settings and public APIs stay the same.
+
+Controlled 100-step rollouts of the recorded 22-stone scene compared the old
+128-thread kernel, shared-factor staging alone, and 256/512-thread variants.
+All 3D/4D state fingerprints, statuses, final solver iterations/residuals and
+contact counts matched exactly at batches 32 and 128. One cold call and two
+warm calls were run per case; the table shows warm medians.
+
+| 4D rollout batch | Baseline | Shared factor, 128 threads | Shared factor, 256 threads | Shared factor, 512 threads |
+| ---: | ---: | ---: | ---: | ---: |
+| 32 | 0.938 s | 0.918 s | 0.707 s | 0.648 s |
+| 128 | 1.852 s | 1.733 s | 1.485 s | 1.713 s |
+
+The 256-thread variant was retained for its gains across both batch sizes.
+The 512-thread trial improved the small batch further but was slower than
+256 at batch 128. No runtime tuning option was added. These repeated-scene
+rollout measurements do not represent MCTS search time.
+
+For the existing 512-iteration, seed-0 MCTS workload with nine stones placed
+and 49 total stones, the retained variant gave:
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Native CUDA simulation, timer-only profile | 36.40 s | 33.02 s |
+| Whole search, unprofiled | 133.83 s | 130.03 s |
+| Evaluated nodes/s | 3.74 | 3.85 |
+
+All 501 evaluations, tree statistics, CEM history, selected pose and reward
+matched exactly. Native simulation time decreased 9.3%; whole-search time
+decreased 2.8%. CPU's previously measured 4.33 evaluated nodes/s remains higher.
+This is one MCTS seed; the larger 22-stone rollout gains should not be
+extrapolated to the full search.
+
+The project's editable `stacking-core` installation was rebuilt with CUDA.
+The final run uses the normal interpreter without a `PYTHONPATH` override;
+no YAML changes are needed. Two native CUDA regression suites and 163
+application tests passed against the optimized module. The native source
+change is `stacking-core/src/simulation/cuda/constraint_solver.cu`; the
+preceding Nsight diagnosis measured the older 128-thread version.
+
+### Register-distributed triangular-solve experiment
+
+The [register experiment report](benchmarks/excavator-cuda-register-experiment.json)
+compares two warp-shuffle implementations against the retained 256-thread,
+shared-factor solver. Both distribute the 21 triangular-factor entries among
+warp registers. The first unrolls the substitutions; the second shortens
+register lifetimes and retains serial row order with rolled loops.
+
+The workload repeats a recorded 22-stone dynamic scene for 100 timesteps.
+These are 4D rollout times, with medians over three warm calls after one cold
+call per case; they are not full MCTS timings.
+
+| Implementation | Registers/thread | Batch 32 | Batch 128 | Exact 4D output parity |
+| --- | ---: | ---: | ---: | --- |
+| Retained shared factor | 60 | 0.708 s | 1.487 s | Baseline |
+| Unrolled register solve | 72 | 0.723 s | 1.869 s | No |
+| Rolled register solve | 60 | 0.869 s | 1.692 s | Yes |
+
+The unrolled variant passed tolerance-based native tests but changed 4D
+outputs and the final solver iteration count from 217 to 218. The rolled
+variant recovered exact parity but remained slower. Extra shuffle/control
+work and increased register pressure are possible costs; hardware counters
+were not collected to isolate their contribution.
+
+Both experiments were rejected. The previous source was restored exactly and
+the development module rebuilt; the installed project module remained
+unchanged throughout. Both native CUDA regression suites passed for each
+variant and again after restoration. No new full MCTS run was performed
+because neither variant improved the 4D rollout timings.
+
+### Proposal budgets for batched expansion
+
+Batched descendant generation retains each state's reserved evaluation count.
+Pending siblings consume spare evaluation capacity first; remaining slots are
+shared among expandable states within their existing widening and generation
+limits. Root lookahead distributes its evaluation capacity across the selected
+parents before requesting poses, ensuring one slot per eligible parent before
+allocating extra slots.
+
+Generation targets count newly accepted children. After rejected proposals,
+only the unfilled target is requested again, subject to the existing retry-round
+limit, per-node attempt budget, generator exhaustion and generation deadline.
+Previously accepted children do not prematurely stop this refill. Slots that an
+exhausted state cannot use are reassigned to other selected states with capacity,
+within the same retry-round limit. The accepted-candidate quota replaces
+`min_feasible_children` as the refill target for these batched calls; that setting
+still governs unbudgeted root/serial expansion. Only reserved selections receive
+backups; additional sibling evaluations do not consume extra iterations. Root admission/CEM and serial expansion retain their existing
+proposal policy. No configuration or native solver changes are required.
+
+This changes proposal request sizes and search allocation, so RNG consumption
+and the resulting tree can change. Physics validation and failure handling are
+unchanged. Throughput comparisons must report evaluated and nonfailed nodes per
+second, rather than generator calls or elapsed time alone. Pending proposals
+must not count as evaluated work.
+
+The [proposal-budget benchmark](benchmarks/excavator-mcts-proposal-budgets.json)
+uses the same 49-stone inventory, frozen nine-stone state, depth three and
+512 iterations. Runs are sequential, with one seed per case and one
+BLAS/OpenMP thread. Search timing excludes setup; before-results come from
+the preceding measurements with verified source hashes.
+
+| Profile | Evaluated nodes, before → after | Wall seconds, before → after | Evaluated nodes/s, before → after | Nonfailed nodes/s, before → after | Pending, before → after |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| CPU current (12 workers) | 301 → 279 | 69.53 → 65.43 | 4.33 → 4.26 | 2.14 → 2.32 | 52 → 0 |
+| CUDA current (32/32, widening on) | 501 → 461 | 130.03 → 120.93 | 3.85 → 3.81 | 2.15 → 2.17 | 21 → 0 |
+| CUDA 128/128, widening on | 698 → 604 | 150.19 → 127.42 | 4.65 → 4.74 | 2.58 → 2.72 | 6 → 0 |
+| CUDA 128/128, widening off | 799 → 667 | 172.12 → 134.72 | 4.64 → 4.95 | 2.52 → 2.82 | 320 → 0 |
+
+The larger CUDA cases improve evaluated-node throughput by 2.0% with widening
+and 6.7% without it. The current CPU and 32/32 CUDA profiles decline by 1.5% and
+1.1% respectively on that metric; their nonfailed rates improve by 8.4% and 1.4%.
+Thus shorter elapsed time and fewer unused proposals do not imply a universal
+throughput improvement.
+
+All searches completed without timeout. The batch notation is MCTS evaluation
+limit/native simulation capacity. Native capacity 128 and disabled widening
+were process-local/temporary benchmark settings; the production profiles were
+not changed. These single-seed results measure workload-dependent throughput,
+not a universal speedup or equivalent decision quality. The current final
+descendant-scoring depth is zero, so matching selected actions alone does not
+validate deeper-search quality. The report includes expanded-parent rates
+separately from evaluated-node rates.
+
+Validation: 117 shared and platform search tests passed, including reserved
+generation limits, root coverage, pending reuse, partial rejection, exhausted
+state reassignment, widening bounds, deadlines, retry/attempt limits, mixed
+fidelities and exception recovery.
+
+### Ordered CPU/GPU result pipeline
+
+The original step-2 pipeline streams owned placement states in chunks of 32.
+With more than one CPU result worker and more than one chunk, rewards and
+observations for chunk k run while the caller processes physics for chunk k+1.
+A single coordinator dispatches into the existing worker pool. That version
+permits one CPU result group in flight, with a private evaluator/cache pair per
+worker. The independent-result-chunk implementation below subsequently separates
+CPU granularity and permits two pending groups. Global round-robin assignment
+continues across chunk boundaries, including short tails.
+
+The GPU workspace stays on the calling thread. Full input validation precedes
+physics; workers drain before errors propagate or environments close. All
+results return in input order before MCTS backups, so this does not introduce
+asynchronous tree updates. CPU simulation, scalar calls, single-worker results,
+and single-chunk batches retain synchronous execution.
+
+`generation.evaluation_batch_size` limits the complete MCTS evaluation batch.
+The implementation's `CudaPlacementBackend.placement_batch_size = 32` controls
+streaming, separately from `batch_size`, which limits native simulation jobs
+including robustness trials. The step-2 profile used evaluation/native limits
+128/32, permitting multiple chunks; the later tuning below updates them to
+256/128. No new production configuration option is introduced. Actual counts
+still depend on available search work. Its previous limit of 32
+had no within-batch overlap. Generation remains 32 and CPU result workers remain
+four; iterations, widening, root retention and the CPU profile are unchanged.
+
+The [pipeline measurements](benchmarks/excavator-cuda-result-pipeline.json)
+use the same frozen nine-placed-stone state from a 49-stone inventory, seed 0,
+depth three, 512 iterations, progressive widening, and four result workers.
+Processes run sequentially with one BLAS/OpenMP thread; timing covers only
+`search.search`. The controlled comparison uses evaluation limit 128 and
+native capacity 128:
+
+| Result schedule | Placement chunk limit | Search seconds | Evaluated nodes/s | Nonfailed nodes/s |
+| --- | ---: | ---: | ---: | ---: |
+| Whole batch, synchronous | 128 | 127.74 | 4.73 | 2.71 |
+| Streamed, synchronous | 32 | 133.75 | 4.52 | 2.59 |
+| Streamed, overlapping | 32 | 117.48 | 5.14 | 2.95 |
+
+All three evaluated 604 candidates, including 346 nonfailed candidates, with
+no pending nodes or timeout. Ordered-tree hashes match exactly, covering
+incoming actions, resulting object poses, priors, rewards, visits, backed-up
+values, failure/terminal flags, rejection reasons and child ordering. This
+compares more than the final selected action, but does not hash every diagnostic
+or trajectory sample; native regression tests cover streamed trajectory parity.
+
+The pipeline improves evaluated-node throughput by 8.7% over the whole-batch
+path and 13.8% over identical serialized chunks. Chunking alone costs 6.0 seconds,
+mainly in CUDA calls. CPU result wall totals increase from 28.84 to 37.55 seconds
+under concurrency, but 17.04 seconds overlaps CUDA `_run` calls and additional
+work overlaps host preparation. These inclusive timers overlap and must not be
+summed as disjoint phases. `_run` includes native calls and immediate result
+handling; its interval is not a pure device-kernel timer.
+
+With the production native capacity of 32, increasing the CUDA evaluation limit
+from 32 to 128 gives the following measured result, now selected in
+`apps/excavator/config/mcts_cuda.yml`:
+
+| Evaluation limit | Evaluated nodes | Search seconds | Evaluated nodes/s | Nonfailed nodes/s |
+| --- | ---: | ---: | ---: | ---: |
+| Previous 32 (one chunk) | 461 | 120.58 | 3.82 | 2.18 |
+| New 128 (pipeline) | 604 | 123.42 | 4.89 | 2.80 |
+
+The new configuration improves evaluated-node throughput by 28.0%, with 31.0%
+more evaluations and 2.4% more elapsed time. This comparison includes the change
+in MCTS batch allocation; the earlier fixed-workload comparison isolates the
+pipeline gain. The production-capacity 128-limit run has the same ordered-tree
+hash as all three controlled 128-limit runs. The 32-limit run matches the prior
+proposal-budget benchmark's evaluation/failure counts, tree statistics, CEM
+history and selected candidate. All five runs complete without timeout.
+
+Reproduce the controlled runs with:
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python tests/benchmark_excavator_cuda_mcts.py \
+  --backend cuda --config apps/excavator/config/mcts_cuda.yml --seed 0 \
+  --state /path/to/trusted/state9.pkl --evaluation-batch-size 128 \
+  --cuda-batch-size 128 --placement-batch-size 32 --output /tmp/pipeline.json
+```
+
+Add `--serial-results` for the serialized-chunk control, or use
+`--placement-batch-size 128` for the whole-batch control. These switches only
+modify the benchmark process. Single-seed timings establish the observed gain
+on this workload, not a universal speedup or improvement in decision quality.
+
+Validation: 210 tests passed across shared environments, native CUDA placement,
+MCTS and both platforms. Coverage includes forced overlap, stable evaluator
+assignment, tail chunks, private state ownership, full upfront validation,
+worker draining after physics/reward failures, reuse and shutdown, and exact
+streamed native pose/trajectory parity. The updated CUDA profile resolves
+exactly to the recorded production-capacity 128-limit benchmark profile.
+
+### Deferred observations and native robustness stopping
+
+Search environments defer array observations until the first field access.
+Unused failed nodes and leaves therefore avoid geometry transformation and
+height-map rendering. The object remains an `Observation`; optional fields,
+learned-policy encoding, debug/artifact serialization, pickling, deepcopy and
+`dataclasses.replace` materialize its values when needed. Materialization is
+cached and synchronized. Ordinary episode/committed-state environments retain
+eager observations. Custom builders without a `defer` method retain their
+existing behavior.
+
+The standard inventory adapter snapshots the current scene for deferred
+observations, omitting trajectory/action histories that array construction and
+platform height maps do not consume. Custom observation sources without that
+snapshot method receive a full independent copy. Node state histories remain
+complete and branch-owned. `State.copy()` copies owned mutable values directly
+instead of re-running construction validation; constructor validation is
+unchanged. This avoids redundant validation, not all trajectory copies, and does
+not introduce shared mutable search histories.
+
+Native CUDA robustness now supplies a separate stopping rule using FP64 model
+mass/inertia and metric accumulation. It preserves the legacy extra
+`R.T @ angular` transformation, strict physical-time inequalities, the
+`integral > 0.9 * limit` quiet shortcut, the separate genuine-rest count, and
+motion-limit rejection priority. Default structural stopping and FP32 physical
+integration are unchanged. No YAML setting is needed: the updated core exposes
+`CudaRobustnessStopping`, and the app selects it automatically. The rebuilt
+editable core module was installed in this project's direnv environment.
+
+With native stopping, `sample_stride = 0` returns only the stopped snapshot and
+metrics. In this step-4 measurement, jobs stop computing physics once finished,
+although the native host loop still enqueues the phase's maximum number of
+timesteps with finished jobs masked. Steps 5–6 below subsequently replace that
+launch loop. Constraint kernels are unchanged by these launch optimizations.
+
+The [step 3–4 benchmark](benchmarks/excavator-mcts-host-and-stopping.json) uses the
+same 49-stone inventory, frozen nine-stone stack, seed 0, depth three and 512
+iterations. CUDA stays at evaluation/native/placement limits 128/32/32 with four
+CPU workers. No search configuration changes are included in these steps.
+
+| CUDA case | Search seconds | Evaluated nodes/s | Nonfailed nodes/s |
+| --- | ---: | ---: | ---: |
+| After step 2 | 123.42 | 4.89 | 2.80 |
+| Step 3, legacy replay on rebuilt core | 120.22 | 5.02 | 2.88 |
+| Steps 3–4, native stopping | 111.08 | 5.44 | 3.11 |
+
+A final-code repeat completed in 110.64 seconds (5.46 evaluated and 3.13
+nonfailed nodes/s), again with the same ordered-tree hash.
+
+Each case evaluates 604 candidates, including 346 nonfailed nodes, and matches
+the ordered-tree hash from the pipeline benchmark. The same-binary legacy/native
+comparison isolates an 8.2% throughput gain from step 4; the combined gain over
+step 2 is 11.1%. Step 3's smaller gain is about 2.7% on this run. An intermediate
+step-3 profile materialized 137 observations rather than one per evaluated node;
+its wall time includes profiler overhead and is not used for the throughput table.
+
+Native robustness processes 149,930 simulated steps versus 555,212 in the legacy
+control, and returns zero per-step samples versus 555,212. CUDA robustness call
+wall time drops from 22.45 to 14.69 seconds (34.5%). These are wrapper call times,
+including native host/result work, not pure device-kernel timings. Settling and
+structural work counts match exactly.
+
+The current CPU profile also benefits from the shared host changes: 279
+evaluations in 60.13 seconds, or 4.64 evaluated and 2.53 nonfailed nodes/s.
+Evaluation/failure counts, tree statistics, CEM history and the selected candidate
+match its preceding proposal-budget run (65.43 seconds, 4.26 evaluated nodes/s).
+CUDA and CPU use different root retention/evaluation batches, so their rates are
+profile comparisons, not a hardware-only or equal-decision-quality comparison.
+
+Use `--legacy-robustness` with `tests/benchmark_excavator_cuda_mcts.py` to retain
+full-horizon simulation and Python replay on the new binary. Use
+`--eager-observations` to disable deferred arrays for measurement. Both are
+process-local benchmark controls; production behavior requires no new options.
+The report contains resolved profiles, source/native hashes and raw timing/work
+counters. Single-scene, single-seed results are workload-specific. Native FP64
+metrics match replay within tested floating-point tolerances; bit-identical
+arithmetic at every possible threshold boundary is not guaranteed.
+
+Validation: 296 Python tests passed across native simulation, observations,
+state ownership, MCTS, both platforms, restart/artifacts and visualization.
+Two rebuilt native C++ CUDA test binaries passed. Native tests compare stopping
+steps and exact final poses with full-horizon replay, and test strict time bounds,
+near-limit unsettled results, simultaneous stop priority, anisotropic inertia,
+compact/strided outputs, invalid rules and continuation rejection. Application
+tests also cover the older-core replay fallback.
+
+
+### Completion checks, reusable buffers, and batch tuning (steps 5–7)
+
+The native simulator now submits 32-step CUDA Graph groups, checks completion
+between groups, and stops submitting once every job finishes. Each job still
+stops on its exact device timestep; unused steps within a group are masked.
+Partial final groups use direct launches. Graphs live for one phase to keep
+captured pointers, grids and sample strides valid. Scratch and sample buffers
+reuse allocations within one simulator; logical sizes reset on each call/phase.
+Results continue to own their snapshots and samples.
+
+The [launch and batch report](benchmarks/excavator-mcts-launch-and-batches.json)
+records the experiments on an RTX 5060 Ti (16 GB). Completion intervals 16, 32,
+and 64, buffer reuse, and graphs of 32/64 steps were replayed on the first real
+MCTS batch from all six short/long simulation stages, with three warm repetitions.
+Every variant matched the baseline input/output digests for poses, velocities,
+samples and phase metrics. These digests do not cover every contact/solver field;
+native regression tests supplement the replay checks.
+
+Launch changes alone delivered **no meaningful whole-search speedup**: 110.53 s
+versus the preceding 110.64 s run, with exactly the same ordered tree. Warm
+stage replay showed small gains, while buffer reuse alone was within noise.
+The retained 32-step grouping reduces submission work without changing physics;
+it should not be credited for the larger batch-tuning gains below. The baseline
+Nsight capture recorded about 0.141 s of actual host/device transfers and 0.065 s
+of malloc/free API time. Large launch/copy API durations include GPU backpressure
+and must not be interpreted as pure launch overhead or memory transfer time.
+
+The seed-0 screening held iterations at 512, generation at 32, four CPU result
+workers, root retention 32, and the same frozen nine-stone stack from 49 inventory
+stones. It varied the three batch limits separately:
+
+| Evaluation / native / placement | Search seconds | Evaluated nodes/s | Nonfailed nodes/s | Distinct expanded parents/s |
+| --- | ---: | ---: | ---: | ---: |
+| 128 / 32 / 32 | 110.53 | 5.46 | 3.13 | 1.22 |
+| 128 / 64 / 32 | 106.91 | 5.65 | 3.24 | 1.26 |
+| 128 / 128 / 32 | 104.36 | 5.79 | 3.32 | 1.29 |
+| 128 / 128 / 64 | 104.90 | 5.76 | 3.30 | 1.29 |
+| 64 / 128 / 32 | 100.09 | 5.25 | 2.96 | 0.85 |
+| **256 / 128 / 32** | **101.50** | **6.03** | **3.48** | **0.92** |
+
+The first four rows produce exactly the same ordered tree. Increasing native
+capacity to 128 cuts robustness wrapper time from 14.46 s to 8.36 s, letting
+four trials for each 32-placement chunk run together. Placement chunks of 64
+also reduce settling/structural call time, but result-processing overlap falls
+from 9.83 s to 6.26 s and result processing itself takes longer; whole-search
+performance does not improve. These wrapper times include host work.
+
+The retained defaults favor **evaluated-child throughput**:
+
+- Excavator CUDA `generation.evaluation_batch_size: 256`.
+- Common CUDA native simulation capacity `128`.
+- Placement chunks `32`, generation `32`, and CPU result workers `4`.
+
+CPU and tabletop YAML profiles retain their settings. Tabletop CUDA simulation
+uses the common native capacity when selected; its behavior is regression-tested,
+although these throughput measurements are excavator-specific. There is no new
+YAML knob for native capacity or placement chunks. Benchmark overrides remain
+available through `--cuda-batch-size` and `--placement-batch-size`.
+
+Held-out checks compare 128/32/32 with 256/128/32 at seeds 0–2, without changing
+iterations or physics:
+
+| Nine-stone seed | Control evaluated nodes/s | Tuned evaluated nodes/s | Gain |
+| --- | ---: | ---: | ---: |
+| 0 (screening) | 5.46 | 6.03 | 10.3% |
+| 1 | 5.69 | 6.21 | 9.2% |
+| 2 | 5.50 | 6.05 | 10.1% |
+
+A final run using the production defaults with no batch overrides completed in
+**102.80 s**, evaluating **612 nodes at 5.95 nodes/s** (3.43 nonfailed nodes/s).
+Its ordered-tree and native-binary hashes match the screened 256/128/32 run.
+This repeat is 8.9% faster in evaluated throughput than the 128/32/32 control.
+
+Nonfailed throughput also increases on all three seeds. Empty-stack searches
+(effective depth one rather than three) evaluate 32 candidates each, retain the
+same ordered tree per seed, and improve by 3.4%, 3.9%, and 4.4% in these single runs.
+All searches complete 512 iterations without timing out. The seed-1 tuned search
+takes slightly longer overall because it evaluates more candidates.
+
+**Tree breadth is a tradeoff.** On the nine-stone stack, distinct expanded-parent
+throughput drops from 1.22/1.12/1.15 to 0.92/1.00/1.06 parents/s for seeds 0/1/2.
+Set the evaluation batch back to **128** if distinct parent expansion is the
+priority; native capacity 128 still improves the seed-0 same-tree throughput.
+Evaluation-batch changes legitimately alter search allocation. Equal selected
+root actions/rewards in these runs do not establish equal decision quality,
+especially with descendant validation depth zero. Repeated timings across more
+scenes and a planning-quality evaluation remain separate work.
+
+Validation: **297 Python tests and two rebuilt native C++ tests passed**, including
+both platform workflows, MCTS, artifacts/restart, observation/state ownership,
+visualization, native stopping and variable batch/sample reuse. One existing test
+was updated to compare evaluator capacity with its backend rather than hard-code
+32. Raw timings, resolved profiles, source/native hashes and replay digests are
+in the report. The installed editable stacking-core module matches the measured
+32-step graph binary.
+
+
+### More CUDA batches per search
+
+The current excavator CUDA profile increases `tree.iterations` from **512 to
+1024** to run more evaluation rounds. Evaluation/native/placement limits remain
+**256/128/32**, with four CPU result workers. The 240-second search limit and
+30-second validation reserve remain in place. Batch counts depend on available
+frontier work and deadlines; doubling iterations does not guarantee twice as
+many batches. Empty stacks still use effective depth one and can exhaust their
+available candidates before benefiting from a larger iteration budget.
+
+The [iteration-budget comparison](benchmarks/excavator-mcts-more-batches.json)
+uses the same nine-stone stack, 49-stone inventory and seed 0 as the preceding
+production-default run:
+
+| Metric | 512 iterations | 1024 iterations |
+| --- | ---: | ---: |
+| MCTS evaluation batches | 6 | 8 |
+| Native CUDA simulation calls | 66 | 111 |
+| Evaluated candidates | 612 | 1064 |
+| Search seconds | 102.80 | 174.35 |
+| Evaluated nodes/s | 5.95 | 6.10 |
+| Nonfailed nodes/s | 3.43 | 3.37 |
+| Distinct expanded parents | 93 | 188 |
+
+The longer search runs seven short evaluation batches and one long batch.
+Each simulation stage executes 37 native calls: 30 full and seven partial
+batches. Settling and structural stages each process 1064 jobs; robustness
+processes 4256 trials. The largest actual MCTS batch is 216 candidates.
+All 1024 iterations complete without timeout or pending nodes. The selected
+root action is unchanged in this single-seed comparison; additional work is not
+proof of better decision quality. Pose generation separately runs 22 generator
+batches, which are not counted as native simulation calls in the table.
+
+
+### Larger simulation batches: call-count experiment
+
+The [solve-call comparison](benchmarks/excavator-mcts-solve-call-batches.json)
+tests larger placement/native limits through process-local benchmark overrides.
+Production defaults remain **placement 32 / native 128**. All cases use the
+same 1024-iteration, evaluation-256 search on the frozen nine-stone stack,
+49 inventory stones, seed 0 and four CPU result workers. Candidates run
+sequentially, followed by a fresh control; the earlier 174.35-second control
+is also retained in the report.
+
+| Placement / native | Native solve calls | Search seconds | Evaluated nodes/s | Distinct expanded parents/s |
+| --- | ---: | ---: | ---: | ---: |
+| 32 / 128 (fresh control) | 111 | 174.84 | 6.09 | 1.075 |
+| 64 / 128 | 79 | 171.50 | 6.20 | 1.096 |
+| 64 / 256 | 63 | 170.06 | 6.26 | 1.106 |
+| 128 / 512 | 36 | 168.95 | 6.30 | 1.113 |
+
+All cases complete 1024 iterations without timeout, evaluate 1064 candidates,
+expand 188 distinct parents, and leave no pending nodes. Their ordered-tree,
+native module and Python source hashes match. Thus this comparison holds search
+work fixed rather than gaining speed through a different candidate allocation.
+The selected action, failure count and backed-up tree values are unchanged.
+
+The call estimates are confirmed: 64/128 makes 21 settling, 21 structural and
+37 robustness calls; 64/256 makes 21 of each; 128/512 makes 12 of each. The larger
+native capacity lets all four robustness trials per placement fit together.
+Raising native capacity alone at placement 32 would not remove calls, since its
+largest submitted robustness batch already fits in 128 jobs.
+
+**128/512 reduces native calls by 67.6% and improves evaluated/parent throughput
+by 3.5% relative to the fresh control.** Its advantage over 64/256 is only
+1.11 seconds (about 0.7% throughput), so a single run does not establish it as a
+robustly better default. Larger batches shorten physics calls but delay CPU
+results: the 128/512 run spends 28.05 seconds processing results with 7.80 seconds
+of overlap, compared with 22.54/17.80 seconds in the preceding control. These
+are host wrapper/result timings; overlap is not a GPU-kernel utilization metric.
+Pose generation and remaining host work also contribute to total search time.
+
+This experiment confirms that solve-call count can fall sharply while total
+throughput improves only modestly. It does not change CUDA kernels, simulation
+rules, or production batch settings. Further seed/scene checks would be needed
+before adopting the largest capacity as a general default.
+
+
+### Independent CPU result chunks
+
+`StackingEnvironment.result_batch_size = 32` now controls reward/observation
+work independently of `CudaPlacementBackend.placement_batch_size` and its
+native `batch_size`. A 128-placement GPU group can therefore feed four CPU
+chunks of 32 while retaining native simulation capacity 512. The production
+GPU settings remain placement 32 / native 128; no YAML fields were added.
+The benchmark accepts `--result-batch-size` separately from its existing
+`--placement-batch-size` and `--cuda-batch-size` overrides. Its `--serial-results`
+control preserves CPU chunk sizes while disabling overlap.
+
+One coordinator processes CPU chunks in sequence using the existing worker
+pool. Global evaluator assignment spans both GPU and CPU chunk boundaries,
+including single-state tails. It keeps each worker's caches isolated. Up to two
+GPU result groups may be submitted, plus the physics group being produced on
+the caller. This permits one extra GPU group of lookahead during CPU stalls
+without an unbounded queue. Completed groups are collected in input order;
+queued work is canceled and active workers drained on failure or interruption.
+MCTS still receives the complete ordered batch before any backups.
+
+This separates scheduling granularity; it does **not** expose partially finished
+native simulations. Native CUDA calls still finish their whole batch before
+returning, and placement/transition state construction remains on the caller.
+At placement 128, the recorded MCTS batches contain at most two GPU groups, so
+additional lookahead does not help that workload. Smaller CPU chunks also add
+worker synchronization boundaries; they are not inherently faster.
+
+The [independent result-chunk benchmark](benchmarks/excavator-mcts-independent-result-chunks.json)
+holds the nine-stone stack, 49 inventory stones, seed 0, 1024 iterations,
+evaluation256 and four CPU workers fixed:
+
+| GPU placement / native / CPU result | Native calls | CPU chunks | Search seconds | Evaluated nodes/s |
+| --- | ---: | ---: | ---: | ---: |
+| 128 / 512 / 128 (whole CPU group) | 36 | 12 | 168.35 | 6.32 |
+| 128 / 512 / 32 | 36 | 37 | 170.35 | 6.25 |
+| 64 / 256 / 32 | 63 | 37 | 169.12 | 6.29 |
+
+All three finish 1024 iterations, evaluate 1064 candidates, and preserve the
+ordered-tree hash, including failure flags and backed-up values. The isolated
+CPU chunk-size change shows **no speedup**: overlap remains about 7.8 seconds
+at placement 128. The 64-placement result is close to the preceding 170.06-second
+measurement and is not evidence of a meaningful improvement from this change.
+These are single-seed timings. The separation is retained as an independently
+controllable scheduling boundary, without increasing production GPU batch sizes.
+
+A final run of the production defaults, without batch overrides, completed in
+**174.55 seconds** at **6.10 evaluated nodes/s**, with 111 native calls and 37 CPU
+result chunks. It retains the control's ordered-tree hash and completes all 1024
+iterations. The preceding 174.84-second control is effectively the same timing.
+
+Validation: **300 Python tests passed**, including both platforms, MCTS,
+restart/artifacts, native placement parity, and visualization. New coverage
+checks bounded lookahead while a CPU worker is blocked, independent chunk sizes,
+global worker assignment, order and cache isolation. CUDA parity is checked for
+GPU chunks equal to and larger than the CPU chunk, including one whole GPU
+batch. Existing failure tests allow the bounded extra lookahead and verify
+worker draining and subsequent reuse.
 
 ## Run
 

@@ -71,6 +71,15 @@ class SimulationTransition:
         return self._apply_result(candidate, result)
 
     def step_batch(self, states, actions):
+        return tuple(state for batch in self.iter_step_batches(states, actions)
+                     for state in batch)
+
+    def iter_step_batches(self, states, actions):
+        """Yield owned branch states while keeping physics on the caller.
+
+        Validate the entire request before starting any physical work. A backend
+        can advertise placement_batch_size independently of native job capacity.
+        """
         if len(states) != len(actions):
             raise ValueError("transition batch states and actions must align")
         # A batch backend reads the supplied branch states directly. Validate
@@ -83,13 +92,17 @@ class SimulationTransition:
             candidate = action.copy()
             candidate.object_id = self.object_ids[candidate.object_index]
             prepared.append(candidate)
-        results = self.backend.place_batch(states, prepared)
-        if len(results) != len(prepared):
-            raise RuntimeError("placement batch returned the wrong number of results")
-        outputs = []
-        for state, candidate, result in zip(states, prepared, results):
-            outputs.append(self._apply_result(candidate, result, state=state))
-        return tuple(outputs)
+        if not prepared:
+            return
+        chunk_size = getattr(self.backend, "placement_batch_size", len(prepared))
+        for start in range(0, len(prepared), chunk_size):
+            parents = states[start:start + chunk_size]
+            candidates = prepared[start:start + chunk_size]
+            results = self.backend.place_batch(parents, candidates)
+            if len(results) != len(candidates):
+                raise RuntimeError("placement batch returned the wrong number of results")
+            yield tuple(self._apply_result(candidate, result, state=parent)
+                        for parent, candidate, result in zip(parents, candidates, results))
 
     def _apply_result(self, candidate, result, *, state=None):
         state = self._state if state is None else state

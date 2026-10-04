@@ -4,7 +4,7 @@
 units: si
 tree:
   max_depth: 3
-  iterations: 300
+  iterations: 1024
   max_search_time: 240.0
   max_children: 16
   root_max_children: 32
@@ -23,7 +23,7 @@ generation:
   expansion_retry_batches: 3
   min_feasible_children: 3
   attempt_multiplier: 3.0
-  evaluation_batch_size: 32
+  evaluation_batch_size: 256  # Stream 32-placement chunks; native robustness capacity is 128.
   # Sample the unfilled active floor before higher placements at every depth.
   root_sampling_priority: lower_floor_first
   deeper_sampling_priority: lower_floor_first
@@ -42,9 +42,9 @@ final_selection:
 parallel:
   posegen_backend: cuda  # cpu or cuda
   simulation_backend: cuda  # cpu or cuda
-  # Local native worker allocation; separate from legacy Ray resource settings.
+  # CPU reward/observation workers overlap the next CUDA placement chunk.
   enabled: true
-  workers: 12
+  workers: 4
 root_cem:
   population: 96
   elite: 24

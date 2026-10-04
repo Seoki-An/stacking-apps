@@ -545,3 +545,41 @@ def test_application_rejects_object_outside_tabletop_catalog() -> None:
 
     with pytest.raises(ValueError, match="not in the tabletop catalog"):
         application.load_inventory([999], {999: pose(0.1)})
+
+
+@pytest.mark.parametrize('workers', [1, 4])
+@pytest.mark.parametrize('defer', [False, True])
+def test_batched_reward_observation_matches_serial_results(workers, defer):
+    from dataclasses import fields
+
+    application = TabletopApplication.from_repository(ROOT)
+    objects = inventory()
+    backend = Backend()
+    backend.place_batch = lambda states, actions: tuple(backend.place(s, a) for s, a in zip(states, actions))
+    serial = application.build_environment(objects, Backend())
+    parallel = application.build_environment(objects, backend, result_workers=workers, defer_observations=defer)
+    try:
+        root = parallel.reset().state
+        serial.reset()
+        actions = [Action(0, pose(.01 + index * .002), pose(.1)) for index in range(8)]
+        actual = parallel.step_batch([root] * len(actions), actions)
+        if defer:
+            assert all('_builder' in vars(item.observation) for item in actual)
+            assert all(not item.observation._state.trajectories for item in actual)
+        expected = []
+        for candidate in actions:
+            serial.restore(root)
+            expected.append(serial.step(candidate))
+        assert root.placed_object_indices == []
+        for got, wanted in zip(actual, expected):
+            assert got.reward == wanted.reward
+            assert got.info == wanted.info
+            for field in fields(got.observation):
+                np.testing.assert_equal(getattr(got.observation, field.name),
+                                        getattr(wanted.observation, field.name))
+        assert not np.shares_memory(actual[0].observation.stacked_points, actual[1].observation.stacked_points)
+        assert not np.shares_memory(actual[0].observation.scene_height_map, actual[1].observation.scene_height_map)
+        assert len({id(evaluator.overlap_evaluator) for _, evaluator in parallel._evaluators}) == workers
+    finally:
+        serial.close()
+        parallel.close()

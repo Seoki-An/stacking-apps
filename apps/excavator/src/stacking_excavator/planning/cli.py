@@ -190,7 +190,8 @@ def run(args):
         writer, checkpoint = branch_excavator_run(args.resume_run, args.save_run, context)
     config_path = (args.config or args.repository / "apps/excavator/config/mcts_cpu.yml").resolve()
     print(f"config: {config_path}", flush=True)
-    scheduling = ("batched CUDA transitions" if application.mcts_profile.parallel.simulation_backend == "cuda"
+    scheduling = (f"batched CUDA transitions; result_workers={application.mcts_profile.parallel.effective_workers}"
+                  if application.mcts_profile.parallel.simulation_backend == "cuda"
                   else f"search_workers={application.mcts_profile.parallel.effective_workers}")
     print("debug mode: real excavator assets/actions/rewards; "
           f"posegen={application.mcts_profile.parallel.posegen_backend}; simulation={application.mcts_profile.parallel.simulation_backend}; "

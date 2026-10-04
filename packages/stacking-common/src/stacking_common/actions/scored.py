@@ -62,6 +62,7 @@ class ScoredPlanarPoseSampler:
         self._kernels = {}
         self._scores = {}
         self._sampled_scores = {}
+        self._state_map_bundle = None
         self._score_context = None
         self._score_keys = {}
 
@@ -116,6 +117,7 @@ class ScoredPlanarPoseSampler:
             self._scores.clear()
             self._score_keys.clear()
             self._sampled_scores.clear()
+            self._state_map_bundle = None
             self._score_context = context
             self._active_floor = (None if self.floor_policy is None
                                   else self.floor_policy.context_details(state))
@@ -134,9 +136,18 @@ class ScoredPlanarPoseSampler:
         if key not in self._kernels:
             self._kernels[key] = [bottom_height_kernel(self.stones[object_index].points, q, dx, dy)
                                   for q in quaternions]
+        if self._state_map_bundle is None:
+            shape = floor.score_grid_shape(view, height)
+            xy_grid = floor.xy_grid_for_shape(view, shape)
+            lower, upper = floor.target_anchor_bounds(view, None)
+            valid = np.all((xy_grid >= lower) & (xy_grid <= upper), axis=-1)
+            self._state_map_bundle = floor.build_state_map_bundle(
+                height, shape, view.support_settings.ground_z, valid,
+                smooth_kernel_size=floor.HEIGHT_SCORE_SMOOTH_KERNEL_SIZE,
+            )
         scores = floor.score_xy_debug_map(view, self.state_view(state), object_index,
             scene_height_map=observation.scene_height_map, support_kernels=self._kernels[key],
-            active_floor=self._active_floor)
+            active_floor=self._active_floor, state_map_bundle=self._state_map_bundle)
         self._scores[object_index] = (observation, scores)
         self._score_keys[object_index] = key
         self._sampled_scores.pop(object_index, None)

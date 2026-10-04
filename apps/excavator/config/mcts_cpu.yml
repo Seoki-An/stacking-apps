@@ -3,7 +3,7 @@
 units: si
 tree:
   max_depth: 3
-  iterations: 200
+  iterations: 512
   max_search_time: 240.0
   max_children: 16
   root_max_children: 12

@@ -266,3 +266,71 @@ def test_simulation_transition_validates_identity() -> None:
     transition = SimulationTransition([10], backend)
     with pytest.raises(ValueError, match="does not match"):
         transition.step(Action(0, pose(), pose(), object_id=20))
+
+
+@pytest.mark.parametrize('consumer', ['fields', 'artifact', 'learning', 'pickle', 'deepcopy', 'replace'])
+def test_deferred_observation_preserves_values_and_owns_state(consumer):
+    import copy
+    import pickle
+    from dataclasses import fields
+    from stacking_common.environment.observation import Observation
+
+    builder = ArrayObservationBuilder(Inventory(), ObservationConfig(2, (2, 3), True))
+    source = State([10, 20], [0], {10: pose(x=2.)}, [], [])
+    expected = builder.build(source)
+    original = builder.build
+    calls = []
+    def build(state):
+        calls.append(state)
+        return original(state)
+    builder.build = build
+    actual = builder.defer(source)
+    assert isinstance(actual, Observation)
+    assert not calls
+    source.object_poses[10][0] = 99.
+    source.placed_object_indices.clear()
+    if consumer == 'artifact':
+        actual = decode_observation(encode_observation(actual))
+    elif consumer == 'learning':
+        left, right = encode_heightmap_observation(actual), encode_heightmap_observation(expected)
+        for key in left:
+            np.testing.assert_array_equal(left[key], right[key])
+    elif consumer == 'pickle':
+        actual = pickle.loads(pickle.dumps(actual))
+    elif consumer == 'deepcopy':
+        actual = copy.deepcopy(actual)
+    elif consumer == 'replace':
+        from dataclasses import replace
+        actual = replace(actual)
+    for item in fields(Observation):
+        np.testing.assert_equal(getattr(actual, item.name), getattr(expected, item.name))
+    assert len(calls) == 1
+    assert '_builder' not in vars(actual)
+
+
+def test_deferred_observation_materializes_once_across_readers():
+    from concurrent.futures import ThreadPoolExecutor
+    builder = ArrayObservationBuilder(Inventory(), ObservationConfig(2, (2, 3), True))
+    original = builder.build
+    calls = []
+    def build(state):
+        calls.append(state)
+        return original(state)
+    builder.build = build
+    observation = builder.defer(State([10, 20], [], {}, [], []))
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(lambda _: observation.scene_height_map, range(12)))
+    assert len(calls) == 1
+    assert all(value is results[0] for value in results)
+
+
+@pytest.mark.parametrize('name', ['object_ids', 'object_poses', 'object_surface_points',
+                                 'object_surface_normals', 'object_surface_mask',
+                                 'object_physical_features'])
+def test_deferred_optional_field_access_does_not_return_dataclass_default(name):
+    builder = ArrayObservationBuilder(Inventory(), ObservationConfig(2, (2, 3), True))
+    state = State([10, 20], [], {}, [], [])
+    actual = builder.defer(state)
+    assert '_builder' in vars(actual)
+    np.testing.assert_array_equal(getattr(actual, name), getattr(builder.build(state), name))
+    assert '_builder' not in vars(actual)

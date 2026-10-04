@@ -325,3 +325,52 @@ def test_scored_priority_spends_budget_on_active_floor_before_higher_scores(
     assert len(set(indices)) == count
     assert [heights[i] <= ceiling for i in indices] == (
         [True] * expected_lower + [False] * (count - expected_lower))
+
+
+@pytest.mark.parametrize("change", ["height", "bounds", "placed", "pose", "settings", "grid"])
+def test_state_height_maps_shared_between_stones_and_invalidated(change, monkeypatch):
+    from stacking_common.actions import scored
+    app, inventory, state = inputs(True)
+    with np.load(FIXTURE) as recorded:
+        observation = SimpleNamespace(scene_height_map=recorded["placed_height"].copy(),
+            height_map_xlim=np.array(META["xlim"]), height_map_ylim=np.array(META["ylim"]))
+    sampler = ScoredPlanarPoseSampler(inventory, app.action_generation_profile.planar,
+        app.build_orientation_provider(), app.sampling_settings, seed=META["seed"])
+    original = scored.floor.build_state_map_bundle
+    bundles = []
+    def record(*args, **kwargs):
+        bundle = original(*args, **kwargs)
+        bundles.append(bundle)
+        return bundle
+    monkeypatch.setattr(scored.floor, "build_state_map_bundle", record)
+    sampler.score_map(state, observation, 1)
+    scores = sampler.score_map(state, observation, 2)
+    assert len(bundles) == 1
+    # A standalone map must be identical to the map using another stone's bundle.
+    expected = scored.floor.score_xy_debug_map(
+        sampler.view(state, observation), sampler.state_view(state), 2,
+        scene_height_map=observation.scene_height_map,
+        support_kernels=sampler._kernels[sampler._score_keys[2]],
+    )
+    for key in ("scores", "height", "placement_height", "orientation_index"):
+        np.testing.assert_array_equal(scores[key], expected[key])
+    if change == "height":
+        observation.scene_height_map[5:10, 5:10] += .2
+    elif change == "bounds":
+        observation.height_map_xlim[0] -= 1
+    elif change == "placed":
+        state.placed_object_indices.clear()
+    elif change == "pose":
+        state.object_poses[55][0] += .1
+    elif change == "settings":
+        sampler.settings["target_mask_margin"] = .1
+    else:
+        sampler.config = replace(sampler.config, grid_shape=(12, 16))
+    before = len(bundles)
+    actual = sampler.score_map(state, observation, 2)
+    assert len(bundles) == before + 1
+    assert sampler._state_map_bundle is not bundles[0]
+    sampler._score_context = None
+    rebuilt = sampler.score_map(state, observation, 2)
+    for key in ("scores", "height", "placement_height", "orientation_index"):
+        np.testing.assert_array_equal(actual[key], rebuilt[key])

@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Protocol
+from threading import Lock
 
 import numpy as np
 
@@ -108,6 +109,16 @@ class InventoryObservationAdapter:
         )
         self.height_map_renderer = height_map_renderer
 
+    def snapshot_for_observation(self, state: State) -> State:
+        # Array observations and platform height maps consume the current scene,
+        # not simulation/action histories. Preserve independent scene ownership
+        # without copying every trajectory sample just to defer rendering.
+        return State(state.object_ids, state.placed_object_indices, state.object_poses,
+                     [], [], terminated=state.terminated, failed=state.failed,
+                     simulation_settled=state.simulation_settled,
+                     contact_points=state.contact_points,
+                     pose_identified_object_ids=state.pose_identified_object_ids)
+
     def initial_pose(self, object_id: int) -> np.ndarray:
         return self.inventory.initial_pose(object_id)
 
@@ -146,6 +157,55 @@ class Observation:
     object_physical_features: np.ndarray | None = None
 
 
+class _DeferredObservation(Observation):
+    """An Observation that builds its arrays once, on first field access.
+
+    Keeping the Observation type and dataclass fields preserves learned-policy,
+    artifact and debug consumers. Serialization materializes ordinary values;
+    it never stores a builder, simulator or synchronization primitive.
+    """
+
+    def __init__(self, builder=None, state=None, **values):
+        if builder is None:
+            # dataclasses.replace reconstructs the concrete type from fields.
+            super().__init__(**values)
+            return
+        self._builder = builder
+        self._state = state
+        self._lock = Lock()
+
+    def _materialize(self):
+        lock = self.__dict__.get('_lock')
+        if lock is None:
+            return
+        with lock:
+            if '_builder' not in self.__dict__:
+                return
+            builder = self._builder
+            # Deferred observations from one worker share its private renderer.
+            with builder._deferred_lock:
+                observation = builder.build(self._state)
+            for name, value in vars(observation).items():
+                self.__dict__.setdefault(name, value)
+            del self._builder, self._state, self._lock
+
+    def __getattribute__(self, name):
+        # Optional dataclass fields have class defaults (None), so __getattr__
+        # alone would silently return those instead of materializing the field.
+        if name in Observation.__dataclass_fields__:
+            values = object.__getattribute__(self, '__dict__')
+            if name not in values:
+                object.__getattribute__(self, '_materialize')()
+        return object.__getattribute__(self, name)
+
+    def __getstate__(self):
+        self._materialize()
+        return self.__dict__.copy()
+
+    def __setstate__(self, values):
+        self.__dict__.update(values)
+
+
 class ArrayObservationBuilder:
     """Build an array observation from an explicit inventory view."""
 
@@ -156,6 +216,7 @@ class ArrayObservationBuilder:
     ) -> None:
         self.inventory = inventory
         self.config = config
+        self._deferred_lock = Lock()
 
         object_count = len(inventory.objects)
         for name in (
@@ -205,6 +266,12 @@ class ArrayObservationBuilder:
         )
         self._xlim = _readonly_array(inventory.xlim, dtype=np.float32)
         self._ylim = _readonly_array(inventory.ylim, dtype=np.float32)
+
+    def defer(self, state: State) -> Observation:
+        """Capture a branch-independent observation for later array access."""
+        snapshot = getattr(self.inventory, "snapshot_for_observation", None)
+        owned = snapshot(state) if callable(snapshot) else state.copy()
+        return _DeferredObservation(self, owned)
 
     def build(self, state: State) -> Observation:
         inventory = self.inventory

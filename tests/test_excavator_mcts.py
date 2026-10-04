@@ -72,6 +72,12 @@ def test_native_excavator_mcts_selects_a_validated_recorded_object(posegen_backe
     expected_backend = CudaPlacementBackend if simulation_backend == "cuda" else CorePlacementBackend
     assert type(environment.transition.backend) is expected_backend
     assert isinstance(search.transition_evaluator, StackingEnvironmentEvaluator) == (simulation_backend == "cuda")
+    evaluators = ([search.transition_evaluator] if simulation_backend == "cuda"
+                  else search.transition_evaluator.evaluators)
+    for evaluator in evaluators:
+        assert all(env.result_workers == (application.mcts_profile.parallel.effective_workers
+                                          if simulation_backend == "cuda" else 1)
+                   for env in evaluator.environments.values())
     assert len(search.action_generator.pose_solvers) == (
         1 if posegen_backend == "cuda" else application.mcts_profile.parallel.effective_workers
     )

@@ -190,7 +190,65 @@ def test_evaluator_uses_one_gpu_batch_for_multiple_search_branches(backends):
     results = evaluator.evaluate_batch((state(), state()), (
         Action(0, pose(), pose()), Action(1, pose(.5), pose(.5))), EvaluationFidelity.LONG)
     assert calls == [2]
-    assert evaluator.worker_count == 32
+    assert evaluator.worker_count == gpu.batch_size
     assert [r.state.placed_object_indices for r in results] == [[0], [1]]
     assert [r.reward for r in results] == [1., 1.]
     assert all(r.diagnostics['simulation_backend'] == 'cuda' for r in results)
+
+
+
+@pytest.mark.parametrize('placement_size', [1, 2, 8])
+def test_streamed_gpu_results_match_serial_results(backends, placement_size):
+    from stacking_common.environment import StackingEnvironment
+
+    _, gpu = backends
+    gpu.placement_batch_size = placement_size
+
+    def evaluators():
+        return (SimpleNamespace(build=lambda s: tuple(s.placed_object_indices)),
+                SimpleNamespace(compute=lambda s: (float(len(s.placed_object_indices)), {})))
+
+    environment = StackingEnvironment(SimulationTransition([10, 20], gpu),
+                                     *evaluators(), worker_evaluators=(evaluators(),))
+    environment.result_batch_size = 1
+    sources = (state(), state(True), state())
+    actions = (Action(0, pose(), pose()), Action(1, pose(.5), pose(.5)),
+               Action(1, pose(.5), pose(.5)))
+    try:
+        expected = environment._step_results(environment.transition.step_batch(sources, actions))
+        actual = environment.step_batch(sources, actions)
+        assert (environment._pipeline_executor is not None) == (placement_size < len(sources))
+        for result, reference in zip(actual, expected):
+            assert result.reward == reference.reward
+            assert result.observation == reference.observation
+            assert result.state.failed == reference.state.failed
+            assert result.state.terminated == reference.state.terminated
+            assert result.state.simulation_settled == reference.state.simulation_settled
+            for object_id, value in reference.state.object_poses.items():
+                np.testing.assert_array_equal(result.state.object_poses[object_id], value)
+            for trajectories, originals in zip(result.state.trajectories, reference.state.trajectories):
+                for object_id, trajectory in originals.items():
+                    np.testing.assert_array_equal(trajectories[object_id].poses, trajectory.poses)
+                    assert trajectories[object_id].times == trajectory.times
+    finally:
+        environment.close()
+
+
+
+def test_native_robustness_matches_older_core_replay_fallback(backends, monkeypatch):
+    _, gpu = backends
+    if not hasattr(core, 'CudaRobustnessStopping'):
+        pytest.skip('requires native robustness stopping')
+    gpu.place_stability = PlaceStabilityConfig(enabled=True, n_noise=2,
+                                               position_std=(.001, .001, .001), seed=4)
+    action = Action(0, pose(), pose(), object_id=10)
+    phase = gpu._robustness_phase(gpu.config.structural, 0)
+    assert phase.robustness is not None and phase.sample_stride == 0
+    actual = gpu.place(state(), action)
+    monkeypatch.delattr(core, 'CudaRobustnessStopping')
+    phase = gpu._robustness_phase(gpu.config.structural, 0)
+    assert phase.robustness is None and phase.sample_stride == 1
+    expected = gpu.place(state(), action)
+    for key in ('place_robustness_trial_displacements', 'place_robustness_trial_failure_reasons'):
+        assert actual.diagnostics[key] == expected.diagnostics[key]
+    assert actual.place_robustness_displacement == expected.place_robustness_displacement

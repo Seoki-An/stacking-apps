@@ -490,9 +490,11 @@ def score_xy_debug_map(
         and len(state.stone_seq) >= connected_after
     )
     min_contact = max(int(cfg.get("u_shape_min_frontier_contact_cells", 1)), 0)
-    if layer is not None and np.any(layer["occupied"]):
+    has_occupied = layer is not None and np.any(layer["occupied"])
+    if has_occupied:
         gap_labels, gap_sizes = connected_component_labels(~layer["occupied"])
         gap_centers = component_centers(gap_labels, gap_sizes)
+        occupied_dilated = dilated_mask(layer["occupied"])
 
     base_items = []
     max_unfilled_cells = 1
@@ -507,7 +509,7 @@ def score_xy_debug_map(
         gap_component_size = 0
         gap_region = None
 
-        if layer is not None and np.any(layer["occupied"]):
+        if has_occupied:
             candidate = anchor_occupancy_mask(
                 inventory, layer, xy, stone_idx, _half=footprint_half
             )
@@ -540,7 +542,7 @@ def score_xy_debug_map(
                         )
             max_unfilled_cells = max(max_unfilled_cells, unfilled_cells)
             contact_cells = int(
-                np.count_nonzero(candidate & dilated_mask(layer["occupied"]))
+                np.count_nonzero(candidate & occupied_dilated)
             )
             frontier = min(contact_cells / float(cell_count), 1.0)
             if require_connected and min_contact > 0 and contact_cells < min_contact:
@@ -579,45 +581,44 @@ def score_xy_debug_map(
 
     candidate_items = []
     target_anchor_base = target_anchor_static(inventory, stone_idx)
+    base_indices = np.asarray(
+        [base["grid_index"] for base in base_items], dtype=int,
+    ).reshape(-1, 2)
+    base_xy = np.asarray([base["xy"] for base in base_items], dtype=float).reshape(-1, 2)
     for orientation_index in range(kernel_support.support.shape[0]):
         orientation_support = kernel_support.support[orientation_index]
         orientation_contact_height = kernel_support.contact_height[orientation_index]
         orientation_placement_height = kernel_support.placement_height[orientation_index]
-        for base in base_items:
-            y_idx, x_idx = base["grid_index"]
-            support_score = float(orientation_support[y_idx, x_idx])
-            if not np.isfinite(support_score):
-                continue
-            height = float(orientation_contact_height[y_idx, x_idx])
-            if not np.isfinite(height):
-                height = mean_top_height_at_anchor(
-                    inventory,
-                    heights,
-                    xy_grid,
-                    base["xy"],
-                    stone_idx,
-                    _half=footprint_half,
-                )
-            boundary_lower, boundary_upper = target_anchor_bounds(
-                inventory,
-                stone_idx,
-                z=height,
-                _static=target_anchor_base,
+        support_scores = orientation_support[base_indices[:, 0], base_indices[:, 1]]
+        selected = np.flatnonzero(np.isfinite(support_scores))
+        contact_heights = orientation_contact_height[
+            base_indices[selected, 0], base_indices[selected, 1]
+        ].copy()
+        for index in np.flatnonzero(~np.isfinite(contact_heights)):
+            contact_heights[index] = mean_top_height_at_anchor(
+                inventory, heights, xy_grid, base_xy[selected[index]], stone_idx,
+                _half=footprint_half,
             )
+        boundary_lower, boundary_upper = target_anchor_bounds(
+            inventory, stone_idx, z=contact_heights, _static=target_anchor_base,
+        )
+        boundary_scores = target_boundary_proximity(
+            base_xy[selected], boundary_lower, boundary_upper,
+        )
+        # Keep orientation-major, row-major order for tie breaking and RNG draws.
+        for index, base_index in enumerate(selected):
+            base = base_items[base_index]
+            y_idx, x_idx = base["grid_index"]
             candidate_items.append(
                 {
                     **base,
-                    "height": height,
-                    "support_likelihood": support_score,
+                    "height": float(contact_heights[index]),
+                    "support_likelihood": float(support_scores[base_index]),
                     "placement_height": float(
                         orientation_placement_height[y_idx, x_idx]
                     ),
                     "orientation_index": int(orientation_index),
-                    "target_boundary": target_boundary_proximity(
-                        base["xy"],
-                        boundary_lower,
-                        boundary_upper,
-                    ),
+                    "target_boundary": float(boundary_scores[index]),
                 }
             )
 
@@ -688,14 +689,11 @@ def score_xy_debug_map(
         float(np.max(candidate_scores) - candidate_score_min),
         1e-12,
     )
-    for candidate in candidates:
-        candidate["normalized_score"] = float(
-            np.clip(
-                (candidate["score"] - candidate_score_min) / candidate_score_span,
-                0.0,
-                1.0,
-            )
-        )
+    normalized_scores = np.clip(
+        (candidate_scores - candidate_score_min) / candidate_score_span, 0.0, 1.0,
+    )
+    for candidate, normalized_score in zip(candidates, normalized_scores):
+        candidate["normalized_score"] = float(normalized_score)
 
     return {
         "x_coords": xy_grid[0, :, 0].astype(float).copy(),
@@ -816,23 +814,26 @@ def target_anchor_static(inventory, stone_idx: Optional[int]):
 def target_anchor_bounds(
     inventory,
     stone_idx: Optional[int],
-    z: Optional[float] = None,
+    z: Optional[float | np.ndarray] = None,
     _static=None,
 ) -> tuple[np.ndarray, np.ndarray]:
+    """Return XY bounds for a scalar height or an array of heights."""
     wall, origin, half_extent, margin, inset = (
         target_anchor_static(inventory, stone_idx) if _static is None else _static
     )
     lower = origin - half_extent
     upper = origin + half_extent
     if z is not None:
-        relative_z = np.clip(float(z) - float(wall.origin[2]), 0.0, wall.height)
-        lower += relative_z * np.tan(
+        relative_z = np.clip(
+            np.asarray(z, dtype=float) - float(wall.origin[2]), 0.0, wall.height,
+        )
+        lower = lower + relative_z[..., None] * np.tan(
             [
                 max(float(wall.taper["width_negative"]), 0.0),
                 max(float(wall.taper["length_negative"]), 0.0),
             ]
         )
-        upper -= relative_z * np.tan(
+        upper = upper - relative_z[..., None] * np.tan(
             [
                 max(float(wall.taper["width_positive"]), 0.0),
                 max(float(wall.taper["length_positive"]), 0.0),
@@ -846,16 +847,18 @@ def target_boundary_proximity(
     xy: np.ndarray,
     lower: np.ndarray,
     upper: np.ndarray,
-) -> float:
+) -> float | np.ndarray:
+    """Score one XY point or arrays of points/bounds along the last axis."""
     xy = np.asarray(xy, dtype=float)
     lower = np.asarray(lower, dtype=float)
     upper = np.asarray(upper, dtype=float)
-    if np.any(upper <= lower) or np.any(xy < lower) or np.any(xy > upper):
-        return 0.0
+    valid = ~np.any((upper <= lower) | (xy < lower) | (xy > upper), axis=-1)
     center = 0.5 * (lower + upper)
     half_extent = 0.5 * (upper - lower)
-    normalized = np.abs((xy - center) / half_extent)
-    return float(np.clip(np.max(normalized), 0.0, 1.0))
+    normalized = np.zeros_like(xy - center)
+    np.divide(xy - center, half_extent, out=normalized, where=valid[..., None])
+    scores = np.clip(np.max(np.abs(normalized), axis=-1), 0.0, 1.0)
+    return float(scores) if scores.ndim == 0 else scores
 
 def anchor_grid_mask(
     inventory,

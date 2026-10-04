@@ -32,42 +32,106 @@ def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def tree_digest(node):
+    """Hash ordered decisions and backed-up values, excluding timing diagnostics."""
+    def values(item):
+        return dict(
+            action=None if item.action is None else [item.action.object_id, item.action.pose.tolist()],
+            poses=None if item.state is None else {
+                str(key): value.tolist() for key, value in sorted(item.state.object_poses.items())},
+            prior=item.prior, reward=item.reward, visits=item.visits, value_sum=item.value_sum,
+            failed=item.failed, terminal=item.terminal, rejection_reason=item.rejection_reason,
+            children=[values(child) for child in item.children])
+    return hashlib.sha256(json.dumps(values(node), sort_keys=True).encode()).hexdigest()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--backend', choices=('cpu', 'cuda'), required=True)
     parser.add_argument('--seed', type=int, required=True)
     parser.add_argument('--config', type=Path, help='Use the same profile for controlled CPU/CUDA comparisons.')
     parser.add_argument('--iterations', type=int)
+    parser.add_argument('--workers', type=int, help='CPU workers, including CUDA reward/observation workers.')
+    parser.add_argument('--result-batch-size', type=int, help='CPU reward/observation chunk size, independent of CUDA placements.')
     parser.add_argument('--generation-batch-size', type=int)
     parser.add_argument('--posegen-batch-size', type=int)
     parser.add_argument('--state', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--evaluation-batch-size', type=int)
     parser.add_argument('--cuda-batch-size', type=int)
+    parser.add_argument('--placement-batch-size', type=int,
+                        help='CUDA branches per streamed physics/result chunk.')
+    parser.add_argument('--legacy-robustness', action='store_true',
+                        help='Use full-horizon CUDA robustness and Python replay as a control.')
+    parser.add_argument('--eager-observations', action='store_true',
+                        help='Build all search observations as a step-3 control.')
+    parser.add_argument('--serial-results', action='store_true',
+                        help='Disable result overlap while preserving CUDA chunk boundaries.')
     parser.add_argument('--root-candidates', type=int,
                         help='Widen root retention and generation; use the same value across a batch sweep.')
     args = parser.parse_args()
     if args.output.exists():
         raise FileExistsError(args.output)
     for name in ('evaluation_batch_size', 'cuda_batch_size', 'root_candidates',
-                 'iterations', 'generation_batch_size', 'posegen_batch_size'):
+                 'iterations', 'generation_batch_size', 'posegen_batch_size', 'workers',
+                 'placement_batch_size', 'result_batch_size'):
         value = getattr(args, name)
         if value is not None and value <= 0:
             parser.error(f'{name} must be positive')
     if args.cuda_batch_size is not None and args.backend != 'cuda':
         parser.error('--cuda-batch-size requires --backend cuda')
+    if (args.placement_batch_size is not None or args.serial_results) and args.backend != 'cuda':
+        parser.error('--placement-batch-size and --serial-results require --backend cuda')
     if args.posegen_batch_size is not None:
         if args.backend != 'cuda':
             parser.error('--posegen-batch-size requires --backend cuda')
         from stacking_common.actions.cuda_solver import CudaPlacementPoseSolver
         CudaPlacementPoseSolver.batch_size = args.posegen_batch_size
+    if args.eager_observations:
+        from stacking_common.environment.observation import ArrayObservationBuilder
+        ArrayObservationBuilder.defer = ArrayObservationBuilder.build
+    result_batches = []
+    from stacking_common.environment.environment import StackingEnvironment
+    if args.result_batch_size is not None:
+        StackingEnvironment.result_batch_size = args.result_batch_size
+    original_step_results = StackingEnvironment._step_results
+
+    def measure_step_results(environment, states, *, start_index=0):
+        started_results = time.perf_counter()
+        try:
+            return original_step_results(environment, states, start_index=start_index)
+        finally:
+            finished = time.perf_counter()
+            result_batches.append(dict(jobs=len(states), workers=environment.result_workers,
+                                       start=started_results, end=finished,
+                                       seconds=finished - started_results))
+
+    StackingEnvironment._step_results = measure_step_results
+    if args.serial_results:
+        def serial_step_results(environment, batches):
+            results = []
+            start_index = 0
+            for states in batches:
+                results.extend(environment._step_result_chunks(states, start_index=start_index))
+                start_index += len(states)
+            return tuple(results)
+        StackingEnvironment._pipelined_step_results = serial_step_results
     cuda_calls = []
     if args.backend == 'cuda':
         from stacking_common.environment import cuda_backend
 
         class MeasuredCudaBackend(cuda_backend.CudaPlacementBackend):
             batch_size = args.cuda_batch_size or cuda_backend.CudaPlacementBackend.batch_size
+            placement_batch_size = args.placement_batch_size or cuda_backend.CudaPlacementBackend.placement_batch_size
             benchmark_stage = 'structural'
+
+            def _robustness_phase(self, config, object_index):
+                phase = super()._robustness_phase(config, object_index)
+                if args.legacy_robustness:
+                    if hasattr(phase, 'robustness'):
+                        phase.robustness = None
+                    phase.quiet_steps, phase.motion_limit, phase.sample_stride = 0, 0., 1
+                return phase
 
             def _settling(self, states, actions):
                 self.benchmark_stage = 'settling'
@@ -86,12 +150,15 @@ def main():
             def _run(self, problems):
                 started_run = time.perf_counter()
                 outputs = super()._run(problems)
+                finished = time.perf_counter()
                 if problems:
                     cuda_calls.append(dict(
                         stage=self.benchmark_stage, jobs=len(problems),
+                        simulated_steps=sum(p.steps for out in outputs for p in out.phases),
+                        returned_samples=sum(len(out.samples) for out in outputs),
                         chunks=[min(self.batch_size, len(problems) - i)
                                 for i in range(0, len(problems), self.batch_size)],
-                        seconds=time.perf_counter() - started_run))
+                        start=started_run, end=finished, seconds=finished - started_run))
                 return outputs
 
         # Process-local benchmark override; production defaults stay unchanged.
@@ -103,6 +170,8 @@ def main():
                          posegen_backend=args.backend, simulation_backend=args.backend),
         root_cem=replace(app.mcts_profile.root_cem, seed=args.seed)))
     profile = app.mcts_profile
+    if args.workers is not None:
+        profile = replace(profile, parallel=replace(profile.parallel, enabled=True, workers=args.workers))
     if args.iterations is not None:
         profile = replace(profile, request=replace(profile.request, iterations=args.iterations))
     if args.generation_batch_size is not None:
@@ -135,9 +204,16 @@ def main():
         setup_seconds = time.perf_counter() - started
         load_before = os.getloadavg()
         cuda_calls.clear()
+        result_batches.clear()
         started_search = time.perf_counter()
         result = search.search(root, request)
         elapsed = time.perf_counter() - started_search
+        # Each stream is sequential; pairwise interval intersections cannot double count.
+        overlap = sum(max(0., min(cpu['end'], gpu['end']) - max(cpu['start'], gpu['start']))
+                      for cpu in result_batches for gpu in cuda_calls)
+        for interval in [*result_batches, *cuda_calls]:
+            interval['start'] -= started_search
+            interval['end'] -= started_search
         row = search_statistics(result, elapsed, search, step=len(state.placed_object_indices) + 1)
         row.update(backend=args.backend, seed=args.seed, placed=len(state.placed_object_indices),
                    object_count=len(ids), setup_seconds=setup_seconds,
@@ -146,9 +222,12 @@ def main():
                    nonfailed_evaluations_per_second=(result.evaluated_candidates - result.failed_evaluations) / elapsed,
                    benchmark_overrides={name: getattr(args, name) for name in (
                        'evaluation_batch_size', 'cuda_batch_size', 'root_candidates',
-                       'iterations', 'generation_batch_size', 'posegen_batch_size')},
+                       'iterations', 'generation_batch_size', 'posegen_batch_size', 'workers',
+                       'placement_batch_size', 'result_batch_size', 'serial_results', 'legacy_robustness', 'eager_observations')},
                    config_path=str(args.config.resolve()) if args.config else None,
                    cuda_simulation_calls=cuda_calls,
+                   result_processing_batches=result_batches,
+                   result_cuda_overlap_seconds=overlap, tree_sha256=tree_digest(root),
                    benchmark_script_sha256=digest(__file__),
                    state_sha256=digest(args.state) if args.state else None,
                    load_before=load_before, load_after=os.getloadavg(),

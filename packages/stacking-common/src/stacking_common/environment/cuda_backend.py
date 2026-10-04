@@ -22,7 +22,8 @@ def _steps_after(seconds, dt):
 class CudaPlacementBackend(CorePlacementBackend):
     """One GPU workspace per fidelity; each call starts independent branches."""
 
-    batch_size = 32
+    batch_size = 128  # Native capacity: four robustness trials per 32-placement chunk.
+    placement_batch_size = 32  # Branches handed to CPU result processing at once.
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -268,18 +269,14 @@ class CudaPlacementBackend(CorePlacementBackend):
                 if len(indices) == len(self.object_ids):
                     extra = structural.final_extra_steps or 2 * extra
                 phase_config = replace(structural, dt=2 * structural.dt, extra_steps=extra)
-                phase = self._phase(phase_config, [action.object_index], final_object=False)
-                # The legacy robustness score rotates angular velocity before
-                # computing energy and has a near-motion-limit shortcut. Replay
-                # its stopping rule from samples rather than replacing it with
-                # the native structural stopping metric.
-                phase.quiet_steps = 0
-                phase.motion_limit = 0.
+                phase = self._robustness_phase(phase_config, action.object_index)
+                native_stop = getattr(phase, 'robustness', None) is not None
                 problems.append(self._problem(len(problems), scene, self.simulation_config, [phase]))
-                trials.append((i, action, noisy, phase_config))
+                trials.append((i, action, noisy, phase_config, native_stop))
         displacements, reasons = [[] for _ in jobs], [[] for _ in jobs]
-        for (i, action, noisy, config_phase), out in zip(trials, self._run(problems)):
-            final, reason, finished = self._robustness_stop(action, noisy, config_phase, out)
+        for (i, action, noisy, config_phase, native_stop), out in zip(trials, self._run(problems)):
+            stop = self._native_robustness_stop if native_stop else self._robustness_stop
+            final, reason, finished = stop(action, noisy, config_phase, out)
             if not finished:
                 displacement, reason = float('inf'), 'simulation_cuda_' + out.status.name
             else:
@@ -287,6 +284,32 @@ class CudaPlacementBackend(CorePlacementBackend):
             displacements[i].append(displacement)
             reasons[i].append(reason)
         return [(max(d, default=0.), d, r) for d, r in zip(displacements, reasons)]
+
+    def _robustness_phase(self, config, object_index):
+        phase = self._phase(config, [object_index], final_object=False)
+        stopping_type = getattr(self.core, 'CudaRobustnessStopping', None)
+        if stopping_type is None:
+            # Compatibility with older core installations: retain exact replay.
+            phase.quiet_steps = 0
+            phase.motion_limit = 0.
+        else:
+            stopping = stopping_type()
+            stopping.min_time, stopping.max_time = config.min_time, config.max_time
+            phase.robustness = stopping
+            phase.sample_stride = 0
+        return phase
+
+    def _native_robustness_stop(self, action, noisy, config, out):
+        if out.snapshot is None or not out.phases:
+            return noisy, None, False
+        phase = out.phases[-1]
+        elapsed = phase.steps * config.dt
+        integral = phase.max_motion_integral
+        finished = (phase.quiet_steps >= config.extra_steps or elapsed > config.max_time
+                    or integral > config.velocity_integral_threshold)
+        reason = ('target_motion_limit' if integral > config.velocity_integral_threshold else
+                  'not_settled' if phase.settled_steps < config.extra_steps or elapsed <= config.min_time else None)
+        return out.snapshot.body_pose(self.scene_builder.entity_id(action.object_index)), reason, finished
 
     def _robustness_stop(self, action, noisy, phase, out):
         entity = self.scene_builder.entity_id(action.object_index)

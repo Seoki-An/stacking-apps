@@ -29,6 +29,7 @@ from stacking_common.environment.overlap import VoxelOverlapEvaluator
 from stacking_common.environment.reward import StackingReward
 from stacking_common.environment.transition import SimulationTransition
 from stacking_common.search.adapters import StackingEnvironmentEvaluator, ParallelTransitionEvaluator
+from stacking_common.actions import _scored_floor
 from stacking_common.actions.core_solver import CorePlacementPoseSolver
 from stacking_common.actions.cuda_solver import CudaPlacementPoseSolver
 from stacking_common.environment import robustness
@@ -96,6 +97,8 @@ def main():
     timers = StageTimers(args.cprofile_stage)
     targets = [
         (MonteCarloTreeSearch, 'search', 'search'),
+        (_scored_floor, 'score_xy_debug_map', 'floor_score_maps'),
+        (_scored_floor, 'build_state_map_bundle', 'floor_state_maps'),
         (MonteCarloTreeSearch, '_expand_many', 'pose_generation_and_priors'),
         (StackingEnvironmentEvaluator, 'evaluate_batch', 'transition_batch'),
         (ParallelTransitionEvaluator, 'evaluate_batch', 'cpu_transition_batch_wall'),
@@ -107,6 +110,7 @@ def main():
         (robustness, '_simulate_noisy_place', 'cpu_robustness_trial_worker'),
         (StackingEnvironmentEvaluator, 'evaluate', 'transition_single'),
         (StackingEnvironment, 'step_batch', 'environment_batch'),
+        (StackingEnvironment, '_step_results', 'reward_observation_batch_wall'),
         (SimulationTransition, 'step_batch', 'transition_apply_batch'),
         (SimulationTransition, '_apply_result', 'state_update'),
         (SimulationTransition, 'restore', 'state_restore'),

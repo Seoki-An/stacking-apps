@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from copy import copy as shallow_copy
 
 import numpy as np
 
@@ -84,18 +85,18 @@ class State:
     def copy(self) -> "State":
         """Return a branch-independent snapshot of this state."""
 
-        return State(
-            object_ids=self.object_ids,
-            placed_object_indices=self.placed_object_indices,
-            object_poses=self.object_poses,
-            trajectories=self.trajectories,
-            action_history=self.action_history,
-            terminated=self.terminated,
-            failed=self.failed,
-            simulation_settled=self.simulation_settled,
-            contact_points=self.contact_points,
-            pose_identified_object_ids=self.pose_identified_object_ids,
-        )
+        # Construction validates external values. Copies of an existing state
+        # need ownership, not repeated array and history validation.
+        copied = shallow_copy(self)
+        copied.object_ids = self.object_ids.copy()
+        copied.placed_object_indices = self.placed_object_indices.copy()
+        copied.object_poses = {key: value.copy() for key, value in self.object_poses.items()}
+        copied.trajectories = [{key: value.copy() for key, value in stage.items()}
+                               for stage in self.trajectories]
+        copied.action_history = [action.copy() for action in self.action_history]
+        copied.contact_points = self.contact_points.copy()
+        copied.pose_identified_object_ids = self.pose_identified_object_ids.copy()
+        return copied
 
     def latest_velocity_integrals(self) -> dict[int, float]:
         """Return the velocity integral for the latest simulation stage."""
