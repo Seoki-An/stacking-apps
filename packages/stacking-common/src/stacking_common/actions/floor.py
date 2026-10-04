@@ -34,6 +34,12 @@ class ActiveFloorPolicy:
         if len(score_weights) != 6 or not np.all(np.isfinite(score_weights)):
             raise ValueError("floor scoring requires six finite weights")
         self.score_weights = tuple(float(value) for value in score_weights)
+        # Search states share most placed stones with their parents. Entries and
+        # masks are pure functions of (object, exact pose), so they are reused;
+        # cached arrays are read-only.
+        self._grid_values = None
+        self._entries: dict = {}
+        self._masks: dict = {}
 
     def active_floor_rejection(
         self,
@@ -143,6 +149,17 @@ class ActiveFloorPolicy:
         return None, diagnostics
 
     def _entry(self, object_index: int, pose: np.ndarray) -> dict[str, object]:
+        pose = np.asarray(pose, dtype=float)
+        key = (int(object_index), pose.tobytes())
+        entry = self._entries.get(key)
+        if entry is None:
+            if len(self._entries) >= 4096:
+                self._entries.clear()
+                self._masks.clear()
+            entry = self._entries[key] = self._compute_entry(object_index, pose)
+        return entry
+
+    def _compute_entry(self, object_index: int, pose: np.ndarray) -> dict[str, object]:
         stack_object = self.inventory[object_index]
         points, _ = stack_object.mesh_arrays()
         world = transform_points(points, pose)
@@ -154,9 +171,9 @@ class ActiveFloorPolicy:
             world_normals = normals @ rotation.T
             volumes.append(
                 (
-                    world_normals,
-                    np.einsum("ij,ij->i", normals, centers)
-                    + world_normals @ translation,
+                    _readonly(world_normals),
+                    _readonly(np.einsum("ij,ij->i", normals, centers)
+                              + world_normals @ translation),
                 )
             )
         return {
@@ -175,6 +192,11 @@ class ActiveFloorPolicy:
         return np.zeros((self.grid_size, self.grid_size), dtype=bool)
 
     def _grid(self):
+        if self._grid_values is None:
+            self._grid_values = tuple(_readonly(values) for values in self._compute_grid())
+        return self._grid_values
+
+    def _compute_grid(self):
         target = self.inventory.target
         lower = target.origin[:2] - np.array([target.width, target.length]) / 2.0
         upper = target.origin[:2] + np.array([target.width, target.length]) / 2.0
@@ -190,7 +212,18 @@ class ActiveFloorPolicy:
         return lower, upper, xx, yy
 
     def _mask(self, entry, support_z: float, *, grid=None) -> np.ndarray:
-        xx, yy = self._grid()[2:] if grid is None else grid
+        default = self._grid()[2:]
+        if grid is not None and not (grid[0] is default[0] and grid[1] is default[1]):
+            return self._compute_mask(entry, support_z, grid)
+        # Projected footprints do not depend on the support height.
+        key = (id(entry), None if self.coverage_mode == "projected_footprint" else float(support_z))
+        mask = self._masks.get(key)
+        if mask is None or mask[0] is not entry:
+            mask = self._masks[key] = (entry, _readonly(self._compute_mask(entry, support_z, default)))
+        return mask[1]
+
+    def _compute_mask(self, entry, support_z: float, grid) -> np.ndarray:
+        xx, yy = grid
         occupied = self._empty_mask()
         for normals, offsets in entry["volumes"]:
             if self.coverage_mode == "projected_footprint":
@@ -201,6 +234,12 @@ class ActiveFloorPolicy:
                     normals, offsets, xx, yy, support_z,
                     support_z + self.bottom_tolerance)
         return occupied
+
+
+def _readonly(values: np.ndarray) -> np.ndarray:
+    values = np.asarray(values)
+    values.setflags(write=False)
+    return values
 
 
 def _volume_slice_mask(

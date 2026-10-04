@@ -163,18 +163,19 @@ def resize_height_map_max(
     src_h, src_w = source.shape
     y_edges = np.linspace(0.0, float(src_h), dst_h + 1)
     x_edges = np.linspace(0.0, float(src_w), dst_w + 1)
-    resized = np.empty((dst_h, dst_w), dtype=float)
+    # Block maxima over finite values: maxima of row slabs, then column slabs.
+    finite = np.where(np.isfinite(source), source, -np.inf)
+    rows = np.empty((dst_h, src_w))
     for y_idx in range(dst_h):
         y0 = min(int(np.floor(y_edges[y_idx])), src_h - 1)
         y1 = max(min(int(np.ceil(y_edges[y_idx + 1])), src_h), y0 + 1)
-        for x_idx in range(dst_w):
-            x0 = min(int(np.floor(x_edges[x_idx])), src_w - 1)
-            x1 = max(min(int(np.ceil(x_edges[x_idx + 1])), src_w), x0 + 1)
-            values = source[y0:y1, x0:x1]
-            finite = values[np.isfinite(values)]
-            resized[y_idx, x_idx] = (
-                float(np.max(finite)) if finite.size else 0.0
-            )
+        rows[y_idx] = finite[y0:y1].max(axis=0)
+    resized = np.empty((dst_h, dst_w), dtype=float)
+    for x_idx in range(dst_w):
+        x0 = min(int(np.floor(x_edges[x_idx])), src_w - 1)
+        x1 = max(min(int(np.ceil(x_edges[x_idx + 1])), src_w), x0 + 1)
+        resized[:, x_idx] = rows[:, x0:x1].max(axis=1)
+    resized[resized == -np.inf] = 0.0
     return resized
 
 def masked_mean_filter(

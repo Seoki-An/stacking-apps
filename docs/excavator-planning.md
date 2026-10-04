@@ -1300,6 +1300,42 @@ stacking-core to obtain the native changes; the 256-job workspace reserves about
 1.45 GiB of GPU memory.
 
 
+### Repeated host work in pose generation
+
+After the native changes, the CPU side of pose generation still repeated work per
+state that depends only on placed poses or fixed grids:
+
+- Deferred observations rendered height maps one triangle at a time. The common
+  renderer now evaluates every (triangle, cell) height with the same float64
+  formulas and combines them with one scatter-max before rounding to float32.
+  Rounding is monotonic, so this equals the former per-triangle float32 maxima.
+- Score-grid height maps are resized by row-slab then column-slab maxima of finite
+  values, instead of one Python block per output cell.
+- Sampler yaw/base orientation sets are reused per object.
+- The active-floor policy builds its grid once and reuses per-(object, exact pose)
+  entries and footprint masks; the PLY-height initializer reuses placed-stone
+  bounds the same way. Child states repeat almost all of their parents' poses.
+
+Full searches compared every call with the previous implementation: 203 height
+maps, 1041 resizes, 4918 orientation sets, 2023 floor contexts, 2156 floor
+rejections and 1045 initializer scenes were exactly equal. Height-map rendering
+fell from 4.65 to 0.27 seconds and resizing from 3.33 to 0.17 seconds.
+
+The [host-work benchmark](benchmarks/excavator-mcts-sampling-host-work.json)
+repeats the native pose-generation workload:
+
+| Measurement | Native call changes | Host-work reuse |
+| --- | ---: | ---: |
+| Search seconds | 126.05 | 114.72 |
+| Evaluated nodes/s | 8.441 | 9.275 |
+| Nonfailed nodes/s | 4.657 | 5.117 |
+| Pose-generation phase | 43.86 s | 32.69 s |
+
+Evaluated-node throughput improves by **9.9%**, with the same ordered tree hash,
+counts and selected candidate. Native pose solving (15.5 s), score-map kernels
+and prior containment now dominate the remaining pose-generation time.
+
+
 ## Run
 
 From the `stacking-apps` checkout, with the sibling `stacking-core` checkout:

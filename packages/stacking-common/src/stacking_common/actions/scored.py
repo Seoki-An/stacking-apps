@@ -60,6 +60,7 @@ class ScoredPlanarPoseSampler:
             height=inventory.target.height, origin=inventory.target.origin,
             taper=asdict(inventory.target.taper))
         self._kernels = {}
+        self._quaternions = {}
         self._scores = {}
         self._sampled_scores = {}
         self._state_map_bundle = None
@@ -94,12 +95,16 @@ class ScoredPlanarPoseSampler:
         variants = getattr(provider, "quaternions", None)
         bases = (variants(self.inventory, state, observation, object_index) if variants
                  else (provider.quaternion(self.inventory, state, observation, object_index),))
-        rotations = [Rotation.from_euler("z", yaw) * Rotation.from_quat(base)
-                     for base in bases for yaw in self.config.yaw_angles]
-        unique = {}
-        for rotation in rotations:
-            unique.setdefault(tuple(np.round(rotation.as_matrix().ravel(), 7)), rotation.as_quat())
-        return tuple(unique.values())
+        # Yaw products depend only on the bases; reuse them, returning copies.
+        key = (object_index, tuple(np.asarray(base, dtype=float).tobytes() for base in bases))
+        if key not in self._quaternions:
+            rotations = [Rotation.from_euler("z", yaw) * Rotation.from_quat(base)
+                         for base in bases for yaw in self.config.yaw_angles]
+            unique = {}
+            for rotation in rotations:
+                unique.setdefault(tuple(np.round(rotation.as_matrix().ravel(), 7)), rotation.as_quat())
+            self._quaternions[key] = tuple(unique.values())
+        return tuple(value.copy() for value in self._quaternions[key])
 
     def score_map(self, state, observation, object_index):
         # State/observation arrays are mutable. Key their contents, not just

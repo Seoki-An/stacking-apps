@@ -59,49 +59,52 @@ class HeightMapRenderer:
         self, meshes: list[tuple[np.ndarray, np.ndarray]]
     ) -> np.ndarray:
         height, width = self.resolution
-        output = np.zeros((height, width), dtype=np.float32)
         x = np.linspace(self.xlim[0], self.xlim[1], width)
         y = np.linspace(self.ylim[0], self.ylim[1], height)
-
+        output = np.zeros(height * width)
         for points, faces in meshes:
             triangles = np.asarray(points, dtype=float)[
                 np.asarray(faces, dtype=int)
             ]
-            for triangle in triangles:
-                _rasterize_triangle(output, x, y, triangle)
-        return output
+            _rasterize_triangles(output, x, y, triangles.reshape(-1, 3, 3))
+        # Rounding is monotonic, so rounding the maximum equals the maximum of
+        # values rounded one triangle at a time into a float32 map.
+        return output.reshape(height, width).astype(np.float32)
 
 
-def _rasterize_triangle(
+def _rasterize_triangles(
     output: np.ndarray,
     x: np.ndarray,
     y: np.ndarray,
-    triangle: np.ndarray,
+    triangles: np.ndarray,
 ) -> None:
-    x0, y0, z0 = triangle[0]
-    x1, y1, z1 = triangle[1]
-    x2, y2, z2 = triangle[2]
+    """Max each triangle's interpolated height into its covered grid cells."""
+    (x0, y0, z0), (x1, y1, z1), (x2, y2, z2) = (
+        triangles[:, corner].T for corner in range(3)
+    )
     denominator = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
-    if abs(float(denominator)) <= 1e-12:
-        return
-
-    column_start = max(int(np.searchsorted(x, np.min(triangle[:, 0]))), 0)
-    column_stop = min(
-        int(np.searchsorted(x, np.max(triangle[:, 0]), side="right")),
-        len(x),
+    column_start = np.maximum(np.searchsorted(x, triangles[:, :, 0].min(axis=1)), 0)
+    column_stop = np.minimum(
+        np.searchsorted(x, triangles[:, :, 0].max(axis=1), side="right"), len(x)
     )
-    row_start = max(int(np.searchsorted(y, np.min(triangle[:, 1]))), 0)
-    row_stop = min(
-        int(np.searchsorted(y, np.max(triangle[:, 1]), side="right")),
-        len(y),
+    row_start = np.maximum(np.searchsorted(y, triangles[:, :, 1].min(axis=1)), 0)
+    row_stop = np.minimum(
+        np.searchsorted(y, triangles[:, :, 1].max(axis=1), side="right"), len(y)
     )
-    if column_start >= column_stop or row_start >= row_stop:
+    columns = np.maximum(column_stop - column_start, 0)
+    rows = np.maximum(row_stop - row_start, 0)
+    keep = np.flatnonzero((np.abs(denominator) > 1e-12) & (columns > 0) & (rows > 0))
+    if not len(keep):
         return
-
-    xx, yy = np.meshgrid(
-        x[column_start:column_stop],
-        y[row_start:row_stop],
-        indexing="xy",
+    # One entry per (triangle, covered cell), row-major within each triangle.
+    cells = rows[keep] * columns[keep]
+    triangle = np.repeat(keep, cells)
+    offset = np.arange(len(triangle)) - np.repeat(np.cumsum(cells) - cells, cells)
+    column = column_start[triangle] + offset % columns[triangle]
+    row = row_start[triangle] + offset // columns[triangle]
+    xx, yy = x[column], y[row]
+    x0, y0, z0, x1, y1, z1, x2, y2, z2, denominator = (
+        values[triangle] for values in (x0, y0, z0, x1, y1, z1, x2, y2, z2, denominator)
     )
     weight0 = ((y1 - y2) * (xx - x2) + (x2 - x1) * (yy - y2)) / denominator
     weight1 = ((y2 - y0) * (xx - x2) + (x0 - x2) * (yy - y2)) / denominator
@@ -113,8 +116,7 @@ def _rasterize_triangle(
         & (weight2 >= -tolerance)
     )
     values = weight0 * z0 + weight1 * z1 + weight2 * z2
-    region = output[row_start:row_stop, column_start:column_stop]
-    np.maximum(region, np.where(inside, values, -np.inf), out=region)
+    np.maximum.at(output, (row * len(x) + column)[inside], values[inside])
 
 
 def _readonly(values: np.ndarray) -> np.ndarray:

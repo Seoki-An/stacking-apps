@@ -126,3 +126,26 @@ def test_shifted_samples_match_per_offset_slices():
                 if 0 <= y + dy < 3 and 0 <= x + dx < 4:
                     expected[y, x] = values[y + dy, x + dx]
         np.testing.assert_array_equal(grid, expected)
+
+
+@pytest.mark.parametrize("shape", [(3, 4), (5, 7), (16, 2)])
+def test_resized_height_maps_take_finite_block_maxima(shape):
+    from stacking_common.actions._support_maps import resize_height_map_max
+    source = np.random.default_rng(1).normal(size=(11, 9))
+    source[0, :] = np.nan
+    source[4, 3] = np.inf
+    source[:, -1] = -np.inf
+    dst_h, dst_w = shape
+    y_edges = np.linspace(0., 11., dst_h + 1)
+    x_edges = np.linspace(0., 9., dst_w + 1)
+    expected = np.zeros(shape)
+    for row in range(dst_h):
+        y0 = min(int(np.floor(y_edges[row])), 10)
+        y1 = max(min(int(np.ceil(y_edges[row + 1])), 11), y0 + 1)
+        for column in range(dst_w):
+            x0 = min(int(np.floor(x_edges[column])), 8)
+            x1 = max(min(int(np.ceil(x_edges[column + 1])), 9), x0 + 1)
+            block = source[y0:y1, x0:x1]
+            finite = block[np.isfinite(block)]
+            expected[row, column] = finite.max() if finite.size else 0.
+    np.testing.assert_array_equal(resize_height_map_max(source, shape), expected)

@@ -68,6 +68,7 @@ class PlyHeightInitializer:
         self.model_directory = Path(model_directory)
         self.clearance, self.xy_padding = float(clearance), float(xy_padding)
         self._vertices = {}
+        self._bounds = {}
 
     def vertices(self, obj):
         if obj.object_id not in self._vertices:
@@ -82,8 +83,18 @@ class PlyHeightInitializer:
         bounds = []
         for index in state.placed_object_indices:
             obj = inventory[index]
-            placed = transform_points(self.vertices(obj), state.object_poses[obj.object_id])
-            bounds.append((index, placed.min(axis=0), placed.max(axis=0)))
+            pose = np.asarray(state.object_poses[obj.object_id], dtype=float)
+            # Child states repeat their parents' placed poses; reuse exact bounds.
+            key = (obj.object_id, pose.tobytes())
+            if key not in self._bounds:
+                if len(self._bounds) >= 4096:
+                    self._bounds.clear()
+                placed = transform_points(self.vertices(obj), pose)
+                low, high = placed.min(axis=0), placed.max(axis=0)
+                low.setflags(write=False)
+                high.setflags(write=False)
+                self._bounds[key] = (low, high)
+            bounds.append((index, *self._bounds[key]))
         return tuple(bounds)
 
     def initialize(self, inventory, state, object_index, proposal, *, scene_context=None):
