@@ -142,3 +142,83 @@ def test_projected_sampler_and_filter_share_floor_and_refresh_on_state_change(
     sampler.score_map(sparse, observation, index)
     assert contexts[-1]['support_z'] == 0.
     assert contexts[-1]['completed_layers'] == []
+
+
+@pytest.mark.parametrize('raise_inside', [False, True])
+def test_fallback_relaxes_floor_filter_and_restores_sampler_cache(recorded_scene, raise_inside):
+    from stacking_common.actions.types import PlanarPlacement
+    app, inventory, state, candidates = recorded_scene
+    generator = app.build_action_generator(inventory, SimpleNamespace())
+    selected = next(c for c in candidates if c['selected'])
+    index = state.object_ids.index(selected['object_id'])
+    initial = InitializedPlacement(np.array(selected['init_pose']), 0.)
+    solved = PlacementSolveResult(np.array(selected['pose']), 0., 0.)
+    proposal = PlanarPlacement(initial.pose, 0.)
+    sampler = generator.planar_sampler
+    observation = SimpleNamespace(scene_height_map=np.zeros((32, 32)),
+        height_map_xlim=np.array([-2., 2.]), height_map_ylim=np.array([-2.75, 2.75]))
+    strict = sampler.score_map(state, observation, index)
+    original_filters = generator.filters
+    assert generator._finish_candidate(state, index, proposal, initial, solved)[0] is None
+    try:
+        with generator.floor_fill_fallback() as enabled:
+            assert enabled
+            relaxed = sampler.score_map(state, observation, index)
+            assert relaxed is not strict
+            assert np.any(relaxed['candidate_mask'] & ~strict['candidate_mask'])
+            candidate, reason = generator._finish_candidate(state, index, proposal, initial, solved)
+            assert reason is None
+            assert candidate.action.diagnostics['floor_fill_fallback']
+            assert candidate.action.diagnostics['floor_fill_bypassed_reason'] == 'above_active_layer'
+            # Relaxation never bypasses pose-solve feasibility.
+            invalid = replace(solved, c_gap=1.)
+            assert generator._finish_candidate(state, index, proposal, initial, invalid)[0] is None
+            if raise_inside:
+                raise RuntimeError('injected failure')
+    except RuntimeError:
+        assert raise_inside
+    assert generator.filters is original_filters
+    assert not sampler.relax_floor_fill
+    restored = sampler.score_map(state, observation, index)
+    np.testing.assert_array_equal(restored['candidate_mask'], strict['candidate_mask'])
+    np.testing.assert_allclose(restored['scores'], strict['scores'], equal_nan=True)
+    assert generator._finish_candidate(state, index, proposal, initial, solved)[0] is None
+
+
+@pytest.mark.parametrize('physical_failure', [False, True])
+def test_fixed_scene_honors_fallback_but_still_requires_valid_settling(recorded_scene, physical_failure):
+    from stacking_common.planning import PlacementPlanningResult, PlanningStatus
+    app, inventory, state, candidates = recorded_scene
+    selected = next(c for c in candidates if c['selected'])
+    object_id = selected['object_id']
+    action = Action(state.object_ids.index(object_id), np.array(selected['pose']),
+        np.array(selected['init_pose']), object_id=object_id,
+        diagnostics={'floor_fill_fallback': True})
+    backend = SimpleNamespace(reset=lambda _: None,
+        settle_fixed=lambda *_: PlacementResult(
+            {**state.object_poses, object_id: action.pose.copy()}, failed=physical_failure,
+            diagnostics={'rejection_reason': 'unsupported'} if physical_failure else {}))
+    calls = []
+    def plan(problem):
+        calls.append(problem)
+        return PlacementPlanningResult(PlanningStatus.INFEASIBLE, reason='motion-planner-reached')
+    coordinator = ExcavatorPlanningCoordinator(app, inventory,
+        SimpleNamespace(plan=plan), placement_backend=backend)
+    record = coordinator.attempt(state, action, step=12, attempt=1)
+    if physical_failure:
+        assert record.result.reason == 'fixed_scene_resettle_unsupported'
+        assert not calls
+    else:
+        assert record.result.reason == 'motion-planner-reached'
+        assert record.result.diagnostics['motion_planning_attempted']
+        assert record.problem.metadata['floor_fill_fallback']
+        assert record.problem.metadata['floor_fill_bypassed_reason'] == 'above_active_layer'
+
+
+def test_no_fallback_when_floor_filter_disabled(recorded_scene):
+    app, inventory, _, _ = recorded_scene
+    app = replace(app, action_generation_profile=replace(app.action_generation_profile, strict_floor_first=False))
+    generator = app.build_action_generator(inventory, SimpleNamespace())
+    with generator.floor_fill_fallback() as enabled:
+        assert not enabled
+        assert not generator.planar_sampler.relax_floor_fill

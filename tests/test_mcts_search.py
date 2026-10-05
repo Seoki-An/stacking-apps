@@ -1140,6 +1140,108 @@ def test_all_rejected_roots_trigger_diversified_retry() -> None:
     assert result.selected.action.pose[0] == 2.0
 
 
+class _RetryPathEvaluator:
+    worker_count = 4
+
+    def __init__(self, *, fail_descendants=False, clock=None):
+        self.fail_descendants = fail_descendants
+        self.clock = clock
+        self.batches = []
+
+    def evaluate(self, state, action, fidelity):
+        next_state = state.copy()
+        next_state.placed_object_indices.append(action.object_index)
+        next_state.action_history.append(action)
+        depth = len(next_state.placed_object_indices)
+        failed = (depth == 1 and action.pose[0] < 2.0) or (
+            depth > 1 and self.fail_descendants and fidelity is EvaluationFidelity.LONG
+        )
+        next_state.failed = failed
+        return TransitionEvaluation(
+            state=next_state,
+            observation=tuple(next_state.placed_object_indices),
+            reward=-1.0 if failed else 1.0,
+            fidelity=fidelity,
+            failed=failed,
+            rejection_reason="structural_failure" if failed else None,
+        )
+
+    def evaluate_batch(self, states, actions, fidelity):
+        depths = tuple(len(state.placed_object_indices) + 1 for state in states)
+        self.batches.append((fidelity, depths))
+        results = tuple(self.evaluate(s, a, fidelity) for s, a in zip(states, actions))
+        if self.clock is not None and 2 in depths:
+            self.clock[0] = 11.0
+        return results
+
+
+def _retry_path_search(depth, evaluator):
+    state = _state()
+    state.object_ids = [10, 20, 30, 40, 50]
+    search = MonteCarloTreeSearch(
+        _root_policy_config(
+            max_depth=4,
+            evaluation_batch_size=4,
+            rejected_root_retry_rounds=1,
+            final_selection=FinalSelectionConfig(
+                mode="mixed", max_weight=0.5,
+                validate_descendant_path=True,
+                validate_descendant_depth=depth,
+                require_validated_descendant=True,
+            ),
+        ),
+        _RemainingObjectGenerator(),
+        _ObjectPriorityScorer(),
+        evaluator,
+        _ZeroEstimator(),
+        root_action_generator=_RetryingRootGenerator(),
+    )
+    return search.search(
+        MCTSNode(state=state, observation=()),
+        MCTSSearchRequest(
+            iterations=1, max_time_seconds=10.0,
+            final_validation_fidelity=EvaluationFidelity.LONG,
+        ),
+    )
+
+
+@pytest.mark.parametrize("depth", [1, 2, 3, 5])
+def test_retry_builds_required_descendant_path(depth):
+    evaluator = _RetryPathEvaluator()
+    result = _retry_path_search(depth, evaluator)
+
+    assert result.root_retry.rounds == 1
+    assert result.selected is not None
+    assert result.selected.action.pose[0] == 2.0
+    assert result.selected.info["validated_descendant_path_available"]
+    required = min(depth, 3)
+    assert result.selected.info["validated_descendant_path_return"] == 1 + required
+    assert max(d for _, batch in evaluator.batches for d in batch) == 1 + required
+    if depth > 1:
+        assert any(f is EvaluationFidelity.SHORT and batch == (3, 3, 3, 3)
+                   for f, batch in evaluator.batches)
+
+
+def test_retry_depth_extension_preserves_physical_validation():
+    result = _retry_path_search(2, _RetryPathEvaluator(fail_descendants=True))
+
+    assert result.selected is None
+    assert result.descendant_validation_failures > 0
+
+
+def test_retry_depth_extension_stops_at_deadline(monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(
+        "stacking_common.search.mcts.search.time.monotonic", lambda: clock[0]
+    )
+    evaluator = _RetryPathEvaluator(clock=clock)
+    result = _retry_path_search(2, evaluator)
+
+    assert result.selected is None
+    assert result.timed_out
+    assert max(d for _, batch in evaluator.batches for d in batch) == 2
+
+
 def test_early_lookahead_prefers_a_placeable_continuation_over_greedy_dead_end():
     from dataclasses import replace
 
@@ -1296,3 +1398,154 @@ def test_descendant_validation_defers_children_without_known_returns(
 
     assert evaluator.batches == batches
     assert result.selected.info["validated_descendant_path_return"] == path_return
+
+
+class _FloorFallbackGenerator(_RemainingObjectGenerator):
+    def __init__(self, *, reject_floor=False):
+        self.relaxed = False
+        self.reject_floor = reject_floor
+        self.calls = []
+        self.retries = 0
+
+    def begin_retry(self, excluded_actions):
+        self.retries += 1
+
+    def floor_fill_fallback(self):
+        from contextlib import contextmanager
+
+        @contextmanager
+        def relax():
+            self.relaxed = True
+            try:
+                yield True
+            finally:
+                self.relaxed = False
+        return relax()
+
+    def generate(self, state, observation, request):
+        self.calls.append((self.relaxed, request.sampling_priority))
+        if self.reject_floor and not self.relaxed:
+            return ActionGenerationResult((), attempts=1, exhausted=True,
+                rejection_counts={"active_floor_above_active_layer": 1})
+        result = super().generate(state, observation, request)
+        for candidate in result.candidates:
+            if self.relaxed:
+                candidate.action.diagnostics['floor_fill_fallback'] = True
+        return result
+
+
+class _FloorFallbackEvaluator:
+    def __init__(self, *, strict_succeeds=False, fail_relaxed=False, fail_descendants=False, clock=None):
+        self.strict_succeeds = strict_succeeds
+        self.fail_relaxed = fail_relaxed
+        self.fail_descendants = fail_descendants
+        self.clock = clock
+        self.calls = []
+
+    def evaluate(self, state, action, fidelity):
+        relaxed = bool(action.diagnostics.get('floor_fill_fallback'))
+        self.calls.append((relaxed, fidelity))
+        failed = (self.fail_relaxed if relaxed else not self.strict_succeeds)
+        failed |= self.fail_descendants and bool(state.placed_object_indices)
+        next_state = state.copy()
+        next_state.placed_object_indices.append(action.object_index)
+        next_state.object_poses[action.object_id] = action.pose.copy()
+        next_state.action_history.append(action.copy())
+        next_state.failed = failed
+        if self.clock is not None:
+            self.clock[0] = 11.
+        return TransitionEvaluation(next_state, (), -1. if failed else 1., fidelity,
+            failed=failed, rejection_reason='target_motion_limit' if failed else None)
+
+
+def _floor_fallback_search(generator, evaluator, *, depth=1):
+    return MonteCarloTreeSearch(
+        _root_policy_config(max_depth=depth, root_lookahead=True, rejected_root_retry_rounds=2,
+            final_selection=FinalSelectionConfig(mode='mixed', max_weight=.5,
+                validate_descendant_path=True, validate_descendant_depth=2,
+                require_validated_descendant=True)),
+        generator, _ObjectPriorityScorer(), evaluator, _ZeroEstimator(),
+        root_action_generator=generator,
+    )
+
+
+@pytest.mark.parametrize('reject_floor', [False, True])
+def test_floor_fallback_finds_valid_placement_after_strict_exhaustion(reject_floor):
+    from stacking_common.workflows.mcts_reporting import search_statistics
+    generator = _FloorFallbackGenerator(reject_floor=reject_floor)
+    evaluator = _FloorFallbackEvaluator()
+    search = _floor_fallback_search(generator, evaluator)
+    result = search.search(
+        MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
+            root_sampling_priority='lower_floor_first', deeper_sampling_priority='lower_floor_first',
+            final_validation_fidelity=EvaluationFidelity.LONG))
+    assert result.selected is not None
+    assert result.floor_fill_fallback.attempted and result.floor_fill_fallback.selected
+    assert result.floor_fill_fallback.accepted == 2
+    assert result.selected.action.diagnostics['floor_fill_fallback']
+    assert generator.calls[0] == (False, 'lower_floor_first')
+    assert all(priority is None for relaxed, priority in generator.calls if relaxed)
+    assert not generator.relaxed
+    assert all(f is EvaluationFidelity.LONG for _, f in evaluator.calls)
+    saved = search_statistics(result, 0., search, step=1)
+    assert saved['floor_fill_fallback'] == {
+        'attempted': True, 'generated': 2, 'accepted': 2, 'selected': True,
+    }
+    if not reject_floor:
+        assert result.root_retry.rounds == 2
+
+
+def test_floor_fallback_does_not_run_when_strict_search_succeeds():
+    generator = _FloorFallbackGenerator()
+    result = _floor_fallback_search(generator, _FloorFallbackEvaluator(strict_succeeds=True)).search(
+        MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
+            final_validation_fidelity=EvaluationFidelity.LONG))
+    assert result.selected is not None
+    assert not result.floor_fill_fallback.attempted
+    assert not any(relaxed for relaxed, _ in generator.calls)
+
+
+@pytest.mark.parametrize('fail_descendants', [False, True])
+def test_floor_fallback_preserves_physics_and_required_continuations(fail_descendants):
+    generator = _FloorFallbackGenerator()
+    evaluator = _FloorFallbackEvaluator(fail_relaxed=not fail_descendants,
+                                       fail_descendants=fail_descendants)
+    result = _floor_fallback_search(generator, evaluator, depth=3 if fail_descendants else 1).search(
+        MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
+            final_validation_fidelity=EvaluationFidelity.LONG))
+    assert result.selected is None
+    assert result.floor_fill_fallback.attempted
+    assert not result.floor_fill_fallback.selected
+    assert not generator.relaxed
+    if fail_descendants:
+        assert result.descendant_validation_failures > 0
+    else:
+        assert result.floor_fill_fallback.accepted == 0
+
+
+def test_floor_fallback_respects_search_deadline(monkeypatch):
+    clock = [0.]
+    monkeypatch.setattr('stacking_common.search.mcts.search.time.monotonic', lambda: clock[0])
+    generator = _FloorFallbackGenerator()
+    result = _floor_fallback_search(generator, _FloorFallbackEvaluator(clock=clock)).search(
+        MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
+            max_time_seconds=10., final_validation_fidelity=EvaluationFidelity.LONG))
+    assert result.selected is None and result.timed_out
+    assert not result.floor_fill_fallback.attempted
+    assert not any(relaxed for relaxed, _ in generator.calls)
+
+
+def test_next_placement_rebuilds_relaxed_continuations_under_strict_policy():
+    generator = _FloorFallbackGenerator()
+    evaluator = _FloorFallbackEvaluator()
+    search = _floor_fallback_search(generator, evaluator, depth=3)
+    state = State([10, 20, 30, 40], [], {}, [], [])
+    request = MCTSSearchRequest(iterations=1, final_validation_fidelity=EvaluationFidelity.LONG)
+    first = search.search(MCTSNode(state=state, observation=()), request)
+    assert first.selected is not None and first.selected.children
+    retained = tuple(first.selected.children)
+    calls_before = len(generator.calls)
+    second = search.search(first.selected, request)
+    assert generator.calls[calls_before][0] is False
+    assert all(child.parent is None for child in retained)
+    assert second.floor_fill_fallback.attempted

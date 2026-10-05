@@ -7,7 +7,7 @@ initialization:
 filtering:
   posegen_gap_threshold: 0.005
   posegen_equilibrium_threshold: 1.0
-  # Reject solved placements above the lowest layer until its fill target is met.
+  # Prefer this restriction; exhausted search retries once without floor-fill gates.
   strict_floor_first: true
   require_solver_convergence: false
   reject_equilibrium_at_threshold: true
@@ -20,7 +20,7 @@ orientation:
   pose_from_scan: false
   roll_angles_degrees: [0, 180]
 floor:
-  # Advance once the current layer covers 60% of the base in top-down projection.
+  # Advance at fill_ratio coverage of the base in top-down projection.
   coverage_mode: projected_footprint
   bottom_tolerance: 0.2
   fill_ratio: 0.6

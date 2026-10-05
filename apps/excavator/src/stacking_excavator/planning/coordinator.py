@@ -50,7 +50,10 @@ class ExcavatorPlanningCoordinator:
             if self.application.action_generation_profile.strict_floor_first:
                 reason, floor = self.application.build_floor_policy(self.inventory).active_floor_rejection(state, prepared)
                 diagnostics.update(floor)
-                if reason:
+                relaxed = bool(action.diagnostics.get("floor_fill_fallback", False))
+                if relaxed:
+                    diagnostics.update(floor_fill_fallback=True, floor_fill_bypassed_reason=reason)
+                if reason and not relaxed:
                     rejection = "active_floor_" + reason
         pick = self.inventory.initial_pose(action.object_id) if pick_pose is None else pick_pose
         remaining = {object_id: self.inventory.initial_pose(object_id)

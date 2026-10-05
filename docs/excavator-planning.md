@@ -1493,6 +1493,30 @@ long validation occasionally (12 of 184 in the earlier run), so they are
 deferred, not skipped.
 
 
+### Floor-fill fallback after search exhaustion
+
+Excavator search first uses the configured floor-fill threshold and ordinary
+root retries. If no candidate remains selectable, its scored action generator
+allows one additional root-pool attempt without the active-floor rejection,
+lower-floor sampling priority, or floor-gap/connectedness masks. This fallback
+shares the original search deadline and existing candidate/validation limits.
+It does not reduce the configured coverage threshold globally.
+
+Pose-solve feasibility, target containment, simulation, noisy-placement
+robustness, execution exclusions, and required descendant validation still
+apply. A fallback cannot turn a physically rejected pose into a selectable one.
+Generated actions carry `floor_fill_fallback` so the excavator's final
+fixed-scene check also permits the relaxed floor decision while still requiring
+successful settling and motion planning. The next placement starts strict;
+promoted continuations generated during fallback are rebuilt.
+
+Saved search statistics include `floor_fill_fallback` with `attempted`,
+`generated`, `accepted` (immediate root validation), and `selected`. Action
+diagnostics also record `floor_fill_bypassed_reason`. The fallback is available
+with both CPU and CUDA simulation and is inactive when the strict floor filter
+is disabled.
+
+
 ## Run
 
 From the `stacking-apps` checkout, with the sibling `stacking-core` checkout:

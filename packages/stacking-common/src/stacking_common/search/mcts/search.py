@@ -169,6 +169,16 @@ class RootRetryResult:
 
 
 @dataclass(frozen=True)
+class FloorFillFallbackResult:
+    """Outcome of the final attempt with relaxed floor filling."""
+
+    attempted: bool = False
+    generated: int = 0
+    accepted: int = 0
+    selected: bool = False
+
+
+@dataclass(frozen=True)
 class MCTSSearchResult(Generic[ObservationT]):
     """Tree and compact accounting produced by one MCTS invocation."""
 
@@ -210,6 +220,7 @@ class MCTSSearchResult(Generic[ObservationT]):
     root_validation: RootValidationResult = RootValidationResult()
     root_lookahead: RootLookaheadResult = RootLookaheadResult()
     root_retry: RootRetryResult = RootRetryResult()
+    floor_fill_fallback: FloorFillFallbackResult = FloorFillFallbackResult()
     descendant_validation_attempts: int = 0
     descendant_validation_failures: int = 0
     final_selection_mode: str = "mean"
@@ -321,6 +332,11 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         )
         counters = _SearchCounters(generation_deadline=iteration_deadline)
         root.detach()
+        # Relaxation applies to one placement only. Rebuild any promoted
+        # fallback continuations under the normal floor policy next time.
+        if any(child.action is not None and child.action.diagnostics.get("floor_fill_fallback")
+               for child in root.children):
+            root.clear_children()
         self._apply_execution_rejections(root, request, counters)
         self._seed_root(root, request, counters)
         revalidation = SubtreeRevalidationResult()
@@ -448,6 +464,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     request,
                     counters,
                 )
+            self._extend_retry_paths(root, request, counters, deadline)
             excluded_actions.extend(retired)
             excluded_actions.extend(
                 child.action
@@ -455,6 +472,11 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 if child.action is not None
             )
             selected, ranked_candidates = self._final_select(
+                root, request, counters, deadline
+            )
+        fallback = FloorFillFallbackResult()
+        if selected is None:
+            selected, ranked_candidates, fallback = self._run_floor_fill_fallback(
                 root, request, counters, deadline
             )
         deadline_exceeded = (
@@ -470,6 +492,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             failed_evaluations=counters.failed_evaluations,
             effective_max_depth=self.config.max_depth,
             ranked_candidates=ranked_candidates,
+            floor_fill_fallback=fallback,
             timed_out=(
                 completed < request.iterations
                 or counters.final_validation_timed_out
@@ -543,6 +566,41 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 counters.execution_rejected_candidates
             ),
         )
+
+    def _run_floor_fill_fallback(self, root, request, counters, deadline):
+        """Try one unrestricted-floor root pool within the original deadline."""
+        relax = getattr(self.action_generator, "floor_fill_fallback", None)
+        if (not callable(relax) or request.final_validation_fidelity is None
+                or (deadline is not None and time.monotonic() >= deadline)):
+            return None, (), FloorFillFallbackResult()
+        with relax() as enabled:
+            if not enabled:
+                return None, (), FloorFillFallbackResult()
+            request = replace(request, root_sampling_priority=None, deeper_sampling_priority=None)
+            # Reconsider roots whose only obstacle was a missing continuation:
+            # previously excluded poses may work with relaxed descendant floors.
+            root.clear_children()
+            begin_retry = getattr(self.root_action_generator, "begin_retry", None)
+            if callable(begin_retry):
+                begin_retry(())
+            counters.generation_deadline = deadline
+            generated_before = counters.generated_candidates
+            accepted_before = counters.root_validation_attempts - counters.root_validation_failures
+            self._prepare_authoritative_root(root, request, counters, deadline)
+            generated = counters.generated_candidates - generated_before
+            accepted = (counters.root_validation_attempts - counters.root_validation_failures
+                        - accepted_before)
+            counters.root_lookahead_eligible += len(self._root_lookahead_eligible_children(root))
+            while deadline is None or time.monotonic() < deadline:
+                coverage = self._root_lookahead_candidates(root)
+                if not coverage:
+                    break
+                self._run_root_lookahead_batch(coverage, request, counters)
+            self._extend_retry_paths(root, request, counters, deadline)
+            selected, ranked = self._final_select(root, request, counters, deadline)
+            return selected, ranked, FloorFillFallbackResult(
+                attempted=True, generated=generated, accepted=accepted, selected=selected is not None,
+            )
 
     def close(self) -> None:
         """Release worker pools and environments owned by search collaborators."""
@@ -697,6 +755,46 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             child.info["root_lookahead_attempted"] = True
             counters.root_lookahead_attempts += 1
 
+        self._run_continuation_batch(selected_children, request, counters)
+        counters.root_lookahead_generated += (
+            counters.generated_candidates - generated_before
+        )
+        counters.root_lookahead_evaluated += (
+            counters.evaluated_candidates - evaluated_before
+        )
+        return attempted
+
+    def _extend_retry_paths(self, root, request, counters, deadline) -> None:
+        """Give fresh retry roots the depth required by final selection."""
+        depth = min(
+            self.config.final_selection.validate_descendant_depth,
+            max(self.config.max_depth - 1, 0),
+        )
+        if depth <= 1 or self._final_selection_weight() <= 0.0:
+            return
+        frontier = root.evaluated_children()
+        for _ in range(depth):
+            expandable = [
+                node for node in frontier
+                if not node.children and can_expand(node, self.config)
+            ]
+            batch_size = self.config.evaluation_batch_size
+            for start in range(0, len(expandable), batch_size):
+                if deadline is not None and time.monotonic() >= deadline:
+                    return
+                self._run_continuation_batch(
+                    expandable[start : start + batch_size], request, counters
+                )
+            frontier = [
+                child for node in frontier for child in node.evaluated_children()
+            ]
+            if not frontier:
+                break
+
+    def _run_continuation_batch(self, children, request, counters) -> None:
+        """Expand and evaluate one level beneath independent parent nodes."""
+        selected_children = list(children)
+        evaluation_limit = self.config.evaluation_batch_size
         targets = self._allocate_generation_slots(
             selected_children,
             evaluation_limit - sum(
@@ -749,14 +847,6 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 self._back_up(child)
             else:
                 self._back_up(selected)
-
-        counters.root_lookahead_generated += (
-            counters.generated_candidates - generated_before
-        )
-        counters.root_lookahead_evaluated += (
-            counters.evaluated_candidates - evaluated_before
-        )
-        return attempted
 
     def _run_descendant_frontier_batch(
         self,

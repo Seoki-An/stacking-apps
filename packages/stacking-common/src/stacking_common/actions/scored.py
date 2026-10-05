@@ -7,6 +7,7 @@ platform package is imported. Tabletop continues to use its height-map sampler.
 
 from types import SimpleNamespace
 from collections import Counter
+from contextlib import contextmanager
 from dataclasses import asdict
 import random
 import time
@@ -19,6 +20,7 @@ from . import _scored_floor as floor
 from ._support_maps import bottom_height_kernel
 from .types import PlanarPlacement, PlacementFilterDecision
 from .generator import PlacementActionGenerator
+from .filtering import ActiveFloorFilter
 from stacking_common.search.types import ActionGenerationResult
 
 
@@ -48,6 +50,7 @@ class ScoredPlanarPoseSampler:
         if config.minimum_xy_separation != 0:
             raise ValueError("scored selection requires minimum_xy_separation: 0")
         self.floor_policy = floor_policy
+        self.relax_floor_fill = False
         self._active_floor = None
         self.inventory = inventory
         self.config = config
@@ -116,7 +119,7 @@ class ScoredPlanarPoseSampler:
                   for object_id, pose in sorted(state.object_poses.items())),
             height.shape, height.dtype.str, height.tobytes(),
             tuple(observation.height_map_xlim), tuple(observation.height_map_ylim),
-            self.config, repr(self.settings),
+            self.config, repr(self.settings), self.relax_floor_fill,
         )
         if context != self._score_context:
             self._scores.clear()
@@ -152,7 +155,8 @@ class ScoredPlanarPoseSampler:
             )
         scores = floor.score_xy_debug_map(view, self.state_view(state), object_index,
             scene_height_map=observation.scene_height_map, support_kernels=self._kernels[key],
-            active_floor=self._active_floor, state_map_bundle=self._state_map_bundle)
+            active_floor=self._active_floor, state_map_bundle=self._state_map_bundle,
+            relax_floor_fill=self.relax_floor_fill)
         self._scores[object_index] = (observation, scores)
         self._score_keys[object_index] = key
         self._sampled_scores.pop(object_index, None)
@@ -165,7 +169,8 @@ class ScoredPlanarPoseSampler:
             return ()
         view = self.view(state, observation)
         pools = [candidates]
-        if sampling_priority == "lower_floor_first" and state.placed_object_indices:
+        if (not self.relax_floor_fill and sampling_priority == "lower_floor_first"
+                and state.placed_object_indices):
             layer = (self._active_floor if self.floor_policy is not None
                      else floor.active_floor_context(view, self.state_view(state)))
             if layer is not None:
@@ -236,6 +241,25 @@ Python/NumPy RNGs. Retry offsets therefore do not skip a newly drawn prefix.
         super().__init__(**kwargs)
         self.rng = random.Random(self.planar_sampler.seed)
         self._sampling_calls = 0
+
+    @contextmanager
+    def floor_fill_fallback(self):
+        """Temporarily admit every floor after a strict root search exhausts."""
+        filters = self.filters
+        if not any(isinstance(item, ActiveFloorFilter) for item in filters):
+            yield False
+            return
+        previous = self.planar_sampler.relax_floor_fill
+        self.filters = tuple(
+            ActiveFloorFilter(item.policy, relaxed=True)
+            if isinstance(item, ActiveFloorFilter) else item for item in filters
+        )
+        self.planar_sampler.relax_floor_fill = True
+        try:
+            yield True
+        finally:
+            self.filters = filters
+            self.planar_sampler.relax_floor_fill = previous
 
     def generate_batch(self, states, observations, requests):
         if not (len(states) == len(observations) == len(requests)):

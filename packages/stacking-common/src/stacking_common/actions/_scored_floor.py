@@ -421,6 +421,7 @@ def score_xy_debug_map(
     active_floor: Optional[dict] = None,
     support_kernels: Optional[list[BottomHeightKernel]] = None,
     state_map_bundle: Optional[StateMapBundle] = None,
+    relax_floor_fill: bool = False,
 ) -> dict:
     if scene_height_map is None:
         scene_height_map = inventory.get_height_map(state)
@@ -493,7 +494,9 @@ def score_xy_debug_map(
         score_cfg.get("excavator_distance_axis", "xy")
     ).lower()
 
-    layer = active_floor if active_floor is not None else active_floor_context(inventory, state)
+    layer = None
+    if not relax_floor_fill:
+        layer = active_floor if active_floor is not None else active_floor_context(inventory, state)
     gap_labels = None
     gap_sizes: dict[int, int] = {}
     gap_centers: dict[int, np.ndarray] = {}

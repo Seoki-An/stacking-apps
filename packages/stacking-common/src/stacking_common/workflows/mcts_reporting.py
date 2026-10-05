@@ -197,6 +197,7 @@ def search_statistics(
         "root_validation": asdict(result.root_validation),
         "root_lookahead": asdict(result.root_lookahead),
         "root_retry": asdict(result.root_retry),
+        "floor_fill_fallback": asdict(result.floor_fill_fallback),
         "descendant_validation": {
             "attempts": result.descendant_validation_attempts,
             "failures": result.descendant_validation_failures,
@@ -432,6 +433,12 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
             f"retired={result.root_retry.retired}, "
             f"generated={result.root_retry.generated}, "
             f"kept={result.root_retry.accepted}"
+        )
+    if result.floor_fill_fallback.attempted:
+        fallback = result.floor_fill_fallback
+        print(
+            "[INFO] Floor-fill fallback: "
+            f"generated={fallback.generated}, kept={fallback.accepted}, selected={fallback.selected}"
         )
     if result.final_validation_timed_out:
         print(

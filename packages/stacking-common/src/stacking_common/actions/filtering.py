@@ -17,8 +17,9 @@ from .types import (
 class ActiveFloorFilter:
     """Apply the same floor policy as final validation, before simulation."""
 
-    def __init__(self, policy) -> None:
+    def __init__(self, policy, *, relaxed: bool = False) -> None:
         self.policy = policy
+        self.relaxed = relaxed
 
     def prepare_scene(self, inventory, state):
         return self.policy.context_details(state)
@@ -27,6 +28,11 @@ class ActiveFloorFilter:
         action = Action(object_index, solved.pose, initial.pose,
                         object_id=inventory[object_index].object_id)
         reason, diagnostics = self.policy.active_floor_rejection(state, action, context=scene_context)
+        if self.relaxed:
+            return PlacementFilterDecision.accept(
+                **diagnostics, floor_fill_fallback=True,
+                floor_fill_bypassed_reason=reason,
+            )
         if reason is not None:
             return PlacementFilterDecision.reject(f"active_floor_{reason}", **diagnostics)
         return PlacementFilterDecision.accept(**diagnostics)

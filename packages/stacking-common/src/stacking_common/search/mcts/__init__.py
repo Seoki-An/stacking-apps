@@ -5,6 +5,7 @@ from .config import FinalSelectionConfig, MCTSConfig, ProgressiveWideningConfig
 from .node import MCTSNode
 from .session import MCTSSession
 from .search import (
+    FloorFillFallbackResult,
     MCTSSearchRequest,
     MCTSSearchResult,
     MonteCarloTreeSearch,
@@ -24,6 +25,7 @@ from .tree_policy import (
 )
 
 __all__ = [
+    "FloorFillFallbackResult",
     "MCTSConfig",
     "FinalSelectionConfig",
     "MCTSNode",
