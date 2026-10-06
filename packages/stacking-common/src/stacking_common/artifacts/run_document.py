@@ -437,15 +437,17 @@ class StackRunStore:
             return tuple(selected)
 
     @staticmethod
-    def load_planning_checkpoint(path: str | Path) -> PlanningCheckpoint:
-        """Load the latest committed restart state; never infer it from a viewer."""
+    def load_planning_checkpoint(path: str | Path, step: int | None = None) -> PlanningCheckpoint:
+        """Load a committed restart state, the latest by default; never infer it from a viewer."""
         with _open_reader(Path(path)) as connection:
             connection.execute("BEGIN")
             steps = _planned_steps(connection)
             if not steps:
                 raise ValueError("run has no committed planning step")
+            if step is not None and step not in steps:
+                raise ValueError(f"run has no committed planning step {step}")
             checkpoint = decode_planning_checkpoint(_read_record(
-                connection, "planning_checkpoint", str(max(steps)),
+                connection, "planning_checkpoint", str(max(steps) if step is None else step),
             ))
             context = _load_context(connection, checkpoint.context_sha256)
             if context.frame_id != checkpoint.world_T_stack.parent_frame:

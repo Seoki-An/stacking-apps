@@ -294,5 +294,8 @@ def test_debug_cli_captures_and_resumes_planning_checkpoint(monkeypatch, tmp_pat
     monkeypatch.setattr(sys, "argv", [*common, "--resume-run", str(source), "--save-run", str(destination), "--steps", "1"])
     module.main()
     assert StackRunStore.load_planning_checkpoint(destination).step == 2
+    assert StackRunStore.load_planning_checkpoint(destination, step=1).step == 1
+    with pytest.raises(ValueError, match="no committed planning step 3"):
+        StackRunStore.load_planning_checkpoint(destination, step=3)
     assert [item.step for item in StackRunStore.load_committed_placement_plans(destination)] == [1, 2]
     assert hashlib.sha256(source.read_bytes()).hexdigest() == before
