@@ -119,6 +119,8 @@ Ordinary depth-two-and-deeper search uses PMBS-style global PUCT selection
 with temporary virtual visits and distinct action reservations. See
 [MCTS batching](docs/mcts-batching.md) for the algorithm, serial baseline,
 and differences from the PMBS paper.
+The [current MCTS strategy](docs/mcts-strategy.md) summarizes CPU/CUDA settings,
+value backup, final validation, continuation repair, root retries, and tree reuse.
 Add `--plan-motion` to pass every selected placement through the configured
 native grasp and motion planner. For a short end-to-end smoke run:
 

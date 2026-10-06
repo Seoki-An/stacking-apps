@@ -1589,6 +1589,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         path_scores = self._final_path_scores(
             candidates, request, counters, deadline
         )
+        self._repair_descendant_paths(candidates, path_scores, request, counters, deadline)
         scored = []
         for child in candidates:
             score = self._final_root_score(child, path_scores.get(child))
@@ -1603,6 +1604,96 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         scored.sort(key=lambda pair: pair[1], reverse=True)
         ranked_candidates = tuple(child for child, _ in scored)
         return ranked_candidates[0], ranked_candidates
+
+    def _repair_descendant_paths(self, candidates, scores, request, counters, deadline):
+        """Repair missing paths before excluding physically valid root actions.
+
+        Each round admits at most one evaluation batch. Existing generation
+        attempt limits still apply; failed children stay attached so proposal
+        offsets and rejection evidence are retained.
+        """
+        selection = self.config.final_selection
+        fidelity = request.final_validation_fidelity
+        depth = min(selection.validate_descendant_depth, self.config.max_depth - 1)
+        if (depth <= 0 or self._final_selection_weight() <= 0.0
+                or not selection.validate_descendant_path
+                or not selection.require_validated_descendant or fidelity is None):
+            return
+
+        def unvalidated(node):
+            return [child for child in node.selectable_children()
+                    if not self._is_authoritative(child, fidelity)]
+
+        def path_return(node, remaining):
+            if not node.selectable or not self._is_authoritative(node, fidelity):
+                return None
+            if remaining <= 0 or node.terminal:
+                return float(node.reward)
+            tails = [path_return(child, remaining - 1)
+                     for child in node.evaluated_children()]
+            tails = [value for value in tails if value is not None]
+            return node.reward + self.config.discount * max(tails) if tails else None
+
+        def frontier(node, remaining):
+            if remaining <= 0 or node.terminal:
+                return []
+            result = []
+            for child in sorted(node.evaluated_children(),
+                                key=self._mean_root_score, reverse=True):
+                if self._is_authoritative(child, fidelity):
+                    result.extend(frontier(child, remaining - 1))
+            if result:
+                return result
+            if unvalidated(node) or can_expand(node, self.config):
+                result.append(node)
+            return result
+
+        previous_deadline = counters.generation_deadline
+        counters.generation_deadline = deadline
+        try:
+            for _ in range(self.config.expansion_retry_batches * depth):
+                if deadline is not None and time.monotonic() >= deadline:
+                    counters.final_validation_timed_out = True
+                    break
+                missing = [child for child in candidates
+                           if scores.get(child) is None and child.selectable
+                           and self._is_authoritative(child, fidelity)]
+                if not missing:
+                    break
+                # Interleave roots so one large subtree cannot take every slot.
+                queues = [frontier(child, depth) for child in missing]
+                parents = []
+                limit = self.config.evaluation_batch_size
+                while len(parents) < limit and any(queues):
+                    for queue in queues:
+                        if queue and len(parents) < limit:
+                            parents.append(queue.pop(0))
+                if not parents:
+                    break
+                pending = [child for parent in parents for child in unvalidated(parent)]
+                targets = self._allocate_generation_slots(
+                    [parent for parent in parents if not unvalidated(parent)],
+                    max(limit - len(pending), 0),
+                )
+                self._expand_many(list(targets), counters, request.deeper_sampling_priority,
+                                  request, new_candidate_targets=targets)
+                pending = [child for parent in parents for child in unvalidated(parent)]
+                batch_size = self._authoritative_batch_size()
+                for start in range(0, min(len(pending), limit), batch_size):
+                    if deadline is not None and time.monotonic() >= deadline:
+                        counters.final_validation_timed_out = True
+                        break
+                    batch = pending[start : min(start + batch_size, limit)]
+                    evaluations = self._evaluate_authoritative(
+                        batch, fidelity, request, counters
+                    )
+                    counters.descendant_validation_attempts += len(evaluations)
+                    counters.descendant_validation_failures += sum(e.failed for e in evaluations)
+                    for node in batch:
+                        self._back_up(node)
+                scores.update((child, path_return(child, depth)) for child in missing)
+        finally:
+            counters.generation_deadline = previous_deadline
 
     def _evaluate_authoritative(
         self,
