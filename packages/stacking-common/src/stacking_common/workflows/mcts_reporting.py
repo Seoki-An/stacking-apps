@@ -438,7 +438,8 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
         fallback = result.floor_fill_fallback
         print(
             "[INFO] Floor-fill fallback: "
-            f"generated={fallback.generated}, kept={fallback.accepted}, selected={fallback.selected}"
+            f"pools={fallback.pools}, generated={fallback.generated}, "
+            f"kept={fallback.accepted}, selected={fallback.selected}"
         )
     if result.final_validation_timed_out:
         print(

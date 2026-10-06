@@ -1491,7 +1491,7 @@ def test_floor_fallback_finds_valid_placement_after_strict_exhaustion(reject_flo
     assert all(f is EvaluationFidelity.LONG for _, f in evaluator.calls)
     saved = search_statistics(result, 0., search, step=1)
     assert saved['floor_fill_fallback'] == {
-        'attempted': True, 'generated': 2, 'accepted': 2, 'selected': True,
+        'attempted': True, 'pools': 1, 'generated': 2, 'accepted': 2, 'selected': True,
     }
     if not reject_floor:
         assert result.root_retry.rounds == 2
@@ -1518,6 +1518,7 @@ def test_floor_fallback_preserves_physics_and_required_continuations(fail_descen
     assert result.selected is None
     assert result.floor_fill_fallback.attempted
     assert not result.floor_fill_fallback.selected
+    assert result.floor_fill_fallback.pools == 3  # First pool plus two retry pools.
     assert not generator.relaxed
     if fail_descendants:
         # Relaxed-floor descendants fail at short search fidelity, so none is
@@ -1554,3 +1555,42 @@ def test_next_placement_rebuilds_relaxed_continuations_under_strict_policy():
     assert generator.calls[calls_before][0] is False
     assert all(child.parent is None for child in retained)
     assert second.floor_fill_fallback.attempted
+
+
+def test_floor_fallback_retries_fresh_pools_until_one_qualifies():
+    class Generator(_FloorFallbackGenerator):
+        relaxed_pools = 0
+        excluded = None
+
+        def begin_retry(self, excluded_actions):
+            super().begin_retry(excluded_actions)
+            if self.relaxed:
+                self.relaxed_pools += 1
+                self.excluded = tuple(excluded_actions)
+
+        def generate(self, state, observation, request):
+            result = super().generate(state, observation, request)
+            for candidate in result.candidates:
+                candidate.action.diagnostics['relaxed_pool'] = self.relaxed_pools
+            return result
+
+    class Evaluator(_FloorFallbackEvaluator):
+        def evaluate(self, state, action, fidelity):
+            result = super().evaluate(state, action, fidelity)
+            if action.diagnostics.get('relaxed_pool') != 1:
+                return result
+            # Every candidate of the first relaxed pool fails physically.
+            result.state.failed = True
+            return TransitionEvaluation(result.state, (), -1., fidelity, failed=True,
+                                        rejection_reason='target_motion_limit')
+
+    generator = Generator()
+    result = _floor_fallback_search(generator, Evaluator()).search(
+        MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
+            final_validation_fidelity=EvaluationFidelity.LONG))
+    assert result.selected is not None
+    assert result.selected.action.diagnostics['relaxed_pool'] == 2
+    assert result.floor_fill_fallback.pools == 2 and result.floor_fill_fallback.selected
+    # The second pool excludes every candidate of the first.
+    assert generator.excluded and all(
+        action.diagnostics['relaxed_pool'] == 1 for action in generator.excluded)

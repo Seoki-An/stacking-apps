@@ -7,7 +7,7 @@ initialization:
 filtering:
   posegen_gap_threshold: 0.005
   posegen_equilibrium_threshold: 1.0
-  # Prefer this restriction; exhausted search retries once without floor-fill gates.
+  # Prefer this restriction; exhausted search retries without floor-fill gates.
   strict_floor_first: true
   require_solver_convergence: false
   reject_equilibrium_at_threshold: true
@@ -23,7 +23,7 @@ floor:
   # Advance at fill_ratio coverage of the base in top-down projection.
   coverage_mode: projected_footprint
   bottom_tolerance: 0.2
-  fill_ratio: 0.6
+  fill_ratio: 0.75
   grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.
   max_layers: 8
   minimum_contact_cells: 1

@@ -173,6 +173,7 @@ class FloorFillFallbackResult:
     """Outcome of the final attempt with relaxed floor filling."""
 
     attempted: bool = False
+    pools: int = 0
     generated: int = 0
     accepted: int = 0
     selected: bool = False
@@ -568,7 +569,11 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         )
 
     def _run_floor_fill_fallback(self, root, request, counters, deadline):
-        """Try one unrestricted-floor root pool within the original deadline."""
+        """Try unrestricted-floor root pools within the original deadline.
+
+        After the first pool, up to rejected_root_retry_rounds fresh pools run,
+        each excluding earlier candidates, until one yields a selection.
+        """
         relax = getattr(self.action_generator, "floor_fill_fallback", None)
         if (not callable(relax) or request.final_validation_fidelity is None
                 or (deadline is not None and time.monotonic() >= deadline)):
@@ -581,25 +586,43 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             # previously excluded poses may work with relaxed descendant floors.
             root.clear_children()
             begin_retry = getattr(self.root_action_generator, "begin_retry", None)
-            if callable(begin_retry):
-                begin_retry(())
             counters.generation_deadline = deadline
-            generated_before = counters.generated_candidates
-            accepted_before = counters.root_validation_attempts - counters.root_validation_failures
-            self._prepare_authoritative_root(root, request, counters, deadline)
-            generated = counters.generated_candidates - generated_before
-            accepted = (counters.root_validation_attempts - counters.root_validation_failures
-                        - accepted_before)
-            counters.root_lookahead_eligible += len(self._root_lookahead_eligible_children(root))
-            while deadline is None or time.monotonic() < deadline:
-                coverage = self._root_lookahead_candidates(root)
-                if not coverage:
+            excluded = []
+            selected, ranked, pools, generated, accepted = None, (), 0, 0, 0
+            for pool in range(self.config.rejected_root_retry_rounds + 1):
+                if pool:
+                    if deadline is not None and time.monotonic() >= deadline:
+                        break
+                    retired = root.retire_failed_children()
+                    cem = getattr(self.root_action_generator, "last_statistics", None)
+                    if not retired and (cem is None or cem.fresh_exhausted):
+                        break
+                    if not retired:
+                        root.expansion_attempts = 0
+                        root.expansion_exhausted = False
+                if callable(begin_retry):
+                    begin_retry(tuple(excluded))
+                pools += 1
+                generated_before = counters.generated_candidates
+                accepted_before = counters.root_validation_attempts - counters.root_validation_failures
+                self._prepare_authoritative_root(root, request, counters, deadline)
+                generated += counters.generated_candidates - generated_before
+                accepted += (counters.root_validation_attempts - counters.root_validation_failures
+                             - accepted_before)
+                counters.root_lookahead_eligible += len(self._root_lookahead_eligible_children(root))
+                while deadline is None or time.monotonic() < deadline:
+                    coverage = self._root_lookahead_candidates(root)
+                    if not coverage:
+                        break
+                    self._run_root_lookahead_batch(coverage, request, counters)
+                self._extend_retry_paths(root, request, counters, deadline)
+                excluded.extend(child.action for child in root.children if child.action is not None)
+                selected, ranked = self._final_select(root, request, counters, deadline)
+                if selected is not None:
                     break
-                self._run_root_lookahead_batch(coverage, request, counters)
-            self._extend_retry_paths(root, request, counters, deadline)
-            selected, ranked = self._final_select(root, request, counters, deadline)
             return selected, ranked, FloorFillFallbackResult(
-                attempted=True, generated=generated, accepted=accepted, selected=selected is not None,
+                attempted=True, pools=pools, generated=generated, accepted=accepted,
+                selected=selected is not None,
             )
 
     def close(self) -> None:

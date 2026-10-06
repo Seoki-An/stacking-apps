@@ -47,10 +47,10 @@ parallel:
   workers: 4
 root_cem:
   population: 96
-  elite: 24
+  elite: 32
   iterations: 3
   keep: 32
-  mutation_xy_std: 0.1
+  mutation_xy_std: 0.2
   mutation_yaw_std_degrees: 5.0
   fresh_fraction: 0.5
   duplicate_xy_threshold: 0.03

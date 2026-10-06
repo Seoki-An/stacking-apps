@@ -25,7 +25,8 @@ execution workflows, and historical benchmarks.
 5. Rank root candidates provisionally and validate their required descendant
    paths. Repair missing paths within bounded additional work.
 6. If no candidate qualifies, retry root generation, search continuations, and
-   repeat final selection within the remaining deadline.
+   repeat final selection within the remaining deadline. If retries also fail,
+   relax floor-first sampling and try a few fresh root pools.
 7. Select the highest final score. In search-only mode, promote that node to the
    next root. The motion-planning workflow additionally checks executability.
 
@@ -209,6 +210,14 @@ long-validate fresh placements. Initial lookahead plus retry depth extension
 builds continuations to the required depth before final selection and repair
 run again. Increasing root retry rounds alone does not improve alternatives
 when some root already qualifies.
+
+**The floor-fill fallback runs only if root retries also select nothing.** It
+relaxes `lower_floor_first` for both root and deeper sampling, then repeats root
+preparation, lookahead, retry depth extension, and final selection on fresh root
+pools. After the first pool, up to `rejected_root_retry_rounds` further pools
+each exclude every earlier candidate. The fallback stops at the first
+selection, when CEM has no fresh proposals, or at the original overall
+deadline. Saved statistics record its pool, generated, and accepted counts.
 
 `missing_validated_descendant` means no qualifying continuation was found within
 these limits. It does not prove the immediate placement is physically invalid

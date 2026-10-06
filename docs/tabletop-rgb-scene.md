@@ -636,3 +636,29 @@ and identify**, or its existing-capture counterpart. The result viewer and
 workbench handoff accept the learned pose source while retaining provenance and
 sensor checks. This change favors the observed synthetic pose accuracy; it does
 not claim a speed gain or verified 1-mm real-world accuracy.
+
+### Inspect saved RGB point clouds with Open3D
+
+The manual viewer opens the colored exports from `hand_eye_rgb_review_001`:
+
+```bash
+# Real wrist capture, including the table
+python apps/tabletop/scripts/view_rgb_scene.py
+
+# Real stones only
+python apps/tabletop/scripts/view_rgb_scene.py --stones-only
+
+# Synthetic stacked scene
+python apps/tabletop/scripts/view_rgb_scene.py --scene stack --stones-only
+
+# Any other saved colored PCD or PLY
+python apps/tabletop/scripts/view_rgb_scene.py /path/to/scene_rgb.ply
+```
+
+Drag to rotate, scroll to zoom, Shift+drag to pan, and press **Q** to close.
+Run from a graphical desktop using the project Python with Open3D installed.
+Add `--check-only` to validate the data without opening a window. The script
+preserves point coordinates and stored RGB values; it does not start hardware
+or rerun reconstruction. Presets refer to local generated exports, which are
+not committed. An explicit path works with any existing colored point cloud;
+XYZ-only files are rejected with a message explaining which export to use.
