@@ -59,9 +59,9 @@ class Evaluator:
         return self.evaluate_batch([state], [action], fidelity)[0]
 
     def evaluate_batch(self, states, actions, fidelity):
-        self.calls.append(tuple((tuple(s.placed_object_indices), a.pose[0])
-                                for s, a in zip(states, actions)))
-        assert fidelity is EvaluationFidelity.LONG
+        # Repair screens new children at short fidelity; both use one rule.
+        self.calls.append((fidelity, tuple((tuple(s.placed_object_indices), a.pose[0])
+                                           for s, a in zip(states, actions))))
         results = []
         for state, a in zip(states, actions):
             new = state.copy()
@@ -129,8 +129,11 @@ def test_repairs_roots_even_when_another_candidate_already_has_a_valid_path():
     assert set(ranked) == {ready, *missing}
     assert counters.generation_deadline == 12.0
     assert {call[0] for call in generator.calls} == {(3, 5), (4, 5)}
-    assert len(evaluator.calls) == 2  # One shared rejection batch, one repair batch.
-    assert all(len(batch) == 2 for batch in evaluator.calls)
+    long = [batch for fidelity, batch in evaluator.calls if fidelity is EvaluationFidelity.LONG]
+    short = [batch for fidelity, batch in evaluator.calls if fidelity is EvaluationFidelity.SHORT]
+    assert len(long) == 2  # One shared rejection batch, one repair batch.
+    assert len(short) == 1  # New repair children are screened together first.
+    assert all(len(batch) == 2 for batch in long + short)
     for node, prefix, rejected in zip(missing, retained, failed):
         assert node.children[0] is prefix
         assert rejected in prefix.children and rejected.failed
@@ -148,13 +151,15 @@ def test_repair_builds_two_levels_when_no_continuation_exists():
 
 
 def test_failed_repair_is_bounded_without_a_deadline():
-    root, generator, _, search, request = setup(evaluator=Evaluator(fail_all=True), rounds=2)
+    root, generator, evaluator, search, request = setup(evaluator=Evaluator(fail_all=True), rounds=2)
     candidate = child(root, 0)
     selected, _ = search._final_select(root, request, _SearchCounters())
     assert selected is None
     assert candidate.rejection_reason == "missing_validated_descendant"
     assert len(generator.calls) == 4  # Two rounds per required descendant level.
     assert [offset for _, offset, _ in generator.calls] == [0, 1, 2, 3]
+    # Every generated child fails short screening, so none reaches long validation.
+    assert [fidelity for fidelity, _ in evaluator.calls] == [EvaluationFidelity.SHORT] * 4
 
 
 @pytest.mark.parametrize("blocked", ["physical_failure", "exhausted", "attempt_limit"])

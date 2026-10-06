@@ -1349,13 +1349,11 @@ def test_descendant_validation_batches_roots_and_keeps_serial_order() -> None:
     assert scores == {0: 3.0, 1: 8.0}
 
 
-@pytest.mark.parametrize(("long_failures", "batches", "path_return"), [
-    ((), [1], 9.0),            # The known child passes; the short failure is never validated.
-    (((0, 1),), [1, 1], 3.0),  # It fails, so the walk reaches and validates the short failure.
+@pytest.mark.parametrize(("long_failures", "path_return"), [
+    ((), 9.0),        # The known child passes and forms the path.
+    (((0, 1),), None),  # It fails; the short failure is not retried, so no path remains.
 ])
-def test_descendant_validation_defers_children_without_known_returns(
-    long_failures, batches, path_return,
-) -> None:
+def test_descendant_validation_skips_children_that_failed_short(long_failures, path_return) -> None:
     class Evaluator(_BatchedLongEvaluator):
         def _result(self, state, action, fidelity):
             result = super()._result(state, action, fidelity)
@@ -1396,8 +1394,12 @@ def test_descendant_validation_defers_children_without_known_returns(
         iterations=1, reset_statistics=False,
         final_validation_fidelity=EvaluationFidelity.LONG))
 
-    assert evaluator.batches == batches
-    assert result.selected.info["validated_descendant_path_return"] == path_return
+    assert evaluator.batches == [1]  # The short-failed child is never long-validated.
+    if path_return is None:
+        assert result.selected is None
+        assert child.rejection_reason == "missing_validated_descendant"
+    else:
+        assert result.selected.info["validated_descendant_path_return"] == path_return
 
 
 class _FloorFallbackGenerator(_RemainingObjectGenerator):
@@ -1518,7 +1520,10 @@ def test_floor_fallback_preserves_physics_and_required_continuations(fail_descen
     assert not result.floor_fill_fallback.selected
     assert not generator.relaxed
     if fail_descendants:
-        assert result.descendant_validation_failures > 0
+        # Relaxed-floor descendants fail at short search fidelity, so none is
+        # revalidated long.
+        assert (True, EvaluationFidelity.SHORT) in evaluator.calls
+        assert result.descendant_validation_failures == 0
     else:
         assert result.floor_fill_fallback.accepted == 0
 

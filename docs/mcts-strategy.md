@@ -105,7 +105,9 @@ them backup visits.
 ## Simulation and value backup
 
 Search normally uses short simulation; root preparation, descendant validation,
-and repair use long simulation. Both fidelities use the selected simulation
+and repair use long simulation. Repair first simulates newly generated children
+at short fidelity and long-validates only those that pass. Both fidelities use
+the selected simulation
 backend, including CUDA when configured. Long validation is not synonymous
 with CPU fallback. It includes the configured physical and placement-robustness
 checks.
@@ -163,7 +165,8 @@ simulation and bootstrap estimates; it is not entirely recomputed from long
 validation results.
 
 `validate_descendant_path: true` re-simulates necessary descendants at final
-validation fidelity, reusing results already marked authoritative. If validation
+validation fidelity, reusing results already marked authoritative. Children that
+already failed at search fidelity are not re-simulated. If validation
 changes a node's state beyond `max_state_drift`, its descendants are cleared.
 The current drift metric is maximum translational displacement among objects
 common to both states.
@@ -183,8 +186,8 @@ final score.
 
 Repair preserves validated prefixes and first seeks work beneath the deepest
 available valid states. It interleaves work across affected roots, generates
-replacement children, long-validates them in batches, and backs up the new
-results. It retains failed children and proposal offsets rather than repeatedly
+replacement children, screens them at short search fidelity, long-validates the
+children that pass in batches, and backs up the new results. It retains failed children and proposal offsets rather than repeatedly
 starting generation from the same position.
 
 Each final-selection pass permits at most:

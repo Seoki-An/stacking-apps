@@ -1608,7 +1608,8 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
     def _repair_descendant_paths(self, candidates, scores, request, counters, deadline):
         """Repair missing paths before excluding physically valid root actions.
 
-        Each round admits at most one evaluation batch. Existing generation
+        Each round admits at most one evaluation batch of children, screened at
+        short search fidelity before long validation. Existing generation
         attempt limits still apply; failed children stay attached so proposal
         offsets and rejection evidence are retained.
         """
@@ -1677,6 +1678,15 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 )
                 self._expand_many(list(targets), counters, request.deeper_sampling_priority,
                                   request, new_candidate_targets=targets)
+                # Simulate never-evaluated children at short search fidelity first;
+                # nearly all failures are caught there, at lower cost, and only
+                # children that pass reach long validation.
+                unscreened = [
+                    child for parent in parents for child in parent.pending_children()
+                    if self._tree_fidelity(child.depth, request) is EvaluationFidelity.SHORT
+                ][:limit]
+                if unscreened and (deadline is None or time.monotonic() < deadline):
+                    self._evaluate_many(unscreened, EvaluationFidelity.SHORT, counters)
                 pending = [child for parent in parents for child in unvalidated(parent)]
                 batch_size = self._authoritative_batch_size()
                 for start in range(0, min(len(pending), limit), batch_size):
@@ -1824,7 +1834,8 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         are validated together, ahead of need, but the walk still takes the
         first child that passes in the same order: evaluations are independent,
         so the selected path is the one a one-child-at-a-time walk finds.
-        Children without a known path return are deferred until reached.
+        Children without a known path return are deferred until reached, and
+        children that failed at search fidelity are skipped.
         """
         if node.failed:
             return None
@@ -1840,9 +1851,13 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         )
         if fidelity is None:
             return self._known_descendant_return(node, remaining_depth)
-        children = [child for child in children if child.action is not None]
+        # Children that already failed at search fidelity are not revalidated.
+        children = [
+            child for child in children
+            if child.action is not None and child.selectable
+        ]
         # Children with a known path return sort first. They are validated
-        # together; the rest, which usually fail, only when the walk reaches them.
+        # together; the rest only when the walk reaches them.
         known = [
             math.isfinite(self._sortable_path_return(child, remaining_depth - 1))
             for child in children
