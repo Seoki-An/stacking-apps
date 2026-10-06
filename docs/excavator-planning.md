@@ -1492,6 +1492,53 @@ seconds, with the same selected candidate. Short-fidelity failures still pass
 long validation occasionally (12 of 184 in the earlier run), so they are
 deferred, not skipped.
 
+When strict descendant validation cannot find a path, final selection now tries
+to repair it before rejecting the root candidate. This also runs when another
+root already has a valid path. Repair preserves authoritative states and expands
+the deepest available valid prefixes first, sharing replacement work across
+affected roots. Replacements go directly through long validation; acceptance
+thresholds and the required descendant depth do not change.
+
+Each final-selection pass allows at most
+`generation.expansion_retry_batches * required_descendant_depth` repair rounds,
+with at most `generation.evaluation_batch_size` transition evaluations per round.
+The depth is capped by the remaining tree depth. Existing widening, per-node
+generation-attempt limits, and generator exhaustion remain in effect. Repair
+uses the remaining overall search deadline, including the validation reserve;
+it checks the deadline before generation and each validation batch. An in-flight
+native batch can finish after that deadline. Already validated root paths remain
+available if repair runs out of time. No new configuration keys are needed.
+
+
+### CUDA simulation constraint solver
+
+A whole-search Nsight trace attributed most GPU time to the per-step constraint
+`solve` kernel: one 256-thread block per job, about 60 blocks per launch on a
+36-SM GPU. GPU performance counters were unavailable, so a temporary build timed
+each ADMM iteration's phases with `clock64` at the block barriers:
+
+| Phase, cycles per iteration | Before | After |
+| --- | ---: | ---: |
+| Contact projection | 8758 | 8768 |
+| Body velocity solves | 6001 | 3437 |
+| Auxiliary and dual updates | 3053 | 3089 |
+| Reduction and status | 1571 | 1481 |
+
+Lane 0 now solves each body's 6x6 triangular systems in registers rather than
+shared memory, with the same operations in the same order. One block barrier
+per iteration is removed after the reduction, and contact queries use 16 blocks
+per job instead of 4. A diagnostic build without the iterative 4D friction
+projection showed that projection costs about 25% of each iteration; its
+sequential Newton/bisection solve has no bit-identical faster form. `sincosf`
+changed results and was rejected.
+
+All 14 placement batches captured from a 1024-iteration search (1275 short and
+long placements) replay with identical results; native simulation time fell from
+32.10 to 27.75 seconds. The full search with the current profile went from 84.69
+to 80.53 seconds (15.06 to 15.83 evaluated nodes/s) with the same ordered tree
+hash and selected candidate. Measurements are in the
+[simulation solver benchmark](benchmarks/excavator-cuda-simulation-solver.json).
+
 
 ### Floor-fill fallback after search exhaustion
 

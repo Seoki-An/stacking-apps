@@ -1,0 +1,133 @@
+{
+ "date": "2026-10-05",
+ "method": "Replay of all 14 CUDA place_batch calls (1275 placements, short and long fidelity) captured from a 1024-iteration nine-stone search with mcts_cuda.yml; digest over every PlacementResult field except wall-clock diagnostics. Phase cycles come from a temporary clock64 build (block thread 0 at each barrier); GPU performance counters were unavailable (ERR_NVGPUCTRPERM). End-to-end rows: seed 0, current mcts_cuda.yml (1024 iterations, max_depth 4, descendant validation depth 2), idle machine.",
+ "solve_cycles_per_admm_iteration": {
+  "baseline": {
+   "proj": 8758,
+   "vel": 6001,
+   "auxdual": 3053,
+   "reduce": 817,
+   "status": 754,
+   "rescale": 202
+  },
+  "register_triangular_solve": {
+   "proj": 8810,
+   "vel": 3438,
+   "auxdual": 3073,
+   "reduce": 822,
+   "status": 757,
+   "rescale": 203
+  },
+  "plus_one_fewer_barrier": {
+   "proj": 8768,
+   "vel": 3437,
+   "auxdual": 3089,
+   "reduce": 754,
+   "status": 727,
+   "rescale": 203
+  },
+  "diagnostic_without_4d_projection_iterations": {
+   "note": "Physics invalid; timing only.",
+   "proj": 4503,
+   "vel": 2531,
+   "auxdual": 2476,
+   "reduce": 700,
+   "status": 826,
+   "rescale": 61
+  }
+ },
+ "kept": [
+  "velocity(): lane 0 solves the 6x6 triangular systems in registers (same operations and order) instead of shared memory",
+  "solve(): one barrier fewer per ADMM iteration after the block reduction",
+  "simulation_contacts: 16 blocks per job instead of 4 (independent queries)"
+ ],
+ "rejected": [
+  {
+   "change": "sincosf in project_limit",
+   "reason": "changed results (digest b8c1c1ac...)"
+  },
+  {
+   "change": "gather incidence terms before summing",
+   "reason": "identical results, no measurable gain"
+  },
+  {
+   "change": "32 contact-query blocks per job",
+   "reason": "no gain over 16"
+  }
+ ],
+ "replay": {
+  "digest": "f4f01dbc1546fea64ef81335be0293fe551e72e72dec8be2478c563f199e5c23",
+  "native_seconds_best_of_3": {
+   "before": 32.1,
+   "after": 27.75
+  }
+ },
+ "end_to_end": {
+  "before": {
+   "seconds": 84.68688778800424,
+   "evaluated_per_second": 15.055459390498486,
+   "short_batch_wall_seconds": 37.25918927276507,
+   "long_batch_wall_seconds": 14.317966692964546,
+   "native_simulation_seconds": {
+    "settling": 3.418,
+    "structural": 18.957,
+    "robustness": 9.667
+   },
+   "tree_sha256": "6120c7aa595389eb58d21e557a615d8efc82d79a0e04a7ce685da534e6d9b288",
+   "selected": {
+    "object_id": 5,
+    "pose": [
+     0.45532503724098206,
+     -0.7795679569244385,
+     0.9405267834663391,
+     -0.08233621746911632,
+     0.28284016776855636,
+     -0.650748554014124,
+     0.6998203385427292
+    ],
+    "reward": 4.9081550033285195,
+    "target_IoU": 0.14389224210231213,
+    "selectable": true
+   },
+   "core_native_sha256": "94a9d285cc249b35d7fa1160a86d44d067636aa6930b4e3b6f3d3fe3613cec3a"
+  },
+  "after": {
+   "seconds": 80.52644841605797,
+   "evaluated_per_second": 15.833307255926975,
+   "short_batch_wall_seconds": 34.172818561899476,
+   "long_batch_wall_seconds": 13.331771276891232,
+   "native_simulation_seconds": {
+    "settling": 3.06,
+    "structural": 16.169,
+    "robustness": 8.674
+   },
+   "tree_sha256": "6120c7aa595389eb58d21e557a615d8efc82d79a0e04a7ce685da534e6d9b288",
+   "selected": {
+    "object_id": 5,
+    "pose": [
+     0.45532503724098206,
+     -0.7795679569244385,
+     0.9405267834663391,
+     -0.08233621746911632,
+     0.28284016776855636,
+     -0.650748554014124,
+     0.6998203385427292
+    ],
+    "reward": 4.9081550033285195,
+    "target_IoU": 0.14389224210231213,
+    "selectable": true
+   },
+   "core_native_sha256": "cc9ee25552fa594ea0607bf602867532b89639c9e095ae00bea549ad33f25bc6"
+  }
+ },
+ "validation": {
+  "native_ctest": "47/47 passed",
+  "stacking_core_python": 39,
+  "stacking_apps_full_suite": {
+   "passed": 1246,
+   "failed": 9,
+   "errors": 19,
+   "note": "Same pre-existing failures."
+  }
+ }
+}
