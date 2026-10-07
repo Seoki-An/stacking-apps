@@ -16,24 +16,19 @@ planar:
   yaw_angles_degrees: [0, 90, 180, 270]
   minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.
   target_anchor_inset_scale: 0.6
-orientation:
-  pose_from_scan: false
-  roll_angles_degrees: [0, 180]
-floor:
-  # Advance at fill_ratio coverage of the base in top-down projection.
-  coverage_mode: projected_footprint
-  bottom_tolerance: 0.2
-  fill_ratio: 0.75
-  grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.
-  max_layers: 8
-  minimum_contact_cells: 1
-  score_weights: [-3.0, 2.0, 1.0, 2.0, 1.0, 1.5]
-scored_sampling:
-  # Active score-mode settings from stacking-planner agent/configs/ablation.yml.
+  floor:
+    # Advance at fill_ratio coverage of the base in top-down projection.
+    coverage_mode: projected_footprint
+    bottom_tolerance: 0.2
+    fill_ratio: 0.75
+    grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.
+    max_layers: 8
+    minimum_contact_cells: 1
   boltzmann_temperature: 0.3
   boltzmann_min_probability: 0.0
   target_mask_margin: 0.0
   contact_gap_tolerance: 0.10
+  # The only proposal-score weights. Edit these named values for ablations.
   score:
     height: -3.0
     support_likelihood: 2.0
@@ -46,6 +41,7 @@ scored_sampling:
     excavator_xy: null
     elite_fraction: 0.25
   floor_fill:
+    # Legacy proposal-kernel settings; planar.floor owns the shared layer rules.
     connected_after: 1
     u_shape_filter: false
     u_shape_footprint_scale: 0.9
@@ -54,4 +50,6 @@ scored_sampling:
     lower_floor_occupancy_grid: 16
     lower_floor_bottom_z_tolerance: 0.2
     lower_floor_max_layers: 8
-    lower_floor_fill_reject_stacked: false
+orientation:
+  pose_from_scan: false
+  roll_angles_degrees: [0, 180]

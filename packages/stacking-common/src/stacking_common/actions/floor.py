@@ -15,7 +15,6 @@ class ActiveFloorPolicy:
         self, inventory: ObjectInventory, *, bottom_tolerance: float,
         fill_ratio: float, grid_size: int, max_layers: int,
         minimum_contact_cells: int,
-        score_weights: tuple[float, float, float, float, float, float],
         coverage_mode: str = "bottom_slice",
     ) -> None:
         if not np.isfinite(bottom_tolerance) or bottom_tolerance <= 0:
@@ -31,9 +30,6 @@ class ActiveFloorPolicy:
         self.grid_size = int(grid_size)
         self.max_layers = int(max_layers)
         self.minimum_contact_cells = int(minimum_contact_cells)
-        if len(score_weights) != 6 or not np.all(np.isfinite(score_weights)):
-            raise ValueError("floor scoring requires six finite weights")
-        self.score_weights = tuple(float(value) for value in score_weights)
         # Search states share most placed stones with their parents. Entries and
         # masks are pure functions of (object, exact pose), so they are reused;
         # cached arrays are read-only.
@@ -286,100 +282,6 @@ def _volume_columns(normals, offsets, xx, yy):
     return inside, column_lower, column_upper
 
 
-class FloorProposalRanker:
-    """Orientation-aware footprint support and open-floor frontier scoring.
-
-    Rasterize each orientation once, then translate its sparse footprint over
-    the scene grid. This avoids a convex-volume query for every grid anchor.
-    These are proposal heuristics; solved poses still require exact filtering.
-    """
-
-    def __init__(self, policy, state, xs, ys, heights):
-        self.policy = policy
-        self.xs, self.ys, self.heights = xs, ys, heights
-        self.support_z, occupied = policy.context(state)
-        target = policy.inventory.target
-        lower = target.origin[:2] - np.array([target.width, target.length]) / 2
-        span = np.array([target.width, target.length])
-        upper = lower + span
-        self.in_target = (
-            ((ys >= lower[1]) & (ys <= upper[1]))[:, None]
-            & ((xs >= lower[0]) & (xs <= upper[0]))[None, :]
-        )
-        columns = np.clip(
-            np.rint((xs - lower[0]) / span[0] * (policy.grid_size - 1)).astype(int),
-            0, policy.grid_size - 1,
-        )
-        rows = np.clip(
-            np.rint((ys - lower[1]) / span[1] * (policy.grid_size - 1)).astype(int),
-            0, policy.grid_size - 1,
-        )
-        self.occupied = occupied[np.ix_(rows, columns)]
-        self.neighbors = _neighbor_mask(occupied)[np.ix_(rows, columns)]
-        self.has_occupied = bool(np.any(occupied))
-        self.occupancy = float(np.mean(occupied))
-        self.gap_labels, self.gap_centers = _gap_regions(self.in_target & ~self.occupied)
-
-    def kernel(self, object_index, quaternion):
-        entry = self.policy._entry(object_index, np.r_[np.zeros(3), quaternion])
-        points, _ = self.policy.inventory[object_index].mesh_arrays()
-        rotated = points @ quaternion_matrix(quaternion).T
-        dx = self.xs[1] - self.xs[0] if len(self.xs) > 1 else self.policy.inventory.target.width
-        dy = self.ys[1] - self.ys[0] if len(self.ys) > 1 else self.policy.inventory.target.length
-        columns = np.arange(int(np.floor(rotated[:, 0].min() / dx)), int(np.ceil(rotated[:, 0].max() / dx)) + 1)
-        rows = np.arange(int(np.floor(rotated[:, 1].min() / dy)), int(np.ceil(rotated[:, 1].max() / dy)) + 1)
-        cc, rr = np.meshgrid(columns, rows)
-        lower = np.full(cc.shape, np.inf)
-        upper = np.full(cc.shape, -np.inf)
-        for normals, offsets in entry["volumes"]:
-            inside, lo, hi = _volume_columns(normals, offsets, cc * dx, rr * dy)
-            lower = np.minimum(lower, np.where(inside, lo, np.inf))
-            upper = np.maximum(upper, np.where(inside, hi, -np.inf))
-        valid = np.isfinite(lower) & np.isfinite(upper)
-        return rr[valid], cc[valid], lower[valid], upper[valid], entry["bottom"]
-
-    def metrics(self, kernel, row, column):
-        rr, cc, lower, upper, bottom = kernel
-        rows, columns = rr + row, cc + column
-        valid = (rows >= 0) & (rows < len(self.ys)) & (columns >= 0) & (columns < len(self.xs))
-        if not np.any(valid):
-            return None
-        rows, columns, lower, upper = rows[valid], columns[valid], lower[valid], upper[valid]
-        # The kernel includes the whole footprint for support, but only its
-        # bottom slice contributes to filling the active floor.
-        floor_cells = (lower <= bottom + self.policy.bottom_tolerance) & (upper >= bottom)
-        # Height maps include an exterior margin for collision/support queries;
-        # that margin must never be scored as empty target-floor space.
-        floor_cells &= self.in_target[rows, columns]
-        occupied = self.occupied[rows, columns]
-        frontier = self.neighbors[rows, columns]
-        unfilled = floor_cells & ~occupied
-        cells = int(np.count_nonzero(floor_cells))
-        open_cells = int(np.count_nonzero(unfilled))
-        contact = int(np.count_nonzero(floor_cells & frontier))
-        if cells == 0 or open_cells == 0:
-            return None
-        if self.has_occupied and contact < self.policy.minimum_contact_cells:
-            return None
-        heights = np.maximum(self.heights[rows, columns], self.support_z)
-        translation_z = float(np.max(heights - lower))
-        gaps = translation_z + lower - heights
-        labels, counts = np.unique(self.gap_labels[rows[unfilled], columns[unfilled]], return_counts=True)
-        gap = int(labels[np.argmax(counts)])
-        center_row, center_column = self.gap_centers[gap]
-        return {
-            "floor_gap_region": (gap, int(row >= center_row), int(column >= center_column)),
-            "active_floor_support_z": self.support_z,
-            "active_floor_occupancy": self.occupancy,
-            "active_floor_unfilled_cells": open_cells,
-            "active_floor_contact_cells": contact,
-            "active_floor_open_fraction": open_cells / cells,
-            "active_floor_frontier_fraction": float(np.count_nonzero(unfilled & frontier)) / cells,
-            "footprint_support_height": translation_z + float(bottom),
-            "footprint_support_likelihood": float(np.mean(gaps <= self.policy.bottom_tolerance)),
-        }
-
-
 def _neighbor_mask(mask: np.ndarray) -> np.ndarray:
     padded = np.pad(mask, 1, mode="constant", constant_values=False)
     neighbors = np.zeros(mask.shape, dtype=bool)
@@ -392,26 +294,3 @@ def _neighbor_mask(mask: np.ndarray) -> np.ndarray:
                 column : column + mask.shape[1],
             ]
     return neighbors
-
-
-def _gap_regions(mask: np.ndarray):
-    """Label open-floor components; their quadrants also split large gaps."""
-    labels = np.full(mask.shape, -1, dtype=int)
-    centers = {}
-    for row, column in np.argwhere(mask):
-        if labels[row, column] >= 0:
-            continue
-        label = len(centers)
-        pending = [(int(row), int(column))]
-        labels[row, column] = label
-        cells = []
-        while pending:
-            r, c = pending.pop()
-            cells.append((r, c))
-            for nr, nc in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)):
-                if (0 <= nr < mask.shape[0] and 0 <= nc < mask.shape[1]
-                        and mask[nr, nc] and labels[nr, nc] < 0):
-                    labels[nr, nc] = label
-                    pending.append((nr, nc))
-        centers[label] = np.mean(cells, axis=0)
-    return labels, centers

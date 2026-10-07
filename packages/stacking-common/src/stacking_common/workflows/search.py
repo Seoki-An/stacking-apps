@@ -6,7 +6,6 @@ from stacking_common.actions import (
     ActiveFloorFilter,
     CEMRootActionGenerator,
     CorePlacementPoseSolver,
-    HeightMapPlanarPoseSampler,
     MeshHeightInitializer,
     ObjectOrientationProvider,
     PlacementActionGenerator,
@@ -14,6 +13,7 @@ from stacking_common.actions import (
     PlacementPoseSolver,
     TargetContainmentFilter,
 )
+from stacking_common.actions.scored import ScoredPlanarPoseSampler, ScoredPlacementActionGenerator
 from stacking_common.domain import ObjectInventory, State
 from stacking_common.environment import (
     ArrayObservationBuilder,
@@ -297,22 +297,21 @@ class StackingSearchApplication:
         worker_pose_solvers: Sequence[PlacementPoseSolver] = (),
         filters: Sequence[PlacementFilter] = (),
     ) -> PlacementActionGenerator[Observation]:
-        """Build the new common generator around the selected pose solver."""
+        """Build both platforms' scored proposals around the selected solver."""
 
         profile = self.action_generation_profile
         floor_policy = self.build_floor_policy(inventory)
-        return PlacementActionGenerator(
+        return ScoredPlacementActionGenerator(
             inventory=inventory,
             config=profile.generator,
-            planar_sampler=HeightMapPlanarPoseSampler(
-                profile.planar,
-                orientation_provider=orientation_provider,
+            planar_sampler=ScoredPlanarPoseSampler(
+                inventory, profile.planar,
+                orientation_provider or self.build_orientation_provider(),
+                self.sampling_settings,
+                seed=self.mcts_profile.root_cem.seed,
                 floor_policy=floor_policy,
             ),
-            initializer=MeshHeightInitializer(
-                clearance=profile.generator.initial_height_clearance,
-                xy_padding=profile.generator.initial_height_xy_padding,
-            ),
+            initializer=self.build_height_initializer(),
             pose_solver=pose_solver,
             worker_pose_solvers=worker_pose_solvers,
             filters=(
@@ -320,6 +319,13 @@ class StackingSearchApplication:
                 *self.build_orientation_filters(floor_policy),
                 *filters,
             ),
+        )
+
+    def build_height_initializer(self):
+        profile = self.action_generation_profile.generator
+        return MeshHeightInitializer(
+            clearance=profile.initial_height_clearance,
+            xy_padding=profile.initial_height_xy_padding,
         )
 
 

@@ -15,12 +15,16 @@ from stacking_tabletop.config.action import load_action_generation_profile, reso
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_default_preserves_legacy_profile_context_and_false_is_recorded(tmp_path):
+def test_profile_records_scored_settings_and_scan_override(tmp_path):
     path = ROOT / 'apps/tabletop/config/action_generation.yml'
     kwargs = dict(max_poses_per_object=8, banned_object_ids=())
     current = load_action_generation_profile(path, **kwargs)
     assert current.pose_from_scan is True
-    assert _values(current) == _values(load_common(path, **kwargs))
+    recorded = _values(current)
+    settings = recorded.pop('sampling_settings')
+    assert recorded == _values(load_common(path, **kwargs))
+    assert settings['contact_gap_tolerance'] == .02
+    assert settings['score']['fill_area'] == 2.
     data = yaml.safe_load(path.read_text())
     data['orientation']['pose_from_scan'] = False
     alternate = tmp_path / 'action.yml'
@@ -29,6 +33,7 @@ def test_default_preserves_legacy_profile_context_and_false_is_recorded(tmp_path
     assert off.pose_from_scan is False
     assert _values(off)['pose_from_scan'] is False
     assert resolve_pose_from_scan(off.pose_from_scan, None) is False
+    assert _values(off)['sampling_settings'] == settings
     data.pop('orientation')
     alternate.write_text(yaml.safe_dump(data))
     assert load_action_generation_profile(alternate, **kwargs).pose_from_scan is True

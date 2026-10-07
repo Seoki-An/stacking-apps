@@ -10,8 +10,8 @@ from stacking_common.actions.floor import ActiveFloorPolicy
 from stacking_common.actions.orientation import InventoryOrientationProvider, PrincipalAxisOrientationProvider
 from stacking_common.assets import ObjectAssetLoader
 from stacking_common.environment import CoreSimulationProfile, EnvironmentProfile
-from stacking_common.actions import CorePosegenProfile, ActiveFloorFilter
-from stacking_common.actions.scored import ScoredPlanarPoseSampler, TargetXYOverlapFilter, ScoredPlacementActionGenerator
+from stacking_common.actions import CorePosegenProfile
+from stacking_common.actions.scored import TargetXYOverlapFilter
 from stacking_common.actions.ply_height import PlyHeightInitializer
 from stacking_common.planning import PlacementPlanningProblem, SolverProfileFiles
 from stacking_common.profiles import (
@@ -21,6 +21,7 @@ from stacking_common.profiles import (
 )
 from stacking_common.profiles.planning import PlanningProfile, load_planning_profile
 from stacking_common.profiles.native import load_native_solver_profile
+from stacking_common.profiles.action import resolve_scored_sampling_settings
 from stacking_common.workflows import MCTSPlanningSequenceCoordinator
 from stacking_common.workflows.search import StackingSearchApplication
 
@@ -78,6 +79,15 @@ class ExcavatorApplication(StackingSearchApplication):
         if not np.isclose(planning.world_T_stack.parent_T_child[2], settings.place_ground_height):
             raise ValueError("world_T_stack Z must equal the placement support height")
         action = yaml.safe_load((config / "action_generation.yml").read_text())
+        if "floor" in action or "scored_sampling" in action:
+            raise ValueError("excavator sampling settings belong under planar; "
+                             "use planar.floor and planar.score")
+        planar = action["planar"]
+        floor_settings = planar["floor"]
+        if "score_weights" in floor_settings or "score_weights" in planar:
+            raise ValueError("use named weights under planar.score; "
+                             "score_weights is no longer an excavator setting")
+        sampling_settings = resolve_scored_sampling_settings(planar)
         scan = action["orientation"]["pose_from_scan"]
         if not isinstance(scan, bool):
             raise TypeError("pose_from_scan must be boolean")
@@ -90,9 +100,9 @@ class ExcavatorApplication(StackingSearchApplication):
                        max_poses_per_object=environment.observation.max_poses_per_object,
                        banned_object_ids=environment.observation.banned_object_ids),
                    load_mcts_profile(mcts_config or config / "mcts_cpu.yml"), planning, settings,
-                   action["floor"], scan,
+                   floor_settings, scan,
                    tuple(np.deg2rad(action["orientation"]["roll_angles_degrees"])),
-                   action["scored_sampling"])
+                   sampling_settings)
 
     def load_inventory(self, object_ids, initial_poses):
         profile = self.inventory_profile
@@ -123,21 +133,11 @@ class ExcavatorApplication(StackingSearchApplication):
         return {f"object_surface/{object_id}": path for object_id in inventory.object_ids
                 if (path := directory / f"model_{object_id}_mesh.ply").is_file()}
 
-    def build_action_generator(self, inventory, pose_solver, orientation_provider=None,
-                              worker_pose_solvers=(), filters=()):
-        profile = self.action_generation_profile
-        floor_policy = self.build_floor_policy(inventory)
-        sampler = ScoredPlanarPoseSampler(inventory, profile.planar,
-            orientation_provider or self.build_orientation_provider(), self.sampling_settings,
-            seed=self.mcts_profile.root_cem.seed, floor_policy=floor_policy)
-        return ScoredPlacementActionGenerator(
-            inventory=inventory, config=profile.generator, planar_sampler=sampler,
-            initializer=PlyHeightInitializer(self.repository_root / self.inventory_profile.model_directory,
-                clearance=profile.generator.initial_height_clearance,
-                xy_padding=profile.generator.initial_height_xy_padding),
-            pose_solver=pose_solver, worker_pose_solvers=worker_pose_solvers,
-            filters=(*((ActiveFloorFilter(floor_policy),) if profile.strict_floor_first else ()),
-                     *self.build_orientation_filters(floor_policy), *filters))
+    def build_height_initializer(self):
+        profile = self.action_generation_profile.generator
+        return PlyHeightInitializer(self.repository_root / self.inventory_profile.model_directory,
+            clearance=profile.initial_height_clearance,
+            xy_padding=profile.initial_height_xy_padding)
 
     def build_placement_planning_problem(self, state, action, *, pick_pose,
                                          pick_scene_poses=None, metadata=None):

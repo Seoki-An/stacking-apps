@@ -5,7 +5,8 @@ simulation, and native direct/regrasp motion planning. It uses the commissioned
 VDK23 and stone-grab models from `stacking-planner`. This delivery implements
 planning, persistence, and the offline Operations Console. Excavator action
 sampling uses the legacy ablation score kernels, with explicit lower-floor
-priority; tabletop retains its existing sampler and filters.
+priority. Tabletop uses the same scored sampler and selection procedure with
+its own physical limits, orientation provider, and filters.
 
 ## Current MCTS optimization status
 
@@ -102,8 +103,8 @@ placements. Strict filling can still exhaust search below the coverage threshold
 The shared policy defaults to bottom-slice coverage for existing callers such as
 tabletop. The standalone scored sampler retains the legacy calculation when no
 floor policy is supplied; the legacy capture test supplies its original 32×32
-occupancy settings. The legacy `lower_floor_fill_reject_stacked` key is not a
-rejection gate; `strict_floor_first` controls enforcement. Start a new run to use
+occupancy settings. The unused legacy `lower_floor_fill_reject_stacked` key has
+been removed; `strict_floor_first` controls enforcement. Start a new run to use
 the changed profile, since resume validates the original saved settings.
 
 CEM retains at most two candidates per stone, uses 50% fresh proposals in each
@@ -1879,7 +1880,7 @@ maps, connected floor proposals, taper-aware anchor bounds, seven score terms,
 and representative/elite/Boltzmann selection. Temperature is 0.3, elite fraction
 is 0.25, excavator-distance weight is 2.0, and support contact-gap tolerance is
 0.10 m. The distance origin defaults to stack-local (0, 0), as in ablation;
-`scored_sampling.score.excavator_xy` can supply the reference position that the
+`planar.score.excavator_xy` can supply the reference position that the
 legacy sequence entrypoint set from its target offset.
 
 Fresh populations use private seeded Python and NumPy RNGs, balanced per-object

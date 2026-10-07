@@ -20,16 +20,11 @@ from ._support_maps import (
     BottomHeightKernel,
     StateMapBundle,
     build_state_map_bundle,
-    masked_mean_filter,
     rectangular_bottom_kernel,
     support_likelihood_maps_by_kernel,
     transformed_stone_volumes,
     volume_slice_mask,
 )
-
-LOWER_FLOOR_FILL_REJECT_STACKED_KEY = "lower_floor_fill_reject_stacked"
-
-LEGACY_GROUND_FILL_REJECT_STACKED_KEY = "ground_fill_reject_stacked"
 
 HEIGHT_SCORE_SMOOTH_KERNEL_SIZE = 5
 
@@ -123,35 +118,6 @@ def floor_entry(stone, pose: np.ndarray, include_volumes: bool = True) -> dict:
     if include_volumes:
         entry["volumes"] = transformed_stone_volumes(stone, pose)
     return entry
-
-def target_structure_xy_overlap(
-    inventory,
-    stone_idx: int,
-    pose: np.ndarray,
-) -> bool:
-    """Return whether the oriented stone footprint overlaps the target base."""
-    pose = np.asarray(pose, dtype=float)
-    if (
-        not 0 <= int(stone_idx) < len(inventory.stones)
-        or pose.shape[0] < 7
-        or not np.all(np.isfinite(pose[:7]))
-    ):
-        return False
-
-    stone_lower, stone_upper = floor_entry(
-        inventory.stones[int(stone_idx)],
-        pose,
-        include_volumes=False,
-    )["xy_aabb"]
-    wall = inventory.target_wall
-    target_half = 0.5 * np.asarray([wall.width, wall.length], dtype=float)
-    target_origin = np.asarray(wall.origin[:2], dtype=float)
-    target_lower = target_origin - target_half
-    target_upper = target_origin + target_half
-    return bool(
-        np.all(stone_upper >= target_lower)
-        and np.all(stone_lower <= target_upper)
-    )
 
 def stone_world_vertices(stone, pose: np.ndarray) -> np.ndarray:
     verts_local, _ = stone.get_global_hull_mesh_array()
@@ -364,54 +330,6 @@ def component_centers(labels: np.ndarray, sizes: dict[int, int]) -> dict[int, np
             continue
         centers[int(component_id)] = np.mean(coords, axis=0)
     return centers
-
-def active_layer_fill_metrics(
-    inventory,
-    layer: dict,
-    stone_idx: int,
-    pose: np.ndarray,
-) -> dict:
-    entry = floor_entry(inventory.stones[int(stone_idx)], np.asarray(pose, dtype=float))
-    above_active_layer = entry["bottom"] > (
-        float(layer["support_z"]) + float(layer["bottom_tol"])
-    )
-    metrics = {
-        "fill_score": 0.0,
-        "above_active_layer": bool(above_active_layer),
-        "cell_count": 0,
-        "unfilled_cells": 0,
-        "contact_cells": 0,
-        "overlap_cells": 0,
-    }
-    if above_active_layer:
-        return metrics
-
-    candidate_cells = floor_slice_mask(
-        entry,
-        layer["lower"],
-        layer["upper"],
-        layer["xx"],
-        layer["yy"],
-        float(layer["support_z"]),
-        float(layer["support_z"]) + float(layer["bottom_tol"]),
-    )
-    cell_count = int(np.count_nonzero(candidate_cells))
-    metrics["cell_count"] = cell_count
-    if cell_count == 0:
-        return metrics
-    metrics["overlap_cells"] = int(np.count_nonzero(candidate_cells & layer["occupied"]))
-    unfilled = candidate_cells & ~layer["occupied"]
-    unfilled_cells = int(np.count_nonzero(unfilled))
-    metrics["unfilled_cells"] = unfilled_cells
-    contact_cells = int(np.count_nonzero(candidate_cells & layer["occupied_neighbor"]))
-    metrics["contact_cells"] = contact_cells
-    if unfilled_cells == 0:
-        return metrics
-    unfilled_ratio = float(np.count_nonzero(unfilled) / cell_count)
-    adjacent_gap = unfilled & layer["occupied_neighbor"]
-    adjacent_ratio = float(np.count_nonzero(adjacent_gap) / cell_count)
-    metrics["fill_score"] = min(unfilled_ratio + 0.5 * adjacent_ratio, 1.0)
-    return metrics
 
 def score_xy_debug_map(
     inventory,

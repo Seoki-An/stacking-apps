@@ -90,6 +90,17 @@ def _mapping(values: Mapping[str, object], key: str) -> Mapping[str, object]:
     return result
 
 
+def resolve_scored_sampling_settings(planar: Mapping[str, object]) -> dict:
+    """Extract the shared scored sampler's explicit platform settings."""
+    return {
+        **{key: _required(planar, key) for key in (
+            "boltzmann_temperature", "boltzmann_min_probability",
+            "target_mask_margin", "contact_gap_tolerance")},
+        "score": dict(_mapping(planar, "score")),
+        "floor_fill": dict(_mapping(planar, "floor_fill")),
+    }
+
+
 def _required(values: Mapping[str, object], key: str):
     if key not in values:
         raise ValueError(f"action-generation profile is missing '{key}'")

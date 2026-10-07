@@ -168,9 +168,15 @@ def test_tabletop_context_records_native_joint_order_profiles_and_assets():
     assert "object/1" in context.asset_hashes
     assert any("dsf" in role for role in context.asset_hashes)
     assert context.profiles["native_solver"]["grasp"]
+    sampling = context.profiles["action_generation_profile"]["sampling_settings"]
+    assert sampling == app.sampling_settings
     assert len(context.fixed_geometry) == len(app.planning_profile.obstacles)
     assert context.sha256 == build_planning_context(app, inventory, pick, solver, {"iterations": 5}).sha256
     changed = replace(app, planning_profile=replace(app.planning_profile, obstacle_friction=2.))
+    assert context.sha256 != build_planning_context(changed, inventory, pick, solver, {"iterations": 5}).sha256
+    changed = replace(app, action_generation_profile=replace(app.action_generation_profile,
+        sampling_settings={**app.sampling_settings,
+                           "score": {**app.sampling_settings["score"], "open_area": 0.}}))
     assert context.sha256 != build_planning_context(changed, inventory, pick, solver, {"iterations": 5}).sha256
 
 

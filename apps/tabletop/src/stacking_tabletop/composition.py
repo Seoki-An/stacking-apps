@@ -22,7 +22,6 @@ from stacking_common.environment import (
 from stacking_common.planning import PlacementPlanningProblem, SolverProfileFiles
 from stacking_common.workflows import MCTSPlanningSequenceCoordinator
 from stacking_common.pointcloud import MultiViewVoxelMerge, VoxelMergeConfig
-from stacking_common.search import MaskedActionGeneratorAdapter
 
 from stacking_common.workflows.search import StackingSearchApplication
 
@@ -61,7 +60,6 @@ from .planning import (
     TabletopPlanningCoordinator,
     load_native_solver_profile,
 )
-from .search import LegacyActionBuilderSampler
 
 
 @dataclass(frozen=True)
@@ -393,22 +391,12 @@ class TabletopApplication(StackingSearchApplication):
         )
 
 
-    def build_legacy_action_generator(
-        self,
-        action_builder: object,
-        legacy_inventory: object,
-    ) -> MaskedActionGeneratorAdapter[Observation]:
-        """Bridge the legacy tabletop builder into common MCTS contracts."""
-
-        sampler = LegacyActionBuilderSampler(
-            action_builder,
-            legacy_inventory,
-        )
-        return MaskedActionGeneratorAdapter(sampler)
-
-
     def build_floor_policy(self, inventory):
         return TabletopPlacementSafety(inventory)
+
+    @property
+    def sampling_settings(self):
+        return self.action_generation_profile.sampling_settings
 
     def build_orientation_provider(self):
         return (ScanAlignedOrientationProvider() if self.action_generation_profile.pose_from_scan

@@ -187,17 +187,16 @@ PlacementBackend ---> SimulationTransition
 observation builder + reward evaluator + transition ---> StackingEnvironment
 ```
 
-`LegacyActionBuilderSampler` is the optional compatibility
-boundary around the inherited stone-named `ActionBuilder`. It converts common
-`State.object_*` values into the minimal legacy `stone_*` view, synchronizes
-the legacy inventory, forwards the scene height map and bounded sampling
-request, and converts real results back into common `Action` values. Legacy
-dummy padding becomes `None` and is counted by `MaskedActionGeneratorAdapter`;
-it never enters the common domain. Production composition uses
-`PlacementActionGenerator`, scheduled stacking-core pose generation,
+Both platform compositions use `ScoredPlanarPoseSampler` and
+`ScoredPlacementActionGenerator` from `stacking-common`, with their own
+physical profiles and orientation providers. The shared sampler ranks grid
+anchors and draws fresh populations using score weights and spatial diversity.
+The former tabletop legacy-builder adapter and deterministic height-map
+sampler were removed after tabletop adopted this strategy. Composition uses
+scheduled stacking-core pose generation,
 equilibrium/containment priors, root-only CEM, horizon bootstrap values, and
 independent short/long simulation environments. Neither common search nor the
-tabletop adapter imports the legacy `agent` package.
+platform composition imports the legacy `agent` package.
 
 The placement backend remains injectable for tests and alternative execution
 paths. `TabletopApplication.build_core_backend` is the production factory that

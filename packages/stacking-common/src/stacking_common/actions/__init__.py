@@ -29,7 +29,6 @@ from .orientation import (
     MappingOrientationProvider,
     ScanAlignedOrientationProvider,
 )
-from .planar import HeightMapObservation, HeightMapPlanarPoseSampler
 from .types import (
     InitializedPlacement,
     PlacementFilterDecision,
@@ -40,14 +39,12 @@ from .types import (
 __all__ = [
     "ActiveFloorFilter",
     "ActiveFloorPolicy",
-    "HeightMapObservation",
     "CEMRootActionGenerator",
     "CEMRootConfig",
     "CEMRoundStatistics",
     "CEMStatistics",
     "CorePlacementPoseSolver",
     "CorePosegenProfile",
-    "HeightMapPlanarPoseSampler",
     "InitializedPlacement",
     "InventoryOrientationProvider",
     "MeshHeightInitializer",

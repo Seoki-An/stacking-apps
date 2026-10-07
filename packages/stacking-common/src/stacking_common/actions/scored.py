@@ -2,7 +2,8 @@
 
 The array scoring kernels preserve stacking-planner's score-mode behavior.
 The small views below adapt canonical objects to those kernels; no legacy or
-platform package is imported. Tabletop continues to use its height-map sampler.
+platform package is imported. Both platforms use this sampler with their own
+physical limits and orientation providers.
 """
 
 from types import SimpleNamespace
@@ -96,7 +97,7 @@ class ScoredPlanarPoseSampler:
     def quaternions(self, state, observation, object_index):
         provider = self.orientation_provider
         variants = getattr(provider, "quaternions", None)
-        bases = (variants(self.inventory, state, observation, object_index) if variants
+        bases = (variants(self.inventory, state, observation, object_index) if callable(variants)
                  else (provider.quaternion(self.inventory, state, observation, object_index),))
         # Yaw products depend only on the bases; reuse them, returning copies.
         key = (object_index, tuple(np.asarray(base, dtype=float).tobytes() for base in bases))

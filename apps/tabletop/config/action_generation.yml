@@ -21,8 +21,34 @@ filtering:
 
 planar:
   grid_shape: [32, 32]
-  # Cover diagonal/crosswise gap fits as well as the scan-aligned axis.
+  # Retain scan-aligned headings while sharing excavator's XY sampler.
   yaw_angles_degrees: [0.0, 180.0]
-  minimum_xy_separation: 0.003
+  minimum_xy_separation: 0.0  # Scored selection uses diversity groups instead.
   # Legacy anchor inset; values below 1 permit controlled target overhang.
   target_anchor_inset_scale: 0.6
+  boltzmann_temperature: 0.3
+  boltzmann_min_probability: 0.0
+  target_mask_margin: 0.0
+  contact_gap_tolerance: 0.02
+  # Match excavator's seven-term proposal ranking; distances remain tabletop SI.
+  score:
+    height: -3.0
+    support_likelihood: 2.0
+    open_area: 1.0
+    fill_area: 2.0
+    frontier: 1.0
+    target_boundary: 1.5
+    excavator_distance: 2.0
+    excavator_distance_axis: xy
+    excavator_xy: null
+    elite_fraction: 0.25
+  floor_fill:
+    # TabletopPlacementSafety supplies the shared active-layer context.
+    connected_after: 1
+    u_shape_filter: false
+    u_shape_footprint_scale: 0.9
+    u_shape_min_frontier_contact_cells: 1
+    lower_floor_fill_ratio: 0.90
+    lower_floor_occupancy_grid: 32
+    lower_floor_bottom_z_tolerance: 0.02
+    lower_floor_max_layers: 8

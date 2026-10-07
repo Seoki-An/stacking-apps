@@ -3,13 +3,15 @@
 from dataclasses import replace
 import json
 from pathlib import Path
+import shutil
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 import stacking_core as core
+import yaml
 
-from stacking_common.actions import HeightMapPlanarPoseSampler, MeshHeightInitializer, CEMRootActionGenerator
+from stacking_common.actions import MeshHeightInitializer, CEMRootActionGenerator
 from stacking_common.actions.filtering import PosegenFeasibilityFilter, TargetContainmentFilter
 from stacking_common.actions.ply_height import PlyHeightInitializer, read_ply_vertices
 from stacking_common.actions.scored import ScoredPlanarPoseSampler, TargetXYOverlapFilter
@@ -33,6 +35,49 @@ def inputs(placed=False):
     state = State(ids, [0] if placed else [],
                   {55: np.array(META["placed_pose"])} if placed else {}, [], [])
     return app, inventory, state
+
+
+def test_unified_planar_weights_change_excavator_scores(tmp_path):
+    app, inventory, state = inputs(placed=True)
+    config = tmp_path / "apps/excavator/config"
+    shutil.copytree(ROOT / "apps/excavator/config", config)
+    path = config / "action_generation.yml"
+    values = yaml.safe_load(path.read_text())
+    values["planar"]["score"].update(open_area=0., frontier=0.)
+    path.write_text(yaml.safe_dump(values))
+    changed = ExcavatorApplication.from_repository(tmp_path)
+    assert "score_weights" not in changed.floor_settings
+    with np.load(FIXTURE) as recorded:
+        observation = SimpleNamespace(scene_height_map=recorded["placed_height"],
+            height_map_xlim=np.array(META["xlim"]), height_map_ylim=np.array(META["ylim"]))
+    maps = []
+    for application in (app, changed):
+        sampler = ScoredPlanarPoseSampler(inventory, application.action_generation_profile.planar,
+            application.build_orientation_provider(), application.sampling_settings,
+            floor_policy=application.build_floor_policy(inventory))
+        maps.append(sampler.score_map(state, observation, META["candidate_index"]))
+    baseline, actual = maps
+    np.testing.assert_array_equal(actual["candidate_mask"], baseline["candidate_mask"])
+    valid = baseline["candidate_mask"]
+    removed = baseline["open_area"][valid] + baseline["frontier"][valid]
+    assert np.any(removed > 0.)
+    np.testing.assert_allclose(actual["scores"][valid], baseline["scores"][valid] - removed,
+                               rtol=0., atol=1e-12)
+
+
+@pytest.mark.parametrize("obsolete", ["floor", "scored_sampling", "score_weights"])
+def test_obsolete_score_blocks_are_rejected_instead_of_ignored(tmp_path, obsolete):
+    config = tmp_path / "apps/excavator/config"
+    shutil.copytree(ROOT / "apps/excavator/config", config)
+    path = config / "action_generation.yml"
+    values = yaml.safe_load(path.read_text())
+    if obsolete == "score_weights":
+        values["planar"]["floor"][obsolete] = [-3., 2., 0., 2., 0., 1.5]
+    else:
+        values[obsolete] = {}
+    path.write_text(yaml.safe_dump(values))
+    with pytest.raises(ValueError, match="planar.score"):
+        ExcavatorApplication.from_repository(tmp_path)
 
 
 @pytest.mark.parametrize("label", ["empty", "placed"])
@@ -218,13 +263,13 @@ def test_boundary_selection_reaches_native_problem(radius, target_only, expected
         solver.solve(inventory, state, 2, InitializedPlacement(np.array([0., 0., .5, 0., 0., 0., 1.]), 0.))
 
 
-def test_tabletop_composition_and_saved_profile_defaults_are_unchanged():
+def test_tabletop_scored_composition_preserves_physical_solver_defaults():
     from test_action_generation import _inventory
     tabletop = TabletopApplication.from_repository(ROOT)
     inventory = _inventory()
     generator = tabletop.build_action_generator(inventory, SimpleNamespace(),
         filters=tabletop.build_target_filters(inventory, SimpleNamespace()))
-    assert type(generator.planar_sampler) is HeightMapPlanarPoseSampler
+    assert type(generator.planar_sampler) is ScoredPlanarPoseSampler
     assert type(generator.initializer) is MeshHeightInitializer
     assert any(isinstance(f, TargetContainmentFilter) for f in generator.filters)
     assert generator.config.require_solver_convergence is True
@@ -237,6 +282,7 @@ def test_tabletop_composition_and_saved_profile_defaults_are_unchanged():
     excavator = ExcavatorApplication.from_repository(ROOT)
     assert not excavator.environment_profile.observation.banned_object_ids
     assert _values(excavator.posegen_profile)["boundary_radius"] == .5
+    generator.close()
 
 
 def test_fresh_population_allocation_retries_and_deadline(monkeypatch):
@@ -258,7 +304,7 @@ def test_fresh_population_allocation_retries_and_deadline(monkeypatch):
         np.testing.assert_array_equal([c.action.pose for c in initial.candidates],
                                       [c.action.pose for c in repeated.candidates])
         # This policy draws a fresh population rather than paging through the
-        # deterministic tabletop stream. A large retry offset must not starve it.
+        # old deterministic stream. A large retry offset must not starve it.
         retry = first.generate(state, observation, replace(request, attempt_offset=10000))
         assert retry.attempts == len(retry.candidates) == 6
         assert not retry.exhausted

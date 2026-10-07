@@ -1,6 +1,7 @@
 # Initial placement pose sampling for automated stone stacking
 
 Implementation summary for a conference paper, inspected on **2026-10-06**.
+Tabletop's scored XY sampling was aligned with excavator on **2026-10-07**.
 
 This document describes the current working-tree implementation in
 `stacking-apps`, with excavator as the primary platform and tabletop as a
@@ -180,6 +181,36 @@ candidate's lowest point, and the later bounding-box initialization height.
 
 ### 5.1 Score terms
 
+The excavator YAML keeps initial planar sampling settings together under
+`planar` in [action_generation.yml](../apps/excavator/config/action_generation.yml):
+
+| Configuration block | Terms | Consumer |
+|---|---|---|
+| `planar.score` | Seven named weights: `height`, `support_likelihood`, `open_area`, `fill_area`, `frontier`, `target_boundary`, `excavator_distance` | Excavator's `ScoredPlanarPoseSampler`, through `_scored_floor.score_xy_debug_map` |
+| `planar.floor` | Coverage mode, fill ratio, grid size, bottom tolerance, layer limit, contact-cell minimum | `ActiveFloorPolicy` supplies layer geometry and filtering |
+| `planar.floor_fill` | Legacy proposal-kernel controls | Private scored-floor helper; shared layer context overrides its layer estimate during normal composition |
+
+`planar.score` is the only excavator proposal-weight source. The shared
+`ActiveFloorPolicy` constructor has no score weights. Tabletop now uses the
+same named `planar.score` block in its own profile. The old six-term weights
+on `TabletopPlacementSafety` were removed with the obsolete deterministic
+sampler after alignment.
+
+Before consolidation, excavator had root-level `floor` and `scored_sampling`
+blocks. Its six-entry `floor.score_weights` list was unused by the excavator
+sampler; the seven named `scored_sampling.score` weights were effective.
+The old list is removed, floor geometry moved to `planar.floor`, and the
+contents of `scored_sampling` moved under `planar`. Obsolete YAML blocks are
+rejected so that edits cannot silently target inactive weights. Effective
+weights and sampling behavior are preserved. Saved planning contexts still
+record runtime `floor_settings` and `sampling_settings` separately.
+
+In the historical `excavator_plan8_gpu.stack` and `excavator_plan9_gpu.stack`,
+the only recorded planning-context difference is the unused floor-weight
+list: respectively $[-3,2,0,2,0,1.5]$ and $[-3,2,1,2,1,1.5]$.
+Their active seven named weights are identical. Those files therefore do
+not record an excavator proposal-score ablation.
+
 Each retained anchor/orientation pair receives
 
 $$
@@ -267,7 +298,8 @@ each list. For small requests, it rotates the starting object across calls.
 
 The sampler draws a fresh population on each call using persistent private
 Python and NumPy random-number generators. Retry offsets do not advance a
-fixed deterministic list as they do for the common/tabletop generator.
+fixed deterministic list as they did for the previous tabletop generator.
+Both current platforms use this fresh-population allocation procedure.
 
 ## 6. Active-floor policy
 
@@ -289,13 +321,14 @@ the current layer tolerance. If their union covers the required fraction, it
 advances the support height to the highest top among those stones and repeats
 with remaining stones. The first insufficiently filled layer is active.
 
-For excavator's `lower_floor_first` sampling, candidates whose estimated
-contact height is at most active support height plus 0.20 m are selected
-before higher candidates. The strict filter separately checks the bottom
+For either platform's `lower_floor_first` sampling, candidates whose estimated
+contact height is at most active support height plus the platform's bottom
+tolerance are selected before higher candidates: 0.20 m for excavator and
+0.02 m for tabletop. The strict filter separately checks the bottom
 height and connectivity of the **solved** pose. These checks act on different
 quantities and should be described separately.
 
-After a placed footprint exists, excavator's scored proposal construction
+After a placed footprint exists, either platform's scored proposal construction
 requires some open footprint area and at least one cell touching dilated
 occupancy. Its U-shaped-pocket filter is disabled.
 
@@ -311,20 +344,91 @@ to three further retry pools, subject to the original deadline and pool
 availability. Relaxation is conditional on a final-validation request and
 available time.
 
-The YAML also retains `scored_sampling.floor_fill.lower_floor_fill_ratio: 0.6`
+The YAML also retains `planar.floor_fill.lower_floor_fill_ratio: 0.6`
 for the private legacy helper. The normal excavator composition supplies the
-shared active-floor context, whose operative completion threshold is **0.75**.
+shared active-floor context, whose operative completion threshold is
+`planar.floor.fill_ratio: 0.75`.
 These similarly named settings should not be conflated when reporting the
 method.
 
 ## 7. Tabletop proposal strategy
 
+### 7.1 Comparison of current XY sampling defaults
+
+Both platforms enumerate a regular **32 × 32** anchor grid from a rendered
+**128 × 128** scene height map. Neither platform starts by drawing continuous
+uniform XY coordinates. Their initial grid proposals differ as follows:
+
+| Step | Tabletop | Excavator |
+|---|---|---|
+| Sampler | `ScoredPlanarPoseSampler` | `ScoredPlanarPoseSampler` |
+| Scene-map reduction | Block maxima, with a separate smoothed fallback map | Same |
+| Default orientation bank | Scan-aligned orientation with retained tilt; two yaws, 0°/180° | PCA orientation; two rolls and four yaws, up to eight distinct rotations |
+| Support geometry | Orientation-dependent global convex-hull bottom kernel | Same |
+| Floor-filling geometry | Asset-local axis-aligned rectangular footprint on the active-floor grid | Same |
+| Support contact tolerance | 0.02 m | 0.10 m |
+| Active-floor occupancy | Bottom-slab volume intersections, 32 × 32; advance at 90% | Projected component footprints, 16 × 16; advance at 75% |
+| Weighted score | $-3H+2Q+O+2F+G+1.5B+2D$ | Same |
+| Boundary feature | Bounds tapered according to estimated contact height | Same |
+| Selection | Seeded weighted draws, Y-region and gap representatives, elite candidates, height/quadrant representatives | Same |
+| XY separation | No sampler distance thinning | Same |
+| Repeated requests | New draws advance persistent private RNGs | Same |
+
+Both compositions now use the same score definitions and selection code.
+Their different geometry, orientation banks, physical tolerances, and floor
+contexts still produce different candidate banks and rankings. Tabletop's
+previous six-term sampler and its different feature definitions are recorded
+in Section 7.3 for historical comparisons.
+
+Tabletop's default `strict_floor_first: false` still uses scored proposals
+and prefers its lower contact-height pool through `lower_floor_first`; it
+omits the strict solved-pose floor filter. Excavator enables that strict filter.
+The conditional relaxed root fallback is described in Section 6.
+
+The shared strategy subsequently initializes Z and invokes native placement
+optimization, which can move the initial XY coordinates.
+Root population refinement can also create continuous XY perturbations.
+The alignment changes tabletop proposal behavior; it does not demonstrate
+improved physical placement or end-to-end search quality.
+
+### 7.2 Current tabletop composition and configuration
+
 Tabletop currently enables `pose_from_scan`. It finds the object's longest
 local axis, transforms that axis with the measured orientation, and applies a
 world-Z correction that aligns its projected heading with X modulo 180°. The
-measured tilt is retained. The yaw bank then adds **0° and 180°**. The nearby
-YAML comment mentioning diagonal/crosswise coverage exceeds the actual current
-angle list; those additional angles are not configured.
+measured tilt is retained. The yaw bank then adds **0° and 180°**.
+
+Both platforms inherit `StackingSearchApplication.build_action_generator`,
+which constructs `ScoredPlanarPoseSampler` and
+`ScoredPlacementActionGenerator`. Excavator overrides only its PLY-based
+height initializer; tabletop retains `MeshHeightInitializer` with 0.015 m
+clearance and 0.012 m padding.
+
+Tabletop's [action_generation.yml](../apps/tabletop/config/action_generation.yml)
+explicitly resolves temperature 0.3, elite fraction 0.25, the same seven
+dimensionless weights as excavator, and its own 0.02 m contact tolerance.
+`excavator_distance` retains the shared scorer's historical field name: it
+measures distance from the configured reference, with a target-relative
+fallback when `excavator_xy` is null. It does not use excavator robot geometry
+in a tabletop run.
+
+`TabletopPlacementSafety` continues to supply its 32 × 32 bottom-slab floor
+context, 90% completion threshold, and 0.02 m bottom tolerance. Initial scan
+orientation, solved-orientation filtering, target-containment checks, and
+solver acceptance limits remain platform-owned.
+
+Every effective sampler setting is recorded as
+`action_generation_profile.sampling_settings` in tabletop planning contexts.
+Together with the changed minimum-separation value, this makes the existing
+resume validation reject contexts recorded with the previous sampler.
+Historical artifacts remain readable; this change does not rewrite them.
+
+### 7.3 Historical tabletop sampler before 2026-10-07
+
+The rest of this section describes the former `HeightMapPlanarPoseSampler`
+and the tabletop composition used before alignment. That implementation has
+been removed from the live checkout. Its equations and
+selection procedure are historical, not the current tabletop defaults.
 
 The sampler enumerates valid grid anchors for each orientation. With the
 current target inset, the center bounds use 0.6 times the asset-local
@@ -347,14 +451,43 @@ lower-floor priority disabled, it instead sorts by increasing scene height.
 
 The common generator interleaves proposals across objects and supports
 resuming from an attempt offset. This differs from excavator's fresh random
-draws. Tabletop's floor score determines proposal order; its recorded
-`planar_score` remains a height-related value used by the root ranking bonus,
-so that bonus is not the complete six-term floor score.
+draws. With lower-floor priority enabled, tabletop's `planar_score` records
+the complete six-term floor score and determines proposal order. The root
+ranking bonus instead reads the separate `height_map_score_normalized`
+diagnostic, computed from footprint support height. With floor ranking
+disabled, `planar_score` is the negative raw anchor height.
 
 The scan-relative solved-orientation filter uses a 45° bound on the XY
 components of the relative rotation vector and rejects upside-down changes.
 It admits a documented exception for solved poses that fill the active lower
 layer. These are rotation-vector tests, not separate Euler roll/pitch limits.
+
+### 7.4 Removal of unused sampling code
+
+After alignment, neither platform used the deterministic height-map sampler,
+its `FloorProposalRanker`, or the tabletop legacy `ActionBuilder` adapter.
+Those implementations and their obsolete exports, factories, and six-term
+weights have been removed. Tests specific to those removed implementations
+were removed; measured-orientation coverage now exercises the scored sampler.
+
+Two uncalled private helpers, `active_layer_fill_metrics` and
+`target_structure_xy_overlap`, and an unused smoothing import were also
+removed. The active `ActiveFloorPolicy` and `TargetXYOverlapFilter` continue
+to implement those checks. The unconsumed `lower_floor_fill_reject_stacked`
+YAML key and its legacy constants were removed from both profiles.
+
+Before/after verification compared **480 arrays** covering both platforms,
+both orientation modes, empty and placed scenes, normal and relaxed scoring,
+seeded draws, mutation-score lookup, and generation retries. They matched
+bit-for-bit. Removing the ignored YAML key changes serialized settings, so
+the existing strict saved-context comparison can reject an earlier run even
+though the effective proposal behavior is unchanged.
+
+The current seven-term score, floor geometry, standalone scored-sampler floor
+context, and conditional root fallback remain active. In particular, the
+`u_shape_footprint_scale` and `u_shape_min_frontier_contact_cells` settings
+still control rectangular footprints and connectivity even with
+`u_shape_filter: false`; they are not unused parameters.
 
 ## 8. Initial vertical translation
 
@@ -466,15 +599,33 @@ where $C_i$ is estimated object containment, $\tau_e=1$, and
 $\widetilde S_i$ is the normalized proposal score bonus. The weights
 $(w_s,w_c,w_h)$ are **(2, 2, 1)** for excavator and **(0.5, 2, 1)** for
 tabletop. This ranking occurs before simulation and differs from the complete
-transition reward. Excavator supplies the normalized scored-map value;
-tabletop supplies a normalized height score.
+transition reward. Both platforms now supply the normalized scored-map value.
 
-For an excavator mutation that does not match an already sampled pose, the
+For a fresh candidate on either platform, the normalized bonus is
+
+$$
+\widetilde S_i=
+\operatorname{clip}\left(
+\frac{S_i-S_{\min}}{\max(S_{\max}-S_{\min},10^{-12})},0,1\right),
+$$
+
+where the extrema are over that object's retained anchor/orientation pairs.
+Before alignment, tabletop instead normalized footprint support height
+against extrema of its nearest-neighbor resampled scene map. A flat map then
+gave zero bonus; the current shared scorer can distinguish boundary and
+reference-distance features even when the scene height is constant.
+
+For a mutation on either platform that does not match an already sampled pose, the
 proposal bonus falls back to the nearest XY cell of the object's cached score
 map. That map stores the best score among the discrete orientations at each
 cell; it does not recompute a bottom kernel for the newly perturbed yaw.
-Tabletop mutation bonuses similarly query the scene height map at the nearest
-cell. Native refinement still evaluates the actual mutated pose. These bonus
+Before alignment, tabletop mutations queried raw height at a nearest cell
+of the original **128 × 128** map, while fresh proposals used footprint
+support height on the resampled **32 × 32** map. That differing feature and
+normalization path is no longer used by the active tabletop composition.
+The standard root ranking reads explicit `height_map_score_normalized`
+diagnostics, which now carry normalized scored-map values on both platforms.
+Native refinement still evaluates the actual mutated pose. These bonus
 lookups should be described as approximate guidance.
 
 | Root parameter | Excavator `mcts_cuda.yml` | Tabletop `mcts.yml` |
@@ -598,7 +749,134 @@ The current geometry and sampling impose the following limits on claims:
 Potential ablations include orientation-bank size, contact-kernel scoring,
 regional diversity, Boltzmann temperature, floor priority, root mutations,
 fresh fraction, and per-object caps. These are suggested experiments; this
-summary contains no new performance measurements or ablation results.
+document contains proposal-score sensitivity measurements below, but no new
+native-placement, simulation, or end-to-end search-quality measurements.
+
+### 13.1 Measured excavator proposal-score sensitivity
+
+The diagnostic [analyze_initial_pose_scores.py](../tests/analyze_initial_pose_scores.py)
+was run with the excavator configuration before its YAML layout consolidation,
+all 49 configured object assets,
+and the nine recorded placed-object poses in
+[excavator-cuda-mcts.json](benchmarks/excavator-cuda-mcts.json). It renders
+five states containing 0, 1, 3, 6, and 9 of those stones, retaining their
+final recorded poses. These subsets are diagnostic scenes, rather than a
+replay of historical stacking states. All configured masks, support-kernel
+validity checks, connectivity gates, and lower-floor priority remain active.
+
+The run checked **274,096** retained anchor/orientation pairs. It reconstructs
+each candidate's seven weighted terms and verifies their sum bit-for-bit
+against the scorer. Comparison scores are then rounded to 12 decimal places
+to suppress numerical tie changes when a constant term is removed. Production
+scoring does not apply that rounding. The
+[full report](benchmarks/initial-pose-score-sensitivity.json) records source
+and asset hashes, per-object results, and matched sampling seeds 0 through 9.
+No native solve, root population refinement, or physical simulation is run.
+The report retains the hashes from that run. Consolidation changes configuration
+and composition hashes, but preserves the effective weights. A separate
+before/after comparison verified bit-for-bit equality of 89 score-map,
+seeded-selection, and shared-floor arrays for empty and placed fixture scenes.
+
+To measure discrimination, use the standard deviation of each **weighted**
+term across candidates, then average equally across available objects. A
+constant contribution has zero discrimination even if its mean is large.
+This statistic measures score variation; correlations between terms prevent
+interpreting it as a percentage of total ranking influence.
+
+The table uses the first nonempty sampling-priority pool for each object:
+lower-floor candidates when available, otherwise all candidates. If that pool
+has fewer than 32 entries, actual sampling can also draw from the higher pool.
+
+| Placed stones | $-3H$ | $2Q$ | $O$ | $2F$ | $G$ | $1.5B$ | $2D$ | Largest variation |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| 0 | 0.000 | 0.186 | 0.000 | 0.000 | 0.000 | 0.352 | 0.204 | Boundary |
+| 1 | 0.112 | 0.248 | 0.004 | 0.223 | 0.089 | 0.272 | 0.076 | Boundary |
+| 3 | 0.062 | 0.210 | 0.009 | 0.221 | 0.055 | 0.345 | 0.066 | Boundary |
+| 6 | 0.171 | 0.327 | 0.009 | 0.214 | 0.093 | 0.109 | 0.044 | Support |
+| 9 | 0.865 | 0.218 | 0.207 | 0.437 | 0.101 | 0.452 | 0.206 | Height |
+
+Across the complete candidate banks, height has the largest average weighted
+variation in all four occupied states. Lower-floor priority removes much of
+that variation before the first weighted draw. In the nine-stone state, none
+of the 40 remaining objects has a candidate whose estimated contact height
+is within 0.20 m of the active floor, so sampling uses the higher pool. Active
+floor occupancy is still only 0.566. This is a proposal-geometry limitation
+that changing score weights alone cannot resolve.
+
+Only $H$ and $Q$ directly evaluate the scene height map. $O$, $F$, and $G$
+use active-floor occupancy, while $B$ and $D$ add geometric position
+preferences. The seven terms therefore represent three different sources of
+guidance.
+
+The removal comparisons keep the candidate bank fixed. Rank correlation is
+Spearman correlation within the first nonempty priority pool. Top-32 overlap
+uses only objects with more than 32 candidates in that pool, so retaining
+every member of a small pool does not inflate the result. The report also
+compares populations drawn by the sampler's regional and Boltzmann selection;
+matched-seed population overlap describes sampling sensitivity rather than
+physical quality or an unchanged probability distribution.
+
+The preliminary simplification order is:
+
+1. **Remove or merge open area $O$ first.** In occupied-floor scoring, $O$
+   and $F$ share the numerator $n_U$, with different denominators. When
+   footprint sample count $n_A$ is
+   constant, they are proportional. Their mean per-object correlation over
+   the complete occupied candidate banks is 0.89–0.96. In the 1-, 3-, and
+   6-stone priority pools, $O$ is nearly constant; removing it leaves ranking
+   correlation above 0.998. At nine stones it still changes some preferred
+   candidates, so merging also requires checking the remaining fill weight.
+2. **Ablate reference distance $D$ next.** The current reference is the target
+   origin, so this is an additional edge preference without an independently
+   specified reach or robot-distance objective. It overlaps with $B$, while
+   using a different distance geometry. Its influence is substantial on an
+   empty floor, where $H=0$, $O=1$, and $F=G=0$. Removing it will change the
+   preferred first-placement locations.
+3. **Ablate the frontier bonus $G$ after that.** The connectivity gate already
+   requires at least one neighboring footprint cell. Removing the score
+   bonus preserves that gate but removes the preference for broader
+   adjacency. This is a distinct preference, so it requires a physical
+   quality comparison before removal.
+4. **Retain $H$, $Q$, and one fill measure initially.** They distinguish
+   supporting height, approximate contact coverage, and target-floor filling.
+   Retain $B$ during the first simplification because it is the strongest
+   spatial preference in the empty and early priority pools. Its removal is
+   a separate experiment on the placement strategy.
+
+A concrete four-term experimental score is
+
+$$
+S_4=-3H+2Q+2F+1.5B.
+$$
+
+The more aggressive three-term comparison is $S_3=-3H+2Q+2F$. The mean
+top-32 overlap with the current seven-term score is:
+
+| Placed stones | Objects with more than 32 priority candidates | $S_4$ overlap | $S_3$ overlap |
+|---|---:|---:|---:|
+| 0 | 49 | 33.7% | 12.4% |
+| 1 | 29 | 94.6% | 75.6% |
+| 3 | 28 | 93.4% | 73.0% |
+| 6 | 19 | 98.5% | 97.7% |
+| 9 | 40 | 77.5% | 56.3% |
+
+Removing $D$ alone retains 33.7% of the empty-floor top 32, illustrating its
+effect on first-placement positions. On an empty floor, $S_3$ has no XY
+score preference, so regional draws determine spatial coverage. Gap diversity
+also applies once occupied-floor gaps exist. These are diagnostic candidates,
+not changed repository defaults. Full placement comparisons should record accepted
+native solves, root floor-fill fallback frequency, target coverage, failed
+settling/noisy-placement trials, and search outcome under the same backend,
+input states, seeds, and time budgets. Removing a proposal term can also
+change the normalized root bonus described in Section 10.
+
+Reproduce the sensitivity report with the project Python and model assets:
+
+```sh
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+  python tests/analyze_initial_pose_scores.py \
+  --output docs/benchmarks/initial-pose-score-sensitivity.json
+```
 
 ## 14. Implementation references
 
@@ -614,8 +892,9 @@ The native references assume the sibling `stacking-core` checkout.
 | Excavator sampler and allocation | [scored.py](../packages/stacking-common/src/stacking_common/actions/scored.py): `ScoredPlanarPoseSampler`, `ScoredPlacementActionGenerator` |
 | Excavator scoring and draws | [_scored_floor.py](../packages/stacking-common/src/stacking_common/actions/_scored_floor.py): `score_xy_debug_map`, `target_anchor_bounds`, `sample_scored_candidates` |
 | Bottom kernels | [_support_maps.py](../packages/stacking-common/src/stacking_common/actions/_support_maps.py): `bottom_height_kernel`, `support_likelihood_maps_by_kernel` |
-| Tabletop sampler | [planar.py](../packages/stacking-common/src/stacking_common/actions/planar.py): `HeightMapPlanarPoseSampler` |
-| Floor geometry | [floor.py](../packages/stacking-common/src/stacking_common/actions/floor.py): `ActiveFloorPolicy`, `FloorProposalRanker` |
+| Shared current sampler | [scored.py](../packages/stacking-common/src/stacking_common/actions/scored.py): `ScoredPlanarPoseSampler`, `ScoredPlacementActionGenerator`; [search.py](../packages/stacking-common/src/stacking_common/workflows/search.py): `build_action_generator` |
+| Historical tabletop sampler | Removed; equations and selection procedure are documented in Section 7.3 |
+| Floor geometry | [floor.py](../packages/stacking-common/src/stacking_common/actions/floor.py): `ActiveFloorPolicy` |
 | Tabletop floor values | [safety.py](../apps/tabletop/src/stacking_tabletop/planning/safety.py): `TabletopPlacementSafety` |
 | Excavator height | [ply_height.py](../packages/stacking-common/src/stacking_common/actions/ply_height.py): `PlyHeightInitializer` |
 | Tabletop height | [initialization.py](../packages/stacking-common/src/stacking_common/actions/initialization.py): `MeshHeightInitializer` |
@@ -640,26 +919,40 @@ Relevant existing test coverage includes
 [test_floor_score_maps.py](../tests/test_floor_score_maps.py),
 [test_action_generation.py](../tests/test_action_generation.py),
 [test_excavator_floor_first.py](../tests/test_excavator_floor_first.py),
+[test_tabletop_scored_sampling.py](../tests/test_tabletop_scored_sampling.py),
 [test_tabletop_scan_orientation.py](../tests/test_tabletop_scan_orientation.py),
 and [test_cuda_placement.py](../tests/test_cuda_placement.py). These files cover
 seeded sampling parity, orientation construction, support footprints, height
 initialization, root refinement, floor fallback, and batched refinement. They
-are source references; this documentation task did not run experiments or
-execute the test suite.
+are source references; the score diagnostic in Section 13.1 does not execute
+these tests or run native-placement experiments.
 
 ## 15. Source snapshot
+
+The HEADs and working-tree description below record the **original inspection
+snapshot**. They are historical provenance, not the live checkout state.
 
 - `stacking-apps` base HEAD: `3c2d3328e5b8552a21666434d67ea54b3813cd68`.
 - `stacking-core` base HEAD: `aee2d5bb0269d8f160ec442230725cf5d7e415df`.
 
-Both checkouts contain working-tree changes. In particular, the excavator
+Both checkouts contained working-tree changes at that inspection. The excavator
 action, inventory, and CUDA MCTS profiles and the common MCTS search file
-have local changes; the native scene-identification sources are untracked
+had local changes; the native scene-identification sources were untracked
 in the inspected core checkout. The HEAD identifiers alone therefore do
 not specify the implementation summarized here. The following SHA-256
 manifest identifies the referenced implementation and configuration files
 as read for this document. Store the source and effective experiment
 profiles with the paper artifacts to preserve reproducibility.
+
+The score equations were expanded and checked on 2026-10-06. The subsequent
+configuration consolidation changed the YAML layout and floor-policy interface
+without changing the score equations or effective weights. The manifest
+retains the original implementation and native source hashes; the native
+scene-identification subsection describes that original snapshot.
+The 2026-10-07 tabletop alignment subsequently changes its effective scoring
+and selection strategy as described in Section 7.2; its earlier equations
+are retained in Section 7.3. These changes are not represented by the original
+manifest below.
 
 ```text
 613f6f5753aab0fa42fb0ff55541c178438e16803141d918b32c4e2879072540  stacking-apps/apps/excavator/config/action_generation.yml

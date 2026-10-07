@@ -11,7 +11,6 @@ from stacking_common.actions import (
     ActiveFloorFilter,
     CEMRootActionGenerator,
     CEMRootConfig,
-    HeightMapPlanarPoseSampler,
     InitializedPlacement,
     MeshHeightInitializer,
     PlacementActionGenerator,
@@ -36,6 +35,7 @@ from stacking_common.search import ActionGenerationRequest, ExecutionRejections
 from stacking_common.search import ActionCandidate, ActionGenerationResult
 from stacking_common.domain.geometry import quaternion_matrix
 from stacking_tabletop.planning.safety import TabletopPlacementSafety
+from stacking_common.actions.scored import ScoredPlanarPoseSampler
 
 
 class _RecoveryGenerator:
@@ -143,44 +143,6 @@ def test_cem_expired_deadline_does_not_start_native_work(monkeypatch):
     assert cem.last_statistics.timed_out
 
 
-def test_floor_sampler_distributes_seeds_across_gap_regions_and_yaws():
-    inventory = _inventory()
-    xs = np.linspace(-0.15, 0.15, 32)
-    observation = SimpleNamespace(scene_height_map=np.zeros((32, 32)),
-        height_map_xlim=np.array([-0.15, 0.15]), height_map_ylim=np.array([-0.15, 0.15]))
-    sampler = HeightMapPlanarPoseSampler(
-        PlanarSamplingConfig((32, 32), (0.0, np.pi / 4), 0.003),
-        floor_policy=TabletopPlacementSafety(inventory))
-    proposals = sampler.sample(inventory, _state(inventory), observation, 0, 8, "lower_floor_first")
-    keys = [(p.diagnostics["floor_gap_region"], p.diagnostics["orientation_index"]) for p in proposals]
-    assert len(set(keys)) == 8
-    assert {key[1] for key in keys} == {0, 1}
-
-
-def test_floor_sampler_fills_connected_open_cells_with_footprint_support():
-    inventory = _inventory()
-    state = _state(inventory, placed=(0,))
-    xs = np.linspace(-0.15, 0.15, 32)
-    xx, yy = np.meshgrid(xs, xs)
-    heights = np.where((np.abs(xx) <= 0.02) & (np.abs(yy) <= 0.02), 0.04, 0.0)
-    observation = SimpleNamespace(scene_height_map=heights,
-        height_map_xlim=np.array([-0.15, 0.15]), height_map_ylim=np.array([-0.15, 0.15]))
-    policy = TabletopPlacementSafety(inventory)
-    sampler = HeightMapPlanarPoseSampler(
-        PlanarSamplingConfig((32, 32), (0.0, np.pi / 2), 0.01), floor_policy=policy)
-    proposals = sampler.sample(inventory, state, observation, 1, 4, "lower_floor_first")
-    assert len(proposals) == 4
-    for proposal in proposals:
-        assert proposal.diagnostics["active_floor_unfilled_cells"] > 0
-        assert proposal.diagnostics["active_floor_contact_cells"] >= 1
-        assert proposal.diagnostics["footprint_support_height"] == 0.0
-        pose = proposal.pose.copy()
-        pose[2] = 0.02
-        from stacking_common.domain import Action
-        reason, _ = policy.active_floor_rejection(state, Action(1, pose, pose, object_id=20))
-        assert reason is None
-
-
 def test_early_floor_filter_matches_final_validation_for_floating_and_disconnected_poses():
     inventory = _inventory()
     state = _state(inventory, placed=(0,))
@@ -196,25 +158,6 @@ def test_early_floor_filter_matches_final_validation_for_floating_and_disconnect
         assert reason == expected
         assert not decision.accepted
         assert decision.reason == f"active_floor_{expected}"
-
-
-def test_footprint_support_sees_obstacle_away_from_anchor_and_respects_orientation():
-    from stacking_common.actions.floor import FloorProposalRanker
-    inventory = _inventory()
-    # Rectangular footprint: rotation swaps its long and short axes.
-    geometry = inventory[1].geometries[0]
-    points = geometry.points.copy()
-    points[:, 0] *= 2.5
-    wide = StackObject(20, _BodyModel(), [ConvexGeometry(points, geometry.faces)])
-    inventory = ObjectInventory([inventory[0], wide], {10: _pose(), 20: _pose()}, inventory.target)
-    xs = np.linspace(-0.15, 0.15, 31)
-    heights = np.zeros((31, 31))
-    heights[15, 19] = 0.1  # away from anchor, inside only the X-long footprint
-    ranker = FloorProposalRanker(TabletopPlacementSafety(inventory), _state(inventory), xs, xs, heights)
-    first = ranker.metrics(ranker.kernel(1, np.array([0, 0, 0, 1.])), 15, 15)
-    second = ranker.metrics(ranker.kernel(1, np.array([0, 0, 2**-0.5, 2**-0.5])), 15, 15)
-    assert first["footprint_support_height"] > 0.09
-    assert second["footprint_support_height"] == 0.0
 
 
 def test_filled_floor_advances_to_next_layer_without_lowering_threshold():
@@ -234,17 +177,6 @@ def test_filled_floor_advances_to_next_layer_without_lowering_threshold():
     reason, _ = policy.active_floor_rejection(state, Action(1, pose, pose, object_id=20))
     assert reason is None
     assert state.placed_object_indices == [0]
-
-
-def test_floor_sampling_does_not_count_height_map_margin_as_open_target():
-    from stacking_common.actions.floor import FloorProposalRanker
-    inventory = _inventory()
-    xs = np.linspace(-0.25, 0.25, 51)
-    ranker = FloorProposalRanker(TabletopPlacementSafety(inventory),
-        _state(inventory), xs, xs, np.zeros((51, 51)))
-    kernel = ranker.kernel(1, np.array([0., 0., 0., 1.]))
-    assert ranker.metrics(kernel, 25, 48) is None
-    assert ranker.metrics(kernel, 25, 25)["active_floor_unfilled_cells"] > 0
 
 
 @pytest.mark.parametrize("strict_floor_first", [False, True])
@@ -370,45 +302,6 @@ def _state(inventory: ObjectInventory, placed=()) -> State:
         object_poses=poses,
         trajectories=[],
         action_history=[],
-    )
-
-
-def test_height_map_sampler_prefers_low_target_fitting_cells() -> None:
-    inventory = _inventory()
-    height_map = np.ones((5, 5), dtype=float)
-    height_map[2, 2] = 0.0
-    observation = SimpleNamespace(
-        scene_height_map=height_map,
-        height_map_xlim=np.array([-0.15, 0.15]),
-        height_map_ylim=np.array([-0.15, 0.15]),
-    )
-    sampler = HeightMapPlanarPoseSampler(
-        PlanarSamplingConfig(
-            grid_shape=(5, 5),
-            yaw_angles=(0.0, np.pi / 2.0),
-            minimum_xy_separation=0.03,
-        )
-    )
-
-    proposals = sampler.sample(
-        inventory,
-        _state(inventory),
-        observation,
-        object_index=0,
-        count=2,
-        sampling_priority="lower_floor_first",
-    )
-
-    assert len(proposals) == 2
-    np.testing.assert_allclose(proposals[0].pose[:2], [0.0, 0.0])
-    np.testing.assert_allclose(proposals[1].pose[:2], [0.0, 0.0])
-    assert proposals[0].diagnostics["orientation_index"] == 0
-    assert proposals[1].diagnostics["orientation_index"] == 1
-    assert proposals[0].score == 0.0
-    assert proposals[0].diagnostics["height_map_score_normalized"] == 1.0
-    assert sampler.score_at_pose(observation, _pose(-0.15, -0.15)) == (
-        -1.0,
-        0.0,
     )
 
 
@@ -623,11 +516,18 @@ def test_generator_parallelizes_pose_solves_across_search_nodes() -> None:
 
 
 def test_planar_sampler_uses_measured_orientation_provider() -> None:
+    from pathlib import Path
+    from stacking_tabletop import TabletopApplication
+
     inventory = _inventory(1)
     measured = np.array([0.0, 0.0, np.sqrt(0.5), np.sqrt(0.5)])
-    sampler = HeightMapPlanarPoseSampler(
-        PlanarSamplingConfig((3, 3), (0.0,), 0.0),
+    app = TabletopApplication.from_repository(Path(__file__).resolve().parents[1])
+    sampler = ScoredPlanarPoseSampler(
+        inventory,
+        PlanarSamplingConfig((3, 3), (0.0,), 0.0, 0.6),
         orientation_provider=MappingOrientationProvider({10: measured}),
+        settings=app.sampling_settings,
+        floor_policy=TabletopPlacementSafety(inventory),
     )
     observation = SimpleNamespace(
         scene_height_map=np.zeros((3, 3)),
@@ -771,48 +671,6 @@ def test_scan_orientation_filters_fresh_and_explicit_mutation_builds():
         assert mutations == ((None, "scan_orientation"),) * 2
     finally:
         generator.close()
-
-
-def test_planar_sampler_legacy_anchor_inset_allows_controlled_overhang() -> None:
-    geometry = _cube(0.04)
-    points = geometry.points.copy()
-    points[:, 0] *= 2.1
-    stack_object = StackObject(
-        10,
-        _BodyModel(),
-        [ConvexGeometry(points, geometry.faces)],
-    )
-    target = TargetGeometry(
-        width=0.08,
-        length=0.17,
-        height=0.15,
-        origin=np.zeros(3),
-        taper=DirectionalTaper(),
-        support_overlap=0.0,
-    )
-    inventory = ObjectInventory([stack_object], {10: _pose()}, target)
-    observation = SimpleNamespace(
-        scene_height_map=np.zeros((5, 5)),
-        height_map_xlim=np.array([-0.04, 0.04]),
-        height_map_ylim=np.array([-0.085, 0.085]),
-    )
-    strict = HeightMapPlanarPoseSampler(
-        PlanarSamplingConfig((5, 5), (0.0,), 0.0)
-    )
-    legacy = HeightMapPlanarPoseSampler(
-        PlanarSamplingConfig((5, 5), (0.0,), 0.0, 0.6)
-    )
-
-    assert strict.sample(inventory, _state(inventory), observation, 0, 1, None) == ()
-    proposals = legacy.sample(
-        inventory,
-        _state(inventory),
-        observation,
-        0,
-        1,
-        None,
-    )
-    assert len(proposals) == 1
 
 
 class _PlanarScore:
