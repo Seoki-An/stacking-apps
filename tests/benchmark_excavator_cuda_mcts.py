@@ -218,6 +218,8 @@ def main():
         row.update(backend=args.backend, seed=args.seed, placed=len(state.placed_object_indices),
                    object_count=len(ids), setup_seconds=setup_seconds,
                    requested_iterations=request.iterations, max_time_seconds=request.max_time_seconds,
+                   expanded_nodes_per_second=result.generated_candidates / elapsed,
+                   expansion_calls_per_second=result.expansion_calls / elapsed,
                    evaluated_nodes_per_second=result.evaluated_candidates / elapsed,
                    nonfailed_evaluations_per_second=(result.evaluated_candidates - result.failed_evaluations) / elapsed,
                    benchmark_overrides={name: getattr(args, name) for name in (

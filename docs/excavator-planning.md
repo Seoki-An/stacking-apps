@@ -10,6 +10,10 @@ its own physical limits, orientation provider, and filters.
 
 ## Current MCTS optimization status
 
+The [CPU and CUDA profile comparison](excavator-mcts-profile-comparison.md)
+measures search time and new-node throughput from saved scenes containing
+10, 15, 20, and 25 placed stones, using the profiles as configured on 2026-10-07.
+
 The current implementation includes compact CUDA sample histories, vectorized
 floor scoring and diversity selection, faster native pose-generation queries,
 reuse of scene/grid computations, lattice-based voxel crops, and fewer branch
