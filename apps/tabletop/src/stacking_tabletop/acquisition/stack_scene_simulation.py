@@ -118,7 +118,7 @@ a{color:#155db0}iframe{width:100%;height:680px;border:0}td,th{padding:10px;text-
         ''.join(f'<li>{html.escape(note)}</li>' for note in report['limitations'])+'</ul>')
 
 
-def simulate(run, output, *, repository=ROOT, step=None):
+def simulate(run, output, *, repository=ROOT, step=None, capture_only=False):
     started=time.monotonic()
     run,output,repository=[Path(p).resolve() for p in (run,output,repository)]
     if output.exists():
@@ -182,6 +182,10 @@ def simulate(run, output, *, repository=ROOT, step=None):
         exporter.finish()
         report['render_capture_s']=time.monotonic()-started
         render_scene(output,static,robots,plan,cameras)
+        if capture_only:
+            report.update(status='complete', reconstruction_skipped=True,
+                          elapsed_s=time.monotonic()-started)
+            return report
         vendor=repository/'.data/vendor/Fast-FoundationStereo'
         dense=reconstruct_with_runtime(output/'captures/session',None,None,output/'rgb_dense',repository=vendor,
             checkpoint=vendor/'weights/23-36-37/model_best_bp2_serialize.pth',region_file=output/'region.json')
@@ -203,8 +207,9 @@ def main():
     parser.add_argument('--step',type=int,help='search snapshot step; default is the last nonempty scene')
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--repository',type=Path,default=ROOT)
+    parser.add_argument('--capture-only',action='store_true',help='render raw synthetic views without GPU reconstruction')
     args=parser.parse_args();simulate(**vars(args))
-    print(args.output/'overview.html',flush=True)
+    print(args.output/('scene.html' if args.capture_only else 'overview.html'),flush=True)
 
 
 if __name__=='__main__':main()

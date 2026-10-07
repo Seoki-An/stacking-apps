@@ -314,3 +314,114 @@ exposure are excluded. Lower camera paths may require more robot travel despite
 the unchanged view count. These are single-run, ideal-simulation measurements.
 Contact faces and surfaces hidden behind other stones remain unobserved; the
 capture does not fill them using catalog geometry.
+
+### Synthetic PCD fixtures for stacking-core SceneID
+
+Generate an occluded, colored stacked-stone capture and separate ground-truth
+poses from a saved tabletop stack. This path renders seven reachable wrist views
+without running FoundationStereo or connecting to hardware:
+
+```bash
+python -m stacking_tabletop.acquisition.stack_scene_fixture \
+  --run .stacks/tabletop_plan1-pending-bbcb79bae7da4682bab6e15f0a96a454.stack \
+  --output apps/tabletop/data/experiments/sceneid_fixture_002
+```
+
+Use `--step N` to select a nonempty search snapshot. As with the stack simulator,
+snapshot N contains objects already placed before that search step. Alternatively,
+reuse existing rendered views with `--simulation PATH` instead of `--run`.
+The example source above has five stones, IDs 3, 7, 6, 10, and 9. The sibling
+`<output>_render` directory retains RGB frames, ideal depths, the camera route,
+and the robot/camera scene viewer. Output directories must be new.
+
+The fixture contains:
+
+```text
+fixture.json         # Frame, entity/catalog mapping, models, camera poses, hashes
+observation.pcd      # Colored, unsegmented, visible stone observations
+observation.npz      # points: N×3 metres; colors: N×3 in [0,1]
+ground_truth.json    # Exact rendering poses; evaluation only
+initial_poses.json   # Starting estimates, deliberately perturbed
+models/              # Visual meshes and portable native DSF model arrays
+views/               # Individual visible PCDs and source RGB images
+```
+
+All observations, ground-truth poses, priors, and the ground plane use
+`base_link`, in metres, with poses `[x,y,z,qx,qy,qz,qw]`. Model surface samples
+and DSF components remain in the body/catalog frame. Entity IDs 1…N map explicitly
+to catalog stone IDs; entity/geometry 0 is the fixed tabletop plane. The final
+stone in snapshot order is designated `placed_entity_id` for this fixture.
+The local numeric frame ID is 1. Ground height comes from the rendered place
+table, not the robot floor.
+
+The scan uses first-hit depth pixels: hidden, underside, and contact faces are
+not inserted as observations. Renderer labels provide an ideal foreground mask
+removing table/robot points; instance labels are not supplied to SceneID.
+By default, independent axial Gaussian noise has standard deviation 0.5 mm
+(`--noise-mm 0` gives ideal depth), followed by 1 mm voxel averaging. `--seed`
+controls reproducibility. Priors have 3 mm translation and 3° rotation errors.
+This tests local pose correction with known identities, not blind recognition.
+
+Run the installed core scan evaluator against the priors and the truth:
+
+```bash
+python apps/tabletop/scripts/test_sceneid_fixture.py \
+  apps/tabletop/data/experiments/sceneid_fixture_002 --cuda
+
+# Also run the full joint pose/physics solve and score proposed poses:
+python apps/tabletop/scripts/test_sceneid_fixture.py \
+  apps/tabletop/data/experiments/sceneid_fixture_002 --cuda --solve --progress
+
+# Inspect the observation with captured RGB colors:
+python apps/tabletop/scripts/view_rgb_scene.py \
+  apps/tabletop/data/experiments/sceneid_fixture_002/observation.pcd
+```
+
+Omit `--cuda` for CPU. Results are written to `sceneid_result.json`, including
+scan losses, translation/rotation errors and, when solving, native status and
+whether an accepted snapshot exists. `stacking_common.planning.sceneid_fixture.load_fixture`
+returns `(problem, metadata, initial_poses, ground_truth)` for direct use in core
+experiments. The directory is portable: model arrays include mass, inertia,
+component friction/sharpness, and visual surface samples; loading requires no
+original simulation, catalog, ROS, or platform configuration. File hashes are
+checked before native model construction.
+
+Ground truth describes the synthesized rendering geometry. It does **not**
+certify a stable DSF stack: visual meshes and physical collision models may
+differ, and SceneID may correctly reject the physical configuration. The
+simulated scan is an ideal raycast with optional noise, not an RGB MVS estimate
+or a calibrated real-camera noise model. An accepted native snapshot still
+requires the application's review/rollout checks before any replanning use.
+
+SceneID's `--progress` option streams native ICP iterations, physical correction,
+consensus residuals, final statuses, and stage timings to stderr. It requires a
+rebuilt stacking-core with `SceneIdConfig.verbose` support; logging is off by
+default. To retain the live log alongside the final JSON:
+
+```bash
+python -u apps/tabletop/scripts/test_sceneid_fixture.py \
+  apps/tabletop/data/experiments/sceneid_fixture_from_run_001 \
+  --cuda --solve --progress 2>&1 | tee /tmp/sceneid-progress.log
+```
+
+The test runner also saves `visualization/overview.html`: an interactive RGB
+capture comparison with initial (orange), proposed (blue), and ground-truth
+(green) model surface samples. Coordinates are preserved in the fixture frame;
+no additional alignment is applied. A proposal remains labelled unaccepted
+when the solver did not produce an accepted snapshot.
+
+Add `--visualize` to open an Open3D window after solving. To inspect an existing
+result without rerunning the solver or overwriting its JSON:
+
+```bash
+python apps/tabletop/scripts/test_sceneid_fixture.py \
+  apps/tabletop/data/experiments/sceneid_fixture_from_run_001 \
+  --view-result --visualize
+```
+
+Open3D keys: **0** RGB only, **1** initial poses, **2** proposed poses,
+**3** ground truth, **C** toggle captured RGB, **G** toggle the GT overlay,
+**Q** close. Drag to rotate and scroll to zoom. Without a graphical desktop,
+omit `--visualize` and open the saved HTML, whose buttons and legend toggle
+pose groups and individual stones. Model samples include hidden surfaces;
+the captured PCD contains only observed surfaces.
