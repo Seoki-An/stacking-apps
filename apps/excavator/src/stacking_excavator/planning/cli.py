@@ -19,7 +19,7 @@ from stacking_common.visualization import TargetVolume
 from stacking_common.visualization.mcts import MCTSDebugArtifact, project_mcts_step
 from stacking_common.workflows.process import supervise_planning
 from stacking_common.workflows.mcts_reporting import (
-    ProgressReporter, print_search_step, print_sequence_step, search_statistics,
+    ProgressReporter, print_search_step, print_sequence_step, search_statistics, tree_statistics,
 )
 
 from stacking_excavator import ExcavatorApplication
@@ -234,12 +234,14 @@ def run(args):
                 started = time.perf_counter()
                 result = session.search(request)
                 elapsed = time.perf_counter() - started
+                tree = tree_statistics(result.root)
                 progress.update("search_completed", {
                     "step": step, "search_attempt": 1, "elapsed_seconds": elapsed,
                     "generated_candidates": result.generated_candidates,
                     "evaluated_candidates": result.evaluated_candidates,
                     "ranked_candidates": len(result.ranked_candidates),
                     "execution_rejected_candidates": result.execution_rejected_candidates,
+                    "tree_nodes": tree["nodes"], "tree_leaves": tree["leaves"],
                 })
                 print_search_step(step, result, elapsed, search)
                 writer.append_mcts_step(project_mcts_step(result.root, result.selected, step=step,

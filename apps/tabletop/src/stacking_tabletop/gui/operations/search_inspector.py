@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QLabel,
+    QPlainTextEdit,
     QPushButton,
     QSlider,
     QSpinBox,
@@ -102,6 +103,14 @@ class SearchInspector(QWidget):
         form.addRow("Video FPS", self.video_fps)
         form.addRow("", self.video_button)
         layout.addWidget(navigation)
+
+        outcome = QGroupBox("Search outcome")
+        outcome_layout = QVBoxLayout(outcome)
+        self.failure_details = QPlainTextEdit()
+        self.failure_details.setReadOnly(True)
+        self.failure_details.setMaximumHeight(220)
+        outcome_layout.addWidget(self.failure_details)
+        layout.addWidget(outcome)
 
         diagnostics = QGroupBox("Diagnostic layers")
         diagnostic_layout = QVBoxLayout(diagnostics)
@@ -216,6 +225,7 @@ class SearchInspector(QWidget):
             ):
                 widget.setEnabled(enabled)
             self.summary.setText(self._summary())
+            self.failure_details.setPlainText(self.controller.search_diagnostics)
         finally:
             self._updating = False
 

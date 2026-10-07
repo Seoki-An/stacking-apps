@@ -482,6 +482,7 @@ def main() -> int | None:
                 started = time.perf_counter()
                 result = session.search(request)
                 elapsed = time.perf_counter() - started
+                tree = _tree_statistics(result.root)
                 progress.update(
                     "search_completed",
                     {
@@ -491,6 +492,8 @@ def main() -> int | None:
                         "generated_candidates": result.generated_candidates,
                         "evaluated_candidates": result.evaluated_candidates,
                         "ranked_candidates": len(result.ranked_candidates),
+                        "tree_nodes": tree["nodes"],
+                        "tree_leaves": tree["leaves"],
                     },
                 )
                 _print_step(step + 1, result, elapsed, search)
@@ -498,6 +501,7 @@ def main() -> int | None:
                     result.root,
                     result.selected,
                     step=step + 1,
+                    failure_reason="search_exhausted" if result.selected is None else None,
                 )
                 if run_writer is not None:
                     run_writer.append_mcts_step(

@@ -73,6 +73,17 @@ transparent all-candidate view.
 
 ## Native `.stack` run document
 
+In both Operations Consoles, select a step in **Search Inspector** and read
+the **Search outcome** panel. It shows the recorded step status, per-search
+timeout and evaluation counts, retained-tree rejection counts when available,
+CEM rejection counts, root candidate failures, and root generation rejections.
+Selecting a candidate shows its individual rejection reason, including
+`missing_validated_descendant` when required descendant validation did not
+produce a usable path. A zero-candidate step can still show CEM failures.
+Each count is labelled by its scope; overlapping categories should not be
+added together. Older runs without detailed records are identified explicitly.
+Use **Refresh run** to read newly committed search steps.
+
 `stacking_common.artifacts.StackRunStore` owns the schema-versioned native run
 format. One `.stack` file contains compact JSON records, checksummed compressed
 typed arrays, run/configuration provenance, MCTS visualization steps, and

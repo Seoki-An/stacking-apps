@@ -46,6 +46,7 @@ class OperationsController(CommonOperationsController):
         path = Path(path)
         artifact = StackRunStore.load_mcts(path)
         records = StackRunStore.load_placement_plans(path)
+        statistics = StackRunStore.load_mcts_statistics(path)
         metadata = StackRunStore.info(path).metadata
         if metadata.get("platform") != "excavator":
             raise ValueError("Open an excavator .stack run in this console")
@@ -74,7 +75,7 @@ class OperationsController(CommonOperationsController):
                 known.add(record.step)
         artifact = replace(artifact, steps=tuple(sorted(steps, key=lambda step: step.step)))
         self.contexts, self.projectors, self.mesh_paths = contexts, projectors, paths
-        self.set_artifact(artifact, planning_records=records)
+        self.set_artifact(artifact, planning_records=records, search_statistics=statistics)
         return artifact
 
     def frame(self, *, trajectory_time=None):

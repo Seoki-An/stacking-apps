@@ -241,6 +241,16 @@ returns are reset recursively before the next search, while the tree structure
 and evaluation results remain. This provides candidate and simulation reuse,
 but not uninterrupted statistical accumulation across placement steps.
 
+Both platform planning logs report `tree_nodes` and `leaves` after each search
+attempt, before motion planning and root promotion. Leaves are nodes with no
+children in the retained tree, including pending, failed and inherited nodes;
+a root with no children counts as one leaf. These are final tree counts, not
+new expansions or a cumulative count of candidates retired during retries.
+Search-only `.stack` statistics store `tree.leaves`; motion-planning sequences
+store `search_attempts[].tree_nodes` and `search_attempts[].tree_leaves`.
+The existing `frontier_leaves` metric instead counts evaluated nodes with no
+evaluated children and can differ when children are still pending.
+
 ## Batch sizes and time limits
 
 | Control | Meaning |

@@ -16,6 +16,7 @@ from stacking_common.domain import Action, State
 from stacking_common.planning import PlanningStatus
 from stacking_common.search import MCTSSearchRequest, MCTSSession
 from stacking_common.visualization import MCTSDebugStep, project_mcts_step
+from stacking_common.workflows.mcts_reporting import tree_statistics
 
 
 ObservationT = TypeVar("ObservationT")
@@ -59,6 +60,8 @@ class SequenceSearchAttempt:
     effective_max_depth: int | None = None
     timed_out: bool = False
     execution_rejected_candidates: int = 0
+    tree_nodes: int = 0
+    tree_leaves: int = 0
 
 
 @dataclass(frozen=True)
@@ -192,6 +195,7 @@ class MCTSPlanningSequenceCoordinator(Generic[ObservationT]):
             search_started = time.perf_counter()
             result = self.session.search(self.request)
             search_elapsed = time.perf_counter() - search_started
+            tree = tree_statistics(result.root)
             generator = getattr(self.session.search_engine, "root_action_generator", None)
             cem_statistics = tuple(getattr(generator, "statistics_history", ()))
             self._assign_candidate_ids(result.root, step)
@@ -205,6 +209,8 @@ class MCTSPlanningSequenceCoordinator(Generic[ObservationT]):
                 ranked_candidates=len(result.ranked_candidates),
                 cem_statistics=tuple(value.to_dict() for value in cem_statistics),
                 execution_rejected_candidates=getattr(result, "execution_rejected_candidates", 0),
+                tree_nodes=tree["nodes"],
+                tree_leaves=tree["leaves"],
             )
             candidate_id = self._candidate_id(result.selected)
             searches.append(
@@ -220,6 +226,8 @@ class MCTSPlanningSequenceCoordinator(Generic[ObservationT]):
                     getattr(result, "effective_max_depth", None),
                     bool(getattr(result, "timed_out", False)),
                     int(getattr(result, "execution_rejected_candidates", 0)),
+                    tree_nodes=tree["nodes"],
+                    tree_leaves=tree["leaves"],
                 )
             )
             if result.selected is None:
@@ -460,6 +468,8 @@ class MCTSPlanningSequenceCoordinator(Generic[ObservationT]):
                     "effective_max_depth": value.effective_max_depth,
                     "timed_out": value.timed_out,
                     "execution_rejected_candidates": value.execution_rejected_candidates,
+                    "tree_nodes": value.tree_nodes,
+                    "tree_leaves": value.tree_leaves,
                 }
                 for value in searches
             ],

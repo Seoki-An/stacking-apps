@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import threading
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -13,6 +14,24 @@ from stacking_common.workflows import mcts_reporting
 from stacking_excavator.planning import cli
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_leaf_counts_include_pending_and_failed_nodes():
+    def node(children=(), *, evaluated=True, failed=False):
+        return SimpleNamespace(children=children, evaluated=evaluated, failed=failed,
+                               depth=0, rejected_expansions={}, rejection_reason=None)
+
+    pending = node(evaluated=False)
+    branch = node([pending, node(evaluated=False)])
+    failed = node(failed=True)
+    terminal = node()
+    root = node([branch, failed, terminal])
+    stats = mcts_reporting.tree_statistics(root)
+    assert stats["nodes"] == 6
+    assert stats["leaves"] == 4
+    # The evaluated branch is also a frontier leaf, but is not childless.
+    assert stats["frontier_leaves"] == 3
+    assert mcts_reporting.tree_statistics(node())["leaves"] == 1
 
 
 @pytest.mark.parametrize("outcome", ["success", "catalog", "exhausted", "error"])
@@ -72,6 +91,8 @@ def test_excavator_cli_reports_search_and_stops_heartbeat(tmp_path, monkeypatch,
         assert message in captured.out
     stats, = StackRunStore.load_mcts_statistics(output)
     assert "elapsed_seconds" in stats and "tree" in stats and "simulation" in stats
+    assert f"leaves: {stats['tree']['leaves']}," in captured.out
+    assert f"leaves={stats['tree']['leaves']}" in captured.out
     if succeeded:
         assert "[INFO] Root CEM:" in captured.out
         assert "[INFO] CEM round 1:" in captured.out

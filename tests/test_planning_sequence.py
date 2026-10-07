@@ -297,6 +297,13 @@ def test_sequence_rejects_failed_motion_and_plans_next_mcts_candidate() -> None:
     assert result.status is PlanningSequenceStatus.COMPLETE
     assert result.final_state.object_poses[1][0] == 0.5
     assert len(result.steps[0].search_attempts) == 1
+    # Snapshot the completed search before motion rejection and root promotion.
+    search_attempt = result.steps[0].search_attempts[0]
+    assert (search_attempt.tree_nodes, search_attempt.tree_leaves) == (3, 2)
+    saved_attempt = writer.steps[0][1]["search_attempts"][0]
+    assert (saved_attempt["tree_nodes"], saved_attempt["tree_leaves"]) == (3, 2)
+    completed = next(details for event, details in progress if event == "search_completed")
+    assert (completed["tree_nodes"], completed["tree_leaves"]) == (3, 2)
     assert [value.result.status for value in result.steps[0].planning_attempts] == [
         PlanningStatus.INFEASIBLE,
         PlanningStatus.SUCCESS,

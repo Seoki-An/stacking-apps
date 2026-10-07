@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from collections import Counter
 from collections.abc import Mapping
 import json
 from pathlib import Path
@@ -131,6 +132,7 @@ class OperationsController:
     ) -> None:
         self.artifact: MCTSDebugArtifact | None = None
         self.planning_records: tuple[PlacementPlanRecord, ...] = ()
+        self.search_statistics: dict[int, Mapping[str, object]] = {}
         self.step_index = 0
         self.plan_attempt: int | None = None
         self.plan_segment_index = 0
@@ -160,6 +162,7 @@ class OperationsController:
         if path.suffix.lower() == ".stack":
             artifact = StackRunStore.load_mcts(path)
             planning_records = StackRunStore.load_placement_plans(path)
+            search_statistics = StackRunStore.load_mcts_statistics(path)
         else:
             values = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(values, dict):
@@ -170,7 +173,9 @@ class OperationsController:
                 else decode_mcts_debug(values)
             )
             planning_records = ()
-        self.set_artifact(artifact, planning_records=planning_records)
+            search_statistics = ()
+        self.set_artifact(artifact, planning_records=planning_records,
+                          search_statistics=search_statistics)
         return artifact
 
     def reload(self, path: str | Path) -> MCTSDebugArtifact:
@@ -208,6 +213,7 @@ class OperationsController:
         artifact: MCTSDebugArtifact,
         *,
         planning_records: tuple[PlacementPlanRecord, ...] = (),
+        search_statistics: tuple[Mapping[str, object], ...] = (),
     ) -> None:
         if not isinstance(artifact, MCTSDebugArtifact):
             raise TypeError("operations console requires an MCTSDebugArtifact")
@@ -216,6 +222,9 @@ class OperationsController:
             raise TypeError("operations console planning records have the wrong type")
         self.artifact = artifact
         self.planning_records = records
+        self.search_statistics = {
+            int(value["step"]): dict(value) for value in search_statistics if "step" in value
+        }
         self.step_index = 0
         self.timeline_frame = 0
         self._select_default_candidate()
@@ -241,6 +250,55 @@ class OperationsController:
             ),
             None,
         )
+
+    @property
+    def search_diagnostics(self) -> str:
+        """Describe recorded outcomes without inferring an unrecorded cause."""
+        step = self.current_step
+        if step is None:
+            return "Load a stacking run to inspect search outcomes."
+        outcome = "succeeded" if step.succeeded else (step.failure_reason or "unsuccessful")
+        lines = [f"Step {step.step}: {outcome}"]
+
+        def reasons(label, counts):
+            if counts:
+                lines.append(label + ":")
+                lines.extend(f"  {reason}: {count}" for reason, count in
+                             sorted(counts.items(), key=lambda item: (-item[1], item[0])))
+
+        statistics = self.search_statistics.get(step.step, {})
+        attempts = statistics.get("search_attempts")
+        if attempts is None:
+            attempts = (statistics,) if statistics else ()
+        for index, attempt in enumerate(attempts, 1):
+            lines.append(f"Search attempt {attempt.get('attempt', index)}:")
+            if "timed_out" in attempt:
+                lines.append("  Search time limit reached: " + ("yes" if attempt["timed_out"] else "no"))
+            for key, label in (("generated_candidates", "Generated candidates"),
+                               ("failed_evaluations", "Failed evaluations")):
+                if key in attempt:
+                    lines.append(f"  {label}: {attempt[key]}")
+            tree = attempt.get("tree", {})
+            reasons("Retained tree rejection counts (all depths)", tree.get("rejection_reasons", {}))
+            cem = attempt.get("cem_statistics", ())
+            if not cem and attempt.get("cem"):
+                cem = (attempt["cem"],)
+            for pool_index, pool in enumerate(cem, 1):
+                reasons(f"CEM pool {pool_index} rejection counts", pool.get("rejection_counts", {}))
+
+        reasons("Displayed root candidate failures", Counter(
+            candidate.rejection_reason for candidate in step.candidates if candidate.rejection_reason
+        ))
+        reasons("Root generation rejections", step.rejected_expansions)
+        active = self.active_candidate
+        if active is not None:
+            lines.append(f"Active candidate {active.candidate_id} (object {active.object_id}): "
+                         f"{active.rejection_reason or active.outcome.value}")
+        if not step.succeeded and not statistics and not step.rejected_expansions and not any(
+            candidate.rejection_reason for candidate in step.candidates
+        ):
+            lines.append("No detailed rejection reasons were recorded for this step.")
+        return "\n".join(lines)
 
     @property
     def current_plans(self) -> tuple[PlacementPlanRecord, ...]:

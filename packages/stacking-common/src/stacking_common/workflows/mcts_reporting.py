@@ -68,13 +68,18 @@ def progress_event(event: str, details) -> tuple[str | None, str | None]:
             f"running MCTS search {search_attempt} for step {step}",
         )
     if event == "search_completed":
+        tree_summary = (
+            f", tree_nodes={details['tree_nodes']}, leaves={details['tree_leaves']}"
+            if "tree_leaves" in details else ""
+        )
         return (
             f"step {step}: MCTS search finished in "
             f"{float(details['elapsed_seconds']):.1f}s; "
             f"generated={details['generated_candidates']}, "
             f"evaluated={details['evaluated_candidates']}, "
             f"ranked={details['ranked_candidates']}, "
-            f"MCTS_execution_rejected={details.get('execution_rejected_candidates', 0)}",
+            f"MCTS_execution_rejected={details.get('execution_rejected_candidates', 0)}"
+            f"{tree_summary}",
             f"selecting a candidate for step {step}",
         )
     if event == "candidate_skipped":
@@ -208,6 +213,7 @@ def search_statistics(
             "evaluated": tree["evaluated"],
             "pending": tree["pending"],
             "failed": tree["failed"],
+            "leaves": tree["leaves"],
             "frontier_leaves": tree["frontier_leaves"],
             "max_depth": tree["max_depth"],
             "rejection_reasons": dict(tree["rejection_reasons"]),
@@ -236,6 +242,7 @@ def print_sequence_step(step) -> None:
         print(
             f"[INFO] Search attempt {attempt.attempt}: depth={attempt.effective_max_depth}, "
             f"generated={attempt.generated_candidates}, evaluated={attempt.evaluated_candidates}, "
+            f"tree_nodes={attempt.tree_nodes}, leaves={attempt.tree_leaves}, "
             f"MCTS_execution_rejected={attempt.execution_rejected_candidates}, "
             f"timed_out={attempt.timed_out}", flush=True,
         )
@@ -317,6 +324,7 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
         "[INFO] Tree nodes: "
         f"{tree['nodes']}, evaluated: {tree['evaluated']}, "
         f"pending: {tree['pending']}, failed: {tree['failed']}, "
+        f"leaves: {tree['leaves']}, "
         f"frontier leaves: {tree['frontier_leaves']}, "
         f"max depth: {tree['max_depth']}"
     )
@@ -492,6 +500,7 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
 
 
 def tree_statistics(root) -> dict[str, object]:
+    """Count the retained tree, including failed and pending childless leaves."""
     nodes = []
     stack = [root]
     while stack:
@@ -512,6 +521,7 @@ def tree_statistics(root) -> dict[str, object]:
         "evaluated": sum(node.evaluated for node in nodes),
         "pending": sum(not node.evaluated for node in nodes),
         "failed": sum(node.failed for node in nodes),
+        "leaves": sum(not node.children for node in nodes),
         "frontier_leaves": sum(
             node.evaluated
             and not any(child.evaluated for child in node.children)

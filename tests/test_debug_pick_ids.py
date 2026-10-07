@@ -76,13 +76,15 @@ def test_planning_log_reports_cem_even_when_zero_candidates_survive(monkeypatch,
     cem = CEMStatistics(rounds=(CEMRoundStatistics(0, 96, 0, 96, 0, 0, fresh_attempts=96),),
         rejection_counts={"active_floor_above_active_layer": 96},
         next_fresh_offset=96, fresh_exhausted=False)
-    attempt = SequenceSearchAttempt(1, 1.5, 200, 0, 0, 0, None, (cem,), 3)
+    attempt = SequenceSearchAttempt(1, 1.5, 200, 0, 0, 0, None, (cem,), 3,
+                                    tree_nodes=1, tree_leaves=1)
     step = SimpleNamespace(step=4, search_attempts=(attempt,), planning_attempts=(), elapsed_seconds=1.5)
     module._print_sequence_step(step)
     output = capsys.readouterr().out
     assert "attempts=96, accepted=0, rejected=96" in output
     assert "active_floor_above_active_layer=96" in output
     assert "fresh_exhausted=False" in output
+    assert "tree_nodes=1, leaves=1" in output
     reporter = module._ProgressReporter()
     reporter.update("search_completed", dict(step=4, elapsed_seconds=1.5,
         generated_candidates=0, evaluated_candidates=0, ranked_candidates=0,
