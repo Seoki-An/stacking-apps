@@ -1,4 +1,4 @@
-# Tabletop MCTS options. Distances use metres, time uses seconds, and fields
+# Tabletop CUDA MCTS options. Distances use metres, time uses seconds, and fields
 # ending in `_degrees` use degrees. All other scores are dimensionless.
 #
 # tree
@@ -119,8 +119,8 @@ final_selection:
   require_validated_descendant: false
 
 parallel:
-  posegen_backend: cpu  # cpu or cuda
-  simulation_backend: cpu  # cpu or cuda
+  posegen_backend: cuda  # cpu or cuda
+  simulation_backend: cuda  # cpu or cuda
   enabled: true
   workers: 12
 

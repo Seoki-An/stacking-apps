@@ -66,15 +66,19 @@ Run MCTS with the current profile:
 
 ```bash
 python apps/tabletop/scripts/debug/mcts.py \
-  --config apps/tabletop/config/mcts.yml \
+  --config apps/tabletop/config/mcts_cpu.yml \
   --save-run /tmp/tabletop-mcts.stack
 ```
+
+For CUDA pose generation and simulation, select
+`apps/tabletop/config/mcts_cuda.yml` with `--config`. The CUDA profile uses
+the same tabletop search and geometry settings as the CPU profile.
 
 Short synthetic smoke run, including native grasp/motion planning:
 
 ```bash
 python apps/tabletop/scripts/debug/mcts.py \
-  --config apps/tabletop/config/mcts.yml \
+  --config apps/tabletop/config/mcts_cpu.yml \
   --object-ids 1 --steps 1 --iterations 1 --max-search-time 60 \
   --transition-backend kinematic --pose-solver passthrough \
   --plan-motion --save-run /tmp/tabletop-smoke.stack
@@ -84,7 +88,7 @@ Plan from a trusted, measured pickup scene:
 
 ```bash
 python apps/tabletop/scripts/debug/mcts.py \
-  --config apps/tabletop/config/mcts.yml \
+  --config apps/tabletop/config/mcts_cpu.yml \
   --pick-pose-data /path/to/pose_data.pkl \
   --object-ids 1 --steps 1 --plan-motion \
   --save-run /tmp/tabletop-planning.stack
@@ -131,7 +135,7 @@ Resume offline planning into a new run and export its summary:
 
 ```bash
 python apps/tabletop/scripts/debug/mcts.py \
-  --config apps/tabletop/config/mcts.yml \
+  --config apps/tabletop/config/mcts_cpu.yml \
   --resume-run /tmp/tabletop-planning.stack \
   --save-run /tmp/tabletop-planning-resumed.stack \
   --steps 5 --max-run-time 600 \

@@ -2,8 +2,10 @@ from types import SimpleNamespace
 from pathlib import Path
 
 import numpy as np
+import yaml
 from stacking_common.actions import MeshHeightInitializer
 from stacking_common.actions.scored import ScoredPlanarPoseSampler, ScoredPlacementActionGenerator
+from stacking_common.profiles.mcts import load_mcts_profile
 from stacking_common.search import (
     EvaluationFidelity,
     MonteCarloTreeSearch,
@@ -13,6 +15,33 @@ from stacking_tabletop.config import MCTSParallelConfig
 
 
 ROOT = Path(__file__).resolve().parents[1]
+MCTS_CONFIG = ROOT / "apps/tabletop/config"
+
+
+def test_tabletop_cpu_and_cuda_profiles_preserve_platform_settings() -> None:
+    cpu_path = MCTS_CONFIG / "mcts_cpu.yml"
+    cuda_path = MCTS_CONFIG / "mcts_cuda.yml"
+    cpu = yaml.safe_load(cpu_path.read_text())
+    cuda = yaml.safe_load(cuda_path.read_text())
+
+    assert cpu["parallel"]["posegen_backend"] == "cpu"
+    assert cpu["parallel"]["simulation_backend"] == "cpu"
+    assert cuda["parallel"]["posegen_backend"] == "cuda"
+    assert cuda["parallel"]["simulation_backend"] == "cuda"
+    for section in cpu:
+        if section != "parallel":
+            assert cuda[section] == cpu[section]
+    for key in ("enabled", "workers"):
+        assert cuda["parallel"][key] == cpu["parallel"][key]
+
+    assert (
+        TabletopApplication.from_repository(ROOT).mcts_profile
+        == load_mcts_profile(cpu_path)
+    )
+    assert (
+        TabletopApplication.from_repository(ROOT, mcts_config=cuda_path).mcts_profile
+        == load_mcts_profile(cuda_path)
+    )
 
 
 def _canonical_inventory(application):

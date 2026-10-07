@@ -1,0 +1,157 @@
+# Tabletop CPU MCTS options. Distances use metres, time uses seconds, and fields
+# ending in `_degrees` use degrees. All other scores are dimensionless.
+#
+# tree
+# - max_depth: deepest tree level; integer >= 0.
+# - iterations: search cycles per call; integer > 0.
+# - max_search_time: wall-time limit; number > 0.
+# - max_children/root_max_children: child limits; integer > 0.
+# - exploration_constant: PUCT exploration strength; number >= 0.
+# - discount: reward discount; number in [0, 1].
+# - failure_reward: reward assigned to a failed transition; finite number.
+# - simulation_depth: deepest level using short simulation; integer >= 0.
+# - initial_depth1_steps: root-only warmup placements; 0 enables early lookahead.
+# - root_lookahead: cover each validated root with one descendant; true | false.
+#
+# widening
+# - enabled: enable progressive widening below the root; true | false.
+# - coefficient/exponent: ceil(coefficient * visits^exponent) child allowance;
+#   coefficient > 0 and exponent in [0, 1].
+#
+# generation
+# - batch_size: proposal attempts per generator call; integer > 0.
+# - expansion_retry_batches: generator retries per expansion; integer > 0.
+# - min_feasible_children: target surviving children; integer > 0.
+# - attempt_multiplier: total attempt allowance multiplier; number >= 1.
+# - evaluation_batch_size: PMBS selection/simulation batch limit; 1 uses serial
+#   tree iterations. Integer > 0; spare slots can evaluate pending siblings.
+# - root/deeper_sampling_priority: planar ordering; lower_floor_first.
+#
+# validation
+# - max_candidates: top root candidates receiving long simulation; integer >= 0.
+# - root_before_search: long-validate roots before descendants; true | false.
+# - rejected_root_retry_rounds: diversified all-rejected retries; integer >= 0.
+# - time_reserve: wall time reserved for final long checks; number >= 0.
+# - max_state_drift: drift that invalidates a preserved subtree; number >= 0.
+#
+# final_selection
+# - mode: mean | max_descendant | mixed.
+# - max_weight: descendant share in mixed mode; number in [0, 1].
+# - validate_descendant_path: long-check the promoted path; true | false.
+# - validate_descendant_depth: checked continuation depth; integer >= 0.
+# - require_validated_descendant: reject roots without a valid path; true | false.
+#
+# parallel
+# - enabled: parallel pose generation and simulation; true | false.
+# - workers: independent native workers; integer > 0.
+#
+# root_cem
+# - population/elite/keep: population, parent, and output counts; integers > 0.
+# - iterations: total CEM rounds; integer > 0.
+# - mutation_xy_std: Gaussian XY deviation; number >= 0.
+# - mutation_yaw_std_degrees: Gaussian yaw deviation; number >= 0.
+# - fresh_fraction: newly sampled fraction per later round; number in [0, 1].
+# - duplicate_xy_threshold: same-object XY duplicate limit; number >= 0.
+# - duplicate_yaw_threshold_degrees: orientation duplicate limit; number >= 0.
+# - max_per_object: retained-candidate diversity cap; integer > 0.
+# - height_map_score_weight: normalized low-floor preference; number >= 0.
+# - seed: NumPy mutation seed; integer.
+#
+# bootstrap
+# - mean_reward: assumed reward per remaining placement; finite number.
+# - horizon: maximum projected remaining placements; integer >= 0.
+#
+# debug (used only by apps/tabletop/scripts/debug/mcts.py)
+# - object_ids: unique IDs from inventory.yml.
+# - steps/iterations: positive integer debug limits.
+# - max_search_time: positive debug wall-time limit.
+# - transition_backend: kinematic | simulation | core.
+# - pose_solver: passthrough | native.
+# - initial_yaw_degrees: initial inventory orientation; finite number.
+# - seed: Python MCTS selection seed; integer.
+# - plan_motion: run native grasp/motion planning after search; true | false.
+# - max_planning_attempts_per_step: candidate-plan cap; null tries all candidates.
+# - planning_pick_position: world-frame pickup XYZ used by motion planning.
+# - pick_pose_data: trusted legacy pose_data.pkl; null uses the synthetic pose.
+
+# Configuration values
+units: si
+
+tree:
+  max_depth: 3
+  iterations: 200
+  max_search_time: 500.0
+  max_children: 32
+  root_max_children: 12
+  exploration_constant: 2.0
+  discount: 0.9
+  failure_reward: -1.0
+  simulation_depth: 3
+  initial_depth1_steps: 6
+  root_lookahead: true
+
+widening:
+  enabled: true
+  coefficient: 3.0
+  exponent: 0.5
+
+generation:
+  batch_size: 32
+  expansion_retry_batches: 3
+  min_feasible_children: 3
+  attempt_multiplier: 3.0
+  evaluation_batch_size: 12
+  root_sampling_priority: lower_floor_first
+  deeper_sampling_priority: lower_floor_first
+
+validation:
+  max_candidates: 8
+  root_before_search: true
+  rejected_root_retry_rounds: 1
+  time_reserve: 30.0
+  max_state_drift: 0.1
+
+final_selection:
+  mode: mean
+  max_weight: 0.5
+  validate_descendant_path: false
+  validate_descendant_depth: 1
+  require_validated_descendant: false
+
+parallel:
+  posegen_backend: cpu  # cpu or cuda
+  simulation_backend: cpu  # cpu or cuda
+  enabled: true
+  workers: 12
+
+root_cem:
+  population: 96
+  elite: 24
+  iterations: 3
+  keep: 12
+  mutation_xy_std: 0.01
+  mutation_yaw_std_degrees: 5.0
+  fresh_fraction: 0.3
+  duplicate_xy_threshold: 0.003
+  duplicate_yaw_threshold_degrees: 5.0
+  max_per_object: 8
+  height_map_score_weight: 1.0
+  seed: 0
+
+bootstrap:
+  mean_reward: 2.5
+  horizon: 4
+
+debug:
+  object_ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+  steps: 20
+  iterations: 200
+  max_search_time: 600.0
+  transition_backend: simulation
+  pose_solver: native
+  initial_yaw_degrees: 90.0
+  seed: 0
+  plan_motion: false
+  max_planning_attempts_per_step: null
+  planning_pick_position: [0.0, -0.7, 0.2]
+  pick_pose_data: null

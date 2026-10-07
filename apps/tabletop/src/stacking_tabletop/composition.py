@@ -79,7 +79,9 @@ class TabletopApplication(StackingSearchApplication):
     repository_root: Path
 
     @classmethod
-    def from_repository(cls, repository: str | Path) -> "TabletopApplication":
+    def from_repository(
+        cls, repository: str | Path, *, mcts_config: str | Path | None = None
+    ) -> "TabletopApplication":
         root = Path(repository)
         profiles = SolverProfileFiles.from_directory(
             root / "apps" / "tabletop" / "config" / "solvers"
@@ -103,6 +105,11 @@ class TabletopApplication(StackingSearchApplication):
             ),
             banned_object_ids=environment_profile.observation.banned_object_ids,
         )
+        mcts_profile_path = (
+            Path(mcts_config)
+            if mcts_config is not None
+            else root / "apps" / "tabletop" / "config" / "mcts_cpu.yml"
+        )
         return cls(
             solver_profiles=profiles,
             environment_profile=environment_profile,
@@ -112,9 +119,7 @@ class TabletopApplication(StackingSearchApplication):
                 fidelity="short",
             ),
             posegen_profile=load_posegen_profile(profiles.posegen),
-            mcts_profile=load_mcts_profile(
-                root / "apps" / "tabletop" / "config" / "mcts.yml"
-            ),
+            mcts_profile=load_mcts_profile(mcts_profile_path),
             inventory_profile=load_inventory_profile(
                 inventory_profile_path
             ),

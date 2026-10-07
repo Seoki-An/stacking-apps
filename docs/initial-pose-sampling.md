@@ -628,7 +628,7 @@ diagnostics, which now carry normalized scored-map values on both platforms.
 Native refinement still evaluates the actual mutated pose. These bonus
 lookups should be described as approximate guidance.
 
-| Root parameter | Excavator `mcts_cuda.yml` | Tabletop `mcts.yml` |
+| Root parameter | Excavator `mcts_cuda.yml` | Tabletop `mcts_cpu.yml` and `mcts_cuda.yml` |
 |---|---:|---:|
 | Population | 96 | 96 |
 | Elite-list limit | 32 | 24 |
@@ -907,7 +907,7 @@ The native references assume the sibling `stacking-core` checkout.
 | Floor-fill fallback | [search.py](../packages/stacking-common/src/stacking_common/search/mcts/search.py): `_run_floor_fill_fallback` |
 | Height-map domain | [heightmap.py](../packages/stacking-common/src/stacking_common/visualization/heightmap.py): `HeightMapRenderer` |
 | Excavator parameters | [action_generation.yml](../apps/excavator/config/action_generation.yml), [environment.yml](../apps/excavator/config/environment.yml), [inventory.yml](../apps/excavator/config/inventory.yml), [mcts_cuda.yml](../apps/excavator/config/mcts_cuda.yml), [posegen.yml](../apps/excavator/config/solvers/posegen.yml) |
-| Tabletop parameters | [action_generation.yml](../apps/tabletop/config/action_generation.yml), [environment.yml](../apps/tabletop/config/environment.yml), [inventory.yml](../apps/tabletop/config/inventory.yml), [mcts.yml](../apps/tabletop/config/mcts.yml), [posegen.yml](../apps/tabletop/config/solvers/posegen.yml) |
+| Tabletop parameters | [action_generation.yml](../apps/tabletop/config/action_generation.yml), [environment.yml](../apps/tabletop/config/environment.yml), [inventory.yml](../apps/tabletop/config/inventory.yml), [mcts_cpu.yml](../apps/tabletop/config/mcts_cpu.yml), [mcts_cuda.yml](../apps/tabletop/config/mcts_cuda.yml), [posegen.yml](../apps/tabletop/config/solvers/posegen.yml) |
 | Excavator registration seeds | [pipeline.py](../apps/excavator/src/stacking_excavator/perception/pipeline.py): `orientation_seeds` |
 | Tabletop registration seeds | [assignment.py](../apps/tabletop/src/stacking_tabletop/perception/assignment.py): `ORIENTATION_BANK`, `initial_table_transform` |
 | Native scene-ID initialization | [consensus.cpp](../../stacking-core/src/sceneid/consensus.cpp): `SceneIdentifier::solve`; [scan.cpp](../../stacking-core/src/sceneid/scan.cpp): `validate_and_resolve_poses` |

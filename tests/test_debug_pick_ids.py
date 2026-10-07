@@ -19,7 +19,7 @@ def _runner(monkeypatch, requested):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     monkeypatch.setattr(sys, "argv", [
-        "mcts.py", "--config", str(ROOT / "apps/tabletop/config/mcts.yml"),
+        "mcts.py", "--config", str(ROOT / "apps/tabletop/config/mcts_cpu.yml"),
         "--pick-pose-data", "unused.pkl", "--object-ids", *map(str, requested),
     ])
     scene = PickSceneSnapshot("world", {

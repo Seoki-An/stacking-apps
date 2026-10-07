@@ -91,10 +91,11 @@ def test_object_id_validation(qt, tmp_path, value):
 def test_paths_are_relative_to_repository_and_missing_inputs_fail(qt, tmp_path):
     dialog = PlanningRunDialog(ROOT)
     try:
+        assert dialog.config_path.text() == str(ROOT / 'apps/tabletop/config/mcts_cpu.yml')
         dialog.output_path.setText(str(tmp_path / 'run.stack'))
-        dialog.config_path.setText('apps/tabletop/config/mcts.yml')
+        dialog.config_path.setText('apps/tabletop/config/mcts_cpu.yml')
         args = dialog.arguments()
-        assert args[args.index('--config') + 1] == str(ROOT / 'apps/tabletop/config/mcts.yml')
+        assert args[args.index('--config') + 1] == str(ROOT / 'apps/tabletop/config/mcts_cpu.yml')
         dialog.pick_path.setText(str(tmp_path / 'missing.pkl'))
         with pytest.raises(ValueError, match='pickup'):
             dialog.arguments()
@@ -108,7 +109,7 @@ def test_paths_are_relative_to_repository_and_missing_inputs_fail(qt, tmp_path):
 
 @pytest.mark.parametrize('scan_override', [None, True, False])
 def test_cli_search_completes_and_open_result_emits_path(qt, tmp_path, scan_override):
-    profile = yaml.safe_load((ROOT / 'apps/tabletop/config/mcts.yml').read_text())
+    profile = yaml.safe_load((ROOT / 'apps/tabletop/config/mcts_cpu.yml').read_text())
     profile['debug'].update(object_ids=[1], steps=1, iterations=1, max_search_time=2.,
                             transition_backend='kinematic', pose_solver='passthrough', pick_pose_data=None)
     profile['parallel']['enabled'] = False

@@ -685,7 +685,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("apps/tabletop/config/mcts.yml"),
+        default=Path("apps/tabletop/config/mcts_cpu.yml"),
         help="MCTS YAML containing tree and debug sections.",
     )
     parser.add_argument("--repository", type=Path)

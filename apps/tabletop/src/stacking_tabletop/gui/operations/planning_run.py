@@ -25,7 +25,7 @@ class PlanningRunDialog(QDialog):
         self.repository = Path(repository).resolve()
         self.source = None if source is None else Path(source).resolve()
         self.destination = None if destination is None else Path(destination).resolve()
-        self.config = Path(config) if config is not None else self.repository / "apps/tabletop/config/mcts.yml"
+        self.config = Path(config) if config is not None else self.repository / "apps/tabletop/config/mcts_cpu.yml"
         self.can_start = lambda: True
         self._run_output = None
         self._announced_path = None

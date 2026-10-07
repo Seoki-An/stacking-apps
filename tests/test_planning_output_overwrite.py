@@ -140,7 +140,7 @@ def test_tabletop_resume_existing_output_waits_for_overwrite_selection(tmp_path)
     source = tmp_path / 'source.stack'
     _checkpoint_run(source)
     destination = run_file(tmp_path / 'resumed.stack', 'old branch')
-    dialog = PlanningRunDialog(ROOT, source, destination, ROOT / 'apps/tabletop/config/mcts.yml')
+    dialog = PlanningRunDialog(ROOT, source, destination, ROOT / 'apps/tabletop/config/mcts_cpu.yml')
     try:
         assert not dialog.running and not dialog.inputs.isHidden()
         assert not dialog.start_button.isHidden()

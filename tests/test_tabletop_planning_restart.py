@@ -51,7 +51,7 @@ def _checkpoint_run(path):
         step.selected_candidate_id, context.sha256)
     with StackRunStore.create_mcts(path, replace(artifact, steps=()), metadata={
         "request": {"plan_motion": True},
-        "config": {"path": str(ROOT / "apps/tabletop/config/mcts.yml")},
+        "config": {"path": str(ROOT / "apps/tabletop/config/mcts_cpu.yml")},
     }) as writer:
         writer.append_run_context(context)
         writer.append_placement_plan(plan)
@@ -279,7 +279,7 @@ def test_debug_cli_captures_and_resumes_planning_checkpoint(monkeypatch, tmp_pat
 
     monkeypatch.setattr(TabletopApplication, "build_planning_coordinator", coordinator)
     source, destination = tmp_path / "first.stack", tmp_path / "resumed.stack"
-    common = ["mcts.py", "--config", str(ROOT / "apps/tabletop/config/mcts.yml")]
+    common = ["mcts.py", "--config", str(ROOT / "apps/tabletop/config/mcts_cpu.yml")]
     monkeypatch.setattr(sys, "argv", [*common, "--object-ids", "1", "3", "--steps", "1",
         "--iterations", "2", "--pose-solver", "passthrough", "--transition-backend", "kinematic",
         "--plan-motion", "--save-run", str(source),

@@ -103,11 +103,13 @@ held-object placement review gate, with a motion preview and explicit approval.
 
 ## Tabletop MCTS smoke run
 
-The MCTS runner reads tree, CEM, validation, and debug inputs from one profile:
+The MCTS runner reads tree, CEM, validation, and debug inputs from one profile.
+The CPU profile is the default; select `apps/tabletop/config/mcts_cuda.yml`
+with `--config` to use CUDA for pose generation and simulation:
 
 ```bash
 python apps/tabletop/scripts/debug/mcts.py \
-  --config apps/tabletop/config/mcts.yml \
+  --config apps/tabletop/config/mcts_cpu.yml \
   --save-run /tmp/tabletop-mcts.stack
 ```
 
@@ -126,7 +128,7 @@ native grasp and motion planner. For a short end-to-end smoke run:
 
 ```bash
 python apps/tabletop/scripts/debug/mcts.py \
-  --config apps/tabletop/config/mcts.yml \
+  --config apps/tabletop/config/mcts_cpu.yml \
   --object-ids 1 --steps 1 --iterations 1 \
   --max-search-time 60 \
   --transition-backend kinematic --pose-solver passthrough \
@@ -137,7 +139,7 @@ For legacy-equivalent pickup geometry, pass the trusted registered pose file:
 
 ```bash
 python apps/tabletop/scripts/debug/mcts.py \
-  --config apps/tabletop/config/mcts.yml \
+  --config apps/tabletop/config/mcts_cpu.yml \
   --pick-pose-data /path/to/pose_data.pkl \
   --object-ids 1 --steps 1 --plan-motion \
   --save-run /tmp/tabletop-planning.stack
@@ -331,7 +333,7 @@ attempt. For example:
 
 ```bash
 python apps/tabletop/scripts/debug/mcts.py \
-  --config apps/tabletop/config/mcts.yml \
+  --config apps/tabletop/config/mcts_cpu.yml \
   --resume-run /tmp/tabletop-planning.stack \
   --save-run /tmp/tabletop-planning-resumed.stack \
   --steps 5 --max-run-time 600 \
