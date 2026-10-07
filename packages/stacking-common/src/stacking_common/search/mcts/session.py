@@ -86,6 +86,14 @@ class MCTSSession(Generic[ObservationT]):
             selected.observation = observed_observation
         if not preserve_subtree:
             selected.clear_children()
+        else:
+            # Root generation starts a new pool (possibly CEM), so a deeper
+            # node's attempt cursor and exhausted flag cannot carry over.
+            # Keep its evaluated descendants and search evidence intact.
+            selected.expansion_attempts = 0
+            selected.expansion_exhausted = False
+            selected.rejected_expansions.clear()
+            selected.info.pop("external_seed_attempts", None)
         self.root = selected
         self._revalidate_next = bool(preserve_subtree and selected.children)
         return self.root

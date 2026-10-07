@@ -231,6 +231,11 @@ evaluated states, and retained validation information. The session requests
 child revalidation on a retained subtree; sufficiently changed states invalidate
 their descendants.
 
+Promotion resets only the new root's generation attempts, exhausted flag,
+generation rejection counts and external-seed attempt offset. A fresh root CEM
+pool starts at offset zero; a former descendant's generation cursor cannot skip
+it. Descendant generation bookkeeping and the preserved tree remain intact.
+
 Current runtime requests use `reset_statistics: true`: visits and accumulated
 returns are reset recursively before the next search, while the tree structure
 and evaluation results remain. This provides candidate and simulation reuse,

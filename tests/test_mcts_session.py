@@ -1,7 +1,10 @@
 import random
+from dataclasses import replace
 
 import numpy as np
+import pytest
 
+from stacking_common.actions.cem import CEMRootActionGenerator, CEMRootConfig
 from stacking_common.domain import Action, State
 from stacking_common.search import (
     ActionCandidate,
@@ -162,3 +165,63 @@ def test_session_promotes_revalidates_and_accumulates_rejections() -> None:
     session.add_seed(seed)
     next_result = session.search(MCTSSearchRequest(iterations=1))
     assert next_result.seeded_candidates == 1
+
+
+@pytest.mark.parametrize("previously_exhausted", [False, True])
+@pytest.mark.parametrize("root_keep", [12, 32], ids=["cpu_pool", "cuda_pool"])
+def test_promotion_starts_new_cem_pool_without_discarding_subtree(previously_exhausted, root_keep):
+    class FreshPool:
+        def generate(self, state, observation, request):
+            candidates = tuple(ActionCandidate(_action(1, x=float(i))) for i in range(32))
+            return ActionGenerationResult(candidates, attempts=32, exhausted=True)
+
+    class RecordingCEM(CEMRootActionGenerator):
+        def generate(self, state, observation, request):
+            offsets.append(request.attempt_offset)
+            return super().generate(state, observation, request)
+
+    offsets = []
+    evaluator = _Evaluator()
+    search = _search(evaluator)
+    search.config = replace(search.config, max_depth=1, root_max_children=root_keep,
+                            generation_batch_size=32, expansion_attempt_multiplier=3.0,
+                            validate_root_before_search=True)
+    search.root_action_generator = RecordingCEM(FreshPool(), _Prior(), CEMRootConfig(
+        population=32, elite=4, iterations=1, keep=root_keep, mutation_xy_std=0.0,
+        mutation_yaw_std=0.0, fresh_fraction=1.0, duplicate_xy_threshold=0.01,
+        duplicate_yaw_threshold=0.0,
+    ))
+    root = MCTSNode(state=_state(), observation=())
+    selected = root.add_candidate(_action(0), prior=1.0)
+    selected.set_result(_state([0]), (0,), 10.0)
+    continuation = selected.add_candidate(_action(2), prior=1.0)
+    continuation.set_result(_state([0, 2]), (0, 2), 12.0)
+    descendant = continuation.add_candidate(_action(1), prior=1.0)
+    descendant.set_result(_state([0, 2, 1]), (0, 2, 1), 11.0, terminal=True)
+    selected.expansion_attempts = 48
+    selected.expansion_exhausted = previously_exhausted
+    selected.rejected_expansions["old_generation_failure"] = 4
+    selected.info["external_seed_attempts"] = 3
+    selected.record_visit(10.0)
+    continuation.expansion_attempts = 7
+    continuation.expansion_exhausted = True
+    continuation.record_visit(12.0)
+    session = MCTSSession(search, root)
+
+    session.promote(selected, preserve_subtree=True)
+
+    assert selected.children == [continuation]
+    assert continuation.children == [descendant]
+    assert continuation.parent is selected and descendant.parent is continuation
+    assert selected.visits == continuation.visits == 1
+    assert continuation.expansion_attempts == 7 and continuation.expansion_exhausted
+    result = session.search(MCTSSearchRequest(iterations=1, reset_statistics=False,
+                                            final_validation_fidelity=EvaluationFidelity.LONG))
+
+    assert offsets and offsets[0] == 0
+    assert search.root_action_generator.last_statistics.final_candidates == root_keep
+    assert result.generated_candidates == root_keep - 1
+    assert result.revalidation.attempted == result.revalidation.accepted == 1
+    assert continuation in selected.children and continuation.children == [descendant]
+    assert "old_generation_failure" not in selected.rejected_expansions
+    assert "external_seed_attempts" not in selected.info

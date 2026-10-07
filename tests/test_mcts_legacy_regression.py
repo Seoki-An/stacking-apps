@@ -231,11 +231,11 @@ def test_multistep_session_preserves_legacy_staged_validation_sequence() -> None
 
     assert selected_ids == [102, 103]
     assert results[-1].selected is None
-    # Batched search may preserve this descendant and reject it during subtree
-    # revalidation, before the final-selection validation stage is reached.
-    assert (
-        results[-1].final_validation_failures + results[-1].revalidation.rejected
-    ) == 1
+    # The preserved continuation fails revalidation. Promotion now also opens
+    # a fresh generation budget, so this deterministic generator proposes the
+    # remaining object again; final validation must still reject that retry.
+    assert results[-1].revalidation.rejected == 1
+    assert results[-1].final_validation_failures == 1
     assert not session.root.terminal
     search.close()
 
