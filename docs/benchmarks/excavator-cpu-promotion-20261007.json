@@ -1,0 +1,1244 @@
+{
+  "description": "Native CPU root promotion before/after diagnostic. Legacy trials restore only pre-fix generation bookkeeping, with identical saved CPU predecessor subtrees. No sibling proposal injection. One seed per scene.",
+  "provenance": {
+    "python": "/home/inrol-excavator/workspace/stacking/.direnv/python-3.12.3/bin/python",
+    "head": "c1da33767158db12d43f7a79d8643e5910aefca4",
+    "source_hashes": {
+      "tests/benchmark_excavator_proposal_reuse.py": "2d040fec57fed5c5b42988dcf3f66f3a1353e97d4c64ab04e8d80fa2d0f62775",
+      "tests/benchmark_excavator_action_survival.py": "63ff3f8e7d1285340dc0948f3fef548ad23ec4117f1371d9c51de7488914ce3e",
+      "packages/stacking-common/src/stacking_common/search/mcts/session.py": "e5c8b71901ece94a496573e9119847cecee6eeaf793b7a592ffc6d3782e49f7f",
+      "packages/stacking-common/src/stacking_common/search/mcts/search.py": "ca4482b8b39828dc291792a15b621197ab8ac0f53a594076439a46c047219d57",
+      "packages/stacking-common/src/stacking_common/search/mcts/tree_policy.py": "75c79310900c15564f4335e40da59ae95f7fa525f70bfbcd390f18fd5655a734",
+      "packages/stacking-common/src/stacking_common/actions/cem.py": "01c4d933714fa1f947b9351926af9f6357a136324218b3e3d18916f85e3adbf6"
+    },
+    "profile_hashes": {
+      "apps/excavator/config/mcts_cpu.yml": "8a8a593a182704a6cde61a87b095491646c1a013a275fa323f91e5cad5644fc9",
+      "apps/excavator/config/inventory.yml": "00e483d71f859fc47ec797475f2ed9665b6cc7b12afe10b67f71488a8d2b300a",
+      "apps/excavator/config/perception.yml": "b4cee7c52ddfffe3580fd7d322fbe1d3f888344bf644c6ec9531fa5f6f66a53a",
+      "apps/excavator/config/action_generation.yml": "d9d3d59a1d5d3784b858cfd02fcaab97e0cdf9d5e611ed8b159b0e74ad85ce73",
+      "apps/excavator/config/visualization.yml": "5784f36864378519ba59324d075211b196a9ad8e6064fae95adfb5b01a4bdc31",
+      "apps/excavator/config/environment.yml": "89c21cbce3fba08fea7cbde5a9acaf53363baa2656fa15b7b156c6671b5f330a",
+      "apps/excavator/config/mcts_cuda.yml": "21213c965db6f695b85d13f542d6a12007e3c37fe6860527ace476f43bf52df4",
+      "apps/excavator/config/planning.yml": "c3060120c41a230591a94a76a47c755b7695e1e3dd6e9ee0f7760c1c3588f46f",
+      "apps/excavator/config/solvers/simulation.yml": "1364baa0eb0d76f0afb416bce9f2b4d5cb2f0076868ffa6d277a7b4198e7cacf",
+      "apps/excavator/config/solvers/motion.yml": "904119038f79dbe5bf9889089688417c4541664f84efc0658b721365fcb9aae4",
+      "apps/excavator/config/solvers/grasp.yml": "83c2161d243318c35c94e5e7093bbabaa561c93ac18a72ddb0e575e8762f31d8",
+      "apps/excavator/config/solvers/posegen.yml": "f419b1c2dfd778b9b129db0700c54636cd1d0175660048d3e6be947240db1624"
+    }
+  },
+  "comparisons": [
+    {
+      "placed": 16,
+      "nodes_per_second_change_percent": -23.691628092801565,
+      "physical_passes_per_second_change_percent": -24.4898779544262
+    },
+    {
+      "placed": 26,
+      "nodes_per_second_change_percent": 39.16038702261637,
+      "physical_passes_per_second_change_percent": -36.432909631644364
+    }
+  ],
+  "runs": {
+    "25": {
+      "mode": "prepare",
+      "seed": 0,
+      "placed": 25,
+      "legacy_promotion": false,
+      "config": "apps/excavator/config/mcts_cpu.yml",
+      "backends": {
+        "posegen": "cpu",
+        "simulation": "cpu"
+      },
+      "root_generation_calls": [
+        {
+          "attempt_offset": 0,
+          "requested": 12,
+          "pool_size": 12,
+          "returned": 12,
+          "exhausted": true
+        },
+        {
+          "attempt_offset": 0,
+          "requested": 12,
+          "pool_size": 12,
+          "returned": 12,
+          "exhausted": true
+        }
+      ],
+      "input_sha256": "35c5702df09cc91d4baa94d18a7f75aafa407b053423670edfbd36dc36b4d4a7",
+      "inherited_edges": 0,
+      "statistics": {
+        "step": 26,
+        "elapsed_seconds": 33.455634108002414,
+        "completed_iterations": 1024,
+        "expansion_calls": 13,
+        "generated_candidates": 39,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 40,
+        "failed_evaluations": 37,
+        "effective_max_depth": 3,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 4,
+          "short_jobs": 15,
+          "short_parallel_batches": 4,
+          "short_parallel_jobs": 15,
+          "long_batches": 3,
+          "long_jobs": 25,
+          "short_max_batch_size": 5,
+          "max_evaluation_batch_size": 12,
+          "workers": 12,
+          "pose_generation_seconds": 6.895693337995908,
+          "pose_generation_batches": 13,
+          "pose_generation_node_requests": 13,
+          "pose_generation_max_node_batch": 1,
+          "descendant_frontier_batches": 0,
+          "descendant_frontier_iterations": 0,
+          "short_batch_wall_seconds": 3.140866140005528,
+          "long_batch_wall_seconds": 23.09917334500642,
+          "short_settling_job_seconds": 1.697315300029004,
+          "short_structural_job_seconds": 3.4085781890171347,
+          "long_settling_job_seconds": 3.879091021983186,
+          "long_structural_job_seconds": 140.67992788398988
+        },
+        "revalidation": {
+          "attempted": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 24,
+          "accepted": 1,
+          "rejected": 23,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 1,
+          "attempted": 1,
+          "generated": 2,
+          "evaluated": 2
+        },
+        "root_retry": {
+          "rounds": 1,
+          "retired": 12,
+          "generated": 12,
+          "accepted": 1
+        },
+        "floor_fill_fallback": {
+          "attempted": false,
+          "pools": 0,
+          "generated": 0,
+          "accepted": 0,
+          "selected": false
+        },
+        "descendant_validation": {
+          "attempts": 1,
+          "failures": 0
+        },
+        "final_selection_mode": "mixed",
+        "tree": {
+          "nodes": 28,
+          "evaluated": 28,
+          "pending": 0,
+          "failed": 25,
+          "frontier_leaves": 26,
+          "max_depth": 2,
+          "rejection_reasons": {
+            "target_motion_limit": 7,
+            "active_floor_above_active_layer": 8,
+            "active_floor_disconnected_active_layer": 7,
+            "posegen_gap": 1,
+            "scene_motion_limit": 6,
+            "stone_outside_target": 2,
+            "place_robustness": 10
+          },
+          "generation_rejections": {
+            "active_floor_above_active_layer": 8,
+            "active_floor_disconnected_active_layer": 7,
+            "posegen_gap": 1
+          }
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 88,
+              "rejected": 8,
+              "duplicate_rejections": 0,
+              "retained": 88,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 87,
+              "rejected": 9,
+              "duplicate_rejections": 34,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 85,
+              "rejected": 11,
+              "duplicate_rejections": 31,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "active_floor_disconnected_active_layer": 28,
+            "retry_excluded_duplicate": 6
+          },
+          "final_candidates": 12
+        }
+      },
+      "promotion": null,
+      "expanded_nodes_per_second": 1.165722935458318,
+      "unique_new_physical_passes": 2,
+      "unique_new_physical_passes_per_second": 0.05978066335683682,
+      "first_new_long_pass_seconds": 26.14729094399081,
+      "bank_size": 0,
+      "reuse_calls": [],
+      "refresh_seconds": 0,
+      "selected": {
+        "object_id": 1,
+        "reward": 5.452794005839075,
+        "backed_up_mean": 8.848135574680303,
+        "target_IoU": 0.21910897272998534,
+        "reused": false,
+        "cem_seed_lineage": false,
+        "validated_descendant_path_available": true,
+        "validated_descendant_path_return": 7.5883187123627565
+      },
+      "profiles": {
+        "apps/excavator/config/mcts_cpu.yml": "# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 3\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 12\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 8  # Depth 1 until 8 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 12\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 30.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 1\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cpu  # cpu or cuda\n  simulation_backend: cpu  # cpu or cuda\n  # Local native worker allocation; separate from legacy Ray resource settings.\n  enabled: true\n  workers: 12\nroot_cem:\n  population: 96\n  elite: 24\n  iterations: 3\n  keep: 12\n  mutation_xy_std: 0.1\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/inventory.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobjects:\n  model_directory: apps/excavator/assets/objects\n  ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58]\n  density: 1000.0\n  density_overrides: {}\ntarget:\n  # stacking-planner agent/configs/ablation.yml: environment.target.\n  width: 2.0\n  length: 6.0\n  height: 2.5\n  origin: [0.0, 0.0, 0.0]\n  support_overlap: 0.02\n  taper_degrees:\n    width_positive: 5.0\n    width_negative: 5.0\n    length_positive: 5.0\n    length_negative: 5.0\n",
+        "apps/excavator/config/perception.yml": "# Desktop perception defaults in SI units. Quality gates require field commissioning.\n# Opening polynomial: legacy assets/opening_angle_fit.npy, stone_grab fit.\nvoxel_size: 0.01\nground_clearance: 0.08\nfield_ground_removal: false  # Experimental opt-in; legacy field recovery retains ground.\nminimum_points: 100\nmaximum_timestamp_skew_ns: 50000000\nfield:\n  voxel_sizes: [0.1, 0.05, 0.02, 0.01]\n  max_iterations: [50, 30, 14, 7]\ninhand:\n  voxel_sizes: [0.1, 0.05, 0.02]\n  max_iterations: [50, 30, 14]\ngripper_alignment_quality:\n  minimum_target_coverage: 0.05\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.1\n  maximum_correction_rotation_degrees: 10.0\nquality:\n  minimum_target_coverage: 0.35\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.6\n  maximum_correction_rotation_degrees: 180.0\nambiguity:\n  ambiguity_score_gap: 0.015\n  distinct_translation: 0.05\n  distinct_rotation_degrees: 15.0\nopening:\n  # Calibration polynomial coefficients are preserved; polynomial output is radians.\n  coefficients: [-7.418032620929303, 46.96298872999542, -110.41168530520477, 116.254686079056, -47.56854082012381]\n  source_sha256: c419e987d8f8fc976fa5ae3efdde668da9b45615ba46051432035a1f1bc2d1ee\n  limits_degrees: [-65.31718864491384, 0.0]\n  maximum_measured_difference_degrees: 11.459155902616464\n  minimum_jaw_points: 30\n  gripper_removal_distance: 0.06\n",
+        "apps/excavator/config/action_generation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\ninitialization:\n  # Excavator initializes from model_<id>_mesh.ply and pads both XY footprints.\n  height_clearance: 0.15\n  xy_padding: 0.12\nfiltering:\n  posegen_gap_threshold: 0.005\n  posegen_equilibrium_threshold: 1.0\n  # Prefer this restriction; exhausted search retries without floor-fill gates.\n  strict_floor_first: true\n  require_solver_convergence: false\n  reject_equilibrium_at_threshold: true\nplanar:\n  grid_shape: [32, 32]\n  yaw_angles_degrees: [0, 90, 180, 270]\n  minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.\n  target_anchor_inset_scale: 0.6\n  floor:\n    # Advance at fill_ratio coverage of the base in top-down projection.\n    coverage_mode: projected_footprint\n    bottom_tolerance: 0.2\n    fill_ratio: 0.75\n    grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.\n    max_layers: 8\n    minimum_contact_cells: 1\n  boltzmann_temperature: 0.3\n  boltzmann_min_probability: 0.0\n  target_mask_margin: 0.0\n  contact_gap_tolerance: 0.10\n  # The only proposal-score weights. Edit these named values for ablations.\n  score:\n    height: -3.0\n    support_likelihood: 2.0\n    open_area: 1.0\n    fill_area: 2.0\n    frontier: 1.0\n    target_boundary: 1.5\n    excavator_distance: 2.0\n    excavator_distance_axis: xy\n    excavator_xy: null\n    elite_fraction: 0.25\n  floor_fill:\n    # Legacy proposal-kernel settings; planar.floor owns the shared layer rules.\n    connected_after: 1\n    u_shape_filter: false\n    u_shape_footprint_scale: 0.9\n    u_shape_min_frontier_contact_cells: 1\n    lower_floor_fill_ratio: 0.6\n    lower_floor_occupancy_grid: 16\n    lower_floor_bottom_z_tolerance: 0.2\n    lower_floor_max_layers: 8\norientation:\n  pose_from_scan: false\n  roll_angles_degrees: [0, 180]\n",
+        "apps/excavator/config/visualization.yml": "units: si\nenvironment:\n  default_layers:\n    ground: true\n    support: false\n    obstacle: true\n  # Search coordinates are stack-local. Plan replay uses recorded world planes.\n  boxes:\n    - id: search_ground\n      layer: ground\n      minimum: [-3.0, -3.0, -0.03]\n      maximum: [3.0, 3.0, 0.0]\n      color: [0.28, 0.33, 0.25]\n      opacity: 1.0\n",
+        "apps/excavator/config/environment.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobservation:\n  action_sample_count: 96\n  max_poses_per_object: 32\n  surface_sample_count: 128\n  banned_object_ids: []\n  height_map_resolution: [128, 128]\n  height_map_margin: 1.0\n  render_height_map: true\nreward:\n  overlap_resolution: 0.03\n  posegen_threshold: 1.0\n  containment_threshold: 0.5\n  nonfinite_displacement: 2.0\n  max_displacement: 1.0\n  # Placement uncertainty; Z perturbations are always upward.\n  place_stability:\n    enabled: true\n    n_noise: 4\n    position_std: [0.02, 0.02, 0.02]  # Gaussian scales; Z uses abs(sample).\n    rotation_std_deg: 5.0\n    rotation_weight: 0.1\n    # Reject if any noisy trial exceeds the motion limit or does not settle.\n    reject_failed_trials: true\n    # Worst trial: translation (m) + rotation_weight * angular distance (rad).\n    fail_displacement: 0.15\n    seed: 0\n  weights:\n    stability: 2.0\n    object_containment: 2.0\n    target_overlap_increment: 20.0\n    place_stability: 2.0\n    large_object_lower: 3.0\n    inward_orientation: 6.0\n",
+        "apps/excavator/config/mcts_cuda.yml": "# Explicit CUDA search profile; select with --config.\n# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 4\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 32\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 12  # Depth 1 until 12 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 256  # Stream 128-placement chunks; native robustness capacity is 512.\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 60.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 2\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cuda  # cpu or cuda\n  simulation_backend: cuda  # cpu or cuda\n  # CPU reward/observation workers overlap the next CUDA placement chunk.\n  enabled: true\n  workers: 4\nroot_cem:\n  population: 96\n  elite: 32\n  iterations: 3\n  keep: 32\n  mutation_xy_std: 0.2\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/planning.yml": "units: si\n# Angular fields use degrees explicitly; poses remain [x, y, z, qx, qy, qz, qw].\nframes:\n  world: world\n  stack: stack\n  world_T_stack: [-6.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0]\nrobot:\n  urdf: apps/excavator/assets/excavator_3/vdk23_cx_ik.urdf\n  tool_link: grip_body\n  home_positions_degrees: [60.0, 45.0, -60.0, -78.54084409738354, 0.0, 0.0]\n  link_from_tool: &id001 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]\n  gripper_opening_degrees: 0.0\ngripper:\n  urdf: apps/excavator/assets/stone_grab_3/stone_grab.urdf\n  root_link: grip_body\n  grasp_from_root: *id001\n  opening_offset_degrees: [0.0, 0.0]\n  opening_direction: [1.0, 1.0]\n  opening_limits_degrees: [-80.0, 0.0]\nscene:\n  frame_id: 1\n  obstacle_friction: 5.0\n  handoff_position: [-2.0, -5.0, 0.0]\n  obstacles: []\nexcavator:\n  pick_ground_height: 0.0\n  place_ground_height: 0.0\n  handoff_ground_height: 0.0\n  place_z_offset: 0.2\n  handoff_positions: [\n    [-2, -5, 0.0],\n    [-1, -5, 0.0],\n    [-3, -5, 0.0],\n    [-2, -4, 0.0],\n    [-2, -6, 0.0],\n    [-1, -4, 0.0],\n    [-3, -4, 0.0],\n    [-1, -6, 0.0],\n    [-3, -6, 0.0],\n  ]\n",
+        "apps/excavator/config/solvers/simulation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nintegration:\n  dt: 0.01\n  gravity: [0.0, 0.0, -9.81]\n  damping: 0.0\nground:\n  z: 0.0\n  friction: 5.0\nscene:\n  frame_id: 1\nphysics:\n  settling:\n    contact:\n      model: single_point\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.001\n      tol_rel: 0.0001\n  structural:\n    contact:\n      model: limit_surface_4d\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.0001\n      tol_rel: 1.0e-05\nphases:\n  settling:\n    dt: 0.01\n    steps: 400\n    sample_count: 64\n  short_structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 0.5\n    max_time: 4.0\n    extra_steps: 20\n    final_extra_steps: 40\n    freeze_radius: 1.5\n  structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 3.0\n    max_time: 15.0\n    extra_steps: 150\n    final_extra_steps: 300\nvalidation:\n  contact_gap_tolerance: 0.02\n  minimum_support_count: 1\n  support_chain_z_tolerance: 0.05\n",
+        "apps/excavator/config/solvers/motion.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nallow_regrasp: true\nmotion:\n  boundary_weight: 20.0\n  collision_alm_beta_increase: 5.0\n  collision_alm_beta_init: 50.0\n  collision_alm_enabled: true\n  collision_alm_max_iters: 5\n  collision_alm_tol: 0.001\n  collision_margin: 0.02\n  collision_penetration_clamp: 0.02\n  collision_weight: 1000.0\n  grasped_boundary_pos_scale: 10.0\n  grasped_boundary_rot_scale: 0.5\n  ik_max_iters: 2000\n  ik_tol: 0.001\n  joint_limit_margin_degrees: 0.057295779513082325\n  joint_limit_weight: 1000.0\n  max_iters: 400\n  plane_feasibility_margin: -0.005\n  smooth_boundary_alpha: 2.0\n  smooth_weight: 50.0\n  step_size: 0.01\n  swing_smoothness_scale: 1.0\n  target_collision_tol: 0.005\n  tol: 0.0001\ninverse_kinematics:\n  initialization: provided\n  max_iters: 2000\n  tol: 0.001\ndirect:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  move_steps: 15\n  simulation_refinement: true\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\nregrasp:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  max_handoff_orientation_distance_degrees: 135.0\n  move_steps: 15\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\n  yaw_samples: 8\nstable_pose:\n  sampling_level: 2\n  stable_eigenvalue_min: -0.2\n",
+        "apps/excavator/config/solvers/grasp.yml": "# stacking-planner planning/planning.py: stone_grab attachment.\nunits: si\nsampling:\n  aperture_margin: 0.01\n  dir_samples: 80\n  include_flipped: true\n  max_candidates: 0\n  max_seeds: 120\n  max_target_width: 1.6\n  preferred_parallel_axis: [0.0, 0.0, 0.0]\n  # Legacy gripper.height (1.5 m) * surface_grasp_offset_scale (0.5).\n  retreat_distance: 0.75\n  # Legacy secondary seeds: gripper height 1.5 m times [0.65, 0.8, 1.2].\n  fallback_retreat_distances: [0.975, 1.2, 1.8]\n  fallback_min_candidates: 8\n  scene_clearance_margin: 0.05\n  spin_samples: 12\n  spin_step_degrees: 30.0\n  strategy: antipodal_surface\ngeneration:\n  contact_margin: 0.05\n  plane_separate_margin: -0.02\n  separate_margin: 0.01\ncost:\n  align: 1.0\n  antipodal_normal: 5.0\n  antipodal_position: 2.0\n  center_distance: 5.0\n  contact: 3.0\n  enclosure: 7.0\n  flatness: 0.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 2.0\nscore:\n  align: 1.0\n  center_distance: 3.0\n  enclosure: 7.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 1.0\n  teeth_gap: 2.0\ntrust_region:\n  gain_ratio_lower: 0.0\n  gain_ratio_upper: 0.75\n  improvement_tol: 0.0\n  max_iters: 200\n  radius_expansion: 2.0\n  radius_init: 0.1\n  radius_max: 0.1\n  radius_reduction: 0.25\n  step_tol: 1.0e-12\n  subproblem_tol: 0.01\nalm:\n  equality_penalty_increase: 10.0\n  equality_penalty_init: 50.0\n  equality_tol: 0.001\n  inequality_penalty_increase: 10.0\n  inequality_penalty_init: 50.0\n  inequality_tol: 0.015\n  max_iters: 20\nforce:\n  damping: 0.0001\n  enabled: true\n  friction: 1.0\n  wrench_scale: 1.0\nforce_weight:\n  complementarity: 10.0\n  cone: 10.0\n  moment: 10.0\n  wrench: 0.1\nsimulation:\n  accept_relaxed: true\n  active_impulse_tol: 0.0001\n  damping: 2.0\n  dt: 0.01\n  error_reduction_ratio: 0.2\n  friction: 1.0\n  grasp_offset_tol: [0.5, 1.0, 0.6]\n  obstacle_margin: 0.01\n  pgs_iters: 80\n  plane_obstacle_margin: 0.01\n  relaxed_velocity_tol: 0.1\n  settled_velocity_tol: 0.01\n  steps: 500\n  target_contact_margin: 0.01\n  virtual_approach_force: 5.0\n  virtual_closing_effort: 0.5\n",
+        "apps/excavator/config/solvers/posegen.yml": "# stacking-planner contexts.get_posegen, PoseSolver schedule, and diffsim defaults.\nunits: si\ntrust_region:\n  delta_expansion_rate: 2.0\n  delta_init: 0.125\n  delta_lower_thresh: 0.25\n  delta_max: 1.0\n  delta_reduction_rate: 0.25\n  delta_upper_thresh: 0.75\n  eps: 0.1\n  improvement_thresh: 0.125\n  max_iters: 100\n  tol: 1.0e-08\nhausdorff:\n  eps: 0.001\n  error_tol: 1.0e-10\n  gain_ratio_lower_thresh: 0.05\n  gain_ratio_max: 10000000000.0\n  gain_ratio_upper_thresh: 0.9\n  max_iters: 50\n  radius_expansion_rate: 3.0\n  radius_init: 10.0\n  radius_reduction_rate: 0.25\nobjective:\n  eps_comp: 0.01\n  eps_cone: 0.01\n  eps_gap: 0.01\n  eps_target: 0.05\n  gravity: 9.81\n  ground_height: 0.0\n  k_box: 20.0\n  k_comp: 0.0\n  k_gap: 0.0\n  k_gap_c: 80.0\n  k_lower: 0.0\n  k_potential: 1.0\n  k_reg: 0.0\n  k_target: 1.0\n  k_wrench: [[1.0, 0.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]\n  k_xy: 0.0\n  narrow_phase_candidate_tol: 0.1\n  narrow_phase_scene_tol: 0.005\n  rho: 0.01\n  w_box: 2.0\nforce_solver:\n  beta_consensus: 1.0\n  beta_contact: 1.0\n  beta_update_interval: 20\n  max_iters: 1000\n  tol_abs: 0.001\n  tol_rel: 0.0001\nschedule:\n  times: [0.0, 0.3333333333333333, 0.6666666666666666, 1.0]\n  max_iters_warmup: 50\n  max_iters_final: 75\n  # Cosine schedule from agent/env/components/action/pose_solver.py.\n  # Each weight is the sum of its coefficient * named basis; see the guide.\n  objective_weights:\n    k_wrench: {ramp: 1.0}\n    k_comp: {ramp: 10.0}\n    k_gap_c: {constant: 40.0, ramp: 150.0, gap_feedback: 100000.0}\n    k_gap: {sine: 10.0}\n    k_target: {anti_ramp: 5.0}\n    k_xy: {anti_ramp: 1.0}\n    k_potential: {constant: 0.10, anti_ramp: 0.10}\n    k_reg: {anti_ramp: 3.0}\n    k_lower: {anti_ramp: 5.0}\nscene:\n  frame_id: 1\n  target_model_id: 1000000\n  target_entity_id: 1000001\n  target_friction: 1.0\n  target_sharpness: 20\n  target_epsilon: 1.0e-09\n  placed_as_boundaries: false\n  boundary_radius: 0.5\n"
+      },
+      "preserved_nodes": 16
+    },
+    "16-fixed": {
+      "mode": "baseline",
+      "seed": 0,
+      "placed": 16,
+      "legacy_promotion": false,
+      "config": "apps/excavator/config/mcts_cpu.yml",
+      "backends": {
+        "posegen": "cpu",
+        "simulation": "cpu"
+      },
+      "root_generation_calls": [
+        {
+          "attempt_offset": 0,
+          "requested": 10,
+          "pool_size": 12,
+          "returned": 10,
+          "exhausted": false
+        },
+        {
+          "attempt_offset": 10,
+          "requested": 10,
+          "pool_size": 12,
+          "returned": 2,
+          "exhausted": true
+        }
+      ],
+      "input_sha256": "f644eb24527cd9bd71a15e857c2ade88255cc0cfd3b79ef4988275496d84f108",
+      "inherited_edges": 102,
+      "statistics": {
+        "step": 17,
+        "elapsed_seconds": 57.09687759199005,
+        "completed_iterations": 1024,
+        "expansion_calls": 117,
+        "generated_candidates": 262,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 280,
+        "failed_evaluations": 231,
+        "effective_max_depth": 3,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 1,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 25,
+          "short_jobs": 252,
+          "short_parallel_batches": 25,
+          "short_parallel_jobs": 252,
+          "long_batches": 5,
+          "long_jobs": 28,
+          "short_max_batch_size": 12,
+          "max_evaluation_batch_size": 12,
+          "workers": 12,
+          "pose_generation_seconds": 7.962025301007088,
+          "pose_generation_batches": 52,
+          "pose_generation_node_requests": 117,
+          "pose_generation_max_node_batch": 12,
+          "descendant_frontier_batches": 86,
+          "descendant_frontier_iterations": 1022,
+          "short_batch_wall_seconds": 33.650297840023995,
+          "long_batch_wall_seconds": 12.87898145399231,
+          "short_settling_job_seconds": 30.20152791214059,
+          "short_structural_job_seconds": 137.90516644803574,
+          "long_settling_job_seconds": 2.1536299870203948,
+          "long_structural_job_seconds": 69.26752073802345
+        },
+        "revalidation": {
+          "attempted": 2,
+          "accepted": 2,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 10,
+          "accepted": 0,
+          "rejected": 10,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 0,
+          "attempted": 1,
+          "generated": 3,
+          "evaluated": 3
+        },
+        "root_retry": {
+          "rounds": 0,
+          "retired": 0,
+          "generated": 0,
+          "accepted": 0
+        },
+        "floor_fill_fallback": {
+          "attempted": false,
+          "pools": 0,
+          "generated": 0,
+          "accepted": 0,
+          "selected": false
+        },
+        "descendant_validation": {
+          "attempts": 17,
+          "failures": 0
+        },
+        "final_selection_mode": "mixed",
+        "tree": {
+          "nodes": 381,
+          "evaluated": 381,
+          "pending": 0,
+          "failed": 331,
+          "frontier_leaves": 363,
+          "max_depth": 3,
+          "rejection_reasons": {
+            "active_floor_disconnected_active_layer": 22,
+            "target_motion_limit": 56,
+            "place_robustness": 264,
+            "active_floor_above_active_layer": 32,
+            "posegen_gap": 6,
+            "stone_outside_target": 8,
+            "simulation_unsettled": 3
+          },
+          "generation_rejections": {
+            "active_floor_disconnected_active_layer": 22,
+            "active_floor_above_active_layer": 32,
+            "posegen_gap": 6
+          }
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 82,
+              "rejected": 14,
+              "duplicate_rejections": 0,
+              "retained": 82,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 77,
+              "rejected": 19,
+              "duplicate_rejections": 22,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 77,
+              "rejected": 19,
+              "duplicate_rejections": 21,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "active_floor_above_active_layer": 6,
+            "active_floor_disconnected_active_layer": 44,
+            "posegen_gap": 2
+          },
+          "final_candidates": 12
+        }
+      },
+      "promotion": {
+        "attempts_before": 48,
+        "attempts_after": 0,
+        "exhausted_before": false,
+        "exhausted_after": false
+      },
+      "expanded_nodes_per_second": 4.58869225515679,
+      "unique_new_physical_passes": 28,
+      "unique_new_physical_passes_per_second": 0.49039459215416076,
+      "first_new_long_pass_seconds": 49.322813744991436,
+      "bank_size": 2,
+      "reuse_calls": [],
+      "refresh_seconds": 0,
+      "selected": {
+        "object_id": 32,
+        "reward": 2.660405213827357,
+        "backed_up_mean": 7.967485058381619,
+        "target_IoU": 0.15670607498624042,
+        "reused": false,
+        "cem_seed_lineage": false,
+        "validated_descendant_path_available": true,
+        "validated_descendant_path_return": 6.323158876462333
+      },
+      "profiles": {
+        "apps/excavator/config/mcts_cpu.yml": "# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 3\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 12\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 8  # Depth 1 until 8 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 12\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 30.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 1\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cpu  # cpu or cuda\n  simulation_backend: cpu  # cpu or cuda\n  # Local native worker allocation; separate from legacy Ray resource settings.\n  enabled: true\n  workers: 12\nroot_cem:\n  population: 96\n  elite: 24\n  iterations: 3\n  keep: 12\n  mutation_xy_std: 0.1\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/inventory.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobjects:\n  model_directory: apps/excavator/assets/objects\n  ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58]\n  density: 1000.0\n  density_overrides: {}\ntarget:\n  # stacking-planner agent/configs/ablation.yml: environment.target.\n  width: 2.0\n  length: 6.0\n  height: 2.5\n  origin: [0.0, 0.0, 0.0]\n  support_overlap: 0.02\n  taper_degrees:\n    width_positive: 5.0\n    width_negative: 5.0\n    length_positive: 5.0\n    length_negative: 5.0\n",
+        "apps/excavator/config/perception.yml": "# Desktop perception defaults in SI units. Quality gates require field commissioning.\n# Opening polynomial: legacy assets/opening_angle_fit.npy, stone_grab fit.\nvoxel_size: 0.01\nground_clearance: 0.08\nfield_ground_removal: false  # Experimental opt-in; legacy field recovery retains ground.\nminimum_points: 100\nmaximum_timestamp_skew_ns: 50000000\nfield:\n  voxel_sizes: [0.1, 0.05, 0.02, 0.01]\n  max_iterations: [50, 30, 14, 7]\ninhand:\n  voxel_sizes: [0.1, 0.05, 0.02]\n  max_iterations: [50, 30, 14]\ngripper_alignment_quality:\n  minimum_target_coverage: 0.05\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.1\n  maximum_correction_rotation_degrees: 10.0\nquality:\n  minimum_target_coverage: 0.35\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.6\n  maximum_correction_rotation_degrees: 180.0\nambiguity:\n  ambiguity_score_gap: 0.015\n  distinct_translation: 0.05\n  distinct_rotation_degrees: 15.0\nopening:\n  # Calibration polynomial coefficients are preserved; polynomial output is radians.\n  coefficients: [-7.418032620929303, 46.96298872999542, -110.41168530520477, 116.254686079056, -47.56854082012381]\n  source_sha256: c419e987d8f8fc976fa5ae3efdde668da9b45615ba46051432035a1f1bc2d1ee\n  limits_degrees: [-65.31718864491384, 0.0]\n  maximum_measured_difference_degrees: 11.459155902616464\n  minimum_jaw_points: 30\n  gripper_removal_distance: 0.06\n",
+        "apps/excavator/config/action_generation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\ninitialization:\n  # Excavator initializes from model_<id>_mesh.ply and pads both XY footprints.\n  height_clearance: 0.15\n  xy_padding: 0.12\nfiltering:\n  posegen_gap_threshold: 0.005\n  posegen_equilibrium_threshold: 1.0\n  # Prefer this restriction; exhausted search retries without floor-fill gates.\n  strict_floor_first: true\n  require_solver_convergence: false\n  reject_equilibrium_at_threshold: true\nplanar:\n  grid_shape: [32, 32]\n  yaw_angles_degrees: [0, 90, 180, 270]\n  minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.\n  target_anchor_inset_scale: 0.6\n  floor:\n    # Advance at fill_ratio coverage of the base in top-down projection.\n    coverage_mode: projected_footprint\n    bottom_tolerance: 0.2\n    fill_ratio: 0.75\n    grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.\n    max_layers: 8\n    minimum_contact_cells: 1\n  boltzmann_temperature: 0.3\n  boltzmann_min_probability: 0.0\n  target_mask_margin: 0.0\n  contact_gap_tolerance: 0.10\n  # The only proposal-score weights. Edit these named values for ablations.\n  score:\n    height: -3.0\n    support_likelihood: 2.0\n    open_area: 1.0\n    fill_area: 2.0\n    frontier: 1.0\n    target_boundary: 1.5\n    excavator_distance: 2.0\n    excavator_distance_axis: xy\n    excavator_xy: null\n    elite_fraction: 0.25\n  floor_fill:\n    # Legacy proposal-kernel settings; planar.floor owns the shared layer rules.\n    connected_after: 1\n    u_shape_filter: false\n    u_shape_footprint_scale: 0.9\n    u_shape_min_frontier_contact_cells: 1\n    lower_floor_fill_ratio: 0.6\n    lower_floor_occupancy_grid: 16\n    lower_floor_bottom_z_tolerance: 0.2\n    lower_floor_max_layers: 8\norientation:\n  pose_from_scan: false\n  roll_angles_degrees: [0, 180]\n",
+        "apps/excavator/config/visualization.yml": "units: si\nenvironment:\n  default_layers:\n    ground: true\n    support: false\n    obstacle: true\n  # Search coordinates are stack-local. Plan replay uses recorded world planes.\n  boxes:\n    - id: search_ground\n      layer: ground\n      minimum: [-3.0, -3.0, -0.03]\n      maximum: [3.0, 3.0, 0.0]\n      color: [0.28, 0.33, 0.25]\n      opacity: 1.0\n",
+        "apps/excavator/config/environment.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobservation:\n  action_sample_count: 96\n  max_poses_per_object: 32\n  surface_sample_count: 128\n  banned_object_ids: []\n  height_map_resolution: [128, 128]\n  height_map_margin: 1.0\n  render_height_map: true\nreward:\n  overlap_resolution: 0.03\n  posegen_threshold: 1.0\n  containment_threshold: 0.5\n  nonfinite_displacement: 2.0\n  max_displacement: 1.0\n  # Placement uncertainty; Z perturbations are always upward.\n  place_stability:\n    enabled: true\n    n_noise: 4\n    position_std: [0.02, 0.02, 0.02]  # Gaussian scales; Z uses abs(sample).\n    rotation_std_deg: 5.0\n    rotation_weight: 0.1\n    # Reject if any noisy trial exceeds the motion limit or does not settle.\n    reject_failed_trials: true\n    # Worst trial: translation (m) + rotation_weight * angular distance (rad).\n    fail_displacement: 0.15\n    seed: 0\n  weights:\n    stability: 2.0\n    object_containment: 2.0\n    target_overlap_increment: 20.0\n    place_stability: 2.0\n    large_object_lower: 3.0\n    inward_orientation: 6.0\n",
+        "apps/excavator/config/mcts_cuda.yml": "# Explicit CUDA search profile; select with --config.\n# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 4\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 32\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 12  # Depth 1 until 12 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 256  # Stream 128-placement chunks; native robustness capacity is 512.\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 60.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 2\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cuda  # cpu or cuda\n  simulation_backend: cuda  # cpu or cuda\n  # CPU reward/observation workers overlap the next CUDA placement chunk.\n  enabled: true\n  workers: 4\nroot_cem:\n  population: 96\n  elite: 32\n  iterations: 3\n  keep: 32\n  mutation_xy_std: 0.2\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/planning.yml": "units: si\n# Angular fields use degrees explicitly; poses remain [x, y, z, qx, qy, qz, qw].\nframes:\n  world: world\n  stack: stack\n  world_T_stack: [-6.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0]\nrobot:\n  urdf: apps/excavator/assets/excavator_3/vdk23_cx_ik.urdf\n  tool_link: grip_body\n  home_positions_degrees: [60.0, 45.0, -60.0, -78.54084409738354, 0.0, 0.0]\n  link_from_tool: &id001 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]\n  gripper_opening_degrees: 0.0\ngripper:\n  urdf: apps/excavator/assets/stone_grab_3/stone_grab.urdf\n  root_link: grip_body\n  grasp_from_root: *id001\n  opening_offset_degrees: [0.0, 0.0]\n  opening_direction: [1.0, 1.0]\n  opening_limits_degrees: [-80.0, 0.0]\nscene:\n  frame_id: 1\n  obstacle_friction: 5.0\n  handoff_position: [-2.0, -5.0, 0.0]\n  obstacles: []\nexcavator:\n  pick_ground_height: 0.0\n  place_ground_height: 0.0\n  handoff_ground_height: 0.0\n  place_z_offset: 0.2\n  handoff_positions: [\n    [-2, -5, 0.0],\n    [-1, -5, 0.0],\n    [-3, -5, 0.0],\n    [-2, -4, 0.0],\n    [-2, -6, 0.0],\n    [-1, -4, 0.0],\n    [-3, -4, 0.0],\n    [-1, -6, 0.0],\n    [-3, -6, 0.0],\n  ]\n",
+        "apps/excavator/config/solvers/simulation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nintegration:\n  dt: 0.01\n  gravity: [0.0, 0.0, -9.81]\n  damping: 0.0\nground:\n  z: 0.0\n  friction: 5.0\nscene:\n  frame_id: 1\nphysics:\n  settling:\n    contact:\n      model: single_point\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.001\n      tol_rel: 0.0001\n  structural:\n    contact:\n      model: limit_surface_4d\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.0001\n      tol_rel: 1.0e-05\nphases:\n  settling:\n    dt: 0.01\n    steps: 400\n    sample_count: 64\n  short_structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 0.5\n    max_time: 4.0\n    extra_steps: 20\n    final_extra_steps: 40\n    freeze_radius: 1.5\n  structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 3.0\n    max_time: 15.0\n    extra_steps: 150\n    final_extra_steps: 300\nvalidation:\n  contact_gap_tolerance: 0.02\n  minimum_support_count: 1\n  support_chain_z_tolerance: 0.05\n",
+        "apps/excavator/config/solvers/motion.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nallow_regrasp: true\nmotion:\n  boundary_weight: 20.0\n  collision_alm_beta_increase: 5.0\n  collision_alm_beta_init: 50.0\n  collision_alm_enabled: true\n  collision_alm_max_iters: 5\n  collision_alm_tol: 0.001\n  collision_margin: 0.02\n  collision_penetration_clamp: 0.02\n  collision_weight: 1000.0\n  grasped_boundary_pos_scale: 10.0\n  grasped_boundary_rot_scale: 0.5\n  ik_max_iters: 2000\n  ik_tol: 0.001\n  joint_limit_margin_degrees: 0.057295779513082325\n  joint_limit_weight: 1000.0\n  max_iters: 400\n  plane_feasibility_margin: -0.005\n  smooth_boundary_alpha: 2.0\n  smooth_weight: 50.0\n  step_size: 0.01\n  swing_smoothness_scale: 1.0\n  target_collision_tol: 0.005\n  tol: 0.0001\ninverse_kinematics:\n  initialization: provided\n  max_iters: 2000\n  tol: 0.001\ndirect:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  move_steps: 15\n  simulation_refinement: true\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\nregrasp:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  max_handoff_orientation_distance_degrees: 135.0\n  move_steps: 15\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\n  yaw_samples: 8\nstable_pose:\n  sampling_level: 2\n  stable_eigenvalue_min: -0.2\n",
+        "apps/excavator/config/solvers/grasp.yml": "# stacking-planner planning/planning.py: stone_grab attachment.\nunits: si\nsampling:\n  aperture_margin: 0.01\n  dir_samples: 80\n  include_flipped: true\n  max_candidates: 0\n  max_seeds: 120\n  max_target_width: 1.6\n  preferred_parallel_axis: [0.0, 0.0, 0.0]\n  # Legacy gripper.height (1.5 m) * surface_grasp_offset_scale (0.5).\n  retreat_distance: 0.75\n  # Legacy secondary seeds: gripper height 1.5 m times [0.65, 0.8, 1.2].\n  fallback_retreat_distances: [0.975, 1.2, 1.8]\n  fallback_min_candidates: 8\n  scene_clearance_margin: 0.05\n  spin_samples: 12\n  spin_step_degrees: 30.0\n  strategy: antipodal_surface\ngeneration:\n  contact_margin: 0.05\n  plane_separate_margin: -0.02\n  separate_margin: 0.01\ncost:\n  align: 1.0\n  antipodal_normal: 5.0\n  antipodal_position: 2.0\n  center_distance: 5.0\n  contact: 3.0\n  enclosure: 7.0\n  flatness: 0.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 2.0\nscore:\n  align: 1.0\n  center_distance: 3.0\n  enclosure: 7.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 1.0\n  teeth_gap: 2.0\ntrust_region:\n  gain_ratio_lower: 0.0\n  gain_ratio_upper: 0.75\n  improvement_tol: 0.0\n  max_iters: 200\n  radius_expansion: 2.0\n  radius_init: 0.1\n  radius_max: 0.1\n  radius_reduction: 0.25\n  step_tol: 1.0e-12\n  subproblem_tol: 0.01\nalm:\n  equality_penalty_increase: 10.0\n  equality_penalty_init: 50.0\n  equality_tol: 0.001\n  inequality_penalty_increase: 10.0\n  inequality_penalty_init: 50.0\n  inequality_tol: 0.015\n  max_iters: 20\nforce:\n  damping: 0.0001\n  enabled: true\n  friction: 1.0\n  wrench_scale: 1.0\nforce_weight:\n  complementarity: 10.0\n  cone: 10.0\n  moment: 10.0\n  wrench: 0.1\nsimulation:\n  accept_relaxed: true\n  active_impulse_tol: 0.0001\n  damping: 2.0\n  dt: 0.01\n  error_reduction_ratio: 0.2\n  friction: 1.0\n  grasp_offset_tol: [0.5, 1.0, 0.6]\n  obstacle_margin: 0.01\n  pgs_iters: 80\n  plane_obstacle_margin: 0.01\n  relaxed_velocity_tol: 0.1\n  settled_velocity_tol: 0.01\n  steps: 500\n  target_contact_margin: 0.01\n  virtual_approach_force: 5.0\n  virtual_closing_effort: 0.5\n",
+        "apps/excavator/config/solvers/posegen.yml": "# stacking-planner contexts.get_posegen, PoseSolver schedule, and diffsim defaults.\nunits: si\ntrust_region:\n  delta_expansion_rate: 2.0\n  delta_init: 0.125\n  delta_lower_thresh: 0.25\n  delta_max: 1.0\n  delta_reduction_rate: 0.25\n  delta_upper_thresh: 0.75\n  eps: 0.1\n  improvement_thresh: 0.125\n  max_iters: 100\n  tol: 1.0e-08\nhausdorff:\n  eps: 0.001\n  error_tol: 1.0e-10\n  gain_ratio_lower_thresh: 0.05\n  gain_ratio_max: 10000000000.0\n  gain_ratio_upper_thresh: 0.9\n  max_iters: 50\n  radius_expansion_rate: 3.0\n  radius_init: 10.0\n  radius_reduction_rate: 0.25\nobjective:\n  eps_comp: 0.01\n  eps_cone: 0.01\n  eps_gap: 0.01\n  eps_target: 0.05\n  gravity: 9.81\n  ground_height: 0.0\n  k_box: 20.0\n  k_comp: 0.0\n  k_gap: 0.0\n  k_gap_c: 80.0\n  k_lower: 0.0\n  k_potential: 1.0\n  k_reg: 0.0\n  k_target: 1.0\n  k_wrench: [[1.0, 0.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]\n  k_xy: 0.0\n  narrow_phase_candidate_tol: 0.1\n  narrow_phase_scene_tol: 0.005\n  rho: 0.01\n  w_box: 2.0\nforce_solver:\n  beta_consensus: 1.0\n  beta_contact: 1.0\n  beta_update_interval: 20\n  max_iters: 1000\n  tol_abs: 0.001\n  tol_rel: 0.0001\nschedule:\n  times: [0.0, 0.3333333333333333, 0.6666666666666666, 1.0]\n  max_iters_warmup: 50\n  max_iters_final: 75\n  # Cosine schedule from agent/env/components/action/pose_solver.py.\n  # Each weight is the sum of its coefficient * named basis; see the guide.\n  objective_weights:\n    k_wrench: {ramp: 1.0}\n    k_comp: {ramp: 10.0}\n    k_gap_c: {constant: 40.0, ramp: 150.0, gap_feedback: 100000.0}\n    k_gap: {sine: 10.0}\n    k_target: {anti_ramp: 5.0}\n    k_xy: {anti_ramp: 1.0}\n    k_potential: {constant: 0.10, anti_ramp: 0.10}\n    k_reg: {anti_ramp: 3.0}\n    k_lower: {anti_ramp: 5.0}\nscene:\n  frame_id: 1\n  target_model_id: 1000000\n  target_entity_id: 1000001\n  target_friction: 1.0\n  target_sharpness: 20\n  target_epsilon: 1.0e-09\n  placed_as_boundaries: false\n  boundary_radius: 0.5\n"
+      }
+    },
+    "15": {
+      "mode": "prepare",
+      "seed": 0,
+      "placed": 15,
+      "legacy_promotion": false,
+      "config": "apps/excavator/config/mcts_cpu.yml",
+      "backends": {
+        "posegen": "cpu",
+        "simulation": "cpu"
+      },
+      "root_generation_calls": [
+        {
+          "attempt_offset": 0,
+          "requested": 12,
+          "pool_size": 12,
+          "returned": 12,
+          "exhausted": true
+        }
+      ],
+      "input_sha256": "87787e66c5fe7c3e65af1d4e41d481dac79af00a5da9b9e12232098d2acb92e4",
+      "inherited_edges": 0,
+      "statistics": {
+        "step": 16,
+        "elapsed_seconds": 33.45578786400438,
+        "completed_iterations": 1024,
+        "expansion_calls": 50,
+        "generated_candidates": 175,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 181,
+        "failed_evaluations": 150,
+        "effective_max_depth": 3,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 16,
+          "short_jobs": 163,
+          "short_parallel_batches": 16,
+          "short_parallel_jobs": 163,
+          "long_batches": 3,
+          "long_jobs": 18,
+          "short_max_batch_size": 12,
+          "max_evaluation_batch_size": 12,
+          "workers": 12,
+          "pose_generation_seconds": 4.64967979596986,
+          "pose_generation_batches": 30,
+          "pose_generation_node_requests": 50,
+          "pose_generation_max_node_batch": 4,
+          "descendant_frontier_batches": 86,
+          "descendant_frontier_iterations": 1021,
+          "short_batch_wall_seconds": 20.323398228996666,
+          "long_batch_wall_seconds": 8.025927958020475,
+          "short_settling_job_seconds": 16.11182827896846,
+          "short_structural_job_seconds": 87.33165594493039,
+          "long_settling_job_seconds": 1.2230880919960327,
+          "long_structural_job_seconds": 38.65908460902574
+        },
+        "revalidation": {
+          "attempted": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 12,
+          "accepted": 3,
+          "rejected": 9,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 3,
+          "attempted": 3,
+          "generated": 9,
+          "evaluated": 9
+        },
+        "root_retry": {
+          "rounds": 0,
+          "retired": 0,
+          "generated": 0,
+          "accepted": 0
+        },
+        "floor_fill_fallback": {
+          "attempted": false,
+          "pools": 0,
+          "generated": 0,
+          "accepted": 0,
+          "selected": false
+        },
+        "descendant_validation": {
+          "attempts": 6,
+          "failures": 0
+        },
+        "final_selection_mode": "mixed",
+        "tree": {
+          "nodes": 176,
+          "evaluated": 176,
+          "pending": 0,
+          "failed": 150,
+          "frontier_leaves": 170,
+          "max_depth": 3,
+          "rejection_reasons": {
+            "place_robustness": 126,
+            "active_floor_disconnected_active_layer": 19,
+            "target_motion_limit": 19,
+            "active_floor_above_active_layer": 10,
+            "posegen_gap": 1,
+            "simulation_unsettled": 2,
+            "stone_outside_target": 3
+          },
+          "generation_rejections": {
+            "active_floor_disconnected_active_layer": 19,
+            "active_floor_above_active_layer": 10,
+            "posegen_gap": 1
+          }
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 92,
+              "rejected": 4,
+              "duplicate_rejections": 0,
+              "retained": 92,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 90,
+              "rejected": 6,
+              "duplicate_rejections": 17,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 86,
+              "rejected": 10,
+              "duplicate_rejections": 14,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "active_floor_disconnected_active_layer": 19,
+            "posegen_gap": 1
+          },
+          "final_candidates": 12
+        }
+      },
+      "promotion": null,
+      "expanded_nodes_per_second": 5.230784003992484,
+      "unique_new_physical_passes": 21,
+      "unique_new_physical_passes_per_second": 0.6276940804790981,
+      "first_new_long_pass_seconds": 7.468568035998032,
+      "bank_size": 2,
+      "reuse_calls": [],
+      "refresh_seconds": 0,
+      "selected": {
+        "object_id": 42,
+        "reward": 3.7469234683313903,
+        "backed_up_mean": 9.178986684939531,
+        "target_IoU": 0.14835598267489092,
+        "reused": false,
+        "cem_seed_lineage": false,
+        "validated_descendant_path_available": true,
+        "validated_descendant_path_return": 6.3500113877359965
+      },
+      "profiles": {
+        "apps/excavator/config/mcts_cpu.yml": "# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 3\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 12\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 8  # Depth 1 until 8 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 12\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 30.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 1\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cpu  # cpu or cuda\n  simulation_backend: cpu  # cpu or cuda\n  # Local native worker allocation; separate from legacy Ray resource settings.\n  enabled: true\n  workers: 12\nroot_cem:\n  population: 96\n  elite: 24\n  iterations: 3\n  keep: 12\n  mutation_xy_std: 0.1\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/inventory.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobjects:\n  model_directory: apps/excavator/assets/objects\n  ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58]\n  density: 1000.0\n  density_overrides: {}\ntarget:\n  # stacking-planner agent/configs/ablation.yml: environment.target.\n  width: 2.0\n  length: 6.0\n  height: 2.5\n  origin: [0.0, 0.0, 0.0]\n  support_overlap: 0.02\n  taper_degrees:\n    width_positive: 5.0\n    width_negative: 5.0\n    length_positive: 5.0\n    length_negative: 5.0\n",
+        "apps/excavator/config/perception.yml": "# Desktop perception defaults in SI units. Quality gates require field commissioning.\n# Opening polynomial: legacy assets/opening_angle_fit.npy, stone_grab fit.\nvoxel_size: 0.01\nground_clearance: 0.08\nfield_ground_removal: false  # Experimental opt-in; legacy field recovery retains ground.\nminimum_points: 100\nmaximum_timestamp_skew_ns: 50000000\nfield:\n  voxel_sizes: [0.1, 0.05, 0.02, 0.01]\n  max_iterations: [50, 30, 14, 7]\ninhand:\n  voxel_sizes: [0.1, 0.05, 0.02]\n  max_iterations: [50, 30, 14]\ngripper_alignment_quality:\n  minimum_target_coverage: 0.05\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.1\n  maximum_correction_rotation_degrees: 10.0\nquality:\n  minimum_target_coverage: 0.35\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.6\n  maximum_correction_rotation_degrees: 180.0\nambiguity:\n  ambiguity_score_gap: 0.015\n  distinct_translation: 0.05\n  distinct_rotation_degrees: 15.0\nopening:\n  # Calibration polynomial coefficients are preserved; polynomial output is radians.\n  coefficients: [-7.418032620929303, 46.96298872999542, -110.41168530520477, 116.254686079056, -47.56854082012381]\n  source_sha256: c419e987d8f8fc976fa5ae3efdde668da9b45615ba46051432035a1f1bc2d1ee\n  limits_degrees: [-65.31718864491384, 0.0]\n  maximum_measured_difference_degrees: 11.459155902616464\n  minimum_jaw_points: 30\n  gripper_removal_distance: 0.06\n",
+        "apps/excavator/config/action_generation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\ninitialization:\n  # Excavator initializes from model_<id>_mesh.ply and pads both XY footprints.\n  height_clearance: 0.15\n  xy_padding: 0.12\nfiltering:\n  posegen_gap_threshold: 0.005\n  posegen_equilibrium_threshold: 1.0\n  # Prefer this restriction; exhausted search retries without floor-fill gates.\n  strict_floor_first: true\n  require_solver_convergence: false\n  reject_equilibrium_at_threshold: true\nplanar:\n  grid_shape: [32, 32]\n  yaw_angles_degrees: [0, 90, 180, 270]\n  minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.\n  target_anchor_inset_scale: 0.6\n  floor:\n    # Advance at fill_ratio coverage of the base in top-down projection.\n    coverage_mode: projected_footprint\n    bottom_tolerance: 0.2\n    fill_ratio: 0.75\n    grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.\n    max_layers: 8\n    minimum_contact_cells: 1\n  boltzmann_temperature: 0.3\n  boltzmann_min_probability: 0.0\n  target_mask_margin: 0.0\n  contact_gap_tolerance: 0.10\n  # The only proposal-score weights. Edit these named values for ablations.\n  score:\n    height: -3.0\n    support_likelihood: 2.0\n    open_area: 1.0\n    fill_area: 2.0\n    frontier: 1.0\n    target_boundary: 1.5\n    excavator_distance: 2.0\n    excavator_distance_axis: xy\n    excavator_xy: null\n    elite_fraction: 0.25\n  floor_fill:\n    # Legacy proposal-kernel settings; planar.floor owns the shared layer rules.\n    connected_after: 1\n    u_shape_filter: false\n    u_shape_footprint_scale: 0.9\n    u_shape_min_frontier_contact_cells: 1\n    lower_floor_fill_ratio: 0.6\n    lower_floor_occupancy_grid: 16\n    lower_floor_bottom_z_tolerance: 0.2\n    lower_floor_max_layers: 8\norientation:\n  pose_from_scan: false\n  roll_angles_degrees: [0, 180]\n",
+        "apps/excavator/config/visualization.yml": "units: si\nenvironment:\n  default_layers:\n    ground: true\n    support: false\n    obstacle: true\n  # Search coordinates are stack-local. Plan replay uses recorded world planes.\n  boxes:\n    - id: search_ground\n      layer: ground\n      minimum: [-3.0, -3.0, -0.03]\n      maximum: [3.0, 3.0, 0.0]\n      color: [0.28, 0.33, 0.25]\n      opacity: 1.0\n",
+        "apps/excavator/config/environment.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobservation:\n  action_sample_count: 96\n  max_poses_per_object: 32\n  surface_sample_count: 128\n  banned_object_ids: []\n  height_map_resolution: [128, 128]\n  height_map_margin: 1.0\n  render_height_map: true\nreward:\n  overlap_resolution: 0.03\n  posegen_threshold: 1.0\n  containment_threshold: 0.5\n  nonfinite_displacement: 2.0\n  max_displacement: 1.0\n  # Placement uncertainty; Z perturbations are always upward.\n  place_stability:\n    enabled: true\n    n_noise: 4\n    position_std: [0.02, 0.02, 0.02]  # Gaussian scales; Z uses abs(sample).\n    rotation_std_deg: 5.0\n    rotation_weight: 0.1\n    # Reject if any noisy trial exceeds the motion limit or does not settle.\n    reject_failed_trials: true\n    # Worst trial: translation (m) + rotation_weight * angular distance (rad).\n    fail_displacement: 0.15\n    seed: 0\n  weights:\n    stability: 2.0\n    object_containment: 2.0\n    target_overlap_increment: 20.0\n    place_stability: 2.0\n    large_object_lower: 3.0\n    inward_orientation: 6.0\n",
+        "apps/excavator/config/mcts_cuda.yml": "# Explicit CUDA search profile; select with --config.\n# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 4\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 32\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 12  # Depth 1 until 12 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 256  # Stream 128-placement chunks; native robustness capacity is 512.\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 60.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 2\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cuda  # cpu or cuda\n  simulation_backend: cuda  # cpu or cuda\n  # CPU reward/observation workers overlap the next CUDA placement chunk.\n  enabled: true\n  workers: 4\nroot_cem:\n  population: 96\n  elite: 32\n  iterations: 3\n  keep: 32\n  mutation_xy_std: 0.2\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/planning.yml": "units: si\n# Angular fields use degrees explicitly; poses remain [x, y, z, qx, qy, qz, qw].\nframes:\n  world: world\n  stack: stack\n  world_T_stack: [-6.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0]\nrobot:\n  urdf: apps/excavator/assets/excavator_3/vdk23_cx_ik.urdf\n  tool_link: grip_body\n  home_positions_degrees: [60.0, 45.0, -60.0, -78.54084409738354, 0.0, 0.0]\n  link_from_tool: &id001 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]\n  gripper_opening_degrees: 0.0\ngripper:\n  urdf: apps/excavator/assets/stone_grab_3/stone_grab.urdf\n  root_link: grip_body\n  grasp_from_root: *id001\n  opening_offset_degrees: [0.0, 0.0]\n  opening_direction: [1.0, 1.0]\n  opening_limits_degrees: [-80.0, 0.0]\nscene:\n  frame_id: 1\n  obstacle_friction: 5.0\n  handoff_position: [-2.0, -5.0, 0.0]\n  obstacles: []\nexcavator:\n  pick_ground_height: 0.0\n  place_ground_height: 0.0\n  handoff_ground_height: 0.0\n  place_z_offset: 0.2\n  handoff_positions: [\n    [-2, -5, 0.0],\n    [-1, -5, 0.0],\n    [-3, -5, 0.0],\n    [-2, -4, 0.0],\n    [-2, -6, 0.0],\n    [-1, -4, 0.0],\n    [-3, -4, 0.0],\n    [-1, -6, 0.0],\n    [-3, -6, 0.0],\n  ]\n",
+        "apps/excavator/config/solvers/simulation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nintegration:\n  dt: 0.01\n  gravity: [0.0, 0.0, -9.81]\n  damping: 0.0\nground:\n  z: 0.0\n  friction: 5.0\nscene:\n  frame_id: 1\nphysics:\n  settling:\n    contact:\n      model: single_point\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.001\n      tol_rel: 0.0001\n  structural:\n    contact:\n      model: limit_surface_4d\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.0001\n      tol_rel: 1.0e-05\nphases:\n  settling:\n    dt: 0.01\n    steps: 400\n    sample_count: 64\n  short_structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 0.5\n    max_time: 4.0\n    extra_steps: 20\n    final_extra_steps: 40\n    freeze_radius: 1.5\n  structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 3.0\n    max_time: 15.0\n    extra_steps: 150\n    final_extra_steps: 300\nvalidation:\n  contact_gap_tolerance: 0.02\n  minimum_support_count: 1\n  support_chain_z_tolerance: 0.05\n",
+        "apps/excavator/config/solvers/motion.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nallow_regrasp: true\nmotion:\n  boundary_weight: 20.0\n  collision_alm_beta_increase: 5.0\n  collision_alm_beta_init: 50.0\n  collision_alm_enabled: true\n  collision_alm_max_iters: 5\n  collision_alm_tol: 0.001\n  collision_margin: 0.02\n  collision_penetration_clamp: 0.02\n  collision_weight: 1000.0\n  grasped_boundary_pos_scale: 10.0\n  grasped_boundary_rot_scale: 0.5\n  ik_max_iters: 2000\n  ik_tol: 0.001\n  joint_limit_margin_degrees: 0.057295779513082325\n  joint_limit_weight: 1000.0\n  max_iters: 400\n  plane_feasibility_margin: -0.005\n  smooth_boundary_alpha: 2.0\n  smooth_weight: 50.0\n  step_size: 0.01\n  swing_smoothness_scale: 1.0\n  target_collision_tol: 0.005\n  tol: 0.0001\ninverse_kinematics:\n  initialization: provided\n  max_iters: 2000\n  tol: 0.001\ndirect:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  move_steps: 15\n  simulation_refinement: true\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\nregrasp:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  max_handoff_orientation_distance_degrees: 135.0\n  move_steps: 15\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\n  yaw_samples: 8\nstable_pose:\n  sampling_level: 2\n  stable_eigenvalue_min: -0.2\n",
+        "apps/excavator/config/solvers/grasp.yml": "# stacking-planner planning/planning.py: stone_grab attachment.\nunits: si\nsampling:\n  aperture_margin: 0.01\n  dir_samples: 80\n  include_flipped: true\n  max_candidates: 0\n  max_seeds: 120\n  max_target_width: 1.6\n  preferred_parallel_axis: [0.0, 0.0, 0.0]\n  # Legacy gripper.height (1.5 m) * surface_grasp_offset_scale (0.5).\n  retreat_distance: 0.75\n  # Legacy secondary seeds: gripper height 1.5 m times [0.65, 0.8, 1.2].\n  fallback_retreat_distances: [0.975, 1.2, 1.8]\n  fallback_min_candidates: 8\n  scene_clearance_margin: 0.05\n  spin_samples: 12\n  spin_step_degrees: 30.0\n  strategy: antipodal_surface\ngeneration:\n  contact_margin: 0.05\n  plane_separate_margin: -0.02\n  separate_margin: 0.01\ncost:\n  align: 1.0\n  antipodal_normal: 5.0\n  antipodal_position: 2.0\n  center_distance: 5.0\n  contact: 3.0\n  enclosure: 7.0\n  flatness: 0.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 2.0\nscore:\n  align: 1.0\n  center_distance: 3.0\n  enclosure: 7.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 1.0\n  teeth_gap: 2.0\ntrust_region:\n  gain_ratio_lower: 0.0\n  gain_ratio_upper: 0.75\n  improvement_tol: 0.0\n  max_iters: 200\n  radius_expansion: 2.0\n  radius_init: 0.1\n  radius_max: 0.1\n  radius_reduction: 0.25\n  step_tol: 1.0e-12\n  subproblem_tol: 0.01\nalm:\n  equality_penalty_increase: 10.0\n  equality_penalty_init: 50.0\n  equality_tol: 0.001\n  inequality_penalty_increase: 10.0\n  inequality_penalty_init: 50.0\n  inequality_tol: 0.015\n  max_iters: 20\nforce:\n  damping: 0.0001\n  enabled: true\n  friction: 1.0\n  wrench_scale: 1.0\nforce_weight:\n  complementarity: 10.0\n  cone: 10.0\n  moment: 10.0\n  wrench: 0.1\nsimulation:\n  accept_relaxed: true\n  active_impulse_tol: 0.0001\n  damping: 2.0\n  dt: 0.01\n  error_reduction_ratio: 0.2\n  friction: 1.0\n  grasp_offset_tol: [0.5, 1.0, 0.6]\n  obstacle_margin: 0.01\n  pgs_iters: 80\n  plane_obstacle_margin: 0.01\n  relaxed_velocity_tol: 0.1\n  settled_velocity_tol: 0.01\n  steps: 500\n  target_contact_margin: 0.01\n  virtual_approach_force: 5.0\n  virtual_closing_effort: 0.5\n",
+        "apps/excavator/config/solvers/posegen.yml": "# stacking-planner contexts.get_posegen, PoseSolver schedule, and diffsim defaults.\nunits: si\ntrust_region:\n  delta_expansion_rate: 2.0\n  delta_init: 0.125\n  delta_lower_thresh: 0.25\n  delta_max: 1.0\n  delta_reduction_rate: 0.25\n  delta_upper_thresh: 0.75\n  eps: 0.1\n  improvement_thresh: 0.125\n  max_iters: 100\n  tol: 1.0e-08\nhausdorff:\n  eps: 0.001\n  error_tol: 1.0e-10\n  gain_ratio_lower_thresh: 0.05\n  gain_ratio_max: 10000000000.0\n  gain_ratio_upper_thresh: 0.9\n  max_iters: 50\n  radius_expansion_rate: 3.0\n  radius_init: 10.0\n  radius_reduction_rate: 0.25\nobjective:\n  eps_comp: 0.01\n  eps_cone: 0.01\n  eps_gap: 0.01\n  eps_target: 0.05\n  gravity: 9.81\n  ground_height: 0.0\n  k_box: 20.0\n  k_comp: 0.0\n  k_gap: 0.0\n  k_gap_c: 80.0\n  k_lower: 0.0\n  k_potential: 1.0\n  k_reg: 0.0\n  k_target: 1.0\n  k_wrench: [[1.0, 0.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]\n  k_xy: 0.0\n  narrow_phase_candidate_tol: 0.1\n  narrow_phase_scene_tol: 0.005\n  rho: 0.01\n  w_box: 2.0\nforce_solver:\n  beta_consensus: 1.0\n  beta_contact: 1.0\n  beta_update_interval: 20\n  max_iters: 1000\n  tol_abs: 0.001\n  tol_rel: 0.0001\nschedule:\n  times: [0.0, 0.3333333333333333, 0.6666666666666666, 1.0]\n  max_iters_warmup: 50\n  max_iters_final: 75\n  # Cosine schedule from agent/env/components/action/pose_solver.py.\n  # Each weight is the sum of its coefficient * named basis; see the guide.\n  objective_weights:\n    k_wrench: {ramp: 1.0}\n    k_comp: {ramp: 10.0}\n    k_gap_c: {constant: 40.0, ramp: 150.0, gap_feedback: 100000.0}\n    k_gap: {sine: 10.0}\n    k_target: {anti_ramp: 5.0}\n    k_xy: {anti_ramp: 1.0}\n    k_potential: {constant: 0.10, anti_ramp: 0.10}\n    k_reg: {anti_ramp: 3.0}\n    k_lower: {anti_ramp: 5.0}\nscene:\n  frame_id: 1\n  target_model_id: 1000000\n  target_entity_id: 1000001\n  target_friction: 1.0\n  target_sharpness: 20\n  target_epsilon: 1.0e-09\n  placed_as_boundaries: false\n  boundary_radius: 0.5\n"
+      },
+      "preserved_nodes": 119
+    },
+    "26-legacy": {
+      "mode": "baseline",
+      "seed": 0,
+      "placed": 26,
+      "legacy_promotion": true,
+      "config": "apps/excavator/config/mcts_cpu.yml",
+      "backends": {
+        "posegen": "cpu",
+        "simulation": "cpu"
+      },
+      "root_generation_calls": [
+        {
+          "attempt_offset": 31,
+          "requested": 5,
+          "pool_size": 12,
+          "returned": 0,
+          "exhausted": true
+        },
+        {
+          "attempt_offset": 0,
+          "requested": 12,
+          "pool_size": 12,
+          "returned": 12,
+          "exhausted": true
+        },
+        {
+          "attempt_offset": 0,
+          "requested": 12,
+          "pool_size": 12,
+          "returned": 12,
+          "exhausted": true
+        },
+        {
+          "attempt_offset": 0,
+          "requested": 12,
+          "pool_size": 12,
+          "returned": 12,
+          "exhausted": true
+        }
+      ],
+      "input_sha256": "f04a6e46b3384c2a82f35a28d2a5e2c53ae55b0e9f2408801f153f76441d29ac",
+      "inherited_edges": 13,
+      "statistics": {
+        "step": 27,
+        "elapsed_seconds": 82.8690081310051,
+        "completed_iterations": 1024,
+        "expansion_calls": 96,
+        "generated_candidates": 148,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 149,
+        "failed_evaluations": 139,
+        "effective_max_depth": 3,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 16,
+          "short_jobs": 112,
+          "short_parallel_batches": 16,
+          "short_parallel_jobs": 112,
+          "long_batches": 4,
+          "long_jobs": 37,
+          "short_max_batch_size": 11,
+          "max_evaluation_batch_size": 12,
+          "workers": 12,
+          "pose_generation_seconds": 20.12162583695317,
+          "pose_generation_batches": 52,
+          "pose_generation_node_requests": 96,
+          "pose_generation_max_node_batch": 4,
+          "descendant_frontier_batches": 1009,
+          "descendant_frontier_iterations": 1022,
+          "short_batch_wall_seconds": 25.096000206962344,
+          "long_batch_wall_seconds": 34.06774765101727,
+          "short_settling_job_seconds": 20.90279551090498,
+          "short_structural_job_seconds": 53.92637079501583,
+          "long_settling_job_seconds": 6.346570284018526,
+          "long_structural_job_seconds": 190.5004976499622
+        },
+        "revalidation": {
+          "attempted": 1,
+          "accepted": 1,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 36,
+          "accepted": 8,
+          "rejected": 28,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 9,
+          "attempted": 9,
+          "generated": 20,
+          "evaluated": 20
+        },
+        "root_retry": {
+          "rounds": 3,
+          "retired": 39,
+          "generated": 36,
+          "accepted": 8
+        },
+        "floor_fill_fallback": {
+          "attempted": false,
+          "pools": 0,
+          "generated": 0,
+          "accepted": 0,
+          "selected": false
+        },
+        "descendant_validation": {
+          "attempts": 1,
+          "failures": 0
+        },
+        "final_selection_mode": "mixed",
+        "tree": {
+          "nodes": 53,
+          "evaluated": 53,
+          "pending": 0,
+          "failed": 50,
+          "frontier_leaves": 48,
+          "max_depth": 2,
+          "rejection_reasons": {
+            "active_floor_above_active_layer": 47,
+            "active_floor_disconnected_active_layer": 18,
+            "posegen_gap": 4,
+            "missing_validated_descendant": 3,
+            "place_robustness": 33,
+            "stone_outside_target": 4,
+            "target_motion_limit": 8,
+            "scene_motion_limit": 2
+          },
+          "generation_rejections": {
+            "active_floor_above_active_layer": 47,
+            "active_floor_disconnected_active_layer": 18,
+            "posegen_gap": 4
+          }
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 35,
+              "rejected": 61,
+              "duplicate_rejections": 0,
+              "retained": 35,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 50,
+              "rejected": 46,
+              "duplicate_rejections": 14,
+              "retained": 71,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 39,
+              "rejected": 57,
+              "duplicate_rejections": 13,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "active_floor_disconnected_active_layer": 94,
+            "active_floor_above_active_layer": 64,
+            "posegen_gap": 6,
+            "retry_excluded_duplicate": 9
+          },
+          "final_candidates": 12
+        }
+      },
+      "promotion": {
+        "attempts_before": 31,
+        "attempts_after": 31,
+        "exhausted_before": false,
+        "exhausted_after": false
+      },
+      "expanded_nodes_per_second": 1.7859511455239248,
+      "unique_new_physical_passes": 9,
+      "unique_new_physical_passes_per_second": 0.10860513722780624,
+      "first_new_long_pass_seconds": 26.424711077997927,
+      "bank_size": 0,
+      "reuse_calls": [],
+      "refresh_seconds": 0,
+      "selected": {
+        "object_id": 3,
+        "reward": 2.2607211280397967,
+        "backed_up_mean": 7.261092517579415,
+        "target_IoU": 0.22802280537153038,
+        "reused": false,
+        "cem_seed_lineage": false,
+        "validated_descendant_path_available": true,
+        "validated_descendant_path_return": 3.310961636018556
+      },
+      "profiles": {
+        "apps/excavator/config/mcts_cpu.yml": "# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 3\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 12\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 8  # Depth 1 until 8 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 12\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 30.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 1\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cpu  # cpu or cuda\n  simulation_backend: cpu  # cpu or cuda\n  # Local native worker allocation; separate from legacy Ray resource settings.\n  enabled: true\n  workers: 12\nroot_cem:\n  population: 96\n  elite: 24\n  iterations: 3\n  keep: 12\n  mutation_xy_std: 0.1\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/inventory.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobjects:\n  model_directory: apps/excavator/assets/objects\n  ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58]\n  density: 1000.0\n  density_overrides: {}\ntarget:\n  # stacking-planner agent/configs/ablation.yml: environment.target.\n  width: 2.0\n  length: 6.0\n  height: 2.5\n  origin: [0.0, 0.0, 0.0]\n  support_overlap: 0.02\n  taper_degrees:\n    width_positive: 5.0\n    width_negative: 5.0\n    length_positive: 5.0\n    length_negative: 5.0\n",
+        "apps/excavator/config/perception.yml": "# Desktop perception defaults in SI units. Quality gates require field commissioning.\n# Opening polynomial: legacy assets/opening_angle_fit.npy, stone_grab fit.\nvoxel_size: 0.01\nground_clearance: 0.08\nfield_ground_removal: false  # Experimental opt-in; legacy field recovery retains ground.\nminimum_points: 100\nmaximum_timestamp_skew_ns: 50000000\nfield:\n  voxel_sizes: [0.1, 0.05, 0.02, 0.01]\n  max_iterations: [50, 30, 14, 7]\ninhand:\n  voxel_sizes: [0.1, 0.05, 0.02]\n  max_iterations: [50, 30, 14]\ngripper_alignment_quality:\n  minimum_target_coverage: 0.05\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.1\n  maximum_correction_rotation_degrees: 10.0\nquality:\n  minimum_target_coverage: 0.35\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.6\n  maximum_correction_rotation_degrees: 180.0\nambiguity:\n  ambiguity_score_gap: 0.015\n  distinct_translation: 0.05\n  distinct_rotation_degrees: 15.0\nopening:\n  # Calibration polynomial coefficients are preserved; polynomial output is radians.\n  coefficients: [-7.418032620929303, 46.96298872999542, -110.41168530520477, 116.254686079056, -47.56854082012381]\n  source_sha256: c419e987d8f8fc976fa5ae3efdde668da9b45615ba46051432035a1f1bc2d1ee\n  limits_degrees: [-65.31718864491384, 0.0]\n  maximum_measured_difference_degrees: 11.459155902616464\n  minimum_jaw_points: 30\n  gripper_removal_distance: 0.06\n",
+        "apps/excavator/config/action_generation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\ninitialization:\n  # Excavator initializes from model_<id>_mesh.ply and pads both XY footprints.\n  height_clearance: 0.15\n  xy_padding: 0.12\nfiltering:\n  posegen_gap_threshold: 0.005\n  posegen_equilibrium_threshold: 1.0\n  # Prefer this restriction; exhausted search retries without floor-fill gates.\n  strict_floor_first: true\n  require_solver_convergence: false\n  reject_equilibrium_at_threshold: true\nplanar:\n  grid_shape: [32, 32]\n  yaw_angles_degrees: [0, 90, 180, 270]\n  minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.\n  target_anchor_inset_scale: 0.6\n  floor:\n    # Advance at fill_ratio coverage of the base in top-down projection.\n    coverage_mode: projected_footprint\n    bottom_tolerance: 0.2\n    fill_ratio: 0.75\n    grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.\n    max_layers: 8\n    minimum_contact_cells: 1\n  boltzmann_temperature: 0.3\n  boltzmann_min_probability: 0.0\n  target_mask_margin: 0.0\n  contact_gap_tolerance: 0.10\n  # The only proposal-score weights. Edit these named values for ablations.\n  score:\n    height: -3.0\n    support_likelihood: 2.0\n    open_area: 1.0\n    fill_area: 2.0\n    frontier: 1.0\n    target_boundary: 1.5\n    excavator_distance: 2.0\n    excavator_distance_axis: xy\n    excavator_xy: null\n    elite_fraction: 0.25\n  floor_fill:\n    # Legacy proposal-kernel settings; planar.floor owns the shared layer rules.\n    connected_after: 1\n    u_shape_filter: false\n    u_shape_footprint_scale: 0.9\n    u_shape_min_frontier_contact_cells: 1\n    lower_floor_fill_ratio: 0.6\n    lower_floor_occupancy_grid: 16\n    lower_floor_bottom_z_tolerance: 0.2\n    lower_floor_max_layers: 8\norientation:\n  pose_from_scan: false\n  roll_angles_degrees: [0, 180]\n",
+        "apps/excavator/config/visualization.yml": "units: si\nenvironment:\n  default_layers:\n    ground: true\n    support: false\n    obstacle: true\n  # Search coordinates are stack-local. Plan replay uses recorded world planes.\n  boxes:\n    - id: search_ground\n      layer: ground\n      minimum: [-3.0, -3.0, -0.03]\n      maximum: [3.0, 3.0, 0.0]\n      color: [0.28, 0.33, 0.25]\n      opacity: 1.0\n",
+        "apps/excavator/config/environment.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobservation:\n  action_sample_count: 96\n  max_poses_per_object: 32\n  surface_sample_count: 128\n  banned_object_ids: []\n  height_map_resolution: [128, 128]\n  height_map_margin: 1.0\n  render_height_map: true\nreward:\n  overlap_resolution: 0.03\n  posegen_threshold: 1.0\n  containment_threshold: 0.5\n  nonfinite_displacement: 2.0\n  max_displacement: 1.0\n  # Placement uncertainty; Z perturbations are always upward.\n  place_stability:\n    enabled: true\n    n_noise: 4\n    position_std: [0.02, 0.02, 0.02]  # Gaussian scales; Z uses abs(sample).\n    rotation_std_deg: 5.0\n    rotation_weight: 0.1\n    # Reject if any noisy trial exceeds the motion limit or does not settle.\n    reject_failed_trials: true\n    # Worst trial: translation (m) + rotation_weight * angular distance (rad).\n    fail_displacement: 0.15\n    seed: 0\n  weights:\n    stability: 2.0\n    object_containment: 2.0\n    target_overlap_increment: 20.0\n    place_stability: 2.0\n    large_object_lower: 3.0\n    inward_orientation: 6.0\n",
+        "apps/excavator/config/mcts_cuda.yml": "# Explicit CUDA search profile; select with --config.\n# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 4\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 32\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 12  # Depth 1 until 12 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 256  # Stream 128-placement chunks; native robustness capacity is 512.\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 60.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 2\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cuda  # cpu or cuda\n  simulation_backend: cuda  # cpu or cuda\n  # CPU reward/observation workers overlap the next CUDA placement chunk.\n  enabled: true\n  workers: 4\nroot_cem:\n  population: 96\n  elite: 32\n  iterations: 3\n  keep: 32\n  mutation_xy_std: 0.2\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/planning.yml": "units: si\n# Angular fields use degrees explicitly; poses remain [x, y, z, qx, qy, qz, qw].\nframes:\n  world: world\n  stack: stack\n  world_T_stack: [-6.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0]\nrobot:\n  urdf: apps/excavator/assets/excavator_3/vdk23_cx_ik.urdf\n  tool_link: grip_body\n  home_positions_degrees: [60.0, 45.0, -60.0, -78.54084409738354, 0.0, 0.0]\n  link_from_tool: &id001 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]\n  gripper_opening_degrees: 0.0\ngripper:\n  urdf: apps/excavator/assets/stone_grab_3/stone_grab.urdf\n  root_link: grip_body\n  grasp_from_root: *id001\n  opening_offset_degrees: [0.0, 0.0]\n  opening_direction: [1.0, 1.0]\n  opening_limits_degrees: [-80.0, 0.0]\nscene:\n  frame_id: 1\n  obstacle_friction: 5.0\n  handoff_position: [-2.0, -5.0, 0.0]\n  obstacles: []\nexcavator:\n  pick_ground_height: 0.0\n  place_ground_height: 0.0\n  handoff_ground_height: 0.0\n  place_z_offset: 0.2\n  handoff_positions: [\n    [-2, -5, 0.0],\n    [-1, -5, 0.0],\n    [-3, -5, 0.0],\n    [-2, -4, 0.0],\n    [-2, -6, 0.0],\n    [-1, -4, 0.0],\n    [-3, -4, 0.0],\n    [-1, -6, 0.0],\n    [-3, -6, 0.0],\n  ]\n",
+        "apps/excavator/config/solvers/simulation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nintegration:\n  dt: 0.01\n  gravity: [0.0, 0.0, -9.81]\n  damping: 0.0\nground:\n  z: 0.0\n  friction: 5.0\nscene:\n  frame_id: 1\nphysics:\n  settling:\n    contact:\n      model: single_point\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.001\n      tol_rel: 0.0001\n  structural:\n    contact:\n      model: limit_surface_4d\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.0001\n      tol_rel: 1.0e-05\nphases:\n  settling:\n    dt: 0.01\n    steps: 400\n    sample_count: 64\n  short_structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 0.5\n    max_time: 4.0\n    extra_steps: 20\n    final_extra_steps: 40\n    freeze_radius: 1.5\n  structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 3.0\n    max_time: 15.0\n    extra_steps: 150\n    final_extra_steps: 300\nvalidation:\n  contact_gap_tolerance: 0.02\n  minimum_support_count: 1\n  support_chain_z_tolerance: 0.05\n",
+        "apps/excavator/config/solvers/motion.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nallow_regrasp: true\nmotion:\n  boundary_weight: 20.0\n  collision_alm_beta_increase: 5.0\n  collision_alm_beta_init: 50.0\n  collision_alm_enabled: true\n  collision_alm_max_iters: 5\n  collision_alm_tol: 0.001\n  collision_margin: 0.02\n  collision_penetration_clamp: 0.02\n  collision_weight: 1000.0\n  grasped_boundary_pos_scale: 10.0\n  grasped_boundary_rot_scale: 0.5\n  ik_max_iters: 2000\n  ik_tol: 0.001\n  joint_limit_margin_degrees: 0.057295779513082325\n  joint_limit_weight: 1000.0\n  max_iters: 400\n  plane_feasibility_margin: -0.005\n  smooth_boundary_alpha: 2.0\n  smooth_weight: 50.0\n  step_size: 0.01\n  swing_smoothness_scale: 1.0\n  target_collision_tol: 0.005\n  tol: 0.0001\ninverse_kinematics:\n  initialization: provided\n  max_iters: 2000\n  tol: 0.001\ndirect:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  move_steps: 15\n  simulation_refinement: true\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\nregrasp:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  max_handoff_orientation_distance_degrees: 135.0\n  move_steps: 15\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\n  yaw_samples: 8\nstable_pose:\n  sampling_level: 2\n  stable_eigenvalue_min: -0.2\n",
+        "apps/excavator/config/solvers/grasp.yml": "# stacking-planner planning/planning.py: stone_grab attachment.\nunits: si\nsampling:\n  aperture_margin: 0.01\n  dir_samples: 80\n  include_flipped: true\n  max_candidates: 0\n  max_seeds: 120\n  max_target_width: 1.6\n  preferred_parallel_axis: [0.0, 0.0, 0.0]\n  # Legacy gripper.height (1.5 m) * surface_grasp_offset_scale (0.5).\n  retreat_distance: 0.75\n  # Legacy secondary seeds: gripper height 1.5 m times [0.65, 0.8, 1.2].\n  fallback_retreat_distances: [0.975, 1.2, 1.8]\n  fallback_min_candidates: 8\n  scene_clearance_margin: 0.05\n  spin_samples: 12\n  spin_step_degrees: 30.0\n  strategy: antipodal_surface\ngeneration:\n  contact_margin: 0.05\n  plane_separate_margin: -0.02\n  separate_margin: 0.01\ncost:\n  align: 1.0\n  antipodal_normal: 5.0\n  antipodal_position: 2.0\n  center_distance: 5.0\n  contact: 3.0\n  enclosure: 7.0\n  flatness: 0.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 2.0\nscore:\n  align: 1.0\n  center_distance: 3.0\n  enclosure: 7.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 1.0\n  teeth_gap: 2.0\ntrust_region:\n  gain_ratio_lower: 0.0\n  gain_ratio_upper: 0.75\n  improvement_tol: 0.0\n  max_iters: 200\n  radius_expansion: 2.0\n  radius_init: 0.1\n  radius_max: 0.1\n  radius_reduction: 0.25\n  step_tol: 1.0e-12\n  subproblem_tol: 0.01\nalm:\n  equality_penalty_increase: 10.0\n  equality_penalty_init: 50.0\n  equality_tol: 0.001\n  inequality_penalty_increase: 10.0\n  inequality_penalty_init: 50.0\n  inequality_tol: 0.015\n  max_iters: 20\nforce:\n  damping: 0.0001\n  enabled: true\n  friction: 1.0\n  wrench_scale: 1.0\nforce_weight:\n  complementarity: 10.0\n  cone: 10.0\n  moment: 10.0\n  wrench: 0.1\nsimulation:\n  accept_relaxed: true\n  active_impulse_tol: 0.0001\n  damping: 2.0\n  dt: 0.01\n  error_reduction_ratio: 0.2\n  friction: 1.0\n  grasp_offset_tol: [0.5, 1.0, 0.6]\n  obstacle_margin: 0.01\n  pgs_iters: 80\n  plane_obstacle_margin: 0.01\n  relaxed_velocity_tol: 0.1\n  settled_velocity_tol: 0.01\n  steps: 500\n  target_contact_margin: 0.01\n  virtual_approach_force: 5.0\n  virtual_closing_effort: 0.5\n",
+        "apps/excavator/config/solvers/posegen.yml": "# stacking-planner contexts.get_posegen, PoseSolver schedule, and diffsim defaults.\nunits: si\ntrust_region:\n  delta_expansion_rate: 2.0\n  delta_init: 0.125\n  delta_lower_thresh: 0.25\n  delta_max: 1.0\n  delta_reduction_rate: 0.25\n  delta_upper_thresh: 0.75\n  eps: 0.1\n  improvement_thresh: 0.125\n  max_iters: 100\n  tol: 1.0e-08\nhausdorff:\n  eps: 0.001\n  error_tol: 1.0e-10\n  gain_ratio_lower_thresh: 0.05\n  gain_ratio_max: 10000000000.0\n  gain_ratio_upper_thresh: 0.9\n  max_iters: 50\n  radius_expansion_rate: 3.0\n  radius_init: 10.0\n  radius_reduction_rate: 0.25\nobjective:\n  eps_comp: 0.01\n  eps_cone: 0.01\n  eps_gap: 0.01\n  eps_target: 0.05\n  gravity: 9.81\n  ground_height: 0.0\n  k_box: 20.0\n  k_comp: 0.0\n  k_gap: 0.0\n  k_gap_c: 80.0\n  k_lower: 0.0\n  k_potential: 1.0\n  k_reg: 0.0\n  k_target: 1.0\n  k_wrench: [[1.0, 0.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]\n  k_xy: 0.0\n  narrow_phase_candidate_tol: 0.1\n  narrow_phase_scene_tol: 0.005\n  rho: 0.01\n  w_box: 2.0\nforce_solver:\n  beta_consensus: 1.0\n  beta_contact: 1.0\n  beta_update_interval: 20\n  max_iters: 1000\n  tol_abs: 0.001\n  tol_rel: 0.0001\nschedule:\n  times: [0.0, 0.3333333333333333, 0.6666666666666666, 1.0]\n  max_iters_warmup: 50\n  max_iters_final: 75\n  # Cosine schedule from agent/env/components/action/pose_solver.py.\n  # Each weight is the sum of its coefficient * named basis; see the guide.\n  objective_weights:\n    k_wrench: {ramp: 1.0}\n    k_comp: {ramp: 10.0}\n    k_gap_c: {constant: 40.0, ramp: 150.0, gap_feedback: 100000.0}\n    k_gap: {sine: 10.0}\n    k_target: {anti_ramp: 5.0}\n    k_xy: {anti_ramp: 1.0}\n    k_potential: {constant: 0.10, anti_ramp: 0.10}\n    k_reg: {anti_ramp: 3.0}\n    k_lower: {anti_ramp: 5.0}\nscene:\n  frame_id: 1\n  target_model_id: 1000000\n  target_entity_id: 1000001\n  target_friction: 1.0\n  target_sharpness: 20\n  target_epsilon: 1.0e-09\n  placed_as_boundaries: false\n  boundary_radius: 0.5\n"
+      }
+    },
+    "16-legacy": {
+      "mode": "baseline",
+      "seed": 0,
+      "placed": 16,
+      "legacy_promotion": true,
+      "config": "apps/excavator/config/mcts_cpu.yml",
+      "backends": {
+        "posegen": "cpu",
+        "simulation": "cpu"
+      },
+      "root_generation_calls": [],
+      "input_sha256": "f644eb24527cd9bd71a15e857c2ade88255cc0cfd3b79ef4988275496d84f108",
+      "inherited_edges": 102,
+      "statistics": {
+        "step": 17,
+        "elapsed_seconds": 41.57413902699773,
+        "completed_iterations": 1024,
+        "expansion_calls": 116,
+        "generated_candidates": 250,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 266,
+        "failed_evaluations": 220,
+        "effective_max_depth": 3,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 21,
+          "short_jobs": 250,
+          "short_parallel_batches": 21,
+          "short_parallel_jobs": 250,
+          "long_batches": 2,
+          "long_jobs": 16,
+          "short_max_batch_size": 12,
+          "max_evaluation_batch_size": 12,
+          "workers": 12,
+          "pose_generation_seconds": 3.7747594169486547,
+          "pose_generation_batches": 45,
+          "pose_generation_node_requests": 116,
+          "pose_generation_max_node_batch": 12,
+          "descendant_frontier_batches": 86,
+          "descendant_frontier_iterations": 1024,
+          "short_batch_wall_seconds": 30.609896987996763,
+          "long_batch_wall_seconds": 5.284321708997595,
+          "short_settling_job_seconds": 32.94948758899409,
+          "short_structural_job_seconds": 123.75169319398992,
+          "long_settling_job_seconds": 1.2602024219959276,
+          "long_structural_job_seconds": 32.31648554994899
+        },
+        "revalidation": {
+          "attempted": 2,
+          "accepted": 2,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 2,
+          "attempted": 0,
+          "generated": 0,
+          "evaluated": 0
+        },
+        "root_retry": {
+          "rounds": 0,
+          "retired": 0,
+          "generated": 0,
+          "accepted": 0
+        },
+        "floor_fill_fallback": {
+          "attempted": false,
+          "pools": 0,
+          "generated": 0,
+          "accepted": 0,
+          "selected": false
+        },
+        "descendant_validation": {
+          "attempts": 16,
+          "failures": 0
+        },
+        "final_selection_mode": "mixed",
+        "tree": {
+          "nodes": 369,
+          "evaluated": 369,
+          "pending": 0,
+          "failed": 320,
+          "frontier_leaves": 351,
+          "max_depth": 3,
+          "rejection_reasons": {
+            "active_floor_disconnected_active_layer": 33,
+            "active_floor_above_active_layer": 37,
+            "place_robustness": 272,
+            "posegen_gap": 8,
+            "target_motion_limit": 35,
+            "stone_outside_target": 10,
+            "simulation_unsettled": 3
+          },
+          "generation_rejections": {
+            "active_floor_disconnected_active_layer": 33,
+            "active_floor_above_active_layer": 37,
+            "posegen_gap": 8
+          }
+        },
+        "cem": {
+          "rounds": [],
+          "rejection_counts": {},
+          "final_candidates": 0
+        }
+      },
+      "promotion": {
+        "attempts_before": 48,
+        "attempts_after": 48,
+        "exhausted_before": false,
+        "exhausted_after": false
+      },
+      "expanded_nodes_per_second": 6.013353634038053,
+      "unique_new_physical_passes": 27,
+      "unique_new_physical_passes_per_second": 0.6494421924761097,
+      "first_new_long_pass_seconds": null,
+      "bank_size": 2,
+      "reuse_calls": [],
+      "refresh_seconds": 0,
+      "selected": {
+        "object_id": 32,
+        "reward": 2.660405213827357,
+        "backed_up_mean": 7.868852007922607,
+        "target_IoU": 0.15670607498624042,
+        "reused": false,
+        "cem_seed_lineage": false,
+        "validated_descendant_path_available": true,
+        "validated_descendant_path_return": 6.323158876462333
+      },
+      "profiles": {
+        "apps/excavator/config/mcts_cpu.yml": "# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 3\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 12\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 8  # Depth 1 until 8 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 12\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 30.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 1\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cpu  # cpu or cuda\n  simulation_backend: cpu  # cpu or cuda\n  # Local native worker allocation; separate from legacy Ray resource settings.\n  enabled: true\n  workers: 12\nroot_cem:\n  population: 96\n  elite: 24\n  iterations: 3\n  keep: 12\n  mutation_xy_std: 0.1\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/inventory.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobjects:\n  model_directory: apps/excavator/assets/objects\n  ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58]\n  density: 1000.0\n  density_overrides: {}\ntarget:\n  # stacking-planner agent/configs/ablation.yml: environment.target.\n  width: 2.0\n  length: 6.0\n  height: 2.5\n  origin: [0.0, 0.0, 0.0]\n  support_overlap: 0.02\n  taper_degrees:\n    width_positive: 5.0\n    width_negative: 5.0\n    length_positive: 5.0\n    length_negative: 5.0\n",
+        "apps/excavator/config/perception.yml": "# Desktop perception defaults in SI units. Quality gates require field commissioning.\n# Opening polynomial: legacy assets/opening_angle_fit.npy, stone_grab fit.\nvoxel_size: 0.01\nground_clearance: 0.08\nfield_ground_removal: false  # Experimental opt-in; legacy field recovery retains ground.\nminimum_points: 100\nmaximum_timestamp_skew_ns: 50000000\nfield:\n  voxel_sizes: [0.1, 0.05, 0.02, 0.01]\n  max_iterations: [50, 30, 14, 7]\ninhand:\n  voxel_sizes: [0.1, 0.05, 0.02]\n  max_iterations: [50, 30, 14]\ngripper_alignment_quality:\n  minimum_target_coverage: 0.05\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.1\n  maximum_correction_rotation_degrees: 10.0\nquality:\n  minimum_target_coverage: 0.35\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.6\n  maximum_correction_rotation_degrees: 180.0\nambiguity:\n  ambiguity_score_gap: 0.015\n  distinct_translation: 0.05\n  distinct_rotation_degrees: 15.0\nopening:\n  # Calibration polynomial coefficients are preserved; polynomial output is radians.\n  coefficients: [-7.418032620929303, 46.96298872999542, -110.41168530520477, 116.254686079056, -47.56854082012381]\n  source_sha256: c419e987d8f8fc976fa5ae3efdde668da9b45615ba46051432035a1f1bc2d1ee\n  limits_degrees: [-65.31718864491384, 0.0]\n  maximum_measured_difference_degrees: 11.459155902616464\n  minimum_jaw_points: 30\n  gripper_removal_distance: 0.06\n",
+        "apps/excavator/config/action_generation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\ninitialization:\n  # Excavator initializes from model_<id>_mesh.ply and pads both XY footprints.\n  height_clearance: 0.15\n  xy_padding: 0.12\nfiltering:\n  posegen_gap_threshold: 0.005\n  posegen_equilibrium_threshold: 1.0\n  # Prefer this restriction; exhausted search retries without floor-fill gates.\n  strict_floor_first: true\n  require_solver_convergence: false\n  reject_equilibrium_at_threshold: true\nplanar:\n  grid_shape: [32, 32]\n  yaw_angles_degrees: [0, 90, 180, 270]\n  minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.\n  target_anchor_inset_scale: 0.6\n  floor:\n    # Advance at fill_ratio coverage of the base in top-down projection.\n    coverage_mode: projected_footprint\n    bottom_tolerance: 0.2\n    fill_ratio: 0.75\n    grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.\n    max_layers: 8\n    minimum_contact_cells: 1\n  boltzmann_temperature: 0.3\n  boltzmann_min_probability: 0.0\n  target_mask_margin: 0.0\n  contact_gap_tolerance: 0.10\n  # The only proposal-score weights. Edit these named values for ablations.\n  score:\n    height: -3.0\n    support_likelihood: 2.0\n    open_area: 1.0\n    fill_area: 2.0\n    frontier: 1.0\n    target_boundary: 1.5\n    excavator_distance: 2.0\n    excavator_distance_axis: xy\n    excavator_xy: null\n    elite_fraction: 0.25\n  floor_fill:\n    # Legacy proposal-kernel settings; planar.floor owns the shared layer rules.\n    connected_after: 1\n    u_shape_filter: false\n    u_shape_footprint_scale: 0.9\n    u_shape_min_frontier_contact_cells: 1\n    lower_floor_fill_ratio: 0.6\n    lower_floor_occupancy_grid: 16\n    lower_floor_bottom_z_tolerance: 0.2\n    lower_floor_max_layers: 8\norientation:\n  pose_from_scan: false\n  roll_angles_degrees: [0, 180]\n",
+        "apps/excavator/config/visualization.yml": "units: si\nenvironment:\n  default_layers:\n    ground: true\n    support: false\n    obstacle: true\n  # Search coordinates are stack-local. Plan replay uses recorded world planes.\n  boxes:\n    - id: search_ground\n      layer: ground\n      minimum: [-3.0, -3.0, -0.03]\n      maximum: [3.0, 3.0, 0.0]\n      color: [0.28, 0.33, 0.25]\n      opacity: 1.0\n",
+        "apps/excavator/config/environment.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobservation:\n  action_sample_count: 96\n  max_poses_per_object: 32\n  surface_sample_count: 128\n  banned_object_ids: []\n  height_map_resolution: [128, 128]\n  height_map_margin: 1.0\n  render_height_map: true\nreward:\n  overlap_resolution: 0.03\n  posegen_threshold: 1.0\n  containment_threshold: 0.5\n  nonfinite_displacement: 2.0\n  max_displacement: 1.0\n  # Placement uncertainty; Z perturbations are always upward.\n  place_stability:\n    enabled: true\n    n_noise: 4\n    position_std: [0.02, 0.02, 0.02]  # Gaussian scales; Z uses abs(sample).\n    rotation_std_deg: 5.0\n    rotation_weight: 0.1\n    # Reject if any noisy trial exceeds the motion limit or does not settle.\n    reject_failed_trials: true\n    # Worst trial: translation (m) + rotation_weight * angular distance (rad).\n    fail_displacement: 0.15\n    seed: 0\n  weights:\n    stability: 2.0\n    object_containment: 2.0\n    target_overlap_increment: 20.0\n    place_stability: 2.0\n    large_object_lower: 3.0\n    inward_orientation: 6.0\n",
+        "apps/excavator/config/mcts_cuda.yml": "# Explicit CUDA search profile; select with --config.\n# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 4\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 32\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 12  # Depth 1 until 12 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 256  # Stream 128-placement chunks; native robustness capacity is 512.\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 60.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 2\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cuda  # cpu or cuda\n  simulation_backend: cuda  # cpu or cuda\n  # CPU reward/observation workers overlap the next CUDA placement chunk.\n  enabled: true\n  workers: 4\nroot_cem:\n  population: 96\n  elite: 32\n  iterations: 3\n  keep: 32\n  mutation_xy_std: 0.2\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/planning.yml": "units: si\n# Angular fields use degrees explicitly; poses remain [x, y, z, qx, qy, qz, qw].\nframes:\n  world: world\n  stack: stack\n  world_T_stack: [-6.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0]\nrobot:\n  urdf: apps/excavator/assets/excavator_3/vdk23_cx_ik.urdf\n  tool_link: grip_body\n  home_positions_degrees: [60.0, 45.0, -60.0, -78.54084409738354, 0.0, 0.0]\n  link_from_tool: &id001 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]\n  gripper_opening_degrees: 0.0\ngripper:\n  urdf: apps/excavator/assets/stone_grab_3/stone_grab.urdf\n  root_link: grip_body\n  grasp_from_root: *id001\n  opening_offset_degrees: [0.0, 0.0]\n  opening_direction: [1.0, 1.0]\n  opening_limits_degrees: [-80.0, 0.0]\nscene:\n  frame_id: 1\n  obstacle_friction: 5.0\n  handoff_position: [-2.0, -5.0, 0.0]\n  obstacles: []\nexcavator:\n  pick_ground_height: 0.0\n  place_ground_height: 0.0\n  handoff_ground_height: 0.0\n  place_z_offset: 0.2\n  handoff_positions: [\n    [-2, -5, 0.0],\n    [-1, -5, 0.0],\n    [-3, -5, 0.0],\n    [-2, -4, 0.0],\n    [-2, -6, 0.0],\n    [-1, -4, 0.0],\n    [-3, -4, 0.0],\n    [-1, -6, 0.0],\n    [-3, -6, 0.0],\n  ]\n",
+        "apps/excavator/config/solvers/simulation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nintegration:\n  dt: 0.01\n  gravity: [0.0, 0.0, -9.81]\n  damping: 0.0\nground:\n  z: 0.0\n  friction: 5.0\nscene:\n  frame_id: 1\nphysics:\n  settling:\n    contact:\n      model: single_point\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.001\n      tol_rel: 0.0001\n  structural:\n    contact:\n      model: limit_surface_4d\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.0001\n      tol_rel: 1.0e-05\nphases:\n  settling:\n    dt: 0.01\n    steps: 400\n    sample_count: 64\n  short_structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 0.5\n    max_time: 4.0\n    extra_steps: 20\n    final_extra_steps: 40\n    freeze_radius: 1.5\n  structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 3.0\n    max_time: 15.0\n    extra_steps: 150\n    final_extra_steps: 300\nvalidation:\n  contact_gap_tolerance: 0.02\n  minimum_support_count: 1\n  support_chain_z_tolerance: 0.05\n",
+        "apps/excavator/config/solvers/motion.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nallow_regrasp: true\nmotion:\n  boundary_weight: 20.0\n  collision_alm_beta_increase: 5.0\n  collision_alm_beta_init: 50.0\n  collision_alm_enabled: true\n  collision_alm_max_iters: 5\n  collision_alm_tol: 0.001\n  collision_margin: 0.02\n  collision_penetration_clamp: 0.02\n  collision_weight: 1000.0\n  grasped_boundary_pos_scale: 10.0\n  grasped_boundary_rot_scale: 0.5\n  ik_max_iters: 2000\n  ik_tol: 0.001\n  joint_limit_margin_degrees: 0.057295779513082325\n  joint_limit_weight: 1000.0\n  max_iters: 400\n  plane_feasibility_margin: -0.005\n  smooth_boundary_alpha: 2.0\n  smooth_weight: 50.0\n  step_size: 0.01\n  swing_smoothness_scale: 1.0\n  target_collision_tol: 0.005\n  tol: 0.0001\ninverse_kinematics:\n  initialization: provided\n  max_iters: 2000\n  tol: 0.001\ndirect:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  move_steps: 15\n  simulation_refinement: true\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\nregrasp:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  max_handoff_orientation_distance_degrees: 135.0\n  move_steps: 15\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\n  yaw_samples: 8\nstable_pose:\n  sampling_level: 2\n  stable_eigenvalue_min: -0.2\n",
+        "apps/excavator/config/solvers/grasp.yml": "# stacking-planner planning/planning.py: stone_grab attachment.\nunits: si\nsampling:\n  aperture_margin: 0.01\n  dir_samples: 80\n  include_flipped: true\n  max_candidates: 0\n  max_seeds: 120\n  max_target_width: 1.6\n  preferred_parallel_axis: [0.0, 0.0, 0.0]\n  # Legacy gripper.height (1.5 m) * surface_grasp_offset_scale (0.5).\n  retreat_distance: 0.75\n  # Legacy secondary seeds: gripper height 1.5 m times [0.65, 0.8, 1.2].\n  fallback_retreat_distances: [0.975, 1.2, 1.8]\n  fallback_min_candidates: 8\n  scene_clearance_margin: 0.05\n  spin_samples: 12\n  spin_step_degrees: 30.0\n  strategy: antipodal_surface\ngeneration:\n  contact_margin: 0.05\n  plane_separate_margin: -0.02\n  separate_margin: 0.01\ncost:\n  align: 1.0\n  antipodal_normal: 5.0\n  antipodal_position: 2.0\n  center_distance: 5.0\n  contact: 3.0\n  enclosure: 7.0\n  flatness: 0.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 2.0\nscore:\n  align: 1.0\n  center_distance: 3.0\n  enclosure: 7.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 1.0\n  teeth_gap: 2.0\ntrust_region:\n  gain_ratio_lower: 0.0\n  gain_ratio_upper: 0.75\n  improvement_tol: 0.0\n  max_iters: 200\n  radius_expansion: 2.0\n  radius_init: 0.1\n  radius_max: 0.1\n  radius_reduction: 0.25\n  step_tol: 1.0e-12\n  subproblem_tol: 0.01\nalm:\n  equality_penalty_increase: 10.0\n  equality_penalty_init: 50.0\n  equality_tol: 0.001\n  inequality_penalty_increase: 10.0\n  inequality_penalty_init: 50.0\n  inequality_tol: 0.015\n  max_iters: 20\nforce:\n  damping: 0.0001\n  enabled: true\n  friction: 1.0\n  wrench_scale: 1.0\nforce_weight:\n  complementarity: 10.0\n  cone: 10.0\n  moment: 10.0\n  wrench: 0.1\nsimulation:\n  accept_relaxed: true\n  active_impulse_tol: 0.0001\n  damping: 2.0\n  dt: 0.01\n  error_reduction_ratio: 0.2\n  friction: 1.0\n  grasp_offset_tol: [0.5, 1.0, 0.6]\n  obstacle_margin: 0.01\n  pgs_iters: 80\n  plane_obstacle_margin: 0.01\n  relaxed_velocity_tol: 0.1\n  settled_velocity_tol: 0.01\n  steps: 500\n  target_contact_margin: 0.01\n  virtual_approach_force: 5.0\n  virtual_closing_effort: 0.5\n",
+        "apps/excavator/config/solvers/posegen.yml": "# stacking-planner contexts.get_posegen, PoseSolver schedule, and diffsim defaults.\nunits: si\ntrust_region:\n  delta_expansion_rate: 2.0\n  delta_init: 0.125\n  delta_lower_thresh: 0.25\n  delta_max: 1.0\n  delta_reduction_rate: 0.25\n  delta_upper_thresh: 0.75\n  eps: 0.1\n  improvement_thresh: 0.125\n  max_iters: 100\n  tol: 1.0e-08\nhausdorff:\n  eps: 0.001\n  error_tol: 1.0e-10\n  gain_ratio_lower_thresh: 0.05\n  gain_ratio_max: 10000000000.0\n  gain_ratio_upper_thresh: 0.9\n  max_iters: 50\n  radius_expansion_rate: 3.0\n  radius_init: 10.0\n  radius_reduction_rate: 0.25\nobjective:\n  eps_comp: 0.01\n  eps_cone: 0.01\n  eps_gap: 0.01\n  eps_target: 0.05\n  gravity: 9.81\n  ground_height: 0.0\n  k_box: 20.0\n  k_comp: 0.0\n  k_gap: 0.0\n  k_gap_c: 80.0\n  k_lower: 0.0\n  k_potential: 1.0\n  k_reg: 0.0\n  k_target: 1.0\n  k_wrench: [[1.0, 0.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]\n  k_xy: 0.0\n  narrow_phase_candidate_tol: 0.1\n  narrow_phase_scene_tol: 0.005\n  rho: 0.01\n  w_box: 2.0\nforce_solver:\n  beta_consensus: 1.0\n  beta_contact: 1.0\n  beta_update_interval: 20\n  max_iters: 1000\n  tol_abs: 0.001\n  tol_rel: 0.0001\nschedule:\n  times: [0.0, 0.3333333333333333, 0.6666666666666666, 1.0]\n  max_iters_warmup: 50\n  max_iters_final: 75\n  # Cosine schedule from agent/env/components/action/pose_solver.py.\n  # Each weight is the sum of its coefficient * named basis; see the guide.\n  objective_weights:\n    k_wrench: {ramp: 1.0}\n    k_comp: {ramp: 10.0}\n    k_gap_c: {constant: 40.0, ramp: 150.0, gap_feedback: 100000.0}\n    k_gap: {sine: 10.0}\n    k_target: {anti_ramp: 5.0}\n    k_xy: {anti_ramp: 1.0}\n    k_potential: {constant: 0.10, anti_ramp: 0.10}\n    k_reg: {anti_ramp: 3.0}\n    k_lower: {anti_ramp: 5.0}\nscene:\n  frame_id: 1\n  target_model_id: 1000000\n  target_entity_id: 1000001\n  target_friction: 1.0\n  target_sharpness: 20\n  target_epsilon: 1.0e-09\n  placed_as_boundaries: false\n  boundary_radius: 0.5\n"
+      }
+    },
+    "26-fixed": {
+      "mode": "baseline",
+      "seed": 0,
+      "placed": 26,
+      "legacy_promotion": false,
+      "config": "apps/excavator/config/mcts_cpu.yml",
+      "backends": {
+        "posegen": "cpu",
+        "simulation": "cpu"
+      },
+      "root_generation_calls": [
+        {
+          "attempt_offset": 0,
+          "requested": 11,
+          "pool_size": 12,
+          "returned": 11,
+          "exhausted": false
+        },
+        {
+          "attempt_offset": 11,
+          "requested": 9,
+          "pool_size": 12,
+          "returned": 1,
+          "exhausted": true
+        }
+      ],
+      "input_sha256": "f04a6e46b3384c2a82f35a28d2a5e2c53ae55b0e9f2408801f153f76441d29ac",
+      "inherited_edges": 13,
+      "statistics": {
+        "step": 27,
+        "elapsed_seconds": 57.93983972999558,
+        "completed_iterations": 1024,
+        "expansion_calls": 78,
+        "generated_candidates": 144,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 146,
+        "failed_evaluations": 140,
+        "effective_max_depth": 3,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 15,
+          "short_jobs": 133,
+          "short_parallel_batches": 13,
+          "short_parallel_jobs": 131,
+          "long_batches": 2,
+          "long_jobs": 13,
+          "short_max_batch_size": 12,
+          "max_evaluation_batch_size": 12,
+          "workers": 12,
+          "pose_generation_seconds": 11.958709523023572,
+          "pose_generation_batches": 39,
+          "pose_generation_node_requests": 78,
+          "pose_generation_max_node_batch": 3,
+          "descendant_frontier_batches": 309,
+          "descendant_frontier_iterations": 1019,
+          "short_batch_wall_seconds": 28.479302513995208,
+          "long_batch_wall_seconds": 14.217574695008807,
+          "short_settling_job_seconds": 28.785694589983905,
+          "short_structural_job_seconds": 85.68281270306034,
+          "long_settling_job_seconds": 1.961399227991933,
+          "long_structural_job_seconds": 63.151275789015926
+        },
+        "revalidation": {
+          "attempted": 1,
+          "accepted": 1,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 11,
+          "accepted": 2,
+          "rejected": 9,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 0,
+          "attempted": 3,
+          "generated": 6,
+          "evaluated": 6
+        },
+        "root_retry": {
+          "rounds": 0,
+          "retired": 0,
+          "generated": 0,
+          "accepted": 0
+        },
+        "floor_fill_fallback": {
+          "attempted": false,
+          "pools": 0,
+          "generated": 0,
+          "accepted": 0,
+          "selected": false
+        },
+        "descendant_validation": {
+          "attempts": 2,
+          "failures": 0
+        },
+        "final_selection_mode": "mixed",
+        "tree": {
+          "nodes": 160,
+          "evaluated": 160,
+          "pending": 0,
+          "failed": 155,
+          "frontier_leaves": 154,
+          "max_depth": 3,
+          "rejection_reasons": {
+            "scene_motion_limit": 43,
+            "target_motion_limit": 11,
+            "place_robustness": 88,
+            "active_floor_above_active_layer": 67,
+            "active_floor_disconnected_active_layer": 30,
+            "posegen_gap": 11,
+            "stone_outside_target": 12,
+            "missing_validated_descendant": 1
+          },
+          "generation_rejections": {
+            "active_floor_above_active_layer": 67,
+            "active_floor_disconnected_active_layer": 30,
+            "posegen_gap": 11
+          }
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 40,
+              "rejected": 56,
+              "duplicate_rejections": 0,
+              "retained": 40,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 53,
+              "rejected": 43,
+              "duplicate_rejections": 13,
+              "retained": 80,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 53,
+              "rejected": 43,
+              "duplicate_rejections": 15,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "active_floor_disconnected_active_layer": 74,
+            "active_floor_above_active_layer": 64,
+            "posegen_gap": 4
+          },
+          "final_candidates": 12
+        }
+      },
+      "promotion": {
+        "attempts_before": 31,
+        "attempts_after": 0,
+        "exhausted_before": false,
+        "exhausted_after": false
+      },
+      "expanded_nodes_per_second": 2.4853365261459444,
+      "unique_new_physical_passes": 4,
+      "unique_new_physical_passes_per_second": 0.06903712572627624,
+      "first_new_long_pass_seconds": 17.133890748998965,
+      "bank_size": 0,
+      "reuse_calls": [],
+      "refresh_seconds": 0,
+      "selected": {
+        "object_id": 52,
+        "reward": 1.2336421290022992,
+        "backed_up_mean": 5.37005372024633,
+        "target_IoU": 0.22457960411829853,
+        "reused": false,
+        "cem_seed_lineage": false,
+        "validated_descendant_path_available": true,
+        "validated_descendant_path_return": 2.6168819799898015
+      },
+      "profiles": {
+        "apps/excavator/config/mcts_cpu.yml": "# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 3\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 12\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 8  # Depth 1 until 8 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 12\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 30.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 1\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cpu  # cpu or cuda\n  simulation_backend: cpu  # cpu or cuda\n  # Local native worker allocation; separate from legacy Ray resource settings.\n  enabled: true\n  workers: 12\nroot_cem:\n  population: 96\n  elite: 24\n  iterations: 3\n  keep: 12\n  mutation_xy_std: 0.1\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/inventory.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobjects:\n  model_directory: apps/excavator/assets/objects\n  ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58]\n  density: 1000.0\n  density_overrides: {}\ntarget:\n  # stacking-planner agent/configs/ablation.yml: environment.target.\n  width: 2.0\n  length: 6.0\n  height: 2.5\n  origin: [0.0, 0.0, 0.0]\n  support_overlap: 0.02\n  taper_degrees:\n    width_positive: 5.0\n    width_negative: 5.0\n    length_positive: 5.0\n    length_negative: 5.0\n",
+        "apps/excavator/config/perception.yml": "# Desktop perception defaults in SI units. Quality gates require field commissioning.\n# Opening polynomial: legacy assets/opening_angle_fit.npy, stone_grab fit.\nvoxel_size: 0.01\nground_clearance: 0.08\nfield_ground_removal: false  # Experimental opt-in; legacy field recovery retains ground.\nminimum_points: 100\nmaximum_timestamp_skew_ns: 50000000\nfield:\n  voxel_sizes: [0.1, 0.05, 0.02, 0.01]\n  max_iterations: [50, 30, 14, 7]\ninhand:\n  voxel_sizes: [0.1, 0.05, 0.02]\n  max_iterations: [50, 30, 14]\ngripper_alignment_quality:\n  minimum_target_coverage: 0.05\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.1\n  maximum_correction_rotation_degrees: 10.0\nquality:\n  minimum_target_coverage: 0.35\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.6\n  maximum_correction_rotation_degrees: 180.0\nambiguity:\n  ambiguity_score_gap: 0.015\n  distinct_translation: 0.05\n  distinct_rotation_degrees: 15.0\nopening:\n  # Calibration polynomial coefficients are preserved; polynomial output is radians.\n  coefficients: [-7.418032620929303, 46.96298872999542, -110.41168530520477, 116.254686079056, -47.56854082012381]\n  source_sha256: c419e987d8f8fc976fa5ae3efdde668da9b45615ba46051432035a1f1bc2d1ee\n  limits_degrees: [-65.31718864491384, 0.0]\n  maximum_measured_difference_degrees: 11.459155902616464\n  minimum_jaw_points: 30\n  gripper_removal_distance: 0.06\n",
+        "apps/excavator/config/action_generation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\ninitialization:\n  # Excavator initializes from model_<id>_mesh.ply and pads both XY footprints.\n  height_clearance: 0.15\n  xy_padding: 0.12\nfiltering:\n  posegen_gap_threshold: 0.005\n  posegen_equilibrium_threshold: 1.0\n  # Prefer this restriction; exhausted search retries without floor-fill gates.\n  strict_floor_first: true\n  require_solver_convergence: false\n  reject_equilibrium_at_threshold: true\nplanar:\n  grid_shape: [32, 32]\n  yaw_angles_degrees: [0, 90, 180, 270]\n  minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.\n  target_anchor_inset_scale: 0.6\n  floor:\n    # Advance at fill_ratio coverage of the base in top-down projection.\n    coverage_mode: projected_footprint\n    bottom_tolerance: 0.2\n    fill_ratio: 0.75\n    grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.\n    max_layers: 8\n    minimum_contact_cells: 1\n  boltzmann_temperature: 0.3\n  boltzmann_min_probability: 0.0\n  target_mask_margin: 0.0\n  contact_gap_tolerance: 0.10\n  # The only proposal-score weights. Edit these named values for ablations.\n  score:\n    height: -3.0\n    support_likelihood: 2.0\n    open_area: 1.0\n    fill_area: 2.0\n    frontier: 1.0\n    target_boundary: 1.5\n    excavator_distance: 2.0\n    excavator_distance_axis: xy\n    excavator_xy: null\n    elite_fraction: 0.25\n  floor_fill:\n    # Legacy proposal-kernel settings; planar.floor owns the shared layer rules.\n    connected_after: 1\n    u_shape_filter: false\n    u_shape_footprint_scale: 0.9\n    u_shape_min_frontier_contact_cells: 1\n    lower_floor_fill_ratio: 0.6\n    lower_floor_occupancy_grid: 16\n    lower_floor_bottom_z_tolerance: 0.2\n    lower_floor_max_layers: 8\norientation:\n  pose_from_scan: false\n  roll_angles_degrees: [0, 180]\n",
+        "apps/excavator/config/visualization.yml": "units: si\nenvironment:\n  default_layers:\n    ground: true\n    support: false\n    obstacle: true\n  # Search coordinates are stack-local. Plan replay uses recorded world planes.\n  boxes:\n    - id: search_ground\n      layer: ground\n      minimum: [-3.0, -3.0, -0.03]\n      maximum: [3.0, 3.0, 0.0]\n      color: [0.28, 0.33, 0.25]\n      opacity: 1.0\n",
+        "apps/excavator/config/environment.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobservation:\n  action_sample_count: 96\n  max_poses_per_object: 32\n  surface_sample_count: 128\n  banned_object_ids: []\n  height_map_resolution: [128, 128]\n  height_map_margin: 1.0\n  render_height_map: true\nreward:\n  overlap_resolution: 0.03\n  posegen_threshold: 1.0\n  containment_threshold: 0.5\n  nonfinite_displacement: 2.0\n  max_displacement: 1.0\n  # Placement uncertainty; Z perturbations are always upward.\n  place_stability:\n    enabled: true\n    n_noise: 4\n    position_std: [0.02, 0.02, 0.02]  # Gaussian scales; Z uses abs(sample).\n    rotation_std_deg: 5.0\n    rotation_weight: 0.1\n    # Reject if any noisy trial exceeds the motion limit or does not settle.\n    reject_failed_trials: true\n    # Worst trial: translation (m) + rotation_weight * angular distance (rad).\n    fail_displacement: 0.15\n    seed: 0\n  weights:\n    stability: 2.0\n    object_containment: 2.0\n    target_overlap_increment: 20.0\n    place_stability: 2.0\n    large_object_lower: 3.0\n    inward_orientation: 6.0\n",
+        "apps/excavator/config/mcts_cuda.yml": "# Explicit CUDA search profile; select with --config.\n# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 4\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 32\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 12  # Depth 1 until 12 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 256  # Stream 128-placement chunks; native robustness capacity is 512.\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 60.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 2\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cuda  # cpu or cuda\n  simulation_backend: cuda  # cpu or cuda\n  # CPU reward/observation workers overlap the next CUDA placement chunk.\n  enabled: true\n  workers: 4\nroot_cem:\n  population: 96\n  elite: 32\n  iterations: 3\n  keep: 32\n  mutation_xy_std: 0.2\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/planning.yml": "units: si\n# Angular fields use degrees explicitly; poses remain [x, y, z, qx, qy, qz, qw].\nframes:\n  world: world\n  stack: stack\n  world_T_stack: [-6.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0]\nrobot:\n  urdf: apps/excavator/assets/excavator_3/vdk23_cx_ik.urdf\n  tool_link: grip_body\n  home_positions_degrees: [60.0, 45.0, -60.0, -78.54084409738354, 0.0, 0.0]\n  link_from_tool: &id001 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]\n  gripper_opening_degrees: 0.0\ngripper:\n  urdf: apps/excavator/assets/stone_grab_3/stone_grab.urdf\n  root_link: grip_body\n  grasp_from_root: *id001\n  opening_offset_degrees: [0.0, 0.0]\n  opening_direction: [1.0, 1.0]\n  opening_limits_degrees: [-80.0, 0.0]\nscene:\n  frame_id: 1\n  obstacle_friction: 5.0\n  handoff_position: [-2.0, -5.0, 0.0]\n  obstacles: []\nexcavator:\n  pick_ground_height: 0.0\n  place_ground_height: 0.0\n  handoff_ground_height: 0.0\n  place_z_offset: 0.2\n  handoff_positions: [\n    [-2, -5, 0.0],\n    [-1, -5, 0.0],\n    [-3, -5, 0.0],\n    [-2, -4, 0.0],\n    [-2, -6, 0.0],\n    [-1, -4, 0.0],\n    [-3, -4, 0.0],\n    [-1, -6, 0.0],\n    [-3, -6, 0.0],\n  ]\n",
+        "apps/excavator/config/solvers/simulation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nintegration:\n  dt: 0.01\n  gravity: [0.0, 0.0, -9.81]\n  damping: 0.0\nground:\n  z: 0.0\n  friction: 5.0\nscene:\n  frame_id: 1\nphysics:\n  settling:\n    contact:\n      model: single_point\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.001\n      tol_rel: 0.0001\n  structural:\n    contact:\n      model: limit_surface_4d\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.0001\n      tol_rel: 1.0e-05\nphases:\n  settling:\n    dt: 0.01\n    steps: 400\n    sample_count: 64\n  short_structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 0.5\n    max_time: 4.0\n    extra_steps: 20\n    final_extra_steps: 40\n    freeze_radius: 1.5\n  structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 3.0\n    max_time: 15.0\n    extra_steps: 150\n    final_extra_steps: 300\nvalidation:\n  contact_gap_tolerance: 0.02\n  minimum_support_count: 1\n  support_chain_z_tolerance: 0.05\n",
+        "apps/excavator/config/solvers/motion.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nallow_regrasp: true\nmotion:\n  boundary_weight: 20.0\n  collision_alm_beta_increase: 5.0\n  collision_alm_beta_init: 50.0\n  collision_alm_enabled: true\n  collision_alm_max_iters: 5\n  collision_alm_tol: 0.001\n  collision_margin: 0.02\n  collision_penetration_clamp: 0.02\n  collision_weight: 1000.0\n  grasped_boundary_pos_scale: 10.0\n  grasped_boundary_rot_scale: 0.5\n  ik_max_iters: 2000\n  ik_tol: 0.001\n  joint_limit_margin_degrees: 0.057295779513082325\n  joint_limit_weight: 1000.0\n  max_iters: 400\n  plane_feasibility_margin: -0.005\n  smooth_boundary_alpha: 2.0\n  smooth_weight: 50.0\n  step_size: 0.01\n  swing_smoothness_scale: 1.0\n  target_collision_tol: 0.005\n  tol: 0.0001\ninverse_kinematics:\n  initialization: provided\n  max_iters: 2000\n  tol: 0.001\ndirect:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  move_steps: 15\n  simulation_refinement: true\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\nregrasp:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  max_handoff_orientation_distance_degrees: 135.0\n  move_steps: 15\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\n  yaw_samples: 8\nstable_pose:\n  sampling_level: 2\n  stable_eigenvalue_min: -0.2\n",
+        "apps/excavator/config/solvers/grasp.yml": "# stacking-planner planning/planning.py: stone_grab attachment.\nunits: si\nsampling:\n  aperture_margin: 0.01\n  dir_samples: 80\n  include_flipped: true\n  max_candidates: 0\n  max_seeds: 120\n  max_target_width: 1.6\n  preferred_parallel_axis: [0.0, 0.0, 0.0]\n  # Legacy gripper.height (1.5 m) * surface_grasp_offset_scale (0.5).\n  retreat_distance: 0.75\n  # Legacy secondary seeds: gripper height 1.5 m times [0.65, 0.8, 1.2].\n  fallback_retreat_distances: [0.975, 1.2, 1.8]\n  fallback_min_candidates: 8\n  scene_clearance_margin: 0.05\n  spin_samples: 12\n  spin_step_degrees: 30.0\n  strategy: antipodal_surface\ngeneration:\n  contact_margin: 0.05\n  plane_separate_margin: -0.02\n  separate_margin: 0.01\ncost:\n  align: 1.0\n  antipodal_normal: 5.0\n  antipodal_position: 2.0\n  center_distance: 5.0\n  contact: 3.0\n  enclosure: 7.0\n  flatness: 0.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 2.0\nscore:\n  align: 1.0\n  center_distance: 3.0\n  enclosure: 7.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 1.0\n  teeth_gap: 2.0\ntrust_region:\n  gain_ratio_lower: 0.0\n  gain_ratio_upper: 0.75\n  improvement_tol: 0.0\n  max_iters: 200\n  radius_expansion: 2.0\n  radius_init: 0.1\n  radius_max: 0.1\n  radius_reduction: 0.25\n  step_tol: 1.0e-12\n  subproblem_tol: 0.01\nalm:\n  equality_penalty_increase: 10.0\n  equality_penalty_init: 50.0\n  equality_tol: 0.001\n  inequality_penalty_increase: 10.0\n  inequality_penalty_init: 50.0\n  inequality_tol: 0.015\n  max_iters: 20\nforce:\n  damping: 0.0001\n  enabled: true\n  friction: 1.0\n  wrench_scale: 1.0\nforce_weight:\n  complementarity: 10.0\n  cone: 10.0\n  moment: 10.0\n  wrench: 0.1\nsimulation:\n  accept_relaxed: true\n  active_impulse_tol: 0.0001\n  damping: 2.0\n  dt: 0.01\n  error_reduction_ratio: 0.2\n  friction: 1.0\n  grasp_offset_tol: [0.5, 1.0, 0.6]\n  obstacle_margin: 0.01\n  pgs_iters: 80\n  plane_obstacle_margin: 0.01\n  relaxed_velocity_tol: 0.1\n  settled_velocity_tol: 0.01\n  steps: 500\n  target_contact_margin: 0.01\n  virtual_approach_force: 5.0\n  virtual_closing_effort: 0.5\n",
+        "apps/excavator/config/solvers/posegen.yml": "# stacking-planner contexts.get_posegen, PoseSolver schedule, and diffsim defaults.\nunits: si\ntrust_region:\n  delta_expansion_rate: 2.0\n  delta_init: 0.125\n  delta_lower_thresh: 0.25\n  delta_max: 1.0\n  delta_reduction_rate: 0.25\n  delta_upper_thresh: 0.75\n  eps: 0.1\n  improvement_thresh: 0.125\n  max_iters: 100\n  tol: 1.0e-08\nhausdorff:\n  eps: 0.001\n  error_tol: 1.0e-10\n  gain_ratio_lower_thresh: 0.05\n  gain_ratio_max: 10000000000.0\n  gain_ratio_upper_thresh: 0.9\n  max_iters: 50\n  radius_expansion_rate: 3.0\n  radius_init: 10.0\n  radius_reduction_rate: 0.25\nobjective:\n  eps_comp: 0.01\n  eps_cone: 0.01\n  eps_gap: 0.01\n  eps_target: 0.05\n  gravity: 9.81\n  ground_height: 0.0\n  k_box: 20.0\n  k_comp: 0.0\n  k_gap: 0.0\n  k_gap_c: 80.0\n  k_lower: 0.0\n  k_potential: 1.0\n  k_reg: 0.0\n  k_target: 1.0\n  k_wrench: [[1.0, 0.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]\n  k_xy: 0.0\n  narrow_phase_candidate_tol: 0.1\n  narrow_phase_scene_tol: 0.005\n  rho: 0.01\n  w_box: 2.0\nforce_solver:\n  beta_consensus: 1.0\n  beta_contact: 1.0\n  beta_update_interval: 20\n  max_iters: 1000\n  tol_abs: 0.001\n  tol_rel: 0.0001\nschedule:\n  times: [0.0, 0.3333333333333333, 0.6666666666666666, 1.0]\n  max_iters_warmup: 50\n  max_iters_final: 75\n  # Cosine schedule from agent/env/components/action/pose_solver.py.\n  # Each weight is the sum of its coefficient * named basis; see the guide.\n  objective_weights:\n    k_wrench: {ramp: 1.0}\n    k_comp: {ramp: 10.0}\n    k_gap_c: {constant: 40.0, ramp: 150.0, gap_feedback: 100000.0}\n    k_gap: {sine: 10.0}\n    k_target: {anti_ramp: 5.0}\n    k_xy: {anti_ramp: 1.0}\n    k_potential: {constant: 0.10, anti_ramp: 0.10}\n    k_reg: {anti_ramp: 3.0}\n    k_lower: {anti_ramp: 5.0}\nscene:\n  frame_id: 1\n  target_model_id: 1000000\n  target_entity_id: 1000001\n  target_friction: 1.0\n  target_sharpness: 20\n  target_epsilon: 1.0e-09\n  placed_as_boundaries: false\n  boundary_radius: 0.5\n"
+      }
+    }
+  }
+}

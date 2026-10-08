@@ -1,0 +1,3961 @@
+{
+  "description": "Diagnostic of discarded short-only descendant proposals. Conservative contact dependency and duplication screen, original-parent long evaluation, fresh pose solve and strict filtering in the selected scene, then long validation. No proposals are injected into the next search; this is not a throughput benchmark.",
+  "provenance": {
+    "date": "2026-10-08",
+    "python": "/home/inrol-excavator/workspace/stacking/.direnv/python-3.12.3/bin/python",
+    "head": "c10e4a4e484e5046de806766f1d26befc5435219",
+    "source_hashes": {
+      "tests/benchmark_excavator_proposal_reuse.py": "a7b39c278926b661dbb9e457188705a5ab87c766cdc15bffa5f71a85fee736f5",
+      "tests/benchmark_excavator_action_survival.py": "63ff3f8e7d1285340dc0948f3fef548ad23ec4117f1371d9c51de7488914ce3e",
+      "packages/stacking-common/src/stacking_common/search/mcts/session.py": "e5c8b71901ece94a496573e9119847cecee6eeaf793b7a592ffc6d3782e49f7f",
+      "packages/stacking-common/src/stacking_common/search/mcts/search.py": "ca4482b8b39828dc291792a15b621197ab8ac0f53a594076439a46c047219d57",
+      "packages/stacking-common/src/stacking_common/actions/cem.py": "01c4d933714fa1f947b9351926af9f6357a136324218b3e3d18916f85e3adbf6",
+      "tests/benchmark_excavator_descendant_reuse.py": "6cdf9e04ed0aa45ac401e1469ec4d703eb5c60055c058f85d50f00724ccd38f6",
+      "tests/test_descendant_proposal_reuse.py": "96a0ae307ccdacd3f19a3f4cfdddbc25b58bde396bd5d32813cc7595284e8919",
+      "packages/stacking-common/src/stacking_common/search/mcts/tree_policy.py": "75c79310900c15564f4335e40da59ae95f7fa525f70bfbcd390f18fd5655a734"
+    },
+    "profile_hashes": {
+      "apps/excavator/config/mcts_cpu.yml": "8a8a593a182704a6cde61a87b095491646c1a013a275fa323f91e5cad5644fc9",
+      "apps/excavator/config/inventory.yml": "00e483d71f859fc47ec797475f2ed9665b6cc7b12afe10b67f71488a8d2b300a",
+      "apps/excavator/config/perception.yml": "b4cee7c52ddfffe3580fd7d322fbe1d3f888344bf644c6ec9531fa5f6f66a53a",
+      "apps/excavator/config/action_generation.yml": "d9d3d59a1d5d3784b858cfd02fcaab97e0cdf9d5e611ed8b159b0e74ad85ce73",
+      "apps/excavator/config/visualization.yml": "5784f36864378519ba59324d075211b196a9ad8e6064fae95adfb5b01a4bdc31",
+      "apps/excavator/config/environment.yml": "89c21cbce3fba08fea7cbde5a9acaf53363baa2656fa15b7b156c6671b5f330a",
+      "apps/excavator/config/mcts_cuda.yml": "21213c965db6f695b85d13f542d6a12007e3c37fe6860527ace476f43bf52df4",
+      "apps/excavator/config/planning.yml": "c3060120c41a230591a94a76a47c755b7695e1e3dd6e9ee0f7760c1c3588f46f",
+      "apps/excavator/config/solvers/simulation.yml": "1364baa0eb0d76f0afb416bce9f2b4d5cb2f0076868ffa6d277a7b4198e7cacf",
+      "apps/excavator/config/solvers/motion.yml": "904119038f79dbe5bf9889089688417c4541664f84efc0658b721365fcb9aae4",
+      "apps/excavator/config/solvers/grasp.yml": "83c2161d243318c35c94e5e7093bbabaa561c93ac18a72ddb0e575e8762f31d8",
+      "apps/excavator/config/solvers/posegen.yml": "f419b1c2dfd778b9b129db0700c54636cd1d0175660048d3e6be947240db1624"
+    },
+    "input_hashes": {
+      ".benchmarks/excavator-profiles-20261007/states/15.pkl": "87787e66c5fe7c3e65af1d4e41d481dac79af00a5da9b9e12232098d2acb92e4",
+      ".benchmarks/excavator-profiles-25-20261007/states/25.pkl": "35c5702df09cc91d4baa94d18a7f75aafa407b053423670edfbd36dc36b4d4a7"
+    },
+    "isolated_native_path": ".benchmarks/proposal-reuse-broader-20261008/native_snapshot/stacking_core/_native.cpython-312-x86_64-linux-gnu.so",
+    "isolated_native_sha256": "54632cb30be47dba9ee7cf0401edc1eac00bcfa47a6e35a24fa8207297672f0a",
+    "isolated_wrapper_revision": "51416ec02c6b3ed576159b243f1e49eb457be09f",
+    "isolated_wrapper_sha256": "4da75cf28c44e7d7fa0aa82bbf9031f992a3022a3ef9cecbd4a431556a7281cd",
+    "hardware": "Ryzen 9 9900X / RTX 5060 Ti",
+    "tests_passed": 12,
+    "validation": "All source, profile, input and pinned native/wrapper hashes unchanged. All four predecessor searches match prior non-timing statistics. 12 focused tests passed."
+  },
+  "summary": [
+    {
+      "case": "15-0",
+      "matching_previous_predecessor_statistics": true,
+      "counts": {
+        "retained_descendants": 1070,
+        "retained_short_only_passes": 36,
+        "already_preserved": 4,
+        "discarded_short_only_passes": 32,
+        "eligible_unique": 8,
+        "missing_direct_support": 12,
+        "connected_to_missing_stone": 3,
+        "consumed_object": 2,
+        "duplicate_existing_proposal": 5,
+        "duplicate_cohort_proposal": 2,
+        "old_parent_long_passes": 8,
+        "refresh_passes": 7,
+        "new_scene_long_passes": 5,
+        "passes_in_both": 5,
+        "new_pass_old_fail": 0
+      },
+      "refresh_and_validation_seconds": 1.0739284429873805,
+      "collection_refresh_validation_seconds": 1.0816978999937419,
+      "survivor_object_counts": {
+        "50": 1,
+        "2": 1,
+        "52": 2,
+        "42": 1
+      },
+      "survivor_count_after_hypothetical_descendant_only_two_per_object_cap": 5,
+      "max_survivor_pose_translation_m": 0.289666931078284
+    },
+    {
+      "case": "25-0",
+      "matching_previous_predecessor_statistics": true,
+      "counts": {
+        "retained_descendants": 458,
+        "retained_short_only_passes": 7,
+        "already_preserved": 7,
+        "old_parent_long_passes": 0,
+        "refresh_passes": 0,
+        "new_scene_long_passes": 0,
+        "passes_in_both": 0,
+        "new_pass_old_fail": 0
+      },
+      "refresh_and_validation_seconds": 2.9060174711048603e-06,
+      "collection_refresh_validation_seconds": 0.004126023035496473,
+      "survivor_object_counts": {},
+      "survivor_count_after_hypothetical_descendant_only_two_per_object_cap": 0,
+      "max_survivor_pose_translation_m": 0.0
+    },
+    {
+      "case": "15-1",
+      "matching_previous_predecessor_statistics": true,
+      "counts": {
+        "retained_descendants": 1050,
+        "retained_short_only_passes": 56,
+        "already_preserved": 16,
+        "discarded_short_only_passes": 40,
+        "consumed_object": 2,
+        "eligible_unique": 7,
+        "duplicate_existing_proposal": 7,
+        "connected_to_missing_stone": 2,
+        "missing_direct_support": 20,
+        "duplicate_cohort_proposal": 2,
+        "old_parent_long_passes": 7,
+        "refresh_passes": 7,
+        "new_scene_long_passes": 6,
+        "passes_in_both": 6,
+        "new_pass_old_fail": 0
+      },
+      "refresh_and_validation_seconds": 1.4808470910065807,
+      "collection_refresh_validation_seconds": 1.4892299140046816,
+      "survivor_object_counts": {
+        "52": 1,
+        "44": 4,
+        "45": 1
+      },
+      "survivor_count_after_hypothetical_descendant_only_two_per_object_cap": 4,
+      "max_survivor_pose_translation_m": 0.015793481823428213
+    },
+    {
+      "case": "25-1",
+      "matching_previous_predecessor_statistics": true,
+      "counts": {
+        "retained_descendants": 619,
+        "retained_short_only_passes": 8,
+        "already_preserved": 8,
+        "old_parent_long_passes": 0,
+        "refresh_passes": 0,
+        "new_scene_long_passes": 0,
+        "passes_in_both": 0,
+        "new_pass_old_fail": 0
+      },
+      "refresh_and_validation_seconds": 2.6259804144501686e-06,
+      "collection_refresh_validation_seconds": 0.004964021994965151,
+      "survivor_object_counts": {},
+      "survivor_count_after_hypothetical_descendant_only_two_per_object_cap": 0,
+      "max_survivor_pose_translation_m": 0.0
+    }
+  ],
+  "trials": [
+    {
+      "seed": 0,
+      "placed_before": 15,
+      "placed_after": 16,
+      "source": ".benchmarks/excavator-profiles-20261007/states/15.pkl",
+      "source_sha256": "87787e66c5fe7c3e65af1d4e41d481dac79af00a5da9b9e12232098d2acb92e4",
+      "selected": {
+        "object_id": 44,
+        "pose": [
+          0.0962817519903183,
+          2.3142127990722656,
+          0.252912312746048,
+          -0.03734917287668619,
+          -0.06671359637597235,
+          0.28802863595816586,
+          -0.9545647386176013
+        ]
+      },
+      "statistics": {
+        "step": 16,
+        "elapsed_seconds": 63.607885748002445,
+        "completed_iterations": 1024,
+        "expansion_calls": 339,
+        "generated_candidates": 1102,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 1151,
+        "failed_evaluations": 933,
+        "effective_max_depth": 4,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 9,
+          "short_jobs": 1070,
+          "short_parallel_batches": 9,
+          "short_parallel_jobs": 1070,
+          "long_batches": 3,
+          "long_jobs": 81,
+          "short_max_batch_size": 249,
+          "max_evaluation_batch_size": 249,
+          "workers": 512,
+          "pose_generation_seconds": 19.941227795003215,
+          "pose_generation_batches": 26,
+          "pose_generation_node_requests": 339,
+          "pose_generation_max_node_batch": 59,
+          "descendant_frontier_batches": 8,
+          "descendant_frontier_iterations": 1020,
+          "short_batch_wall_seconds": 33.942933540995,
+          "long_batch_wall_seconds": 6.957987094996497,
+          "short_settling_job_seconds": 2.231168979022186,
+          "short_structural_job_seconds": 6.525227081961932,
+          "long_settling_job_seconds": 0.28962073498405516,
+          "long_structural_job_seconds": 3.2084460759651847
+        },
+        "revalidation": {
+          "attempted": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 32,
+          "accepted": 4,
+          "rejected": 28,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 4,
+          "attempted": 4,
+          "generated": 12,
+          "evaluated": 12
+        },
+        "root_retry": {
+          "rounds": 0,
+          "retired": 0,
+          "generated": 0,
+          "accepted": 0
+        },
+        "floor_fill_fallback": {
+          "attempted": false,
+          "pools": 0,
+          "generated": 0,
+          "accepted": 0,
+          "selected": false
+        },
+        "descendant_validation": {
+          "attempts": 49,
+          "failures": 0
+        },
+        "final_selection_mode": "mixed",
+        "tree": {
+          "nodes": 1103,
+          "evaluated": 1103,
+          "pending": 0,
+          "failed": 933,
+          "leaves": 1019,
+          "frontier_leaves": 1019,
+          "max_depth": 4,
+          "rejection_reasons": {
+            "target_motion_limit": 120,
+            "place_robustness": 774,
+            "active_floor_disconnected_active_layer": 66,
+            "active_floor_above_active_layer": 108,
+            "posegen_gap": 23,
+            "posegen_geometry_failure": 38,
+            "simulation_unsettled": 19,
+            "stone_outside_target": 20
+          },
+          "generation_rejections": {
+            "active_floor_disconnected_active_layer": 66,
+            "active_floor_above_active_layer": 108,
+            "posegen_gap": 23,
+            "posegen_geometry_failure": 38
+          }
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 93,
+              "rejected": 3,
+              "duplicate_rejections": 0,
+              "retained": 93,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 76,
+              "rejected": 20,
+              "duplicate_rejections": 15,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 79,
+              "rejected": 17,
+              "duplicate_rejections": 15,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "active_floor_disconnected_active_layer": 36,
+            "posegen_geometry_failure": 3,
+            "active_floor_above_active_layer": 1
+          },
+          "final_candidates": 32
+        }
+      },
+      "counts": {
+        "retained_descendants": 1070,
+        "retained_short_only_passes": 36,
+        "already_preserved": 4,
+        "discarded_short_only_passes": 32,
+        "eligible_unique": 8,
+        "missing_direct_support": 12,
+        "connected_to_missing_stone": 3,
+        "consumed_object": 2,
+        "duplicate_existing_proposal": 5,
+        "duplicate_cohort_proposal": 2,
+        "old_parent_long_passes": 8,
+        "refresh_passes": 7,
+        "new_scene_long_passes": 5,
+        "passes_in_both": 5,
+        "new_pass_old_fail": 0
+      },
+      "timings": {
+        "collection_seconds": 0.0077694570063613355,
+        "old_parent_long_seconds": 1.0358511000231374,
+        "refresh_seconds": 0.1968100410012994,
+        "new_scene_long_seconds": 0.8771184019860812
+      },
+      "candidates": [
+        {
+          "object_id": 50,
+          "depth": 4,
+          "old_pose": [
+            -0.46917101740837097,
+            2.6252334117889404,
+            0.28422805666923523,
+            -0.13395673968271504,
+            0.4865361547305566,
+            0.6976115412772319,
+            -0.5086022999460246
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              32,
+              35,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              40
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 1.9740722820505505,
+          "initialization_rejection": null,
+          "solve_valid": true,
+          "refresh_rejection": null,
+          "pose_change": {
+            "translation_m": 0.289666931078284,
+            "rotation_degrees": 5.510446071103813
+          },
+          "refreshed_pose": [
+            -0.7587645053863525,
+            2.619372606277466,
+            0.2870905101299286,
+            -0.1426578551837247,
+            0.5024175435082249,
+            0.6628773532942729,
+            -0.5364876166503006
+          ],
+          "new_scene_long": {
+            "passed": true,
+            "reason": null
+          },
+          "new_scene_reward": 1.6020066816704477
+        },
+        {
+          "object_id": 15,
+          "depth": 4,
+          "old_pose": [
+            -0.1874554306268692,
+            -2.3140416145324707,
+            0.28595492243766785,
+            -0.4690132401523408,
+            0.3957586601284884,
+            -0.5680901597703972,
+            0.5483386124167721
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              8,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              14,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              47
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 8,
+          "depth": 4,
+          "old_pose": [
+            -0.1723221242427826,
+            -2.5013649463653564,
+            0.3047904074192047,
+            -0.5599627712497425,
+            0.5121690880891889,
+            0.4830861659267131,
+            -0.4367519619995143
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              42,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              7,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              47
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 52,
+          "depth": 4,
+          "old_pose": [
+            -0.46673864126205444,
+            2.537790060043335,
+            0.24749228358268738,
+            -0.6175017116371435,
+            0.42861957668824546,
+            0.5146324434115828,
+            -0.4124685961294644
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              35,
+              40,
+              47
+            ],
+            "direct_missing_indices": [
+              35
+            ],
+            "connected_missing_indices": [
+              35
+            ],
+            "contact_component_indices": [
+              6,
+              13,
+              16,
+              24,
+              33,
+              35,
+              42,
+              45
+            ],
+            "support_sources": [
+              "ground",
+              35
+            ],
+            "shared_component_max_translation_m": 9.18283983007161e-06,
+            "shared_component_max_rotation_degrees": 0.0016747331010634537
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 15,
+          "depth": 4,
+          "old_pose": [
+            -0.5247690677642822,
+            2.6218039989471436,
+            0.2818651497364044,
+            -0.46751903803815353,
+            0.4417936157645955,
+            -0.5643403087837687,
+            0.5174595308073523
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              35,
+              40,
+              47
+            ],
+            "direct_missing_indices": [
+              35
+            ],
+            "connected_missing_indices": [
+              35
+            ],
+            "contact_component_indices": [
+              6,
+              13,
+              14,
+              16,
+              24,
+              33,
+              35,
+              45
+            ],
+            "support_sources": [
+              "ground",
+              35
+            ],
+            "shared_component_max_translation_m": 9.18283983007161e-06,
+            "shared_component_max_rotation_degrees": 0.0016747331010634537
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 1,
+          "depth": 4,
+          "old_pose": [
+            -0.2766822874546051,
+            -2.354273796081543,
+            0.37572523951530457,
+            0.5490103607711441,
+            -0.4296897672036089,
+            0.4368926304346046,
+            -0.5684005253326025
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              35,
+              42,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              0,
+              9,
+              17,
+              27,
+              28,
+              44
+            ],
+            "support_sources": [
+              "ground",
+              17
+            ],
+            "shared_component_max_translation_m": 1.49724269441214e-05,
+            "shared_component_max_rotation_degrees": 0.002081157631406226
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 4.0491288185016,
+          "initialization_rejection": null,
+          "solve_valid": true,
+          "refresh_rejection": null,
+          "pose_change": {
+            "translation_m": 0.020629347351254653,
+            "rotation_degrees": 14.653647379128573
+          },
+          "refreshed_pose": [
+            -0.2620108723640442,
+            -2.3436732292175293,
+            0.36582839488983154,
+            0.6019478557662286,
+            -0.35397973822039974,
+            0.5027117925477078,
+            -0.5095468354345136
+          ],
+          "new_scene_long": {
+            "passed": false,
+            "reason": "place_robustness"
+          },
+          "new_scene_reward": 6.28622273027171
+        },
+        {
+          "object_id": 21,
+          "depth": 4,
+          "old_pose": [
+            -0.17823529243469238,
+            -2.3048250675201416,
+            0.2978461980819702,
+            0.4586870823421402,
+            0.6046610879592581,
+            0.4411356309752085,
+            0.4789472667053081
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              21,
+              35,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              19,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              47
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 2,
+          "depth": 4,
+          "old_pose": [
+            -0.34159302711486816,
+            -2.4388504028320312,
+            0.3215906620025635,
+            -0.1473382345166928,
+            0.30002008479472475,
+            0.9424206178135874,
+            -0.011080274776676799
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              32,
+              35,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              1
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 4.960967255908452,
+          "initialization_rejection": null,
+          "solve_valid": true,
+          "refresh_rejection": null,
+          "pose_change": {
+            "translation_m": 0.01282165981015786,
+            "rotation_degrees": 4.565283522623781
+          },
+          "refreshed_pose": [
+            -0.33028826117515564,
+            -2.4347314834594727,
+            0.3260214328765869,
+            -0.11209496007806657,
+            0.3115652563926455,
+            0.9432424189411337,
+            -0.02560371153095457
+          ],
+          "new_scene_long": {
+            "passed": true,
+            "reason": null
+          },
+          "new_scene_reward": 4.988481083800048
+        },
+        {
+          "object_id": 9,
+          "depth": 4,
+          "old_pose": [
+            -0.5739005208015442,
+            2.61679744720459,
+            0.3648810386657715,
+            -0.9317810630251556,
+            0.08243252638614042,
+            -0.049209077989435336,
+            0.35009626651071174
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              35,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [
+              35
+            ],
+            "contact_component_indices": [
+              6,
+              8,
+              13,
+              16,
+              24,
+              33,
+              35,
+              45
+            ],
+            "support_sources": [
+              "ground",
+              33
+            ],
+            "shared_component_max_translation_m": 9.18283983007161e-06,
+            "shared_component_max_rotation_degrees": 0.0016747331010634537
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "connected_to_missing_stone"
+        },
+        {
+          "object_id": 4,
+          "depth": 4,
+          "old_pose": [
+            -0.813116729259491,
+            2.4749884605407715,
+            0.3487892150878906,
+            0.22379469243982805,
+            0.36984218592393364,
+            0.3518234328929299,
+            0.8302728257712663
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              35,
+              40,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [
+              35
+            ],
+            "contact_component_indices": [
+              3,
+              6,
+              13,
+              16,
+              24,
+              33,
+              35,
+              45
+            ],
+            "support_sources": [
+              "ground",
+              33
+            ],
+            "shared_component_max_translation_m": 9.18283983007161e-06,
+            "shared_component_max_rotation_degrees": 0.0016747331010634537
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "connected_to_missing_stone"
+        },
+        {
+          "object_id": 52,
+          "depth": 2,
+          "old_pose": [
+            0.3495509624481201,
+            2.427708387374878,
+            0.2480231374502182,
+            0.7698971173304588,
+            0.13956951268673123,
+            -0.06831775201185042,
+            0.6189599862791497
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              42
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 1.2585363797297846,
+          "initialization_rejection": null,
+          "solve_valid": false,
+          "refresh_rejection": "posegen_geometry_failure",
+          "pose_change": {
+            "translation_m": 0.0,
+            "rotation_degrees": 0.0
+          }
+        },
+        {
+          "object_id": 50,
+          "depth": 4,
+          "old_pose": [
+            -0.5680580139160156,
+            -2.38808536529541,
+            0.2846314609050751,
+            0.44790077426828323,
+            0.18331686021595395,
+            0.49152159639137494,
+            0.7240071446134431
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              14,
+              32,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              40
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_existing_proposal"
+        },
+        {
+          "object_id": 52,
+          "depth": 4,
+          "old_pose": [
+            -0.5509722828865051,
+            -2.3343324661254883,
+            0.24790407717227936,
+            0.7698299735538208,
+            0.14152557873511398,
+            -0.06685666610316074,
+            0.6187588452534519
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              14,
+              32,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              42
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 1.2270269936627232,
+          "initialization_rejection": null,
+          "solve_valid": true,
+          "refresh_rejection": null,
+          "pose_change": {
+            "translation_m": 0.00014282432096749285,
+            "rotation_degrees": 0.019990134168972554
+          },
+          "refreshed_pose": [
+            -0.5509889721870422,
+            -2.3343379497528076,
+            0.24804581701755524,
+            0.7699308710636048,
+            0.141448835340242,
+            -0.06679222489189078,
+            0.6186578048146801
+          ],
+          "new_scene_long": {
+            "passed": true,
+            "reason": null
+          },
+          "new_scene_reward": 1.1890389095073748
+        },
+        {
+          "object_id": 42,
+          "depth": 4,
+          "old_pose": [
+            -0.4745372235774994,
+            -2.3379650115966797,
+            0.309283047914505,
+            0.40155361701506187,
+            0.6451779978057706,
+            -0.3933066590429966,
+            -0.5175035417868117
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              14,
+              42,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              9,
+              17,
+              27,
+              28,
+              32,
+              44
+            ],
+            "support_sources": [
+              "ground",
+              17
+            ],
+            "shared_component_max_translation_m": 3.4992038657365945e-06,
+            "shared_component_max_rotation_degrees": 0.00045981556886283734
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 4.961670372934207,
+          "initialization_rejection": null,
+          "solve_valid": true,
+          "refresh_rejection": null,
+          "pose_change": {
+            "translation_m": 0.004956524047984972,
+            "rotation_degrees": 0.6833730808528277
+          },
+          "refreshed_pose": [
+            -0.47727668285369873,
+            -2.333840847015381,
+            0.3095149099826813,
+            0.4053353696106403,
+            0.642531757159179,
+            -0.3904666332377316,
+            -0.5199922956280546
+          ],
+          "new_scene_long": {
+            "passed": true,
+            "reason": null
+          },
+          "new_scene_reward": 4.933192944548569
+        },
+        {
+          "object_id": 50,
+          "depth": 4,
+          "old_pose": [
+            -0.5677711367607117,
+            -2.3760499954223633,
+            0.28525882959365845,
+            0.44851781005053876,
+            0.18276952917694975,
+            0.4907151847404656,
+            0.7243104864193501
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              14,
+              42,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              40
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_existing_proposal"
+        },
+        {
+          "object_id": 40,
+          "depth": 4,
+          "old_pose": [
+            -0.1733565777540207,
+            -2.688987970352173,
+            0.3310413956642151,
+            -0.6171504427763653,
+            0.5006185423343787,
+            0.44493311542558345,
+            -0.4129660141580933
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              14,
+              42,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              30,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              47
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 50,
+          "depth": 4,
+          "old_pose": [
+            -0.5679137706756592,
+            -2.374762535095215,
+            0.28464648127555847,
+            0.4473001421989137,
+            0.1833043123486899,
+            0.49189863280784724,
+            0.7241255739890535
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              8,
+              14,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              40
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_existing_proposal"
+        },
+        {
+          "object_id": 52,
+          "depth": 4,
+          "old_pose": [
+            -0.2708187699317932,
+            -2.268630027770996,
+            0.24759003520011902,
+            0.7406286952290027,
+            0.1428331984293748,
+            -0.06427208870117504,
+            0.6534040953681024
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              8,
+              14,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              9,
+              17,
+              27,
+              28,
+              42,
+              44
+            ],
+            "support_sources": [
+              "ground",
+              17
+            ],
+            "shared_component_max_translation_m": 3.4992038657365945e-06,
+            "shared_component_max_rotation_degrees": 0.00045981556886283734
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_existing_proposal"
+        },
+        {
+          "object_id": 52,
+          "depth": 4,
+          "old_pose": [
+            -0.5509787797927856,
+            -2.334336519241333,
+            0.24790385365486145,
+            0.7698287334689724,
+            0.14152109562049078,
+            -0.06685993791654427,
+            0.6187610599591167
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              8,
+              14,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              42
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_cohort_proposal"
+        },
+        {
+          "object_id": 3,
+          "depth": 4,
+          "old_pose": [
+            -0.6534802913665771,
+            2.5308587551116943,
+            0.3293960392475128,
+            0.6300776011884723,
+            0.7088139065139307,
+            0.19493380210887756,
+            -0.2501716914609208
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              37,
+              42,
+              47
+            ],
+            "direct_missing_indices": [
+              42
+            ],
+            "connected_missing_indices": [
+              42
+            ],
+            "contact_component_indices": [
+              2,
+              42
+            ],
+            "support_sources": [
+              "ground",
+              42
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 4,
+          "depth": 4,
+          "old_pose": [
+            -0.6835784912109375,
+            2.5195741653442383,
+            0.3492046892642975,
+            0.22857834956390072,
+            0.3679749757416294,
+            0.33669374214462483,
+            0.8360524381516027
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              37,
+              42,
+              47
+            ],
+            "direct_missing_indices": [
+              42
+            ],
+            "connected_missing_indices": [
+              42
+            ],
+            "contact_component_indices": [
+              3,
+              6,
+              13,
+              16,
+              24,
+              33,
+              42,
+              45
+            ],
+            "support_sources": [
+              "ground",
+              33,
+              42
+            ],
+            "shared_component_max_translation_m": 4.734819055851117e-06,
+            "shared_component_max_rotation_degrees": 0.0003080975612834142
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 50,
+          "depth": 4,
+          "old_pose": [
+            -0.5727502703666687,
+            -2.378565788269043,
+            0.283460408449173,
+            0.4456486987618647,
+            0.18218572387193768,
+            0.49176797134274386,
+            0.7255135158427838
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              1,
+              35,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              40
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_existing_proposal"
+        },
+        {
+          "object_id": 4,
+          "depth": 4,
+          "old_pose": [
+            -0.786098301410675,
+            2.486907482147217,
+            0.34859931468963623,
+            0.22936808927129032,
+            0.3668537475883687,
+            0.3447082394383712,
+            0.8330575233245934
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              35,
+              39,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              3,
+              6,
+              13,
+              16,
+              24,
+              33,
+              45
+            ],
+            "support_sources": [
+              "ground",
+              33
+            ],
+            "shared_component_max_translation_m": 4.0289389171889274e-06,
+            "shared_component_max_rotation_degrees": 0.00032838669463107907
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 2.7259231445289083,
+          "initialization_rejection": null,
+          "solve_valid": true,
+          "refresh_rejection": null,
+          "pose_change": {
+            "translation_m": 0.01448151577282075,
+            "rotation_degrees": 10.086719640396883
+          },
+          "refreshed_pose": [
+            -0.7719360589981079,
+            2.4898314476013184,
+            0.349371075630188,
+            0.18711854625756988,
+            0.38530424372117655,
+            0.4135548167005622,
+            0.8034299614780807
+          ],
+          "new_scene_long": {
+            "passed": false,
+            "reason": "place_robustness"
+          },
+          "new_scene_reward": 2.616251824734401
+        },
+        {
+          "object_id": 52,
+          "depth": 4,
+          "old_pose": [
+            -0.6017422676086426,
+            -2.2855608463287354,
+            0.2475796937942505,
+            0.49452558109854344,
+            0.5650958072583608,
+            0.3529040597204041,
+            0.5581844703062122
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              35,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              42
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 1.300824336714463,
+          "initialization_rejection": null,
+          "solve_valid": true,
+          "refresh_rejection": null,
+          "pose_change": {
+            "translation_m": 0.003166820934895248,
+            "rotation_degrees": 5.596857030237756
+          },
+          "refreshed_pose": [
+            -0.5986141562461853,
+            -2.2855193614959717,
+            0.2480715811252594,
+            0.5152026774824554,
+            0.5886505572458051,
+            0.332291200430848,
+            0.5269148704348154
+          ],
+          "new_scene_long": {
+            "passed": true,
+            "reason": null
+          },
+          "new_scene_reward": 1.262571698143092
+        },
+        {
+          "object_id": 1,
+          "depth": 4,
+          "old_pose": [
+            -0.6489124894142151,
+            -2.2481884956359863,
+            0.3388318717479706,
+            -0.5636741289616962,
+            0.19293724705514095,
+            -0.19010528148548203,
+            -0.7803247253479685
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              35,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              0,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              47
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 11,
+          "depth": 4,
+          "old_pose": [
+            -0.726809024810791,
+            -2.0519587993621826,
+            0.3589208126068115,
+            0.8514160322677679,
+            -0.030300301750541696,
+            -0.5148445252195871,
+            -0.09543451452517268
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              1,
+              35
+            ],
+            "direct_missing_indices": [
+              1
+            ],
+            "connected_missing_indices": [
+              1
+            ],
+            "contact_component_indices": [
+              1,
+              9,
+              10,
+              17,
+              27,
+              28,
+              44
+            ],
+            "support_sources": [
+              "ground",
+              1,
+              17
+            ],
+            "shared_component_max_translation_m": 7.468440584028761e-07,
+            "shared_component_max_rotation_degrees": 0.00010503845005147157
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 8,
+          "depth": 4,
+          "old_pose": [
+            0.6495518684387207,
+            3.017183780670166,
+            0.3886672556400299,
+            0.9322068031224146,
+            0.032035210695633455,
+            0.043298707071931335,
+            -0.3578958555975093
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              1,
+              35
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [
+              35
+            ],
+            "contact_component_indices": [
+              7,
+              33,
+              34,
+              35
+            ],
+            "support_sources": [
+              "ground",
+              34
+            ],
+            "shared_component_max_translation_m": 0.22575783247704775,
+            "shared_component_max_rotation_degrees": 5.444840747266089
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "connected_to_missing_stone"
+        },
+        {
+          "object_id": 52,
+          "depth": 4,
+          "old_pose": [
+            -0.5804393887519836,
+            -2.3833365440368652,
+            0.2938174307346344,
+            0.2736452936707032,
+            0.4486175183667806,
+            -0.44453632900167583,
+            -0.7254295470023397
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              35,
+              37
+            ],
+            "direct_missing_indices": [
+              35
+            ],
+            "connected_missing_indices": [
+              35
+            ],
+            "contact_component_indices": [
+              35,
+              42
+            ],
+            "support_sources": [
+              "ground",
+              35
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 52,
+          "depth": 4,
+          "old_pose": [
+            -0.5309758186340332,
+            -2.27545428276062,
+            0.24704810976982117,
+            0.4325111591758098,
+            0.6217469264477716,
+            0.4102204536474693,
+            0.5080197201392986
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              37,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              42
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_cohort_proposal"
+        },
+        {
+          "object_id": 1,
+          "depth": 4,
+          "old_pose": [
+            -0.4065554738044739,
+            -2.402904987335205,
+            0.3872855603694916,
+            0.32665427014867804,
+            -0.5391233315134045,
+            0.15077330967803138,
+            -0.7615185029270495
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              37,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              0,
+              9,
+              17,
+              27,
+              28,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              17,
+              47
+            ],
+            "shared_component_max_translation_m": 2.7631510527561103e-06,
+            "shared_component_max_rotation_degrees": 0.00030685532294010947
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        }
+      ],
+      "profiles": {
+        "apps/excavator/config/mcts_cpu.yml": "# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 3\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 12\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 8  # Depth 1 until 8 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 12\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 30.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 1\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cpu  # cpu or cuda\n  simulation_backend: cpu  # cpu or cuda\n  # Local native worker allocation; separate from legacy Ray resource settings.\n  enabled: true\n  workers: 12\nroot_cem:\n  population: 96\n  elite: 24\n  iterations: 3\n  keep: 12\n  mutation_xy_std: 0.1\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/inventory.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobjects:\n  model_directory: apps/excavator/assets/objects\n  ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58]\n  density: 1000.0\n  density_overrides: {}\ntarget:\n  # stacking-planner agent/configs/ablation.yml: environment.target.\n  width: 2.0\n  length: 6.0\n  height: 2.5\n  origin: [0.0, 0.0, 0.0]\n  support_overlap: 0.02\n  taper_degrees:\n    width_positive: 5.0\n    width_negative: 5.0\n    length_positive: 5.0\n    length_negative: 5.0\n",
+        "apps/excavator/config/perception.yml": "# Desktop perception defaults in SI units. Quality gates require field commissioning.\n# Opening polynomial: legacy assets/opening_angle_fit.npy, stone_grab fit.\nvoxel_size: 0.01\nground_clearance: 0.08\nfield_ground_removal: false  # Experimental opt-in; legacy field recovery retains ground.\nminimum_points: 100\nmaximum_timestamp_skew_ns: 50000000\nfield:\n  voxel_sizes: [0.1, 0.05, 0.02, 0.01]\n  max_iterations: [50, 30, 14, 7]\ninhand:\n  voxel_sizes: [0.1, 0.05, 0.02]\n  max_iterations: [50, 30, 14]\ngripper_alignment_quality:\n  minimum_target_coverage: 0.05\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.1\n  maximum_correction_rotation_degrees: 10.0\nquality:\n  minimum_target_coverage: 0.35\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.6\n  maximum_correction_rotation_degrees: 180.0\nambiguity:\n  ambiguity_score_gap: 0.015\n  distinct_translation: 0.05\n  distinct_rotation_degrees: 15.0\nopening:\n  # Calibration polynomial coefficients are preserved; polynomial output is radians.\n  coefficients: [-7.418032620929303, 46.96298872999542, -110.41168530520477, 116.254686079056, -47.56854082012381]\n  source_sha256: c419e987d8f8fc976fa5ae3efdde668da9b45615ba46051432035a1f1bc2d1ee\n  limits_degrees: [-65.31718864491384, 0.0]\n  maximum_measured_difference_degrees: 11.459155902616464\n  minimum_jaw_points: 30\n  gripper_removal_distance: 0.06\n",
+        "apps/excavator/config/action_generation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\ninitialization:\n  # Excavator initializes from model_<id>_mesh.ply and pads both XY footprints.\n  height_clearance: 0.15\n  xy_padding: 0.12\nfiltering:\n  posegen_gap_threshold: 0.005\n  posegen_equilibrium_threshold: 1.0\n  # Prefer this restriction; exhausted search retries without floor-fill gates.\n  strict_floor_first: true\n  require_solver_convergence: false\n  reject_equilibrium_at_threshold: true\nplanar:\n  grid_shape: [32, 32]\n  yaw_angles_degrees: [0, 90, 180, 270]\n  minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.\n  target_anchor_inset_scale: 0.6\n  floor:\n    # Advance at fill_ratio coverage of the base in top-down projection.\n    coverage_mode: projected_footprint\n    bottom_tolerance: 0.2\n    fill_ratio: 0.75\n    grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.\n    max_layers: 8\n    minimum_contact_cells: 1\n  boltzmann_temperature: 0.3\n  boltzmann_min_probability: 0.0\n  target_mask_margin: 0.0\n  contact_gap_tolerance: 0.10\n  # The only proposal-score weights. Edit these named values for ablations.\n  score:\n    height: -3.0\n    support_likelihood: 2.0\n    open_area: 1.0\n    fill_area: 2.0\n    frontier: 1.0\n    target_boundary: 1.5\n    excavator_distance: 2.0\n    excavator_distance_axis: xy\n    excavator_xy: null\n    elite_fraction: 0.25\n  floor_fill:\n    # Legacy proposal-kernel settings; planar.floor owns the shared layer rules.\n    connected_after: 1\n    u_shape_filter: false\n    u_shape_footprint_scale: 0.9\n    u_shape_min_frontier_contact_cells: 1\n    lower_floor_fill_ratio: 0.6\n    lower_floor_occupancy_grid: 16\n    lower_floor_bottom_z_tolerance: 0.2\n    lower_floor_max_layers: 8\norientation:\n  pose_from_scan: false\n  roll_angles_degrees: [0, 180]\n",
+        "apps/excavator/config/visualization.yml": "units: si\nenvironment:\n  default_layers:\n    ground: true\n    support: false\n    obstacle: true\n  # Search coordinates are stack-local. Plan replay uses recorded world planes.\n  boxes:\n    - id: search_ground\n      layer: ground\n      minimum: [-3.0, -3.0, -0.03]\n      maximum: [3.0, 3.0, 0.0]\n      color: [0.28, 0.33, 0.25]\n      opacity: 1.0\n",
+        "apps/excavator/config/environment.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobservation:\n  action_sample_count: 96\n  max_poses_per_object: 32\n  surface_sample_count: 128\n  banned_object_ids: []\n  height_map_resolution: [128, 128]\n  height_map_margin: 1.0\n  render_height_map: true\nreward:\n  overlap_resolution: 0.03\n  posegen_threshold: 1.0\n  containment_threshold: 0.5\n  nonfinite_displacement: 2.0\n  max_displacement: 1.0\n  # Placement uncertainty; Z perturbations are always upward.\n  place_stability:\n    enabled: true\n    n_noise: 4\n    position_std: [0.02, 0.02, 0.02]  # Gaussian scales; Z uses abs(sample).\n    rotation_std_deg: 5.0\n    rotation_weight: 0.1\n    # Reject if any noisy trial exceeds the motion limit or does not settle.\n    reject_failed_trials: true\n    # Worst trial: translation (m) + rotation_weight * angular distance (rad).\n    fail_displacement: 0.15\n    seed: 0\n  weights:\n    stability: 2.0\n    object_containment: 2.0\n    target_overlap_increment: 20.0\n    place_stability: 2.0\n    large_object_lower: 3.0\n    inward_orientation: 6.0\n",
+        "apps/excavator/config/mcts_cuda.yml": "# Explicit CUDA search profile; select with --config.\n# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 4\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 32\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 12  # Depth 1 until 12 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 256  # Stream 128-placement chunks; native robustness capacity is 512.\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 60.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 2\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cuda  # cpu or cuda\n  simulation_backend: cuda  # cpu or cuda\n  # CPU reward/observation workers overlap the next CUDA placement chunk.\n  enabled: true\n  workers: 4\nroot_cem:\n  population: 96\n  elite: 32\n  iterations: 3\n  keep: 32\n  mutation_xy_std: 0.2\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/planning.yml": "units: si\n# Angular fields use degrees explicitly; poses remain [x, y, z, qx, qy, qz, qw].\nframes:\n  world: world\n  stack: stack\n  world_T_stack: [-6.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0]\nrobot:\n  urdf: apps/excavator/assets/excavator_3/vdk23_cx_ik.urdf\n  tool_link: grip_body\n  home_positions_degrees: [60.0, 45.0, -60.0, -78.54084409738354, 0.0, 0.0]\n  link_from_tool: &id001 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]\n  gripper_opening_degrees: 0.0\ngripper:\n  urdf: apps/excavator/assets/stone_grab_3/stone_grab.urdf\n  root_link: grip_body\n  grasp_from_root: *id001\n  opening_offset_degrees: [0.0, 0.0]\n  opening_direction: [1.0, 1.0]\n  opening_limits_degrees: [-80.0, 0.0]\nscene:\n  frame_id: 1\n  obstacle_friction: 5.0\n  handoff_position: [-2.0, -5.0, 0.0]\n  obstacles: []\nexcavator:\n  pick_ground_height: 0.0\n  place_ground_height: 0.0\n  handoff_ground_height: 0.0\n  place_z_offset: 0.2\n  handoff_positions: [\n    [-2, -5, 0.0],\n    [-1, -5, 0.0],\n    [-3, -5, 0.0],\n    [-2, -4, 0.0],\n    [-2, -6, 0.0],\n    [-1, -4, 0.0],\n    [-3, -4, 0.0],\n    [-1, -6, 0.0],\n    [-3, -6, 0.0],\n  ]\n",
+        "apps/excavator/config/solvers/simulation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nintegration:\n  dt: 0.01\n  gravity: [0.0, 0.0, -9.81]\n  damping: 0.0\nground:\n  z: 0.0\n  friction: 5.0\nscene:\n  frame_id: 1\nphysics:\n  settling:\n    contact:\n      model: single_point\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.001\n      tol_rel: 0.0001\n  structural:\n    contact:\n      model: limit_surface_4d\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.0001\n      tol_rel: 1.0e-05\nphases:\n  settling:\n    dt: 0.01\n    steps: 400\n    sample_count: 64\n  short_structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 0.5\n    max_time: 4.0\n    extra_steps: 20\n    final_extra_steps: 40\n    freeze_radius: 1.5\n  structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 3.0\n    max_time: 15.0\n    extra_steps: 150\n    final_extra_steps: 300\nvalidation:\n  contact_gap_tolerance: 0.02\n  minimum_support_count: 1\n  support_chain_z_tolerance: 0.05\n",
+        "apps/excavator/config/solvers/motion.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nallow_regrasp: true\nmotion:\n  boundary_weight: 20.0\n  collision_alm_beta_increase: 5.0\n  collision_alm_beta_init: 50.0\n  collision_alm_enabled: true\n  collision_alm_max_iters: 5\n  collision_alm_tol: 0.001\n  collision_margin: 0.02\n  collision_penetration_clamp: 0.02\n  collision_weight: 1000.0\n  grasped_boundary_pos_scale: 10.0\n  grasped_boundary_rot_scale: 0.5\n  ik_max_iters: 2000\n  ik_tol: 0.001\n  joint_limit_margin_degrees: 0.057295779513082325\n  joint_limit_weight: 1000.0\n  max_iters: 400\n  plane_feasibility_margin: -0.005\n  smooth_boundary_alpha: 2.0\n  smooth_weight: 50.0\n  step_size: 0.01\n  swing_smoothness_scale: 1.0\n  target_collision_tol: 0.005\n  tol: 0.0001\ninverse_kinematics:\n  initialization: provided\n  max_iters: 2000\n  tol: 0.001\ndirect:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  move_steps: 15\n  simulation_refinement: true\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\nregrasp:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  max_handoff_orientation_distance_degrees: 135.0\n  move_steps: 15\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\n  yaw_samples: 8\nstable_pose:\n  sampling_level: 2\n  stable_eigenvalue_min: -0.2\n",
+        "apps/excavator/config/solvers/grasp.yml": "# stacking-planner planning/planning.py: stone_grab attachment.\nunits: si\nsampling:\n  aperture_margin: 0.01\n  dir_samples: 80\n  include_flipped: true\n  max_candidates: 0\n  max_seeds: 120\n  max_target_width: 1.6\n  preferred_parallel_axis: [0.0, 0.0, 0.0]\n  # Legacy gripper.height (1.5 m) * surface_grasp_offset_scale (0.5).\n  retreat_distance: 0.75\n  # Legacy secondary seeds: gripper height 1.5 m times [0.65, 0.8, 1.2].\n  fallback_retreat_distances: [0.975, 1.2, 1.8]\n  fallback_min_candidates: 8\n  scene_clearance_margin: 0.05\n  spin_samples: 12\n  spin_step_degrees: 30.0\n  strategy: antipodal_surface\ngeneration:\n  contact_margin: 0.05\n  plane_separate_margin: -0.02\n  separate_margin: 0.01\ncost:\n  align: 1.0\n  antipodal_normal: 5.0\n  antipodal_position: 2.0\n  center_distance: 5.0\n  contact: 3.0\n  enclosure: 7.0\n  flatness: 0.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 2.0\nscore:\n  align: 1.0\n  center_distance: 3.0\n  enclosure: 7.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 1.0\n  teeth_gap: 2.0\ntrust_region:\n  gain_ratio_lower: 0.0\n  gain_ratio_upper: 0.75\n  improvement_tol: 0.0\n  max_iters: 200\n  radius_expansion: 2.0\n  radius_init: 0.1\n  radius_max: 0.1\n  radius_reduction: 0.25\n  step_tol: 1.0e-12\n  subproblem_tol: 0.01\nalm:\n  equality_penalty_increase: 10.0\n  equality_penalty_init: 50.0\n  equality_tol: 0.001\n  inequality_penalty_increase: 10.0\n  inequality_penalty_init: 50.0\n  inequality_tol: 0.015\n  max_iters: 20\nforce:\n  damping: 0.0001\n  enabled: true\n  friction: 1.0\n  wrench_scale: 1.0\nforce_weight:\n  complementarity: 10.0\n  cone: 10.0\n  moment: 10.0\n  wrench: 0.1\nsimulation:\n  accept_relaxed: true\n  active_impulse_tol: 0.0001\n  damping: 2.0\n  dt: 0.01\n  error_reduction_ratio: 0.2\n  friction: 1.0\n  grasp_offset_tol: [0.5, 1.0, 0.6]\n  obstacle_margin: 0.01\n  pgs_iters: 80\n  plane_obstacle_margin: 0.01\n  relaxed_velocity_tol: 0.1\n  settled_velocity_tol: 0.01\n  steps: 500\n  target_contact_margin: 0.01\n  virtual_approach_force: 5.0\n  virtual_closing_effort: 0.5\n",
+        "apps/excavator/config/solvers/posegen.yml": "# stacking-planner contexts.get_posegen, PoseSolver schedule, and diffsim defaults.\nunits: si\ntrust_region:\n  delta_expansion_rate: 2.0\n  delta_init: 0.125\n  delta_lower_thresh: 0.25\n  delta_max: 1.0\n  delta_reduction_rate: 0.25\n  delta_upper_thresh: 0.75\n  eps: 0.1\n  improvement_thresh: 0.125\n  max_iters: 100\n  tol: 1.0e-08\nhausdorff:\n  eps: 0.001\n  error_tol: 1.0e-10\n  gain_ratio_lower_thresh: 0.05\n  gain_ratio_max: 10000000000.0\n  gain_ratio_upper_thresh: 0.9\n  max_iters: 50\n  radius_expansion_rate: 3.0\n  radius_init: 10.0\n  radius_reduction_rate: 0.25\nobjective:\n  eps_comp: 0.01\n  eps_cone: 0.01\n  eps_gap: 0.01\n  eps_target: 0.05\n  gravity: 9.81\n  ground_height: 0.0\n  k_box: 20.0\n  k_comp: 0.0\n  k_gap: 0.0\n  k_gap_c: 80.0\n  k_lower: 0.0\n  k_potential: 1.0\n  k_reg: 0.0\n  k_target: 1.0\n  k_wrench: [[1.0, 0.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]\n  k_xy: 0.0\n  narrow_phase_candidate_tol: 0.1\n  narrow_phase_scene_tol: 0.005\n  rho: 0.01\n  w_box: 2.0\nforce_solver:\n  beta_consensus: 1.0\n  beta_contact: 1.0\n  beta_update_interval: 20\n  max_iters: 1000\n  tol_abs: 0.001\n  tol_rel: 0.0001\nschedule:\n  times: [0.0, 0.3333333333333333, 0.6666666666666666, 1.0]\n  max_iters_warmup: 50\n  max_iters_final: 75\n  # Cosine schedule from agent/env/components/action/pose_solver.py.\n  # Each weight is the sum of its coefficient * named basis; see the guide.\n  objective_weights:\n    k_wrench: {ramp: 1.0}\n    k_comp: {ramp: 10.0}\n    k_gap_c: {constant: 40.0, ramp: 150.0, gap_feedback: 100000.0}\n    k_gap: {sine: 10.0}\n    k_target: {anti_ramp: 5.0}\n    k_xy: {anti_ramp: 1.0}\n    k_potential: {constant: 0.10, anti_ramp: 0.10}\n    k_reg: {anti_ramp: 3.0}\n    k_lower: {anti_ramp: 5.0}\nscene:\n  frame_id: 1\n  target_model_id: 1000000\n  target_entity_id: 1000001\n  target_friction: 1.0\n  target_sharpness: 20\n  target_epsilon: 1.0e-09\n  placed_as_boundaries: false\n  boundary_radius: 0.5\n"
+      }
+    },
+    {
+      "seed": 0,
+      "placed_before": 25,
+      "placed_after": 26,
+      "source": ".benchmarks/excavator-profiles-25-20261007/states/25.pkl",
+      "source_sha256": "35c5702df09cc91d4baa94d18a7f75aafa407b053423670edfbd36dc36b4d4a7",
+      "selected": {
+        "object_id": 1,
+        "pose": [
+          0.1671963334083557,
+          -2.4593255519866943,
+          0.3429165482521057,
+          0.5469762312384199,
+          0.24376155274874953,
+          0.7009817483021753,
+          0.3873266017316121
+        ]
+      },
+      "statistics": {
+        "step": 26,
+        "elapsed_seconds": 79.81686453800648,
+        "completed_iterations": 1024,
+        "expansion_calls": 252,
+        "generated_candidates": 490,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 503,
+        "failed_evaluations": 459,
+        "effective_max_depth": 4,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 14,
+          "short_jobs": 458,
+          "short_parallel_batches": 14,
+          "short_parallel_jobs": 458,
+          "long_batches": 3,
+          "long_jobs": 45,
+          "short_max_batch_size": 64,
+          "max_evaluation_batch_size": 64,
+          "workers": 512,
+          "pose_generation_seconds": 32.280013145005796,
+          "pose_generation_batches": 44,
+          "pose_generation_node_requests": 252,
+          "pose_generation_max_node_batch": 12,
+          "descendant_frontier_batches": 37,
+          "descendant_frontier_iterations": 1019,
+          "short_batch_wall_seconds": 35.16626747499686,
+          "long_batch_wall_seconds": 11.074288303992944,
+          "short_settling_job_seconds": 1.8664655569882602,
+          "short_structural_job_seconds": 7.195479769958181,
+          "long_settling_job_seconds": 0.2861819500103593,
+          "long_structural_job_seconds": 6.277397369995015
+        },
+        "revalidation": {
+          "attempted": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 32,
+          "accepted": 5,
+          "rejected": 27,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 5,
+          "attempted": 5,
+          "generated": 13,
+          "evaluated": 13
+        },
+        "root_retry": {
+          "rounds": 0,
+          "retired": 0,
+          "generated": 0,
+          "accepted": 0
+        },
+        "floor_fill_fallback": {
+          "attempted": false,
+          "pools": 0,
+          "generated": 0,
+          "accepted": 0,
+          "selected": false
+        },
+        "descendant_validation": {
+          "attempts": 13,
+          "failures": 0
+        },
+        "final_selection_mode": "mixed",
+        "tree": {
+          "nodes": 491,
+          "evaluated": 491,
+          "pending": 0,
+          "failed": 463,
+          "leaves": 468,
+          "frontier_leaves": 468,
+          "max_depth": 4,
+          "rejection_reasons": {
+            "place_robustness": 259,
+            "active_floor_above_active_layer": 501,
+            "posegen_gap": 23,
+            "active_floor_disconnected_active_layer": 147,
+            "posegen_geometry_failure": 23,
+            "missing_validated_descendant": 4,
+            "scene_motion_limit": 112,
+            "target_motion_limit": 52,
+            "stone_outside_target": 25,
+            "simulation_unsettled": 11
+          },
+          "generation_rejections": {
+            "active_floor_above_active_layer": 501,
+            "posegen_gap": 23,
+            "active_floor_disconnected_active_layer": 147,
+            "posegen_geometry_failure": 23
+          }
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 87,
+              "rejected": 9,
+              "duplicate_rejections": 0,
+              "retained": 87,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 84,
+              "rejected": 12,
+              "duplicate_rejections": 34,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 83,
+              "rejected": 13,
+              "duplicate_rejections": 29,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "active_floor_disconnected_active_layer": 30,
+            "posegen_gap": 2,
+            "active_floor_above_active_layer": 2
+          },
+          "final_candidates": 32
+        }
+      },
+      "counts": {
+        "retained_descendants": 458,
+        "retained_short_only_passes": 7,
+        "already_preserved": 7,
+        "old_parent_long_passes": 0,
+        "refresh_passes": 0,
+        "new_scene_long_passes": 0,
+        "passes_in_both": 0,
+        "new_pass_old_fail": 0
+      },
+      "timings": {
+        "collection_seconds": 0.0041231170180253685,
+        "old_parent_long_seconds": 2.809974830597639e-07,
+        "refresh_seconds": 2.635002601891756e-06,
+        "new_scene_long_seconds": 2.7101486921310425e-07
+      },
+      "candidates": [],
+      "profiles": {
+        "apps/excavator/config/mcts_cpu.yml": "# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 3\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 12\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 8  # Depth 1 until 8 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 12\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 30.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 1\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cpu  # cpu or cuda\n  simulation_backend: cpu  # cpu or cuda\n  # Local native worker allocation; separate from legacy Ray resource settings.\n  enabled: true\n  workers: 12\nroot_cem:\n  population: 96\n  elite: 24\n  iterations: 3\n  keep: 12\n  mutation_xy_std: 0.1\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/inventory.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobjects:\n  model_directory: apps/excavator/assets/objects\n  ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58]\n  density: 1000.0\n  density_overrides: {}\ntarget:\n  # stacking-planner agent/configs/ablation.yml: environment.target.\n  width: 2.0\n  length: 6.0\n  height: 2.5\n  origin: [0.0, 0.0, 0.0]\n  support_overlap: 0.02\n  taper_degrees:\n    width_positive: 5.0\n    width_negative: 5.0\n    length_positive: 5.0\n    length_negative: 5.0\n",
+        "apps/excavator/config/perception.yml": "# Desktop perception defaults in SI units. Quality gates require field commissioning.\n# Opening polynomial: legacy assets/opening_angle_fit.npy, stone_grab fit.\nvoxel_size: 0.01\nground_clearance: 0.08\nfield_ground_removal: false  # Experimental opt-in; legacy field recovery retains ground.\nminimum_points: 100\nmaximum_timestamp_skew_ns: 50000000\nfield:\n  voxel_sizes: [0.1, 0.05, 0.02, 0.01]\n  max_iterations: [50, 30, 14, 7]\ninhand:\n  voxel_sizes: [0.1, 0.05, 0.02]\n  max_iterations: [50, 30, 14]\ngripper_alignment_quality:\n  minimum_target_coverage: 0.05\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.1\n  maximum_correction_rotation_degrees: 10.0\nquality:\n  minimum_target_coverage: 0.35\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.6\n  maximum_correction_rotation_degrees: 180.0\nambiguity:\n  ambiguity_score_gap: 0.015\n  distinct_translation: 0.05\n  distinct_rotation_degrees: 15.0\nopening:\n  # Calibration polynomial coefficients are preserved; polynomial output is radians.\n  coefficients: [-7.418032620929303, 46.96298872999542, -110.41168530520477, 116.254686079056, -47.56854082012381]\n  source_sha256: c419e987d8f8fc976fa5ae3efdde668da9b45615ba46051432035a1f1bc2d1ee\n  limits_degrees: [-65.31718864491384, 0.0]\n  maximum_measured_difference_degrees: 11.459155902616464\n  minimum_jaw_points: 30\n  gripper_removal_distance: 0.06\n",
+        "apps/excavator/config/action_generation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\ninitialization:\n  # Excavator initializes from model_<id>_mesh.ply and pads both XY footprints.\n  height_clearance: 0.15\n  xy_padding: 0.12\nfiltering:\n  posegen_gap_threshold: 0.005\n  posegen_equilibrium_threshold: 1.0\n  # Prefer this restriction; exhausted search retries without floor-fill gates.\n  strict_floor_first: true\n  require_solver_convergence: false\n  reject_equilibrium_at_threshold: true\nplanar:\n  grid_shape: [32, 32]\n  yaw_angles_degrees: [0, 90, 180, 270]\n  minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.\n  target_anchor_inset_scale: 0.6\n  floor:\n    # Advance at fill_ratio coverage of the base in top-down projection.\n    coverage_mode: projected_footprint\n    bottom_tolerance: 0.2\n    fill_ratio: 0.75\n    grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.\n    max_layers: 8\n    minimum_contact_cells: 1\n  boltzmann_temperature: 0.3\n  boltzmann_min_probability: 0.0\n  target_mask_margin: 0.0\n  contact_gap_tolerance: 0.10\n  # The only proposal-score weights. Edit these named values for ablations.\n  score:\n    height: -3.0\n    support_likelihood: 2.0\n    open_area: 1.0\n    fill_area: 2.0\n    frontier: 1.0\n    target_boundary: 1.5\n    excavator_distance: 2.0\n    excavator_distance_axis: xy\n    excavator_xy: null\n    elite_fraction: 0.25\n  floor_fill:\n    # Legacy proposal-kernel settings; planar.floor owns the shared layer rules.\n    connected_after: 1\n    u_shape_filter: false\n    u_shape_footprint_scale: 0.9\n    u_shape_min_frontier_contact_cells: 1\n    lower_floor_fill_ratio: 0.6\n    lower_floor_occupancy_grid: 16\n    lower_floor_bottom_z_tolerance: 0.2\n    lower_floor_max_layers: 8\norientation:\n  pose_from_scan: false\n  roll_angles_degrees: [0, 180]\n",
+        "apps/excavator/config/visualization.yml": "units: si\nenvironment:\n  default_layers:\n    ground: true\n    support: false\n    obstacle: true\n  # Search coordinates are stack-local. Plan replay uses recorded world planes.\n  boxes:\n    - id: search_ground\n      layer: ground\n      minimum: [-3.0, -3.0, -0.03]\n      maximum: [3.0, 3.0, 0.0]\n      color: [0.28, 0.33, 0.25]\n      opacity: 1.0\n",
+        "apps/excavator/config/environment.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobservation:\n  action_sample_count: 96\n  max_poses_per_object: 32\n  surface_sample_count: 128\n  banned_object_ids: []\n  height_map_resolution: [128, 128]\n  height_map_margin: 1.0\n  render_height_map: true\nreward:\n  overlap_resolution: 0.03\n  posegen_threshold: 1.0\n  containment_threshold: 0.5\n  nonfinite_displacement: 2.0\n  max_displacement: 1.0\n  # Placement uncertainty; Z perturbations are always upward.\n  place_stability:\n    enabled: true\n    n_noise: 4\n    position_std: [0.02, 0.02, 0.02]  # Gaussian scales; Z uses abs(sample).\n    rotation_std_deg: 5.0\n    rotation_weight: 0.1\n    # Reject if any noisy trial exceeds the motion limit or does not settle.\n    reject_failed_trials: true\n    # Worst trial: translation (m) + rotation_weight * angular distance (rad).\n    fail_displacement: 0.15\n    seed: 0\n  weights:\n    stability: 2.0\n    object_containment: 2.0\n    target_overlap_increment: 20.0\n    place_stability: 2.0\n    large_object_lower: 3.0\n    inward_orientation: 6.0\n",
+        "apps/excavator/config/mcts_cuda.yml": "# Explicit CUDA search profile; select with --config.\n# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 4\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 32\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 12  # Depth 1 until 12 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 256  # Stream 128-placement chunks; native robustness capacity is 512.\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 60.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 2\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cuda  # cpu or cuda\n  simulation_backend: cuda  # cpu or cuda\n  # CPU reward/observation workers overlap the next CUDA placement chunk.\n  enabled: true\n  workers: 4\nroot_cem:\n  population: 96\n  elite: 32\n  iterations: 3\n  keep: 32\n  mutation_xy_std: 0.2\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/planning.yml": "units: si\n# Angular fields use degrees explicitly; poses remain [x, y, z, qx, qy, qz, qw].\nframes:\n  world: world\n  stack: stack\n  world_T_stack: [-6.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0]\nrobot:\n  urdf: apps/excavator/assets/excavator_3/vdk23_cx_ik.urdf\n  tool_link: grip_body\n  home_positions_degrees: [60.0, 45.0, -60.0, -78.54084409738354, 0.0, 0.0]\n  link_from_tool: &id001 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]\n  gripper_opening_degrees: 0.0\ngripper:\n  urdf: apps/excavator/assets/stone_grab_3/stone_grab.urdf\n  root_link: grip_body\n  grasp_from_root: *id001\n  opening_offset_degrees: [0.0, 0.0]\n  opening_direction: [1.0, 1.0]\n  opening_limits_degrees: [-80.0, 0.0]\nscene:\n  frame_id: 1\n  obstacle_friction: 5.0\n  handoff_position: [-2.0, -5.0, 0.0]\n  obstacles: []\nexcavator:\n  pick_ground_height: 0.0\n  place_ground_height: 0.0\n  handoff_ground_height: 0.0\n  place_z_offset: 0.2\n  handoff_positions: [\n    [-2, -5, 0.0],\n    [-1, -5, 0.0],\n    [-3, -5, 0.0],\n    [-2, -4, 0.0],\n    [-2, -6, 0.0],\n    [-1, -4, 0.0],\n    [-3, -4, 0.0],\n    [-1, -6, 0.0],\n    [-3, -6, 0.0],\n  ]\n",
+        "apps/excavator/config/solvers/simulation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nintegration:\n  dt: 0.01\n  gravity: [0.0, 0.0, -9.81]\n  damping: 0.0\nground:\n  z: 0.0\n  friction: 5.0\nscene:\n  frame_id: 1\nphysics:\n  settling:\n    contact:\n      model: single_point\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.001\n      tol_rel: 0.0001\n  structural:\n    contact:\n      model: limit_surface_4d\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.0001\n      tol_rel: 1.0e-05\nphases:\n  settling:\n    dt: 0.01\n    steps: 400\n    sample_count: 64\n  short_structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 0.5\n    max_time: 4.0\n    extra_steps: 20\n    final_extra_steps: 40\n    freeze_radius: 1.5\n  structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 3.0\n    max_time: 15.0\n    extra_steps: 150\n    final_extra_steps: 300\nvalidation:\n  contact_gap_tolerance: 0.02\n  minimum_support_count: 1\n  support_chain_z_tolerance: 0.05\n",
+        "apps/excavator/config/solvers/motion.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nallow_regrasp: true\nmotion:\n  boundary_weight: 20.0\n  collision_alm_beta_increase: 5.0\n  collision_alm_beta_init: 50.0\n  collision_alm_enabled: true\n  collision_alm_max_iters: 5\n  collision_alm_tol: 0.001\n  collision_margin: 0.02\n  collision_penetration_clamp: 0.02\n  collision_weight: 1000.0\n  grasped_boundary_pos_scale: 10.0\n  grasped_boundary_rot_scale: 0.5\n  ik_max_iters: 2000\n  ik_tol: 0.001\n  joint_limit_margin_degrees: 0.057295779513082325\n  joint_limit_weight: 1000.0\n  max_iters: 400\n  plane_feasibility_margin: -0.005\n  smooth_boundary_alpha: 2.0\n  smooth_weight: 50.0\n  step_size: 0.01\n  swing_smoothness_scale: 1.0\n  target_collision_tol: 0.005\n  tol: 0.0001\ninverse_kinematics:\n  initialization: provided\n  max_iters: 2000\n  tol: 0.001\ndirect:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  move_steps: 15\n  simulation_refinement: true\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\nregrasp:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  max_handoff_orientation_distance_degrees: 135.0\n  move_steps: 15\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\n  yaw_samples: 8\nstable_pose:\n  sampling_level: 2\n  stable_eigenvalue_min: -0.2\n",
+        "apps/excavator/config/solvers/grasp.yml": "# stacking-planner planning/planning.py: stone_grab attachment.\nunits: si\nsampling:\n  aperture_margin: 0.01\n  dir_samples: 80\n  include_flipped: true\n  max_candidates: 0\n  max_seeds: 120\n  max_target_width: 1.6\n  preferred_parallel_axis: [0.0, 0.0, 0.0]\n  # Legacy gripper.height (1.5 m) * surface_grasp_offset_scale (0.5).\n  retreat_distance: 0.75\n  # Legacy secondary seeds: gripper height 1.5 m times [0.65, 0.8, 1.2].\n  fallback_retreat_distances: [0.975, 1.2, 1.8]\n  fallback_min_candidates: 8\n  scene_clearance_margin: 0.05\n  spin_samples: 12\n  spin_step_degrees: 30.0\n  strategy: antipodal_surface\ngeneration:\n  contact_margin: 0.05\n  plane_separate_margin: -0.02\n  separate_margin: 0.01\ncost:\n  align: 1.0\n  antipodal_normal: 5.0\n  antipodal_position: 2.0\n  center_distance: 5.0\n  contact: 3.0\n  enclosure: 7.0\n  flatness: 0.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 2.0\nscore:\n  align: 1.0\n  center_distance: 3.0\n  enclosure: 7.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 1.0\n  teeth_gap: 2.0\ntrust_region:\n  gain_ratio_lower: 0.0\n  gain_ratio_upper: 0.75\n  improvement_tol: 0.0\n  max_iters: 200\n  radius_expansion: 2.0\n  radius_init: 0.1\n  radius_max: 0.1\n  radius_reduction: 0.25\n  step_tol: 1.0e-12\n  subproblem_tol: 0.01\nalm:\n  equality_penalty_increase: 10.0\n  equality_penalty_init: 50.0\n  equality_tol: 0.001\n  inequality_penalty_increase: 10.0\n  inequality_penalty_init: 50.0\n  inequality_tol: 0.015\n  max_iters: 20\nforce:\n  damping: 0.0001\n  enabled: true\n  friction: 1.0\n  wrench_scale: 1.0\nforce_weight:\n  complementarity: 10.0\n  cone: 10.0\n  moment: 10.0\n  wrench: 0.1\nsimulation:\n  accept_relaxed: true\n  active_impulse_tol: 0.0001\n  damping: 2.0\n  dt: 0.01\n  error_reduction_ratio: 0.2\n  friction: 1.0\n  grasp_offset_tol: [0.5, 1.0, 0.6]\n  obstacle_margin: 0.01\n  pgs_iters: 80\n  plane_obstacle_margin: 0.01\n  relaxed_velocity_tol: 0.1\n  settled_velocity_tol: 0.01\n  steps: 500\n  target_contact_margin: 0.01\n  virtual_approach_force: 5.0\n  virtual_closing_effort: 0.5\n",
+        "apps/excavator/config/solvers/posegen.yml": "# stacking-planner contexts.get_posegen, PoseSolver schedule, and diffsim defaults.\nunits: si\ntrust_region:\n  delta_expansion_rate: 2.0\n  delta_init: 0.125\n  delta_lower_thresh: 0.25\n  delta_max: 1.0\n  delta_reduction_rate: 0.25\n  delta_upper_thresh: 0.75\n  eps: 0.1\n  improvement_thresh: 0.125\n  max_iters: 100\n  tol: 1.0e-08\nhausdorff:\n  eps: 0.001\n  error_tol: 1.0e-10\n  gain_ratio_lower_thresh: 0.05\n  gain_ratio_max: 10000000000.0\n  gain_ratio_upper_thresh: 0.9\n  max_iters: 50\n  radius_expansion_rate: 3.0\n  radius_init: 10.0\n  radius_reduction_rate: 0.25\nobjective:\n  eps_comp: 0.01\n  eps_cone: 0.01\n  eps_gap: 0.01\n  eps_target: 0.05\n  gravity: 9.81\n  ground_height: 0.0\n  k_box: 20.0\n  k_comp: 0.0\n  k_gap: 0.0\n  k_gap_c: 80.0\n  k_lower: 0.0\n  k_potential: 1.0\n  k_reg: 0.0\n  k_target: 1.0\n  k_wrench: [[1.0, 0.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]\n  k_xy: 0.0\n  narrow_phase_candidate_tol: 0.1\n  narrow_phase_scene_tol: 0.005\n  rho: 0.01\n  w_box: 2.0\nforce_solver:\n  beta_consensus: 1.0\n  beta_contact: 1.0\n  beta_update_interval: 20\n  max_iters: 1000\n  tol_abs: 0.001\n  tol_rel: 0.0001\nschedule:\n  times: [0.0, 0.3333333333333333, 0.6666666666666666, 1.0]\n  max_iters_warmup: 50\n  max_iters_final: 75\n  # Cosine schedule from agent/env/components/action/pose_solver.py.\n  # Each weight is the sum of its coefficient * named basis; see the guide.\n  objective_weights:\n    k_wrench: {ramp: 1.0}\n    k_comp: {ramp: 10.0}\n    k_gap_c: {constant: 40.0, ramp: 150.0, gap_feedback: 100000.0}\n    k_gap: {sine: 10.0}\n    k_target: {anti_ramp: 5.0}\n    k_xy: {anti_ramp: 1.0}\n    k_potential: {constant: 0.10, anti_ramp: 0.10}\n    k_reg: {anti_ramp: 3.0}\n    k_lower: {anti_ramp: 5.0}\nscene:\n  frame_id: 1\n  target_model_id: 1000000\n  target_entity_id: 1000001\n  target_friction: 1.0\n  target_sharpness: 20\n  target_epsilon: 1.0e-09\n  placed_as_boundaries: false\n  boundary_radius: 0.5\n"
+      }
+    },
+    {
+      "seed": 1,
+      "placed_before": 15,
+      "placed_after": 16,
+      "source": ".benchmarks/excavator-profiles-20261007/states/15.pkl",
+      "source_sha256": "87787e66c5fe7c3e65af1d4e41d481dac79af00a5da9b9e12232098d2acb92e4",
+      "selected": {
+        "object_id": 42,
+        "pose": [
+          0.23354975879192352,
+          2.3688747882843018,
+          0.310166597366333,
+          -0.6407307870197847,
+          0.409750722621021,
+          -0.5301447417845484,
+          0.3748532467976675
+        ]
+      },
+      "statistics": {
+        "step": 16,
+        "elapsed_seconds": 70.26125346298795,
+        "completed_iterations": 1024,
+        "expansion_calls": 338,
+        "generated_candidates": 1082,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 1125,
+        "failed_evaluations": 894,
+        "effective_max_depth": 4,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 9,
+          "short_jobs": 1050,
+          "short_parallel_batches": 9,
+          "short_parallel_jobs": 1050,
+          "long_batches": 3,
+          "long_jobs": 75,
+          "short_max_batch_size": 254,
+          "max_evaluation_batch_size": 254,
+          "workers": 512,
+          "pose_generation_seconds": 20.080748467036756,
+          "pose_generation_batches": 23,
+          "pose_generation_node_requests": 338,
+          "pose_generation_max_node_batch": 49,
+          "descendant_frontier_batches": 8,
+          "descendant_frontier_iterations": 1019,
+          "short_batch_wall_seconds": 34.01209933010978,
+          "long_batch_wall_seconds": 13.555452388012782,
+          "short_settling_job_seconds": 2.241529743972937,
+          "short_structural_job_seconds": 6.0649913329398295,
+          "long_settling_job_seconds": 0.28438186299172225,
+          "long_structural_job_seconds": 3.1143937900196756
+        },
+        "revalidation": {
+          "attempted": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 32,
+          "accepted": 5,
+          "rejected": 27,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 5,
+          "attempted": 5,
+          "generated": 15,
+          "evaluated": 15
+        },
+        "root_retry": {
+          "rounds": 0,
+          "retired": 0,
+          "generated": 0,
+          "accepted": 0
+        },
+        "floor_fill_fallback": {
+          "attempted": false,
+          "pools": 0,
+          "generated": 0,
+          "accepted": 0,
+          "selected": false
+        },
+        "descendant_validation": {
+          "attempts": 43,
+          "failures": 2
+        },
+        "final_selection_mode": "mixed",
+        "tree": {
+          "nodes": 1083,
+          "evaluated": 1083,
+          "pending": 0,
+          "failed": 894,
+          "leaves": 1004,
+          "frontier_leaves": 1004,
+          "max_depth": 4,
+          "rejection_reasons": {
+            "place_robustness": 739,
+            "target_motion_limit": 105,
+            "active_floor_above_active_layer": 92,
+            "posegen_geometry_failure": 42,
+            "posegen_gap": 16,
+            "active_floor_disconnected_active_layer": 99,
+            "simulation_unsettled": 22,
+            "stone_outside_target": 28
+          },
+          "generation_rejections": {
+            "active_floor_above_active_layer": 92,
+            "posegen_geometry_failure": 42,
+            "posegen_gap": 16,
+            "active_floor_disconnected_active_layer": 99
+          }
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 90,
+              "rejected": 6,
+              "duplicate_rejections": 0,
+              "retained": 90,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 81,
+              "rejected": 15,
+              "duplicate_rejections": 15,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 78,
+              "rejected": 18,
+              "duplicate_rejections": 7,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "active_floor_disconnected_active_layer": 36,
+            "posegen_gap": 2,
+            "posegen_geometry_failure": 1
+          },
+          "final_candidates": 32
+        }
+      },
+      "counts": {
+        "retained_descendants": 1050,
+        "retained_short_only_passes": 56,
+        "already_preserved": 16,
+        "discarded_short_only_passes": 40,
+        "consumed_object": 2,
+        "eligible_unique": 7,
+        "duplicate_existing_proposal": 7,
+        "connected_to_missing_stone": 2,
+        "missing_direct_support": 20,
+        "duplicate_cohort_proposal": 2,
+        "old_parent_long_passes": 7,
+        "refresh_passes": 7,
+        "new_scene_long_passes": 6,
+        "passes_in_both": 6,
+        "new_pass_old_fail": 0
+      },
+      "timings": {
+        "collection_seconds": 0.008382822998100892,
+        "old_parent_long_seconds": 0.8093384109961335,
+        "refresh_seconds": 0.13265169400256127,
+        "new_scene_long_seconds": 1.3481953970040195
+      },
+      "candidates": [
+        {
+          "object_id": 44,
+          "depth": 4,
+          "old_pose": [
+            -0.1443748027086258,
+            -2.4043471813201904,
+            0.3135003447532654,
+            -0.436604808906874,
+            -0.8749249799292187,
+            -0.005964518210229542,
+            0.20939662093206796
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              30,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              9,
+              17,
+              27,
+              28,
+              34
+            ],
+            "support_sources": [
+              "ground",
+              17
+            ],
+            "shared_component_max_translation_m": 1.7328403959262346e-05,
+            "shared_component_max_rotation_degrees": 0.0024553164465835942
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 1.2303771648471535,
+          "initialization_rejection": null,
+          "solve_valid": true,
+          "refresh_rejection": null,
+          "pose_change": {
+            "translation_m": 0.0025129096322213194,
+            "rotation_degrees": 0.7918428010989144
+          },
+          "refreshed_pose": [
+            -0.1463548243045807,
+            -2.402801990509033,
+            0.3135816752910614,
+            -0.4305402632741911,
+            -0.8778606037831987,
+            -0.0044617188760720785,
+            0.20970439930974014
+          ],
+          "new_scene_long": {
+            "passed": false,
+            "reason": "place_robustness"
+          },
+          "new_scene_reward": 1.3112369176620466
+        },
+        {
+          "object_id": 45,
+          "depth": 4,
+          "old_pose": [
+            0.3356778621673584,
+            -2.377098560333252,
+            0.2822556495666504,
+            -0.34485869959798676,
+            0.7233772143596234,
+            0.44769745234355734,
+            -0.3966924176512393
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              30,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              35
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_existing_proposal"
+        },
+        {
+          "object_id": 52,
+          "depth": 4,
+          "old_pose": [
+            0.12974396347999573,
+            -2.260171413421631,
+            0.24740482866764069,
+            0.7663185618046993,
+            0.10542135715370872,
+            -0.09690053788294359,
+            0.6263006347174206
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              30,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              9,
+              17,
+              27,
+              28,
+              42
+            ],
+            "support_sources": [
+              "ground",
+              17
+            ],
+            "shared_component_max_translation_m": 1.7328403959262346e-05,
+            "shared_component_max_rotation_degrees": 0.0024553164465835942
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 1.3197365115764441,
+          "initialization_rejection": null,
+          "solve_valid": true,
+          "refresh_rejection": null,
+          "pose_change": {
+            "translation_m": 0.00018974835407862574,
+            "rotation_degrees": 0.21468593137129716
+          },
+          "refreshed_pose": [
+            0.12971390783786774,
+            -2.260236978530884,
+            0.24758033454418182,
+            0.7663295262015932,
+            0.1038633652255251,
+            -0.0979374421059584,
+            0.6263862355363604
+          ],
+          "new_scene_long": {
+            "passed": true,
+            "reason": null
+          },
+          "new_scene_reward": 1.3226134755886596
+        },
+        {
+          "object_id": 40,
+          "depth": 4,
+          "old_pose": [
+            -0.8934906125068665,
+            2.4841489791870117,
+            0.3289935290813446,
+            -0.6609311355384458,
+            0.2764366423053786,
+            0.19774674338590267,
+            -0.6690657982194715
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              21,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [
+              21,
+              47
+            ],
+            "contact_component_indices": [
+              6,
+              13,
+              16,
+              21,
+              24,
+              30,
+              33,
+              45,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              33
+            ],
+            "shared_component_max_translation_m": 1.1506938724478143e-05,
+            "shared_component_max_rotation_degrees": 0.002400500568399518
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "connected_to_missing_stone"
+        },
+        {
+          "object_id": 12,
+          "depth": 4,
+          "old_pose": [
+            -0.7096286416053772,
+            2.5950589179992676,
+            0.31210795044898987,
+            0.7490349729620673,
+            0.133407856036034,
+            0.0015446333571876815,
+            -0.6489580628479591
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              21,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              20,
+              21,
+              47
+            ],
+            "contact_component_indices": [
+              6,
+              11,
+              13,
+              16,
+              20,
+              21,
+              24,
+              33,
+              45,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              33,
+              47
+            ],
+            "shared_component_max_translation_m": 1.1506938724478143e-05,
+            "shared_component_max_rotation_degrees": 0.002400500568399518
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 52,
+          "depth": 4,
+          "old_pose": [
+            0.13706377148628235,
+            -2.265346050262451,
+            0.24768568575382233,
+            0.7753845830282184,
+            0.12071999566490045,
+            -0.08276710425469319,
+            0.6142923062371163
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              21,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              9,
+              17,
+              27,
+              28,
+              42
+            ],
+            "support_sources": [
+              "ground",
+              17
+            ],
+            "shared_component_max_translation_m": 1.7328403959262346e-05,
+            "shared_component_max_rotation_degrees": 0.0024553164465835942
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_cohort_proposal"
+        },
+        {
+          "object_id": 50,
+          "depth": 4,
+          "old_pose": [
+            -0.5688788890838623,
+            -2.376469850540161,
+            0.2837998569011688,
+            0.4460118871053205,
+            0.18239698739895732,
+            0.4918167140938213,
+            0.7252041473174929
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              11,
+              20,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              40
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_existing_proposal"
+        },
+        {
+          "object_id": 52,
+          "depth": 4,
+          "old_pose": [
+            0.5114396214485168,
+            -2.3203742504119873,
+            0.24745623767375946,
+            -0.1283047455671234,
+            0.7514201755071755,
+            0.6425598651444745,
+            0.07760432855991896
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              11,
+              20,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              42
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_existing_proposal"
+        },
+        {
+          "object_id": 11,
+          "depth": 4,
+          "old_pose": [
+            -0.7391886115074158,
+            2.6108033657073975,
+            0.3751489222049713,
+            0.8504141341705599,
+            -0.1427959512481845,
+            -0.504495810294459,
+            -0.043463710212089814
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              14,
+              20,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              14,
+              47
+            ],
+            "contact_component_indices": [
+              6,
+              10,
+              13,
+              14,
+              16,
+              24,
+              33,
+              45,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              47
+            ],
+            "shared_component_max_translation_m": 1.1506938724478143e-05,
+            "shared_component_max_rotation_degrees": 0.002400500568399518
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 44,
+          "depth": 4,
+          "old_pose": [
+            -0.5710532665252686,
+            -2.3929245471954346,
+            0.25352466106414795,
+            0.07123484173994389,
+            -0.03222603965418497,
+            -0.9568081110633238,
+            -0.28000949679238796
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              35,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              34
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 2.657143623052661,
+          "initialization_rejection": null,
+          "solve_valid": true,
+          "refresh_rejection": null,
+          "pose_change": {
+            "translation_m": 0.0002684863171402851,
+            "rotation_degrees": 0.014606675344982568
+          },
+          "refreshed_pose": [
+            -0.57127845287323,
+            -2.3927862644195557,
+            0.25357213616371155,
+            0.07119522039124779,
+            -0.03223232087245207,
+            -0.9567766510646275,
+            -0.2801263251859294
+          ],
+          "new_scene_long": {
+            "passed": true,
+            "reason": null
+          },
+          "new_scene_reward": 2.639773039597476
+        },
+        {
+          "object_id": 44,
+          "depth": 4,
+          "old_pose": [
+            0.37242522835731506,
+            -2.388538122177124,
+            0.2535165250301361,
+            -0.03182856330615579,
+            -0.07132119606036448,
+            0.27872413086636805,
+            -0.9571902049348252
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              40,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              34
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_existing_proposal"
+        },
+        {
+          "object_id": 45,
+          "depth": 4,
+          "old_pose": [
+            0.5058370232582092,
+            -2.3320374488830566,
+            0.2822941839694977,
+            -0.34123126378387286,
+            0.7260787599170736,
+            0.4480566083794304,
+            -0.3944821094818716
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              40,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              35
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_existing_proposal"
+        },
+        {
+          "object_id": 44,
+          "depth": 4,
+          "old_pose": [
+            0.34813740849494934,
+            -2.4095611572265625,
+            0.25345441699028015,
+            0.07151128053758249,
+            -0.032369277022765985,
+            -0.9577660161583649,
+            -0.27662723104031756
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              34
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 1.3115606084855251,
+          "initialization_rejection": null,
+          "solve_valid": true,
+          "refresh_rejection": null,
+          "pose_change": {
+            "translation_m": 0.0028849208418779866,
+            "rotation_degrees": 0.021018668741092993
+          },
+          "refreshed_pose": [
+            0.34527963399887085,
+            -2.4091672897338867,
+            0.25342682003974915,
+            0.07145931296298734,
+            -0.032379238549609744,
+            -0.9578179943941689,
+            -0.2764594746369474
+          ],
+          "new_scene_long": {
+            "passed": true,
+            "reason": null
+          },
+          "new_scene_reward": 1.3345502832246359
+        },
+        {
+          "object_id": 40,
+          "depth": 4,
+          "old_pose": [
+            0.7155197262763977,
+            2.882354497909546,
+            0.3331626057624817,
+            -0.613395239715513,
+            -0.03565843924890355,
+            -0.02801142750025209,
+            -0.7884732814332256
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              47
+            ],
+            "direct_missing_indices": [
+              20
+            ],
+            "connected_missing_indices": [
+              20
+            ],
+            "contact_component_indices": [
+              20,
+              24,
+              30
+            ],
+            "support_sources": [
+              "ground",
+              20
+            ],
+            "shared_component_max_translation_m": 2.1073424255447017e-07,
+            "shared_component_max_rotation_degrees": 4.883704664000925e-05
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 44,
+          "depth": 4,
+          "old_pose": [
+            0.0674145296216011,
+            -2.4773805141448975,
+            0.25347840785980225,
+            0.07128299123482952,
+            -0.031990856362180534,
+            -0.9581990370782664,
+            -0.27522704375135965
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              34
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 1.2893365902300804,
+          "initialization_rejection": null,
+          "solve_valid": true,
+          "refresh_rejection": null,
+          "pose_change": {
+            "translation_m": 0.000400846554242719,
+            "rotation_degrees": 0.019895076130187626
+          },
+          "refreshed_pose": [
+            0.06751754134893417,
+            -2.4770047664642334,
+            0.25357264280319214,
+            0.07135693545572609,
+            -0.031873549447038636,
+            -0.9581687204208097,
+            -0.2753270197695145
+          ],
+          "new_scene_long": {
+            "passed": true,
+            "reason": null
+          },
+          "new_scene_reward": 1.275213095717467
+        },
+        {
+          "object_id": 45,
+          "depth": 4,
+          "old_pose": [
+            0.3371654450893402,
+            -2.3778278827667236,
+            0.2822965085506439,
+            -0.3542840681798065,
+            0.7187415164558979,
+            0.4421942410956517,
+            -0.40293632834293225
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              35
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_existing_proposal"
+        },
+        {
+          "object_id": 39,
+          "depth": 4,
+          "old_pose": [
+            -0.745390772819519,
+            2.473874568939209,
+            0.34815067052841187,
+            0.38075302118907045,
+            0.26507206419857093,
+            -0.45973274782811696,
+            -0.7572382308172991
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              34,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              6,
+              13,
+              16,
+              24,
+              29,
+              33,
+              45,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              33,
+              47
+            ],
+            "shared_component_max_translation_m": 1.1506938724478143e-05,
+            "shared_component_max_rotation_degrees": 0.002400500568399518
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 45,
+          "depth": 4,
+          "old_pose": [
+            -0.9155297875404358,
+            2.394995927810669,
+            0.28219470381736755,
+            0.7206015745164793,
+            0.3498079266247316,
+            0.3997492249368362,
+            0.4456100789224543
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              34,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              35
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 2.05599863239462,
+          "initialization_rejection": null,
+          "solve_valid": true,
+          "refresh_rejection": null,
+          "pose_change": {
+            "translation_m": 0.015793481823428213,
+            "rotation_degrees": 0.6374550865265364
+          },
+          "refreshed_pose": [
+            -0.9306666851043701,
+            2.3904900550842285,
+            0.2822689414024353,
+            0.7214905756400004,
+            0.3465923434637094,
+            0.39701027430729396,
+            0.44911906974592186
+          ],
+          "new_scene_long": {
+            "passed": true,
+            "reason": null
+          },
+          "new_scene_reward": 2.038727021742273
+        },
+        {
+          "object_id": 47,
+          "depth": 4,
+          "old_pose": [
+            0.7924872040748596,
+            2.8693246841430664,
+            0.33815398812294006,
+            -0.5691560460092853,
+            0.1429029244373064,
+            -0.6199279972678615,
+            0.5208929138333525
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              34,
+              47
+            ],
+            "direct_missing_indices": [
+              20,
+              47
+            ],
+            "connected_missing_indices": [
+              20,
+              47
+            ],
+            "contact_component_indices": [
+              20,
+              24,
+              33,
+              37,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              20,
+              47
+            ],
+            "shared_component_max_translation_m": 7.975281886553293e-06,
+            "shared_component_max_rotation_degrees": 0.0014113764141445463
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 49,
+          "depth": 4,
+          "old_pose": [
+            -0.6842458844184875,
+            2.534787178039551,
+            0.37134239077568054,
+            0.18176342097085826,
+            0.6944683022283547,
+            -0.6961639947256024,
+            -0.005615019566178043
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              34,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              6,
+              13,
+              16,
+              24,
+              33,
+              39,
+              45,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              33,
+              47
+            ],
+            "shared_component_max_translation_m": 1.1506938724478143e-05,
+            "shared_component_max_rotation_degrees": 0.002400500568399518
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 50,
+          "depth": 4,
+          "old_pose": [
+            0.7360878586769104,
+            2.8419556617736816,
+            0.28693822026252747,
+            0.4421023301627368,
+            0.19410310128868866,
+            0.47352053356909257,
+            0.7366463330684768
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              20,
+              34,
+              47
+            ],
+            "direct_missing_indices": [
+              20,
+              47
+            ],
+            "connected_missing_indices": [
+              20,
+              47
+            ],
+            "contact_component_indices": [
+              20,
+              24,
+              33,
+              40,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              20,
+              47
+            ],
+            "shared_component_max_translation_m": 7.975281886553293e-06,
+            "shared_component_max_rotation_degrees": 0.0014113764141445463
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 11,
+          "depth": 4,
+          "old_pose": [
+            -0.6627230644226074,
+            2.721414804458618,
+            0.37231189012527466,
+            0.8449433674808275,
+            -0.12761420947091204,
+            -0.5143366232527725,
+            -0.07240964902697059
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              7,
+              20,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              7,
+              20,
+              47
+            ],
+            "contact_component_indices": [
+              6,
+              7,
+              10,
+              13,
+              16,
+              20,
+              24,
+              33,
+              45,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              47
+            ],
+            "shared_component_max_translation_m": 1.1506938724478143e-05,
+            "shared_component_max_rotation_degrees": 0.002400500568399518
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 2,
+          "depth": 4,
+          "old_pose": [
+            0.5961716771125793,
+            -2.3835206031799316,
+            0.3772695064544678,
+            -0.7843785041239577,
+            0.5777527948718966,
+            0.22518114264124986,
+            -0.01566918264478879
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              11,
+              35,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              1,
+              9,
+              17,
+              27,
+              28,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              17,
+              47
+            ],
+            "shared_component_max_translation_m": 1.7564063868733873e-05,
+            "shared_component_max_rotation_degrees": 0.0024533931113396405
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 2,
+          "depth": 4,
+          "old_pose": [
+            0.5961716771125793,
+            -2.3835206031799316,
+            0.3772695064544678,
+            -0.7843785041239577,
+            0.5777527948718966,
+            0.22518114264124986,
+            -0.01566918264478879
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              11,
+              35,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              1,
+              9,
+              17,
+              27,
+              28,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              17,
+              47
+            ],
+            "shared_component_max_translation_m": 1.7564063868733873e-05,
+            "shared_component_max_rotation_degrees": 0.0024533931113396405
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 3,
+          "depth": 4,
+          "old_pose": [
+            0.6016790270805359,
+            -2.6150715351104736,
+            0.3263097405433655,
+            -0.7469533830518332,
+            0.603815507984206,
+            -0.25830647863405143,
+            -0.10365924445447608
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              11,
+              35,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              2,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              47
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 6,
+          "depth": 4,
+          "old_pose": [
+            0.6005668640136719,
+            -2.312343120574951,
+            0.40261122584342957,
+            -0.0004890750068546214,
+            -0.873554013382737,
+            -0.1423403559551304,
+            -0.46544856813091307
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              11,
+              35,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              5,
+              9,
+              17,
+              27,
+              28,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              17,
+              47
+            ],
+            "shared_component_max_translation_m": 1.7564063868733873e-05,
+            "shared_component_max_rotation_degrees": 0.0024533931113396405
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 44,
+          "depth": 4,
+          "old_pose": [
+            0.6175112724304199,
+            -2.429743528366089,
+            0.2535223066806793,
+            -0.032153650447841575,
+            -0.07116625309613078,
+            0.27696725148622203,
+            -0.957700709401065
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              11,
+              35,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              34
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": null,
+          "old_parent_long": {
+            "passed": true,
+            "reason": null
+          },
+          "old_parent_long_reward": 1.288037780016131,
+          "initialization_rejection": null,
+          "solve_valid": true,
+          "refresh_rejection": null,
+          "pose_change": {
+            "translation_m": 0.0001836667417246249,
+            "rotation_degrees": 0.026242117618373487
+          },
+          "refreshed_pose": [
+            0.6176372766494751,
+            -2.4298675060272217,
+            0.25357216596603394,
+            -0.032005126971764324,
+            -0.07129762199721006,
+            0.2770759415902801,
+            -0.957664473360542
+          ],
+          "new_scene_long": {
+            "passed": true,
+            "reason": null
+          },
+          "new_scene_reward": 1.2717571354960824
+        },
+        {
+          "object_id": 6,
+          "depth": 4,
+          "old_pose": [
+            0.6005668640136719,
+            -2.312343120574951,
+            0.40261122584342957,
+            -0.0004890750068546214,
+            -0.873554013382737,
+            -0.1423403559551304,
+            -0.46544856813091307
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              11,
+              35,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              5,
+              9,
+              17,
+              27,
+              28,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              17,
+              47
+            ],
+            "shared_component_max_translation_m": 1.7564063868733873e-05,
+            "shared_component_max_rotation_degrees": 0.0024533931113396405
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 6,
+          "depth": 4,
+          "old_pose": [
+            0.6005668640136719,
+            -2.312343120574951,
+            0.40261122584342957,
+            -0.0004890750068546214,
+            -0.873554013382737,
+            -0.1423403559551304,
+            -0.46544856813091307
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              11,
+              35,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              5,
+              9,
+              17,
+              27,
+              28,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              17,
+              47
+            ],
+            "shared_component_max_translation_m": 1.7564063868733873e-05,
+            "shared_component_max_rotation_degrees": 0.0024533931113396405
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 6,
+          "depth": 4,
+          "old_pose": [
+            0.6005668640136719,
+            -2.312343120574951,
+            0.40261122584342957,
+            -0.0004890750068546214,
+            -0.873554013382737,
+            -0.1423403559551304,
+            -0.46544856813091307
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              11,
+              35,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              5,
+              9,
+              17,
+              27,
+              28,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              17,
+              47
+            ],
+            "shared_component_max_translation_m": 1.7564063868733873e-05,
+            "shared_component_max_rotation_degrees": 0.0024533931113396405
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 6,
+          "depth": 4,
+          "old_pose": [
+            0.6233882308006287,
+            -2.3686859607696533,
+            0.4042418599128723,
+            -0.6050613355117702,
+            -0.6310735170277677,
+            0.2537838746424358,
+            -0.413812447065563
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              11,
+              35,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              5,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              47
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 6,
+          "depth": 4,
+          "old_pose": [
+            0.6233882308006287,
+            -2.3686859607696533,
+            0.4042418599128723,
+            -0.6050613355117702,
+            -0.6310735170277677,
+            0.2537838746424358,
+            -0.413812447065563
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              11,
+              35,
+              47
+            ],
+            "direct_missing_indices": [
+              47
+            ],
+            "connected_missing_indices": [
+              47
+            ],
+            "contact_component_indices": [
+              5,
+              47
+            ],
+            "support_sources": [
+              "ground",
+              47
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 50,
+          "depth": 4,
+          "old_pose": [
+            -0.8671544790267944,
+            2.567220687866211,
+            0.28782302141189575,
+            -0.039633684267821746,
+            0.523528949304662,
+            0.7588335236470264,
+            -0.38538071267352403
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              1,
+              35,
+              47
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [
+              35
+            ],
+            "contact_component_indices": [
+              6,
+              13,
+              16,
+              24,
+              33,
+              35,
+              40,
+              45
+            ],
+            "support_sources": [
+              "ground",
+              33
+            ],
+            "shared_component_max_translation_m": 1.2262668850920247e-05,
+            "shared_component_max_rotation_degrees": 0.0027380663264288184
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "connected_to_missing_stone"
+        },
+        {
+          "object_id": 50,
+          "depth": 4,
+          "old_pose": [
+            0.8755955696105957,
+            2.7979745864868164,
+            0.2897613048553467,
+            0.4579781697506473,
+            -0.16100888325537258,
+            -0.15722425644575957,
+            0.8600073655090303
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              1,
+              35,
+              47
+            ],
+            "direct_missing_indices": [
+              35
+            ],
+            "connected_missing_indices": [
+              35
+            ],
+            "contact_component_indices": [
+              24,
+              35,
+              40
+            ],
+            "support_sources": [
+              "ground",
+              35
+            ],
+            "shared_component_max_translation_m": 4.777675730550706e-07,
+            "shared_component_max_rotation_degrees": 4.485359797979593e-05
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 52,
+          "depth": 4,
+          "old_pose": [
+            -0.6892316937446594,
+            2.5248708724975586,
+            0.29397380352020264,
+            -0.5399873061058114,
+            0.39058463350548567,
+            -0.6412563091661895,
+            0.38032578044162446
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              1,
+              35,
+              47
+            ],
+            "direct_missing_indices": [
+              35
+            ],
+            "connected_missing_indices": [
+              35
+            ],
+            "contact_component_indices": [
+              6,
+              13,
+              16,
+              24,
+              33,
+              35,
+              42,
+              45
+            ],
+            "support_sources": [
+              "ground",
+              33,
+              35
+            ],
+            "shared_component_max_translation_m": 1.2262668850920247e-05,
+            "shared_component_max_rotation_degrees": 0.0027380663264288184
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 30,
+          "depth": 4,
+          "old_pose": [
+            -0.749701201915741,
+            2.688689947128296,
+            0.2996143102645874,
+            0.6485272826995648,
+            0.5842289550765808,
+            0.4568370288337209,
+            0.17143167948434493
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              34,
+              35,
+              47
+            ],
+            "direct_missing_indices": [
+              35
+            ],
+            "connected_missing_indices": [
+              35
+            ],
+            "contact_component_indices": [
+              20,
+              24,
+              35
+            ],
+            "support_sources": [
+              "ground",
+              35
+            ],
+            "shared_component_max_translation_m": 4.777675730550706e-07,
+            "shared_component_max_rotation_degrees": 4.485359797979593e-05
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "missing_direct_support"
+        },
+        {
+          "object_id": 44,
+          "depth": 4,
+          "old_pose": [
+            0.06779168546199799,
+            -2.4770758152008057,
+            0.2534659802913666,
+            0.07129174615888738,
+            -0.03199309958938978,
+            -0.9581925658512804,
+            -0.27524704404519884
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              15,
+              31,
+              42
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              34
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_cohort_proposal"
+        },
+        {
+          "object_id": 45,
+          "depth": 4,
+          "old_pose": [
+            0.3370349407196045,
+            -2.377387523651123,
+            0.28225669264793396,
+            -0.34894055689937764,
+            0.721413562366926,
+            0.4453375626905715,
+            -0.3993462345391965
+          ],
+          "dependencies": {
+            "known": true,
+            "missing_parent_indices": [
+              15,
+              31,
+              42
+            ],
+            "direct_missing_indices": [],
+            "connected_missing_indices": [],
+            "contact_component_indices": [
+              35
+            ],
+            "support_sources": [
+              "ground"
+            ],
+            "shared_component_max_translation_m": 0.0,
+            "shared_component_max_rotation_degrees": 0.0
+          },
+          "old_rejection_reason": null,
+          "screen_rejection": "duplicate_existing_proposal"
+        }
+      ],
+      "profiles": {
+        "apps/excavator/config/mcts_cpu.yml": "# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 3\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 12\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 8  # Depth 1 until 8 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 12\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 30.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 1\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cpu  # cpu or cuda\n  simulation_backend: cpu  # cpu or cuda\n  # Local native worker allocation; separate from legacy Ray resource settings.\n  enabled: true\n  workers: 12\nroot_cem:\n  population: 96\n  elite: 24\n  iterations: 3\n  keep: 12\n  mutation_xy_std: 0.1\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/inventory.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobjects:\n  model_directory: apps/excavator/assets/objects\n  ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58]\n  density: 1000.0\n  density_overrides: {}\ntarget:\n  # stacking-planner agent/configs/ablation.yml: environment.target.\n  width: 2.0\n  length: 6.0\n  height: 2.5\n  origin: [0.0, 0.0, 0.0]\n  support_overlap: 0.02\n  taper_degrees:\n    width_positive: 5.0\n    width_negative: 5.0\n    length_positive: 5.0\n    length_negative: 5.0\n",
+        "apps/excavator/config/perception.yml": "# Desktop perception defaults in SI units. Quality gates require field commissioning.\n# Opening polynomial: legacy assets/opening_angle_fit.npy, stone_grab fit.\nvoxel_size: 0.01\nground_clearance: 0.08\nfield_ground_removal: false  # Experimental opt-in; legacy field recovery retains ground.\nminimum_points: 100\nmaximum_timestamp_skew_ns: 50000000\nfield:\n  voxel_sizes: [0.1, 0.05, 0.02, 0.01]\n  max_iterations: [50, 30, 14, 7]\ninhand:\n  voxel_sizes: [0.1, 0.05, 0.02]\n  max_iterations: [50, 30, 14]\ngripper_alignment_quality:\n  minimum_target_coverage: 0.05\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.1\n  maximum_correction_rotation_degrees: 10.0\nquality:\n  minimum_target_coverage: 0.35\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.6\n  maximum_correction_rotation_degrees: 180.0\nambiguity:\n  ambiguity_score_gap: 0.015\n  distinct_translation: 0.05\n  distinct_rotation_degrees: 15.0\nopening:\n  # Calibration polynomial coefficients are preserved; polynomial output is radians.\n  coefficients: [-7.418032620929303, 46.96298872999542, -110.41168530520477, 116.254686079056, -47.56854082012381]\n  source_sha256: c419e987d8f8fc976fa5ae3efdde668da9b45615ba46051432035a1f1bc2d1ee\n  limits_degrees: [-65.31718864491384, 0.0]\n  maximum_measured_difference_degrees: 11.459155902616464\n  minimum_jaw_points: 30\n  gripper_removal_distance: 0.06\n",
+        "apps/excavator/config/action_generation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\ninitialization:\n  # Excavator initializes from model_<id>_mesh.ply and pads both XY footprints.\n  height_clearance: 0.15\n  xy_padding: 0.12\nfiltering:\n  posegen_gap_threshold: 0.005\n  posegen_equilibrium_threshold: 1.0\n  # Prefer this restriction; exhausted search retries without floor-fill gates.\n  strict_floor_first: true\n  require_solver_convergence: false\n  reject_equilibrium_at_threshold: true\nplanar:\n  grid_shape: [32, 32]\n  yaw_angles_degrees: [0, 90, 180, 270]\n  minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.\n  target_anchor_inset_scale: 0.6\n  floor:\n    # Advance at fill_ratio coverage of the base in top-down projection.\n    coverage_mode: projected_footprint\n    bottom_tolerance: 0.2\n    fill_ratio: 0.75\n    grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.\n    max_layers: 8\n    minimum_contact_cells: 1\n  boltzmann_temperature: 0.3\n  boltzmann_min_probability: 0.0\n  target_mask_margin: 0.0\n  contact_gap_tolerance: 0.10\n  # The only proposal-score weights. Edit these named values for ablations.\n  score:\n    height: -3.0\n    support_likelihood: 2.0\n    open_area: 1.0\n    fill_area: 2.0\n    frontier: 1.0\n    target_boundary: 1.5\n    excavator_distance: 2.0\n    excavator_distance_axis: xy\n    excavator_xy: null\n    elite_fraction: 0.25\n  floor_fill:\n    # Legacy proposal-kernel settings; planar.floor owns the shared layer rules.\n    connected_after: 1\n    u_shape_filter: false\n    u_shape_footprint_scale: 0.9\n    u_shape_min_frontier_contact_cells: 1\n    lower_floor_fill_ratio: 0.6\n    lower_floor_occupancy_grid: 16\n    lower_floor_bottom_z_tolerance: 0.2\n    lower_floor_max_layers: 8\norientation:\n  pose_from_scan: false\n  roll_angles_degrees: [0, 180]\n",
+        "apps/excavator/config/visualization.yml": "units: si\nenvironment:\n  default_layers:\n    ground: true\n    support: false\n    obstacle: true\n  # Search coordinates are stack-local. Plan replay uses recorded world planes.\n  boxes:\n    - id: search_ground\n      layer: ground\n      minimum: [-3.0, -3.0, -0.03]\n      maximum: [3.0, 3.0, 0.0]\n      color: [0.28, 0.33, 0.25]\n      opacity: 1.0\n",
+        "apps/excavator/config/environment.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobservation:\n  action_sample_count: 96\n  max_poses_per_object: 32\n  surface_sample_count: 128\n  banned_object_ids: []\n  height_map_resolution: [128, 128]\n  height_map_margin: 1.0\n  render_height_map: true\nreward:\n  overlap_resolution: 0.03\n  posegen_threshold: 1.0\n  containment_threshold: 0.5\n  nonfinite_displacement: 2.0\n  max_displacement: 1.0\n  # Placement uncertainty; Z perturbations are always upward.\n  place_stability:\n    enabled: true\n    n_noise: 4\n    position_std: [0.02, 0.02, 0.02]  # Gaussian scales; Z uses abs(sample).\n    rotation_std_deg: 5.0\n    rotation_weight: 0.1\n    # Reject if any noisy trial exceeds the motion limit or does not settle.\n    reject_failed_trials: true\n    # Worst trial: translation (m) + rotation_weight * angular distance (rad).\n    fail_displacement: 0.15\n    seed: 0\n  weights:\n    stability: 2.0\n    object_containment: 2.0\n    target_overlap_increment: 20.0\n    place_stability: 2.0\n    large_object_lower: 3.0\n    inward_orientation: 6.0\n",
+        "apps/excavator/config/mcts_cuda.yml": "# Explicit CUDA search profile; select with --config.\n# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 4\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 32\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 12  # Depth 1 until 12 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 256  # Stream 128-placement chunks; native robustness capacity is 512.\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 60.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 2\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cuda  # cpu or cuda\n  simulation_backend: cuda  # cpu or cuda\n  # CPU reward/observation workers overlap the next CUDA placement chunk.\n  enabled: true\n  workers: 4\nroot_cem:\n  population: 96\n  elite: 32\n  iterations: 3\n  keep: 32\n  mutation_xy_std: 0.2\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/planning.yml": "units: si\n# Angular fields use degrees explicitly; poses remain [x, y, z, qx, qy, qz, qw].\nframes:\n  world: world\n  stack: stack\n  world_T_stack: [-6.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0]\nrobot:\n  urdf: apps/excavator/assets/excavator_3/vdk23_cx_ik.urdf\n  tool_link: grip_body\n  home_positions_degrees: [60.0, 45.0, -60.0, -78.54084409738354, 0.0, 0.0]\n  link_from_tool: &id001 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]\n  gripper_opening_degrees: 0.0\ngripper:\n  urdf: apps/excavator/assets/stone_grab_3/stone_grab.urdf\n  root_link: grip_body\n  grasp_from_root: *id001\n  opening_offset_degrees: [0.0, 0.0]\n  opening_direction: [1.0, 1.0]\n  opening_limits_degrees: [-80.0, 0.0]\nscene:\n  frame_id: 1\n  obstacle_friction: 5.0\n  handoff_position: [-2.0, -5.0, 0.0]\n  obstacles: []\nexcavator:\n  pick_ground_height: 0.0\n  place_ground_height: 0.0\n  handoff_ground_height: 0.0\n  place_z_offset: 0.2\n  handoff_positions: [\n    [-2, -5, 0.0],\n    [-1, -5, 0.0],\n    [-3, -5, 0.0],\n    [-2, -4, 0.0],\n    [-2, -6, 0.0],\n    [-1, -4, 0.0],\n    [-3, -4, 0.0],\n    [-1, -6, 0.0],\n    [-3, -6, 0.0],\n  ]\n",
+        "apps/excavator/config/solvers/simulation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nintegration:\n  dt: 0.01\n  gravity: [0.0, 0.0, -9.81]\n  damping: 0.0\nground:\n  z: 0.0\n  friction: 5.0\nscene:\n  frame_id: 1\nphysics:\n  settling:\n    contact:\n      model: single_point\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.001\n      tol_rel: 0.0001\n  structural:\n    contact:\n      model: limit_surface_4d\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.0001\n      tol_rel: 1.0e-05\nphases:\n  settling:\n    dt: 0.01\n    steps: 400\n    sample_count: 64\n  short_structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 0.5\n    max_time: 4.0\n    extra_steps: 20\n    final_extra_steps: 40\n    freeze_radius: 1.5\n  structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 3.0\n    max_time: 15.0\n    extra_steps: 150\n    final_extra_steps: 300\nvalidation:\n  contact_gap_tolerance: 0.02\n  minimum_support_count: 1\n  support_chain_z_tolerance: 0.05\n",
+        "apps/excavator/config/solvers/motion.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nallow_regrasp: true\nmotion:\n  boundary_weight: 20.0\n  collision_alm_beta_increase: 5.0\n  collision_alm_beta_init: 50.0\n  collision_alm_enabled: true\n  collision_alm_max_iters: 5\n  collision_alm_tol: 0.001\n  collision_margin: 0.02\n  collision_penetration_clamp: 0.02\n  collision_weight: 1000.0\n  grasped_boundary_pos_scale: 10.0\n  grasped_boundary_rot_scale: 0.5\n  ik_max_iters: 2000\n  ik_tol: 0.001\n  joint_limit_margin_degrees: 0.057295779513082325\n  joint_limit_weight: 1000.0\n  max_iters: 400\n  plane_feasibility_margin: -0.005\n  smooth_boundary_alpha: 2.0\n  smooth_weight: 50.0\n  step_size: 0.01\n  swing_smoothness_scale: 1.0\n  target_collision_tol: 0.005\n  tol: 0.0001\ninverse_kinematics:\n  initialization: provided\n  max_iters: 2000\n  tol: 0.001\ndirect:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  move_steps: 15\n  simulation_refinement: true\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\nregrasp:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  max_handoff_orientation_distance_degrees: 135.0\n  move_steps: 15\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\n  yaw_samples: 8\nstable_pose:\n  sampling_level: 2\n  stable_eigenvalue_min: -0.2\n",
+        "apps/excavator/config/solvers/grasp.yml": "# stacking-planner planning/planning.py: stone_grab attachment.\nunits: si\nsampling:\n  aperture_margin: 0.01\n  dir_samples: 80\n  include_flipped: true\n  max_candidates: 0\n  max_seeds: 120\n  max_target_width: 1.6\n  preferred_parallel_axis: [0.0, 0.0, 0.0]\n  # Legacy gripper.height (1.5 m) * surface_grasp_offset_scale (0.5).\n  retreat_distance: 0.75\n  # Legacy secondary seeds: gripper height 1.5 m times [0.65, 0.8, 1.2].\n  fallback_retreat_distances: [0.975, 1.2, 1.8]\n  fallback_min_candidates: 8\n  scene_clearance_margin: 0.05\n  spin_samples: 12\n  spin_step_degrees: 30.0\n  strategy: antipodal_surface\ngeneration:\n  contact_margin: 0.05\n  plane_separate_margin: -0.02\n  separate_margin: 0.01\ncost:\n  align: 1.0\n  antipodal_normal: 5.0\n  antipodal_position: 2.0\n  center_distance: 5.0\n  contact: 3.0\n  enclosure: 7.0\n  flatness: 0.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 2.0\nscore:\n  align: 1.0\n  center_distance: 3.0\n  enclosure: 7.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 1.0\n  teeth_gap: 2.0\ntrust_region:\n  gain_ratio_lower: 0.0\n  gain_ratio_upper: 0.75\n  improvement_tol: 0.0\n  max_iters: 200\n  radius_expansion: 2.0\n  radius_init: 0.1\n  radius_max: 0.1\n  radius_reduction: 0.25\n  step_tol: 1.0e-12\n  subproblem_tol: 0.01\nalm:\n  equality_penalty_increase: 10.0\n  equality_penalty_init: 50.0\n  equality_tol: 0.001\n  inequality_penalty_increase: 10.0\n  inequality_penalty_init: 50.0\n  inequality_tol: 0.015\n  max_iters: 20\nforce:\n  damping: 0.0001\n  enabled: true\n  friction: 1.0\n  wrench_scale: 1.0\nforce_weight:\n  complementarity: 10.0\n  cone: 10.0\n  moment: 10.0\n  wrench: 0.1\nsimulation:\n  accept_relaxed: true\n  active_impulse_tol: 0.0001\n  damping: 2.0\n  dt: 0.01\n  error_reduction_ratio: 0.2\n  friction: 1.0\n  grasp_offset_tol: [0.5, 1.0, 0.6]\n  obstacle_margin: 0.01\n  pgs_iters: 80\n  plane_obstacle_margin: 0.01\n  relaxed_velocity_tol: 0.1\n  settled_velocity_tol: 0.01\n  steps: 500\n  target_contact_margin: 0.01\n  virtual_approach_force: 5.0\n  virtual_closing_effort: 0.5\n",
+        "apps/excavator/config/solvers/posegen.yml": "# stacking-planner contexts.get_posegen, PoseSolver schedule, and diffsim defaults.\nunits: si\ntrust_region:\n  delta_expansion_rate: 2.0\n  delta_init: 0.125\n  delta_lower_thresh: 0.25\n  delta_max: 1.0\n  delta_reduction_rate: 0.25\n  delta_upper_thresh: 0.75\n  eps: 0.1\n  improvement_thresh: 0.125\n  max_iters: 100\n  tol: 1.0e-08\nhausdorff:\n  eps: 0.001\n  error_tol: 1.0e-10\n  gain_ratio_lower_thresh: 0.05\n  gain_ratio_max: 10000000000.0\n  gain_ratio_upper_thresh: 0.9\n  max_iters: 50\n  radius_expansion_rate: 3.0\n  radius_init: 10.0\n  radius_reduction_rate: 0.25\nobjective:\n  eps_comp: 0.01\n  eps_cone: 0.01\n  eps_gap: 0.01\n  eps_target: 0.05\n  gravity: 9.81\n  ground_height: 0.0\n  k_box: 20.0\n  k_comp: 0.0\n  k_gap: 0.0\n  k_gap_c: 80.0\n  k_lower: 0.0\n  k_potential: 1.0\n  k_reg: 0.0\n  k_target: 1.0\n  k_wrench: [[1.0, 0.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]\n  k_xy: 0.0\n  narrow_phase_candidate_tol: 0.1\n  narrow_phase_scene_tol: 0.005\n  rho: 0.01\n  w_box: 2.0\nforce_solver:\n  beta_consensus: 1.0\n  beta_contact: 1.0\n  beta_update_interval: 20\n  max_iters: 1000\n  tol_abs: 0.001\n  tol_rel: 0.0001\nschedule:\n  times: [0.0, 0.3333333333333333, 0.6666666666666666, 1.0]\n  max_iters_warmup: 50\n  max_iters_final: 75\n  # Cosine schedule from agent/env/components/action/pose_solver.py.\n  # Each weight is the sum of its coefficient * named basis; see the guide.\n  objective_weights:\n    k_wrench: {ramp: 1.0}\n    k_comp: {ramp: 10.0}\n    k_gap_c: {constant: 40.0, ramp: 150.0, gap_feedback: 100000.0}\n    k_gap: {sine: 10.0}\n    k_target: {anti_ramp: 5.0}\n    k_xy: {anti_ramp: 1.0}\n    k_potential: {constant: 0.10, anti_ramp: 0.10}\n    k_reg: {anti_ramp: 3.0}\n    k_lower: {anti_ramp: 5.0}\nscene:\n  frame_id: 1\n  target_model_id: 1000000\n  target_entity_id: 1000001\n  target_friction: 1.0\n  target_sharpness: 20\n  target_epsilon: 1.0e-09\n  placed_as_boundaries: false\n  boundary_radius: 0.5\n"
+      }
+    },
+    {
+      "seed": 1,
+      "placed_before": 25,
+      "placed_after": 26,
+      "source": ".benchmarks/excavator-profiles-25-20261007/states/25.pkl",
+      "source_sha256": "35c5702df09cc91d4baa94d18a7f75aafa407b053423670edfbd36dc36b4d4a7",
+      "selected": {
+        "object_id": 1,
+        "pose": [
+          0.1671963334083557,
+          -2.4593255519866943,
+          0.3429165482521057,
+          0.5469762312384199,
+          0.24376155274874953,
+          0.7009817483021753,
+          0.3873266017316121
+        ]
+      },
+      "statistics": {
+        "step": 26,
+        "elapsed_seconds": 80.86882887600223,
+        "completed_iterations": 1024,
+        "expansion_calls": 236,
+        "generated_candidates": 651,
+        "seeded_candidates": 0,
+        "execution_rejected_candidates": 0,
+        "evaluated_candidates": 662,
+        "failed_evaluations": 620,
+        "effective_max_depth": 4,
+        "timed_out": false,
+        "final_validation": {
+          "attempts": 0,
+          "failures": 0,
+          "timed_out": false
+        },
+        "simulation": {
+          "short_batches": 13,
+          "short_jobs": 619,
+          "short_parallel_batches": 13,
+          "short_parallel_jobs": 619,
+          "long_batches": 3,
+          "long_jobs": 43,
+          "short_max_batch_size": 93,
+          "max_evaluation_batch_size": 93,
+          "workers": 512,
+          "pose_generation_seconds": 29.357194844109472,
+          "pose_generation_batches": 41,
+          "pose_generation_node_requests": 236,
+          "pose_generation_max_node_batch": 12,
+          "descendant_frontier_batches": 31,
+          "descendant_frontier_iterations": 1019,
+          "short_batch_wall_seconds": 40.09574662701925,
+          "long_batch_wall_seconds": 9.97604583701468,
+          "short_settling_job_seconds": 2.200585977901938,
+          "short_structural_job_seconds": 8.314369742962299,
+          "long_settling_job_seconds": 0.2624272459943313,
+          "long_structural_job_seconds": 6.515898880024906
+        },
+        "revalidation": {
+          "attempted": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "cleared_subtrees": 0,
+          "timed_out": false
+        },
+        "root_validation": {
+          "attempted": 32,
+          "accepted": 5,
+          "rejected": 27,
+          "timed_out": false
+        },
+        "root_lookahead": {
+          "eligible": 5,
+          "attempted": 5,
+          "generated": 15,
+          "evaluated": 15
+        },
+        "root_retry": {
+          "rounds": 0,
+          "retired": 0,
+          "generated": 0,
+          "accepted": 0
+        },
+        "floor_fill_fallback": {
+          "attempted": false,
+          "pools": 0,
+          "generated": 0,
+          "accepted": 0,
+          "selected": false
+        },
+        "descendant_validation": {
+          "attempts": 11,
+          "failures": 0
+        },
+        "final_selection_mode": "mixed",
+        "tree": {
+          "nodes": 652,
+          "evaluated": 652,
+          "pending": 0,
+          "failed": 624,
+          "leaves": 629,
+          "frontier_leaves": 629,
+          "max_depth": 4,
+          "rejection_reasons": {
+            "place_robustness": 391,
+            "active_floor_above_active_layer": 335,
+            "active_floor_disconnected_active_layer": 106,
+            "posegen_geometry_failure": 32,
+            "missing_validated_descendant": 4,
+            "scene_motion_limit": 97,
+            "stone_outside_target": 54,
+            "target_motion_limit": 69,
+            "simulation_unsettled": 9,
+            "posegen_gap": 11,
+            "final_pose_outside_target": 1
+          },
+          "generation_rejections": {
+            "active_floor_above_active_layer": 335,
+            "active_floor_disconnected_active_layer": 106,
+            "posegen_geometry_failure": 32,
+            "posegen_gap": 11,
+            "final_pose_outside_target": 1
+          }
+        },
+        "cem": {
+          "rounds": [
+            {
+              "round_index": 0,
+              "attempted": 96,
+              "accepted": 88,
+              "rejected": 8,
+              "duplicate_rejections": 0,
+              "retained": 88,
+              "mutation_attempts": 0,
+              "fresh_attempts": 96,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 1,
+              "attempted": 96,
+              "accepted": 85,
+              "rejected": 11,
+              "duplicate_rejections": 31,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            },
+            {
+              "round_index": 2,
+              "attempted": 96,
+              "accepted": 82,
+              "rejected": 14,
+              "duplicate_rejections": 34,
+              "retained": 96,
+              "mutation_attempts": 48,
+              "fresh_attempts": 48,
+              "fresh_fallback_attempts": 0
+            }
+          ],
+          "rejection_counts": {
+            "active_floor_disconnected_active_layer": 31,
+            "posegen_geometry_failure": 1,
+            "active_floor_above_active_layer": 1
+          },
+          "final_candidates": 32
+        }
+      },
+      "counts": {
+        "retained_descendants": 619,
+        "retained_short_only_passes": 8,
+        "already_preserved": 8,
+        "old_parent_long_passes": 0,
+        "refresh_passes": 0,
+        "new_scene_long_passes": 0,
+        "passes_in_both": 0,
+        "new_pass_old_fail": 0
+      },
+      "timings": {
+        "collection_seconds": 0.004961396014550701,
+        "old_parent_long_seconds": 2.6999623514711857e-07,
+        "refresh_seconds": 2.5149784050881863e-06,
+        "new_scene_long_seconds": 1.1100200936198235e-07
+      },
+      "candidates": [],
+      "profiles": {
+        "apps/excavator/config/mcts_cpu.yml": "# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 3\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 12\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 8  # Depth 1 until 8 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 12\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 30.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 1\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cpu  # cpu or cuda\n  simulation_backend: cpu  # cpu or cuda\n  # Local native worker allocation; separate from legacy Ray resource settings.\n  enabled: true\n  workers: 12\nroot_cem:\n  population: 96\n  elite: 24\n  iterations: 3\n  keep: 12\n  mutation_xy_std: 0.1\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/inventory.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobjects:\n  model_directory: apps/excavator/assets/objects\n  ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58]\n  density: 1000.0\n  density_overrides: {}\ntarget:\n  # stacking-planner agent/configs/ablation.yml: environment.target.\n  width: 2.0\n  length: 6.0\n  height: 2.5\n  origin: [0.0, 0.0, 0.0]\n  support_overlap: 0.02\n  taper_degrees:\n    width_positive: 5.0\n    width_negative: 5.0\n    length_positive: 5.0\n    length_negative: 5.0\n",
+        "apps/excavator/config/perception.yml": "# Desktop perception defaults in SI units. Quality gates require field commissioning.\n# Opening polynomial: legacy assets/opening_angle_fit.npy, stone_grab fit.\nvoxel_size: 0.01\nground_clearance: 0.08\nfield_ground_removal: false  # Experimental opt-in; legacy field recovery retains ground.\nminimum_points: 100\nmaximum_timestamp_skew_ns: 50000000\nfield:\n  voxel_sizes: [0.1, 0.05, 0.02, 0.01]\n  max_iterations: [50, 30, 14, 7]\ninhand:\n  voxel_sizes: [0.1, 0.05, 0.02]\n  max_iterations: [50, 30, 14]\ngripper_alignment_quality:\n  minimum_target_coverage: 0.05\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.1\n  maximum_correction_rotation_degrees: 10.0\nquality:\n  minimum_target_coverage: 0.35\n  minimum_source_coverage: 0.2\n  maximum_rmse: 0.035\n  maximum_correction_translation: 0.6\n  maximum_correction_rotation_degrees: 180.0\nambiguity:\n  ambiguity_score_gap: 0.015\n  distinct_translation: 0.05\n  distinct_rotation_degrees: 15.0\nopening:\n  # Calibration polynomial coefficients are preserved; polynomial output is radians.\n  coefficients: [-7.418032620929303, 46.96298872999542, -110.41168530520477, 116.254686079056, -47.56854082012381]\n  source_sha256: c419e987d8f8fc976fa5ae3efdde668da9b45615ba46051432035a1f1bc2d1ee\n  limits_degrees: [-65.31718864491384, 0.0]\n  maximum_measured_difference_degrees: 11.459155902616464\n  minimum_jaw_points: 30\n  gripper_removal_distance: 0.06\n",
+        "apps/excavator/config/action_generation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\ninitialization:\n  # Excavator initializes from model_<id>_mesh.ply and pads both XY footprints.\n  height_clearance: 0.15\n  xy_padding: 0.12\nfiltering:\n  posegen_gap_threshold: 0.005\n  posegen_equilibrium_threshold: 1.0\n  # Prefer this restriction; exhausted search retries without floor-fill gates.\n  strict_floor_first: true\n  require_solver_convergence: false\n  reject_equilibrium_at_threshold: true\nplanar:\n  grid_shape: [32, 32]\n  yaw_angles_degrees: [0, 90, 180, 270]\n  minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.\n  target_anchor_inset_scale: 0.6\n  floor:\n    # Advance at fill_ratio coverage of the base in top-down projection.\n    coverage_mode: projected_footprint\n    bottom_tolerance: 0.2\n    fill_ratio: 0.75\n    grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.\n    max_layers: 8\n    minimum_contact_cells: 1\n  boltzmann_temperature: 0.3\n  boltzmann_min_probability: 0.0\n  target_mask_margin: 0.0\n  contact_gap_tolerance: 0.10\n  # The only proposal-score weights. Edit these named values for ablations.\n  score:\n    height: -3.0\n    support_likelihood: 2.0\n    open_area: 1.0\n    fill_area: 2.0\n    frontier: 1.0\n    target_boundary: 1.5\n    excavator_distance: 2.0\n    excavator_distance_axis: xy\n    excavator_xy: null\n    elite_fraction: 0.25\n  floor_fill:\n    # Legacy proposal-kernel settings; planar.floor owns the shared layer rules.\n    connected_after: 1\n    u_shape_filter: false\n    u_shape_footprint_scale: 0.9\n    u_shape_min_frontier_contact_cells: 1\n    lower_floor_fill_ratio: 0.6\n    lower_floor_occupancy_grid: 16\n    lower_floor_bottom_z_tolerance: 0.2\n    lower_floor_max_layers: 8\norientation:\n  pose_from_scan: false\n  roll_angles_degrees: [0, 180]\n",
+        "apps/excavator/config/visualization.yml": "units: si\nenvironment:\n  default_layers:\n    ground: true\n    support: false\n    obstacle: true\n  # Search coordinates are stack-local. Plan replay uses recorded world planes.\n  boxes:\n    - id: search_ground\n      layer: ground\n      minimum: [-3.0, -3.0, -0.03]\n      maximum: [3.0, 3.0, 0.0]\n      color: [0.28, 0.33, 0.25]\n      opacity: 1.0\n",
+        "apps/excavator/config/environment.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nobservation:\n  action_sample_count: 96\n  max_poses_per_object: 32\n  surface_sample_count: 128\n  banned_object_ids: []\n  height_map_resolution: [128, 128]\n  height_map_margin: 1.0\n  render_height_map: true\nreward:\n  overlap_resolution: 0.03\n  posegen_threshold: 1.0\n  containment_threshold: 0.5\n  nonfinite_displacement: 2.0\n  max_displacement: 1.0\n  # Placement uncertainty; Z perturbations are always upward.\n  place_stability:\n    enabled: true\n    n_noise: 4\n    position_std: [0.02, 0.02, 0.02]  # Gaussian scales; Z uses abs(sample).\n    rotation_std_deg: 5.0\n    rotation_weight: 0.1\n    # Reject if any noisy trial exceeds the motion limit or does not settle.\n    reject_failed_trials: true\n    # Worst trial: translation (m) + rotation_weight * angular distance (rad).\n    fail_displacement: 0.15\n    seed: 0\n  weights:\n    stability: 2.0\n    object_containment: 2.0\n    target_overlap_increment: 20.0\n    place_stability: 2.0\n    large_object_lower: 3.0\n    inward_orientation: 6.0\n",
+        "apps/excavator/config/mcts_cuda.yml": "# Explicit CUDA search profile; select with --config.\n# Resolved from stacking-planner agent/configs/ablation.yml and Python defaults.\n# Native-only controls and CLI override precedence: docs/excavator-planning.md.\nunits: si\ntree:\n  max_depth: 4\n  iterations: 1024\n  max_search_time: 240.0\n  max_children: 16\n  root_max_children: 32\n  exploration_constant: 2.0\n  discount: 0.9\n  failure_reward: -1.0\n  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.\n  initial_depth1_steps: 12  # Depth 1 until 12 objects have been placed.\n  root_lookahead: true\nwidening:\n  enabled: true\n  coefficient: 3.0\n  exponent: 0.5\ngeneration:\n  batch_size: 32\n  expansion_retry_batches: 3\n  min_feasible_children: 3\n  attempt_multiplier: 3.0\n  evaluation_batch_size: 256  # Stream 128-placement chunks; native robustness capacity is 512.\n  # Sample the unfilled active floor before higher placements at every depth.\n  root_sampling_priority: lower_floor_first\n  deeper_sampling_priority: lower_floor_first\nvalidation:\n  max_candidates: 32\n  root_before_search: true\n  rejected_root_retry_rounds: 3\n  time_reserve: 60.0\n  max_state_drift: 0.1\nfinal_selection:\n  mode: mixed\n  max_weight: 0.5  # Legacy default for mode: max_descendant.\n  validate_descendant_path: true\n  validate_descendant_depth: 2\n  require_validated_descendant: true\nparallel:\n  posegen_backend: cuda  # cpu or cuda\n  simulation_backend: cuda  # cpu or cuda\n  # CPU reward/observation workers overlap the next CUDA placement chunk.\n  enabled: true\n  workers: 4\nroot_cem:\n  population: 96\n  elite: 32\n  iterations: 3\n  keep: 32\n  mutation_xy_std: 0.2\n  mutation_yaw_std_degrees: 5.0\n  fresh_fraction: 0.5\n  duplicate_xy_threshold: 0.03\n  duplicate_yaw_threshold_degrees: 5.0\n  # Keep validation slots available for different stones.\n  max_per_object: 2\n  height_map_score_weight: 1.0\n  seed: 0\nbootstrap:\n  mean_reward: 2.5\n  horizon: 4\n",
+        "apps/excavator/config/planning.yml": "units: si\n# Angular fields use degrees explicitly; poses remain [x, y, z, qx, qy, qz, qw].\nframes:\n  world: world\n  stack: stack\n  world_T_stack: [-6.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0]\nrobot:\n  urdf: apps/excavator/assets/excavator_3/vdk23_cx_ik.urdf\n  tool_link: grip_body\n  home_positions_degrees: [60.0, 45.0, -60.0, -78.54084409738354, 0.0, 0.0]\n  link_from_tool: &id001 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]\n  gripper_opening_degrees: 0.0\ngripper:\n  urdf: apps/excavator/assets/stone_grab_3/stone_grab.urdf\n  root_link: grip_body\n  grasp_from_root: *id001\n  opening_offset_degrees: [0.0, 0.0]\n  opening_direction: [1.0, 1.0]\n  opening_limits_degrees: [-80.0, 0.0]\nscene:\n  frame_id: 1\n  obstacle_friction: 5.0\n  handoff_position: [-2.0, -5.0, 0.0]\n  obstacles: []\nexcavator:\n  pick_ground_height: 0.0\n  place_ground_height: 0.0\n  handoff_ground_height: 0.0\n  place_z_offset: 0.2\n  handoff_positions: [\n    [-2, -5, 0.0],\n    [-1, -5, 0.0],\n    [-3, -5, 0.0],\n    [-2, -4, 0.0],\n    [-2, -6, 0.0],\n    [-1, -4, 0.0],\n    [-3, -4, 0.0],\n    [-1, -6, 0.0],\n    [-3, -6, 0.0],\n  ]\n",
+        "apps/excavator/config/solvers/simulation.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nintegration:\n  dt: 0.01\n  gravity: [0.0, 0.0, -9.81]\n  damping: 0.0\nground:\n  z: 0.0\n  friction: 5.0\nscene:\n  frame_id: 1\nphysics:\n  settling:\n    contact:\n      model: single_point\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.001\n      tol_rel: 0.0001\n  structural:\n    contact:\n      model: limit_surface_4d\n      error_reduction_ratio: 0.2\n      detection_margin: 0.01\n    solver:\n      constraint_scale_reference: 0.001\n      beta_init: 0.1\n      beta_update_interval: 50\n      max_iters: 2000\n      stagnation_window: 0\n      tol_abs: 0.0001\n      tol_rel: 1.0e-05\nphases:\n  settling:\n    dt: 0.01\n    steps: 400\n    sample_count: 64\n  short_structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 0.5\n    max_time: 4.0\n    extra_steps: 20\n    final_extra_steps: 40\n    freeze_radius: 1.5\n  structural:\n    energy_threshold: 0.00001\n    velocity_integral_threshold: 0.2\n    min_time: 3.0\n    max_time: 15.0\n    extra_steps: 150\n    final_extra_steps: 300\nvalidation:\n  contact_gap_tolerance: 0.02\n  minimum_support_count: 1\n  support_chain_z_tolerance: 0.05\n",
+        "apps/excavator/config/solvers/motion.yml": "# Independently resolved excavator SI profile; see docs/excavator-planning.md.\nunits: si\nallow_regrasp: true\nmotion:\n  boundary_weight: 20.0\n  collision_alm_beta_increase: 5.0\n  collision_alm_beta_init: 50.0\n  collision_alm_enabled: true\n  collision_alm_max_iters: 5\n  collision_alm_tol: 0.001\n  collision_margin: 0.02\n  collision_penetration_clamp: 0.02\n  collision_weight: 1000.0\n  grasped_boundary_pos_scale: 10.0\n  grasped_boundary_rot_scale: 0.5\n  ik_max_iters: 2000\n  ik_tol: 0.001\n  joint_limit_margin_degrees: 0.057295779513082325\n  joint_limit_weight: 1000.0\n  max_iters: 400\n  plane_feasibility_margin: -0.005\n  smooth_boundary_alpha: 2.0\n  smooth_weight: 50.0\n  step_size: 0.01\n  swing_smoothness_scale: 1.0\n  target_collision_tol: 0.005\n  tol: 0.0001\ninverse_kinematics:\n  initialization: provided\n  max_iters: 2000\n  tol: 0.001\ndirect:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  move_steps: 15\n  simulation_refinement: true\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\nregrasp:\n  joint_grasp_recovery: true\n  scene_approach: true\n  minimum_approach_up_component: 0.5\n  approach_dir_tool: [0.0, -1.0, 0.0]\n  approach_distance: 1.5\n  grasp_steps: 10\n  max_candidates: 1\n  max_handoff_orientation_distance_degrees: 135.0\n  move_steps: 15\n  target_pos_tol: 0.02\n  target_rot_tol_degrees: 10.0\n  worker_count: 20\n  yaw_samples: 8\nstable_pose:\n  sampling_level: 2\n  stable_eigenvalue_min: -0.2\n",
+        "apps/excavator/config/solvers/grasp.yml": "# stacking-planner planning/planning.py: stone_grab attachment.\nunits: si\nsampling:\n  aperture_margin: 0.01\n  dir_samples: 80\n  include_flipped: true\n  max_candidates: 0\n  max_seeds: 120\n  max_target_width: 1.6\n  preferred_parallel_axis: [0.0, 0.0, 0.0]\n  # Legacy gripper.height (1.5 m) * surface_grasp_offset_scale (0.5).\n  retreat_distance: 0.75\n  # Legacy secondary seeds: gripper height 1.5 m times [0.65, 0.8, 1.2].\n  fallback_retreat_distances: [0.975, 1.2, 1.8]\n  fallback_min_candidates: 8\n  scene_clearance_margin: 0.05\n  spin_samples: 12\n  spin_step_degrees: 30.0\n  strategy: antipodal_surface\ngeneration:\n  contact_margin: 0.05\n  plane_separate_margin: -0.02\n  separate_margin: 0.01\ncost:\n  align: 1.0\n  antipodal_normal: 5.0\n  antipodal_position: 2.0\n  center_distance: 5.0\n  contact: 3.0\n  enclosure: 7.0\n  flatness: 0.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 2.0\nscore:\n  align: 1.0\n  center_distance: 3.0\n  enclosure: 7.0\n  radial_distance: 3.0\n  teeth_align: 1.0\n  teeth_fit: 1.0\n  teeth_gap: 2.0\ntrust_region:\n  gain_ratio_lower: 0.0\n  gain_ratio_upper: 0.75\n  improvement_tol: 0.0\n  max_iters: 200\n  radius_expansion: 2.0\n  radius_init: 0.1\n  radius_max: 0.1\n  radius_reduction: 0.25\n  step_tol: 1.0e-12\n  subproblem_tol: 0.01\nalm:\n  equality_penalty_increase: 10.0\n  equality_penalty_init: 50.0\n  equality_tol: 0.001\n  inequality_penalty_increase: 10.0\n  inequality_penalty_init: 50.0\n  inequality_tol: 0.015\n  max_iters: 20\nforce:\n  damping: 0.0001\n  enabled: true\n  friction: 1.0\n  wrench_scale: 1.0\nforce_weight:\n  complementarity: 10.0\n  cone: 10.0\n  moment: 10.0\n  wrench: 0.1\nsimulation:\n  accept_relaxed: true\n  active_impulse_tol: 0.0001\n  damping: 2.0\n  dt: 0.01\n  error_reduction_ratio: 0.2\n  friction: 1.0\n  grasp_offset_tol: [0.5, 1.0, 0.6]\n  obstacle_margin: 0.01\n  pgs_iters: 80\n  plane_obstacle_margin: 0.01\n  relaxed_velocity_tol: 0.1\n  settled_velocity_tol: 0.01\n  steps: 500\n  target_contact_margin: 0.01\n  virtual_approach_force: 5.0\n  virtual_closing_effort: 0.5\n",
+        "apps/excavator/config/solvers/posegen.yml": "# stacking-planner contexts.get_posegen, PoseSolver schedule, and diffsim defaults.\nunits: si\ntrust_region:\n  delta_expansion_rate: 2.0\n  delta_init: 0.125\n  delta_lower_thresh: 0.25\n  delta_max: 1.0\n  delta_reduction_rate: 0.25\n  delta_upper_thresh: 0.75\n  eps: 0.1\n  improvement_thresh: 0.125\n  max_iters: 100\n  tol: 1.0e-08\nhausdorff:\n  eps: 0.001\n  error_tol: 1.0e-10\n  gain_ratio_lower_thresh: 0.05\n  gain_ratio_max: 10000000000.0\n  gain_ratio_upper_thresh: 0.9\n  max_iters: 50\n  radius_expansion_rate: 3.0\n  radius_init: 10.0\n  radius_reduction_rate: 0.25\nobjective:\n  eps_comp: 0.01\n  eps_cone: 0.01\n  eps_gap: 0.01\n  eps_target: 0.05\n  gravity: 9.81\n  ground_height: 0.0\n  k_box: 20.0\n  k_comp: 0.0\n  k_gap: 0.0\n  k_gap_c: 80.0\n  k_lower: 0.0\n  k_potential: 1.0\n  k_reg: 0.0\n  k_target: 1.0\n  k_wrench: [[1.0, 0.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],\n             [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]\n  k_xy: 0.0\n  narrow_phase_candidate_tol: 0.1\n  narrow_phase_scene_tol: 0.005\n  rho: 0.01\n  w_box: 2.0\nforce_solver:\n  beta_consensus: 1.0\n  beta_contact: 1.0\n  beta_update_interval: 20\n  max_iters: 1000\n  tol_abs: 0.001\n  tol_rel: 0.0001\nschedule:\n  times: [0.0, 0.3333333333333333, 0.6666666666666666, 1.0]\n  max_iters_warmup: 50\n  max_iters_final: 75\n  # Cosine schedule from agent/env/components/action/pose_solver.py.\n  # Each weight is the sum of its coefficient * named basis; see the guide.\n  objective_weights:\n    k_wrench: {ramp: 1.0}\n    k_comp: {ramp: 10.0}\n    k_gap_c: {constant: 40.0, ramp: 150.0, gap_feedback: 100000.0}\n    k_gap: {sine: 10.0}\n    k_target: {anti_ramp: 5.0}\n    k_xy: {anti_ramp: 1.0}\n    k_potential: {constant: 0.10, anti_ramp: 0.10}\n    k_reg: {anti_ramp: 3.0}\n    k_lower: {anti_ramp: 5.0}\nscene:\n  frame_id: 1\n  target_model_id: 1000000\n  target_entity_id: 1000001\n  target_friction: 1.0\n  target_sharpness: 20\n  target_epsilon: 1.0e-09\n  placed_as_boundaries: false\n  boundary_radius: 0.5\n"
+      }
+    }
+  ]
+}
