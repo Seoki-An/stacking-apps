@@ -1,6 +1,6 @@
 # Excavator sibling proposal reuse comparison
 
-This archive contains reports and JSON evidence. Experimental scripts, local `.benchmarks/` inputs and native builds are not included. Command examples record the original local setup and require those separate artifacts.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
 
 Root promotion now resets generation bookkeeping while preserving the selected subtree. Both measured roots previously carried 48 attempts into a fresh CEM pool of only 32 candidates, skipping the entire pool. The corrected searches start from offset zero and admit 23 and 29 fresh root candidates.
 
@@ -50,7 +50,7 @@ The baseline runs the existing planner. The experimental wrapper:
 3. Reserves at most one quarter of the requested root slots, capped at eight, for these proposals. It preserves capacity for at least three quarters of fresh candidates when they are available. It applies the existing per-object and geometric duplicate rules, including comparison against the preserved root children.
 4. Submits admitted proposals as ordinary unevaluated nodes. The existing search performs long physical validation, expansion and descendant validation. A strict floor rejection cannot enter the strict search through the bank; any later fallback uses the existing fallback filters.
 
-Bank solve results are reused across root retries within this one unchanged root state. Previously admitted proposals are not injected repeatedly. The policy is implemented only in `tests/benchmark_excavator_proposal_reuse.py` (local experimental source, not included).
+Bank solve results are reused across root retries within this one unchanged root state. Previously admitted proposals are not injected repeatedly. The policy was implemented only in the now-removed experimental script `tests/benchmark_excavator_proposal_reuse.py`.
 
 Trials ran sequentially on the Ryzen 9 9900X / RTX 5060 Ti using the project direnv Python, with BLAS/OpenMP threads limited to one. At 16 stones, baseline ran first. At 26 stones, reuse ran first; the pair was then repeated in the opposite order.
 
@@ -123,4 +123,4 @@ python tests/benchmark_excavator_proposal_reuse.py reuse \
 
 Use the 25-stone export from `.benchmarks/excavator-profiles-25-20261007/states/25.pkl` for the other case. Inputs must be trusted local pickles. Existing outputs are not overwritten. Prepared subtrees retain complete states and can be large; setup and loading are excluded from the reported search time.
 
-[Original portable results](benchmarks/excavator-proposal-reuse-20261007.json) and [corrected results](benchmarks/excavator-proposal-reuse-promoted-20261007.json) contain profile snapshots, source/native hashes, paired artifact hashes, admission counts, search statistics and selected outcomes. Original preparation artifacts and trial outputs are in `.benchmarks/proposal-reuse-20261007/`. The current reproduction commands invoke corrected promotion.
+[Original portable results](benchmarks/excavator-proposal-reuse-20261007.json) and [corrected results](benchmarks/excavator-proposal-reuse-promoted-20261007.json) contain profile snapshots, source/native hashes, paired artifact hashes, admission counts, search statistics and selected outcomes. Original preparation artifacts and trial outputs are in `.benchmarks/proposal-reuse-20261007/`. The historical reproduction commands shown above used corrected promotion.

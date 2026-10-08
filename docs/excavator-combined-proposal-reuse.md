@@ -1,8 +1,8 @@
 # Excavator combined sibling and descendant proposal bank (retired)
 
-This archive contains reports and JSON evidence. Experimental scripts, local `.benchmarks/` inputs and native builds are not included. Command examples record the original local setup and require those separate artifacts.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
 
-**Retired on 2026-10-08.** The combined policy, its CLI options, and the dedicated descendant-collection implementation/tests have been removed from the active project. This report and its measurements are retained as historical evidence. The sibling-only experiment remains available in the separate local benchmark scripts.
+**Retired on 2026-10-08.** The combined policy, its CLI options, and the dedicated descendant-collection implementation/tests have been removed from the active project. This report and its measurements are retained as historical evidence. The remaining sibling-only experiment scripts have also been removed; their reports and results remain archived.
 
 Adding dependency-screened descendants to the existing sibling bank lowered pooled new-node throughput by 7.0% and physical-pass throughput by 10.7% in the two 16-stone histories. It increased exploration, but the extra branches cost more than their throughput benefit. At 26 stones, no descendants were eligible and both policies performed identical work. The combined bank has been retired for the throughput objective.
 
@@ -93,6 +93,6 @@ Thirteen focused tests passed, including shared bank caps, preservation of fresh
 
 Source, profile, input and pinned native/wrapper hashes remained unchanged during measurement. The [portable results and provenance](benchmarks/excavator-combined-proposal-reuse-20261008.json) contain all preparation audits, trial statistics, admission origins/poses and paired checks. Raw local outputs are in `.benchmarks/combined-reuse-20261008/`.
 
-The measured source files are archived locally under `.benchmarks/combined-reuse-20261008/source_archive/`, with a SHA256 manifest. The retired preparation and combined-bank commands are no longer supported by the current benchmark CLI. Recorded JSON results and provenance remain unchanged.
+The measured source files are archived locally under `.benchmarks/combined-reuse-20261008/source_archive/`, with a SHA256 manifest. The preparation and combined-bank commands were retired along with their benchmark scripts. Recorded JSON results and provenance remain unchanged.
 
 Production search and configuration files are unchanged by this experiment. The combined policy is retired; this report preserves its measured results.

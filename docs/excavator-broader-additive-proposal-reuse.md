@@ -1,6 +1,6 @@
 # Excavator broader additive proposal reuse
 
-This archive contains reports and JSON evidence. Experimental scripts, local `.benchmarks/` inputs and native builds are not included. Command examples record the original local setup and require those separate artifacts.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
 
 The broader policy adds no proposals under the tested CUDA configuration. Across four freshly generated predecessor trees, every one of the 32 root candidates received long validation. There were no short-only passing root siblings to add to the existing long-valid bank. This experiment therefore does not establish a performance improvement from broadening the policy.
 
@@ -82,4 +82,4 @@ python tests/benchmark_excavator_proposal_reuse.py additive_reuse \
 
 The script defaults to `apps/excavator/config/mcts_cuda.yml`. Repeat preparation with seed 1, and use `.benchmarks/excavator-profiles-25-20261007/states/25.pkl` for the 25-stone source. For the exact local native snapshot, also set `PYTHONPATH=.benchmarks/proposal-reuse-broader-20261008/native_snapshot`.
 
-Production search and configuration files are unchanged by this experiment. Reuse code remains benchmark-only and uncommitted.
+Production search and configuration files are unchanged by this experiment. The benchmark-only reuse implementation has been removed.

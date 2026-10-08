@@ -1,6 +1,6 @@
 # Excavator CPU root-promotion check
 
-This archive contains reports and JSON evidence. Experimental scripts, local `.benchmarks/` inputs and native builds are not included. Command examples record the original local setup and require those separate artifacts.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
 
 The root-promotion bug also affects the native CPU profile. Two saved-scene comparisons on 2026-10-07 reproduce both blocked generation and a skipped CEM pool. The existing shared promotion correction fixes both; no CPU-specific production change or configuration change was needed.
 

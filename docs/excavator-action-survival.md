@@ -1,6 +1,6 @@
 # Excavator action survival after a placement
 
-This archive contains reports and JSON evidence. Experimental scripts, local `.benchmarks/` inputs and native builds are not included. Command examples record the original local setup and require those separate artifacts.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
 
 On 2026-10-07, five CUDA searches supplied 17 physically valid, still-available sibling proposals. After committing each search's selected placement in simulation, 11 passed long physical validation at their unchanged poses. Fresh pose and force solves produced 14 passing proposals, including three substantial repairs. Six passed the strict floor policy as well; the other eight required the existing floor fallback.
 
@@ -88,7 +88,7 @@ QT_QPA_PLATFORM=offscreen python tests/benchmark_excavator_action_survival.py \
 
 Use the 10- or 20-stone exports for those scenes. For 25 stones, use `.benchmarks/excavator-profiles-25-20261007/states/25.pkl`. For the empty case, use the 10-stone export with `--empty`. Existing output files are not overwritten.
 
-- `tests/benchmark_excavator_action_survival.py` (local experimental source, not included)
+- `tests/benchmark_excavator_action_survival.py` (removed experimental source)
 - [Portable results, candidate records, profile snapshots and provenance](benchmarks/excavator-action-survival-20261007.json)
 - Local raw outputs: `.benchmarks/action-survival-20261007/`
 

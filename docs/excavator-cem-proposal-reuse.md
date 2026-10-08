@@ -1,6 +1,6 @@
 # Excavator competitive CEM proposal reuse
 
-This archive contains reports and JSON evidence. Experimental scripts, local `.benchmarks/` inputs and native builds are not included. Command examples record the original local setup and require those separate artifacts.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
 
 Adding refreshed sibling proposals to CEM's initial population did not improve raw expansion throughput in the two measured scenes. At 16 stones it increased physically successful new transitions per second by about 10% across two search seeds. At 26 stones none of the seeds became mutation parents or reached the tree, and search counts were unchanged. The selected next actions and immediate rewards were unchanged in every pair.
 
@@ -91,6 +91,6 @@ python tests/benchmark_excavator_proposal_reuse.py cem_reuse \
 
 Use `25.pkl` for the 26-stone scene and repeat with `--seed 1`. The `prepare` mode can recreate predecessor artifacts from trusted state exports; see the [previous report](excavator-proposal-reuse.md#reproduction-and-artifacts). Existing output files are never overwritten.
 
-- `tests/benchmark_excavator_proposal_reuse.py` (local experimental source, not included)
+- `tests/benchmark_excavator_proposal_reuse.py` (removed experimental source)
 - [Portable results, seed diagnostics, profile snapshots and source/native provenance](benchmarks/excavator-cem-proposal-reuse-20261007.json)
 - Local raw outputs: `.benchmarks/proposal-reuse-cem-20261007/`

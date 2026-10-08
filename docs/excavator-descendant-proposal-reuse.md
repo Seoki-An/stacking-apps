@@ -1,6 +1,6 @@
 # Excavator discarded-descendant proposal reuse (archived)
 
-This archive contains reports and JSON evidence. Experimental scripts, local `.benchmarks/` inputs and native builds are not included. Command examples record the original local setup and require those separate artifacts.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
 
 **Retired on 2026-10-08 with the combined policy.** The dedicated diagnostic and its tests have been removed from the active project. Measurements remain available here and in the linked JSON artifact; the measured source is archived locally under `.benchmarks/combined-reuse-20261008/source_archive/`.
 
