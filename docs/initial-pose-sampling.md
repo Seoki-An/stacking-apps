@@ -222,23 +222,212 @@ $$
 | $H$ | Mean contact height normalized over retained anchor/orientation candidates | Lower supporting surfaces |
 | $Q$ | Fraction of bottom-kernel samples within the contact tolerance | Broader approximate support |
 | $O$ | Unoccupied cells divided by cells in the coarse rectangular floor footprint | More open floor under the candidate |
-| $F$ | Unoccupied footprint-cell count divided by the largest such count among retained anchors | Covering a larger unfilled area |
-| $G$ | Fraction of footprint cells intersecting the dilated occupancy mask | Adjacency to the existing footprint |
+| $F$ | Unoccupied footprint-cell count normalized over open anchors before connectivity filtering | Covering a larger unfilled area |
+| $G$ | Fraction of footprint cells intersecting the eight-neighbor expansion of occupancy | Adjacency to the existing footprint |
 | $B$ | Maximum absolute normalized XY coordinate relative to the height-dependent target bounds | Positions nearer a target boundary |
 | $D$ | Distance to a reference point, divided by target XY diagonal and clipped to one | Greater distance from that reference |
 
-The height normalization is
+The following equations give the exact geometric definitions used by the
+current scorer. For a fixed object, let $a=(a_x,a_y)$ be an XY anchor,
+$R$ its candidate rotation, $\mathcal K_R$ its sparse bottom-kernel offsets,
+and $\mathcal C$ the retained anchor/orientation pairs with finite support
+scores. Let $\mathbf 1[\cdot]$ denote an indicator and $|\cdot|$ a set's
+cardinality. All counts refer to sampled grid cells.
+
+#### Support likelihood $Q$
+
+Let $h_s$ be the scene height map after maximum-based resizing to the score
+grid and clipping upward to the ground height. With the bottom kernel
+$b_R(u)$ from Section 4.2, define
 
 $$
-H=\frac{h_c-h_{c,\min}}{\max(h_{c,\max}-h_{c,\min},10^{-6})}.
+\widehat z(a,R)=\max_{u\in\mathcal K_R}
+\left[h_s(a+u)-b_R(u)\right],
+\qquad
+g_u(a,R)=\widehat z(a,R)+b_R(u)-h_s(a+u).
 $$
 
-For target boundary scoring, each side shrinks by
-$z\tan\theta$, with $z$ measured from the target origin and clipped to
-the nominal target height. The coordinate normalization returns zero for
-anchors outside these height-dependent bounds. That condition removes the
-boundary bonus; the scorer's initial valid mask is still the base-rectangle
-mask.
+The estimated contact offsets and support score are
+
+$$
+\mathcal K_c(a,R)=
+\left\{u\in\mathcal K_R:g_u(a,R)\le\epsilon_c\right\},
+\qquad
+Q(a,R)=\frac{|\mathcal K_c(a,R)|}{|\mathcal K_R|}
+=\frac{1}{|\mathcal K_R|}\sum_{u\in\mathcal K_R}
+\mathbf 1[g_u(a,R)\le\epsilon_c],
+$$
+
+where $\epsilon_c=0.10$ m. A nonempty kernel with complete finite scene
+coverage has at least one offset at zero estimated gap. An empty kernel or
+incomplete coverage gives an invalid score, and that candidate is omitted.
+
+#### Normalized contact height $H$
+
+The raw height is the mean scene height over estimated contact offsets:
+
+$$
+h_c(a,R)=\frac{1}{|\mathcal K_c(a,R)|}
+\sum_{u\in\mathcal K_c(a,R)}h_s(a+u).
+$$
+
+Define extrema over the retained pairs for this object in the current state:
+
+$$
+h_{c,\min}=\min_{(a,R)\in\mathcal C}h_c(a,R),
+\qquad
+h_{c,\max}=\max_{(a,R)\in\mathcal C}h_c(a,R).
+$$
+
+The height term is
+
+$$
+H(a,R)=\frac{h_c(a,R)-h_{c,\min}}
+{\max(h_{c,\max}-h_{c,\min},10^{-6}\ \mathrm m)}.
+$$
+
+The negative height coefficient therefore favors low contact surfaces. The
+code has a fallback to mean footprint height if the reported contact height
+is nonfinite; the equations above describe the finite-support path.
+
+#### Open-area fraction $O$
+
+Let $\mathcal G_f$ be the active-floor sampling grid, $\Omega_s$ its occupied
+cells, and $e_x,e_y$ the object's asset-local extents. The scorer's rectangular
+footprint is
+
+$$
+\mathcal A(a)=\left\{p\in\mathcal G_f:
+|p_x-a_x|\le0.45e_x,\quad |p_y-a_y|\le0.45e_y\right\}.
+$$
+
+The factor $0.45$ is half the configured footprint scale $0.9$. Define
+
+$$
+\mathcal U(a)=\mathcal A(a)\setminus\Omega_s,
+\qquad n_A(a)=|\mathcal A(a)|,
+\qquad n_U(a)=|\mathcal U(a)|.
+$$
+
+When the active floor contains occupied cells,
+
+$$
+O(a)=\frac{n_U(a)}{n_A(a)}.
+$$
+
+Anchors with $n_A=0$ or $n_U=0$ are removed at this stage. The footprint
+$\mathcal A(a)$ does not rotate with $R$ in this excavator heuristic.
+
+#### Normalized fill area $F$
+
+Let $\mathcal A_{\mathrm{open}}$ contain base-mask-valid anchors with
+$n_A>0$ and $n_U>0$, before the later connectivity and U-shaped-pocket
+filters. The normalization is
+
+$$
+n_{U,\max}=\max\left(1,
+\max_{a\in\mathcal A_{\mathrm{open}}}n_U(a)\right),
+\qquad
+F(a)=\frac{n_U(a)}{n_{U,\max}}.
+$$
+
+If that set is empty, the code keeps the normalization denominator at one.
+$O$ measures the unoccupied fraction of a particular footprint, whereas $F$
+compares its unoccupied cell count with other anchors for the same object.
+The anchor attaining $n_{U,\max}$ can be removed by a later filter.
+
+#### Frontier adjacency $G$
+
+Use integer row/column coordinates on $\mathcal G_f$ to define the
+eight-neighbor expansion
+
+$$
+\mathcal N_8(\Omega_s)=
+\left\{p\in\mathcal G_f:\exists q\in\Omega_s,
+\quad p-q\in\{-1,0,1\}^2\setminus\{(0,0)\}\right\}.
+$$
+
+The frontier score is
+
+$$
+G(a)=\min\left(\frac{|\mathcal A(a)\cap\mathcal N_8(\Omega_s)|}
+{|\mathcal A(a)|},1\right).
+$$
+
+The expansion uses eight shifts and excludes the zero shift. The numerator
+can still include occupied cells if they neighbor other occupied cells; the
+excavator expression does not restrict it to $\mathcal U(a)$. The associated
+connectivity filter uses the unnormalized count
+$|\mathcal A(a)\cap\mathcal N_8(\Omega_s)|$ and currently requires at least
+one such cell when connectivity is active.
+
+If there is no occupied active-floor mask, or floor-fill scoring is relaxed,
+the implementation uses the defaults **$O=1$, $F=0$, and $G=0$**.
+
+#### Target-boundary proximity $B$
+
+Let the target origin be $o=(o_x,o_y,o_z)$, dimensions $(W,\ell,h_t)$,
+and inward side angles $\theta_x^-,\theta_x^+,\theta_y^-,\theta_y^+$.
+Let $\operatorname{clip}(v,l,u)=\min(\max(v,l),u)$, and define
+
+$$
+\zeta(a,R)=\operatorname{clip}(h_c(a,R)-o_z,0,h_t),
+\qquad
+\delta_x=m_t+0.3e_x,\quad \delta_y=m_t+0.3e_y,
+$$
+
+where the current target-mask margin is $m_t=0$. For the scorer, set
+$\alpha_d^\pm=\tan(\max(\theta_d^\pm,0))$. Negative taper angles are
+therefore clamped to zero in this heuristic. The bounds are
+
+$$
+\begin{aligned}
+l_x&=o_x-\frac W2+\zeta\alpha_x^-+\delta_x,&
+u_x&=o_x+\frac W2-\zeta\alpha_x^+-\delta_x,\\
+l_y&=o_y-\frac\ell2+\zeta\alpha_y^-+\delta_y,&
+u_y&=o_y+\frac\ell2-\zeta\alpha_y^+-\delta_y.
+\end{aligned}
+$$
+
+Set $l=(l_x,l_y)$, $u=(u_x,u_y)$, center $c=(l+u)/2$, and half-span
+$r=(u-l)/2$. With $\oslash$ denoting componentwise division,
+
+$$
+B(a,R)=
+\begin{cases}
+\operatorname{clip}\left(\left\|(a-c)\oslash r\right\|_\infty,0,1\right),
+& r_x>0,\ r_y>0,\ l\le a\le u,\\
+0,&\text{otherwise}.
+\end{cases}
+$$
+
+The vector inequalities hold componentwise. $B=0$ at the center and $B=1$
+on a valid boundary. Anchors outside these height-dependent bounds receive
+zero boundary bonus; this expression does not remove them from the initial
+base-rectangle mask.
+
+#### Reference-distance score $D$
+
+For the currently configured XY distance mode and reference $a_e$, the score
+is
+
+$$
+D(a)=\min\left(\frac{\|a-a_e\|_2}
+{\max(\sqrt{W^2+\ell^2},10^{-6}\ \mathrm m)},1\right).
+$$
+
+The implemented single-axis alternatives are
+
+$$
+D_x(a)=\min\left(\frac{|a_x-a_{e,x}|}
+{\max(x_{\max}-x_{\min},10^{-6}\ \mathrm m)},1\right),
+\qquad
+D_y(a)=\min\left(\frac{|a_y-a_{e,y}|}
+{\max(y_{\max}-y_{\min},10^{-6}\ \mathrm m)},1\right),
+$$
+
+where the axis spans are the observation bounds. The XY version normalizes
+by the nominal target diagonal, rather than the observation diagonal.
 
 With the current `excavator_xy: null`, the distance reference is **[0, 0]** in
 the search frame. A positive distance weight rewards farther positions. The
@@ -250,7 +439,159 @@ On an empty active floor, open area defaults to one, fill and frontier terms
 are zero, and the remaining terms drive selection. The score is a proposal
 heuristic, distinct from both MCTS return and the native pose objective.
 
-### 5.2 Diversity and Boltzmann draws
+### 5.2 Continuous integral formulation for the paper
+
+The spatial averages and footprint counts above can be written as integrals.
+The following equations are **continuous counterparts**; the implementation
+evaluates sampled masks, sums, and maxima on finite grids. Use planar area
+measure $d^2u=du_x\,du_y$, rather than area measured along the sloping stone
+surface: the code gives equal weight to XY samples.
+
+#### Writing convolution explicitly as an integral
+
+For a planar kernel $k$ and a field $f$, convolution means
+
+$$
+(k*f)(a)=\int_{\mathbb R^2}k(a-p)f(p)\,d^2p.
+$$
+
+The masked mean filter in `_support_maps.py` uses a square box kernel. Let
+$M(p)$ indicate valid, finite height samples, extend it by zero outside the
+observation domain, and define $h_M(p)=h_s(p)$ where $M(p)=1$ and zero
+elsewhere. Let $k_5$ indicate a centered square with width five grid spacings
+along each axis. Its continuous counterpart is
+
+$$
+\widetilde h_s(a)=
+\frac{\displaystyle\int_{\mathbb R^2}
+k_5(a-p)h_M(p)\,d^2p}
+{\displaystyle\int_{\mathbb R^2}
+k_5(a-p)M(p)\,d^2p},
+\qquad\text{if the denominator is positive}.
+$$
+
+If there are no included samples, the code retains the original height at
+$a$. This denominator also prevents samples outside the valid domain from
+diluting the mean. With piecewise constant grid cells, the integral at a grid
+center reproduces the discrete $5\times5$ masked mean. Excavator's main
+support calculation uses the **unsmoothed** map $h_s$; the smoothed map serves
+the fallback footprint-height calculation.
+
+For an arbitrary footprint $\mathcal P$, its translated overlap with $f$
+has the explicit integral
+
+$$
+\int_{\mathcal P}f(a+u)\,d^2u
+=\int_{\mathbb R^2}\mathbf 1_{\mathcal P}(p-a)f(p)\,d^2p
+=(\mathbf 1_{-\mathcal P}*f)(a),
+$$
+
+where $-\mathcal P=\{-u:u\in\mathcal P\}$. Thus sliding-footprint
+averaging is a correlation, or equivalently a convolution with a reflected
+footprint. For the centered rectangular excavator footprint,
+$-\mathcal P=\mathcal P$.
+
+#### Support coverage and contact height
+
+Let $\mathcal P_R$ be the continuous XY projection corresponding to the
+bottom kernel, and $b_R(u)$ its lower surface. The support-height estimate
+and gap field are
+
+$$
+\widehat z(a,R)=\sup_{u\in\mathcal P_R}
+\left[h_s(a+u)-b_R(u)\right],
+\qquad
+g(a,R,u)=\widehat z(a,R)+b_R(u)-h_s(a+u).
+$$
+
+Define the contact indicator
+$c_{a,R}(u)=\mathbf 1[g(a,R,u)\le\epsilon_c]$. Then
+
+$$
+Q(a,R)=
+\frac{\displaystyle\int_{\mathcal P_R}c_{a,R}(u)\,d^2u}
+{\displaystyle\int_{\mathcal P_R}1\,d^2u},
+\qquad
+h_c(a,R)=
+\frac{\displaystyle\int_{\mathcal P_R}
+h_s(a+u)c_{a,R}(u)\,d^2u}
+{\displaystyle\int_{\mathcal P_R}c_{a,R}(u)\,d^2u}.
+$$
+
+These ratios require positive footprint and contact areas, respectively.
+The discrete implementation uses the sampled contact set, which can contain
+a single sample even if its continuous counterpart has zero area. Normalize
+$h_c$ over the retained candidate bank using the same $H$ equation in
+Section 5.1. The support supremum and gap threshold are nonlinear operations;
+the complete support score cannot be replaced by an ordinary linear
+convolution.
+
+#### Open area, fill area, and frontier adjacency
+
+Let $\mathcal T_{xy}$ be the nominal target rectangle,
+$\chi_s(p)=\mathbf 1[p\in\Omega_s]$ the active-floor occupancy field,
+and
+
+$$
+\rho_i(u)=\mathbf 1[|u_x|\le0.45e_x,\ |u_y|\le0.45e_y].
+$$
+
+The continuous footprint area and unfilled area are
+
+$$
+A_i(a)=\int_{\mathcal T_{xy}}\rho_i(p-a)\,d^2p,
+\qquad
+U_i(a)=\int_{\mathcal T_{xy}}
+\rho_i(p-a)\left[1-\chi_s(p)\right]\,d^2p.
+$$
+
+To retain the implemented eight-neighbor construction, let
+$\Delta_x,\Delta_y$ be the occupancy-grid spacings and define
+
+$$
+\mathcal E_8=
+\left\{(j\Delta_x,k\Delta_y):j,k\in\{-1,0,1\},\ (j,k)\ne(0,0)\right\},
+\qquad
+\nu_s(p)=\mathbf 1[\exists\delta\in\mathcal E_8:
+\chi_s(p+\delta)=1].
+$$
+
+Occupancy is zero outside its grid domain. This is the binary union of eight
+shifted occupancy masks; it excludes the zero shift. Define the neighboring
+footprint area
+
+$$
+L_i(a)=\int_{\mathcal T_{xy}}\rho_i(p-a)\nu_s(p)\,d^2p.
+$$
+
+The three score terms become
+
+$$
+O(a)=\frac{U_i(a)}{A_i(a)},
+\qquad
+F(a)=\frac{U_i(a)}
+{\max\left(\Delta A_f,\max_{a'\in\mathcal A_{\mathrm{open}}}U_i(a')\right)},
+\qquad
+G(a)=\frac{L_i(a)}{A_i(a)}.
+$$
+
+Here $\Delta A_f=\Delta_x\Delta_y$ is the floor grid's uniform area weight;
+it expresses the discrete denominator safeguard of one sample in area units.
+An empty normalization set uses $\Delta A_f$. The continuous ratios apply to
+positive-area accepted footprints. Preserve the implementation's separate empty-floor or relaxed
+scoring branch, **$O=1$, $F=0$, $G=0$**. In particular, the excavator frontier
+integral includes occupied neighboring cells as well as unfilled ones.
+
+For uniform samples, replacing each integral by
+$\Delta A\sum_p$ recovers the count ratios in Section 5.1; the common area
+weight cancels. The grids include endpoints and give every sample equal
+weight; their sums are not trapezoidal integration with reduced boundary
+weights. Finite masks, sparse kernel construction, and grid boundaries still
+determine the numerical approximation. $B$ and $D$ remain pointwise
+geometric expressions. The combined score remains
+$S=-3H+2Q+O+2F+G+1.5B+2D$.
+
+### 5.3 Diversity and Boltzmann draws
 
 Within a candidate pool, weighted draws use
 
@@ -287,7 +628,7 @@ only the allocated number. Consequently, the full proposal distribution is a
 composition of diversity draws, score draws, and generator-level selection;
 it is not a single global softmax over every candidate.
 
-### 5.3 Allocation across objects
+### 5.4 Allocation across objects
 
 Each fresh generation call allocates requested attempts in round-robin order
 across unplaced, non-banned objects, up to 32 allocations per object. When
@@ -443,6 +784,136 @@ likelihood, unfilled area, frontier, and target-boundary features, with weights
 $$
 S_{\mathrm{tabletop}}=-3H+2Q+O+3F+G+1.5B.
 $$
+
+The letters have analogous roles, but tabletop computes them using the
+following orientation-dependent geometry. Let $\mathcal K_R^t(a)$ be the
+kernel offsets that remain inside the observation grid at anchor $a$.
+For each offset, let $b_R(u)$ and $t_R(u)$ be the lower and upper heights
+from the component union, and let $b_{\min}$ be the object's lowest rotated
+vertex. Define
+
+$$
+\bar h_s(a+u)=\max(h_s(a+u),z_f),
+\qquad
+\widehat z_t(a,R)=\max_{u\in\mathcal K_R^t(a)}
+\left[\bar h_s(a+u)-b_R(u)\right],
+$$
+
+where $z_f$ is the active-floor support height. Tabletop uses nearest-neighbor
+resampling for this scene map. The footprint support height and support score
+are
+
+$$
+h_t^{\mathrm{sup}}(a,R)=\widehat z_t(a,R)+b_{\min},
+\qquad
+Q_t(a,R)=\frac{1}{|\mathcal K_R^t(a)|}
+\sum_{u\in\mathcal K_R^t(a)}
+\mathbf 1[\widehat z_t(a,R)+b_R(u)-\bar h_s(a+u)\le\epsilon_f],
+$$
+
+with $\epsilon_f=0.02$ m. Over the candidates with valid floor metrics,
+
+$$
+H_t(a,R)=\frac{h_t^{\mathrm{sup}}(a,R)-h_{t,\min}^{\mathrm{sup}}}
+{\max(h_{t,\max}^{\mathrm{sup}}-h_{t,\min}^{\mathrm{sup}},10^{-6}\ \mathrm m)}.
+$$
+
+Only kernel cells near the object's bottom and inside the nominal target
+rectangle contribute to the floor-filling footprint:
+
+$$
+\mathcal A_t(a,R)=\left\{a+u:\ u\in\mathcal K_R^t(a),
+\ b_R(u)\le b_{\min}+\epsilon_f,
+\ t_R(u)\ge b_{\min},
+\ a+u\in\mathcal T_{xy}\right\}.
+$$
+
+Let $\Omega_t$ be active-floor occupancy mapped to the proposal grid and
+$\mathcal N_t$ the eight-neighbor mask computed on the occupancy grid and
+then mapped to the proposal grid. With
+$\mathcal U_t=\mathcal A_t\setminus\Omega_t$, the remaining area terms are
+
+$$
+O_t=\frac{|\mathcal U_t|}{|\mathcal A_t|},
+\qquad
+F_t=\frac{|\mathcal U_t|}
+{\max(1,\max_{(a',R')\in\mathcal C_t}|\mathcal U_t(a',R')|)},
+\qquad
+G_t=\frac{|\mathcal U_t\cap\mathcal N_t|}{|\mathcal A_t|}.
+$$
+
+Here $\mathcal C_t$ is the set with accepted floor metrics before ranking.
+Empty footprints or zero unfilled area are rejected. If occupancy exists,
+the separate connectivity check requires at least one cell in
+$\mathcal A_t\cap\mathcal N_t$. Tabletop's $G_t$ counts only unfilled
+neighboring cells, while excavator's $G$ counts its complete coarse footprint.
+
+For tabletop boundary scoring, let
+
+$$
+l_t=o_{xy}-\tfrac12(W,\ell)+0.3e_{xy},
+\qquad
+u_t=o_{xy}+\tfrac12(W,\ell)-0.3e_{xy},
+\qquad
+c_t=\frac{l_t+u_t}{2},\quad r_t=\frac{u_t-l_t}{2}.
+$$
+
+At the enumerated valid anchors, the boundary term is
+
+$$
+B_t(a)=\left\|(a-c_t)\oslash\max(r_t,10^{-12}\ \mathrm m)\right\|_\infty,
+$$
+
+with the maximum applied componentwise. This proposal heuristic uses the
+nominal base rectangle and does not apply the excavator's contact-height taper
+correction. Using the definitions above explicitly, the tabletop score is
+
+$$
+S_t(a,R)=-3H_t(a,R)+2Q_t(a,R)+O_t(a,R)
++3F_t(a,R)+G_t(a,R)+1.5B_t(a).
+$$
+
+For the **continuous integral counterpart**, let $\mathcal P_R^t(a)$ be
+the projected kernel clipped to the observation domain. Replace the maximum
+in $\widehat z_t$ by a supremum over this domain, retain
+$h_t^{\mathrm{sup}}=\widehat z_t+b_{\min}$, and write
+
+$$
+Q_t(a,R)=
+\frac{\displaystyle\int_{\mathcal P_R^t(a)}
+\mathbf 1[\widehat z_t+b_R(u)-\bar h_s(a+u)\le\epsilon_f]\,d^2u}
+{\displaystyle\int_{\mathcal P_R^t(a)}1\,d^2u}.
+$$
+
+Interpret $\mathcal A_t(a,R)$ as the continuous region satisfying the same
+bottom-height, upper-height, and target-domain conditions above. With
+$\chi_t$ the resampled occupancy indicator and $\nu_t$ the resampled
+eight-neighbor indicator, define
+
+$$
+\begin{aligned}
+A_t(a,R)&=\int_{\mathcal A_t(a,R)}1\,d^2p,\\
+U_t(a,R)&=\int_{\mathcal A_t(a,R)}[1-\chi_t(p)]\,d^2p,\\
+L_t(a,R)&=\int_{\mathcal A_t(a,R)}[1-\chi_t(p)]\nu_t(p)\,d^2p.
+\end{aligned}
+$$
+
+Consequently,
+
+$$
+O_t=\frac{U_t}{A_t},
+\qquad
+F_t=\frac{U_t}
+{\max\left(\Delta A_t,
+\max_{(a',R')\in\mathcal C_t}U_t(a',R')\right)},
+\qquad
+G_t=\frac{L_t}{A_t},
+$$
+
+where $\Delta A_t$ is the proposal grid's uniform area weight, representing
+one sample in the denominator safeguard. These expressions preserve
+tabletop's restriction of the frontier numerator to **unfilled** area.
+$H_t$, $B_t$, and their score weights retain their definitions above.
 
 It deterministically sorts candidates by descending score and interleaves
 queues associated with different gap subregions and orientations. It then
@@ -614,6 +1085,40 @@ Before alignment, tabletop instead normalized footprint support height
 against extrema of its nearest-neighbor resampled scene map. A flat map then
 gave zero bonus; the current shared scorer can distinguish boundary and
 reference-distance features even when the scene height is constant.
+
+The object containment term is estimated on the target's voxel-center set
+$\mathcal P_T$. Let $r_v$ be voxel spacing, $(R_i,t_i)$ the **refined**
+pose, and $\mathcal V_i$ the union of local convex-component volumes. Then
+
+$$
+\widehat V_{i\cap T}=r_v^3
+\sum_{p\in\mathcal P_T}
+\mathbf 1[R_i^{\mathsf T}(p-t_i)\in\mathcal V_i],
+\qquad
+C_i=\operatorname{clip}\left(
+\frac{\widehat V_{i\cap T}}{V_i},0,1\right).
+$$
+
+The code uses $V_i$ equal to the sum of component volumes and voxel spacing
+$r_v=0.03$ m for excavator or $0.003$ m for tabletop. Points belonging to
+multiple components contribute once to the intersection count, while
+overlapping component volumes can contribute more than once to $V_i$.
+
+The corresponding **volume integral** is
+
+$$
+V_{i\cap T}=\int_{\mathcal T}
+\mathbf 1[R_i^{\mathsf T}(p-t_i)\in\mathcal V_i]\,d^3p,
+\qquad
+C_i^{\mathrm{int}}=\operatorname{clip}\left(
+\frac{V_{i\cap T}}{V_i},0,1\right).
+$$
+
+Here $\mathcal T$ is the three-dimensional target volume and
+$d^3p=dp_x\,dp_y\,dp_z$. The voxel sum above is its uniform-volume
+quadrature with weight $r_v^3$. To match the implementation, keep the
+component-volume-sum denominator $V_i$, including its treatment of component
+overlap.
 
 For a mutation on either platform that does not match an already sampled pose, the
 proposal bonus falls back to the nearest XY cell of the object's cached score
@@ -904,6 +1409,7 @@ The native references assume the sibling `stacking-core` checkout.
 | Acceptance filters | [filtering.py](../packages/stacking-common/src/stacking_common/actions/filtering.py): `PosegenFeasibilityFilter`, `ScanOrientationFilter`, `TargetContainmentFilter` |
 | Root population | [cem.py](../packages/stacking-common/src/stacking_common/actions/cem.py): `CEMRootActionGenerator`, `_duplicate` |
 | Root prior score | [policies.py](../packages/stacking-common/src/stacking_common/search/policies.py): `PlacementPriorScorer` |
+| Containment estimate | [overlap.py](../packages/stacking-common/src/stacking_common/environment/overlap.py): `VoxelOverlapEvaluator`; [object.py](../packages/stacking-common/src/stacking_common/domain/object.py): `StackObject.volume`, `contains_local_points` |
 | Floor-fill fallback | [search.py](../packages/stacking-common/src/stacking_common/search/mcts/search.py): `_run_floor_fill_fallback` |
 | Height-map domain | [heightmap.py](../packages/stacking-common/src/stacking_common/visualization/heightmap.py): `HeightMapRenderer` |
 | Excavator parameters | [action_generation.yml](../apps/excavator/config/action_generation.yml), [environment.yml](../apps/excavator/config/environment.yml), [inventory.yml](../apps/excavator/config/inventory.yml), [mcts_cuda.yml](../apps/excavator/config/mcts_cuda.yml), [posegen.yml](../apps/excavator/config/solvers/posegen.yml) |
@@ -983,6 +1489,8 @@ ff2b9c2f2838464ab9307263ba008df3631e4551d9e0d264e099b1f3da4ba376  stacking-apps/
 ccad336807408104cabe11ae622092426df9b94f8312a670d2039d8be5f6cd61  stacking-apps/packages/stacking-common/src/stacking_common/actions/planar.py
 c541358b3b63a591af4d8c5b7563178079fd0f68e6ce2ecbbb5fa6103be5af58  stacking-apps/packages/stacking-common/src/stacking_common/actions/ply_height.py
 376a5235a32fd8aba012a955dbacdf7f01c296048e635ba2cf015a94f9294acd  stacking-apps/packages/stacking-common/src/stacking_common/actions/scored.py
+638602f2a0a0aaeb1a6d3357c1dda0a7327308a193667edba4d1c9b670fd173c  stacking-apps/packages/stacking-common/src/stacking_common/domain/object.py
+b27ea439a6b2249b5641028a4a4e3b6ad3f3bd3cfc3ed575c5f77144cbe01679  stacking-apps/packages/stacking-common/src/stacking_common/environment/overlap.py
 ca4482b8b39828dc291792a15b621197ab8ac0f53a594076439a46c047219d57  stacking-apps/packages/stacking-common/src/stacking_common/search/mcts/search.py
 a8b0947351191f53b0450728e4089d2447f6955c430fa92dc6411f82fa73c5ba  stacking-apps/packages/stacking-common/src/stacking_common/search/policies.py
 85df6ff33847120d618d3763db6993ee1bb69d2febd3311af08f1837088f27f5  stacking-apps/packages/stacking-common/src/stacking_common/visualization/heightmap.py
