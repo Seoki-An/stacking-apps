@@ -12,7 +12,7 @@ tree:
   discount: 0.9
   failure_reward: -1.0
   simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.
-  initial_depth1_steps: 8  # Depth 1 until 8 objects have been placed.
+  initial_depth1_steps: 12  # Depth 1 until 12 objects have been placed.
   root_lookahead: true
 widening:
   enabled: true

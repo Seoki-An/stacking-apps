@@ -32,4 +32,4 @@ reward:
     target_overlap_increment: 20.0
     place_stability: 2.0
     large_object_lower: 3.0
-    inward_orientation: 3.0
+    inward_orientation: 6.0

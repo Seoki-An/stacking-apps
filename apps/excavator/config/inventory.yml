@@ -8,7 +8,7 @@ objects:
 target:
   # stacking-planner agent/configs/ablation.yml: environment.target.
   width: 2.0
-  length: 4.0
+  length: 6.0
   height: 2.5
   origin: [0.0, 0.0, 0.0]
   support_overlap: 0.02
