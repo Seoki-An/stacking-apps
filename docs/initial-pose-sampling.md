@@ -31,6 +31,10 @@ diagnostic reconstruction, not an exact replay of multi-orientation scores or
 relaxed retry sampling. Runs recorded with the regional scorer are explicitly
 unsupported by this restored score viewer. Runs with nonzero removed `open_area`
 or `frontier` weights are also rejected; zero historical weights are discarded.
+Historical connectivity settings are accepted only when they match the fixed
+one-cell rule without an active delay in the displayed state. Runs whose
+recorded layer cap is reached are rejected by the viewer, since their capped
+floor context cannot be reconstructed with the current policy.
 
 ## 1. Purpose and algorithm structure
 
@@ -113,6 +117,12 @@ observation domain, not 32 × 32 valid anchors inside the target.
 | Target inward taper | 5° on all four sides | 10° on both length sides; 0° on width sides |
 
 ## 3. Excavator orientation hypotheses
+
+Configure the yaw bank with `orientation.yaw_angles_degrees` on both platforms.
+Excavator's roll bank is `orientation.roll_angles_degrees`. These rotations are
+combined before bottom-kernel construction and score-map computation. The
+resolved sampler still stores yaw angles in `PlanarSamplingConfig`; moving the
+YAML key does not change the generated orientations or recorded runtime profile.
 
 The excavator profile sets `pose_from_scan: false`. Its base orientation is
 constructed from the global hull vertices of the convex-component model.
@@ -210,7 +220,7 @@ The excavator YAML keeps initial planar sampling settings together under
 | Configuration block | Terms | Consumer |
 |---|---|---|
 | `planar.score` | Five named weights: `height`, `support_likelihood`, `fill_area`, `target_boundary`, `planar_bias` | Excavator's `ScoredPlanarPoseSampler`, through `_scored_floor.score_xy_debug_map` |
-| `planar.floor` | Coverage mode, fill ratio, grid size, bottom tolerance, layer limit, contact-cell minimum, footprint scale | Shared by the scored sampler and `ActiveFloorPolicy` |
+| `planar.floor` | Coverage mode, fill ratio, grid size, bottom tolerance, footprint scale | Shared by the scored sampler and `ActiveFloorPolicy` |
 
 Both platforms use one `planar.floor` block. Excavator's values are:
 
@@ -220,15 +230,13 @@ floor:
   bottom_tolerance: 0.2
   fill_ratio: 0.75
   grid_size: 16
-  max_layers: 8
-  minimum_contact_cells: 1
   footprint_scale: 0.9
 ```
 
 Tabletop explicitly configures `bottom_slice`, 0.02 m bottom tolerance, 0.90
 fill ratio, and a 32-cell grid. Its search and planning floor checks read the
-same YAML values. `minimum_contact_cells` controls both sampling connectivity
-and the solved-pose connectivity check. Sampling connectivity starts whenever
+same YAML values. Sampling and solved-pose connectivity both require at least
+one neighboring occupied cell; `minimum_contact_cells` is no longer configurable. Sampling connectivity starts whenever
 the active floor contains occupied cells; the configurable `connected_after`
 delay has been removed. An empty active floor allows a seed placement.
 `footprint_scale` sizes the sampling rectangle.
@@ -392,21 +400,20 @@ $$
 
 The expansion uses eight shifts and excludes the zero shift. It can still
 include occupied cells if they neighbor other occupied cells. Connectivity
-requires at least `minimum_contact_cells` footprint cells in this expansion;
+requires at least one footprint cell in this expansion;
 there is no weighted frontier bonus.
 
 Connectivity is applied as a hard mask after raw score computation:
 
 $$
-M_C(a)=\mathbf 1[|\mathcal A(a)\cap\mathcal N_8(\Omega_s)|\ge m],
-\qquad m=\texttt{minimum\_contact\_cells}.
+M_C(a)=\mathbf 1[|\mathcal A(a)\cap\mathcal N_8(\Omega_s)|\ge 1].
 $$
 
 On an empty active floor, $M_C=1$ for target-valid anchors. The score-map API
 returns raw `scores`, a separate `connectivity_mask`, and the final
 `candidate_mask`. Only admitted candidates enter elite, diversity, or Boltzmann
-selection. Changing the contact-cell threshold changes admission, not raw score
-values; the final score normalization uses the admitted pool. If that pool is
+selection. Connectivity changes admission, not raw score values; the final
+score normalization uses the admitted pool. If that pool is
 empty, sampling returns no proposals. Floor-fill retries retain this mask.
 The estimate uses coarse rectangular footprints, so later pose optimization
 and physical validation still determine actual contact.
@@ -630,7 +637,7 @@ $$
 Here $\Delta A_f=\Delta_x\Delta_y$ is the floor grid's uniform area weight;
 it expresses the discrete denominator safeguard of one sample in area units.
 An empty normalization set uses $\Delta A_f$. Empty-floor and relaxed scoring
-use $F=0$. Connectivity is a separate mask $L_i(a)\ge m\Delta A_f$ when the
+use $F=0$. Connectivity is a separate mask $L_i(a)\ge\Delta A_f$ when the
 floor is occupied, including relaxed retries. Its integral includes occupied
 neighboring cells as well as unfilled ones.
 
@@ -705,14 +712,17 @@ sampling and filtering. Its current settings are:
 | Occupancy grid | 16 × 16 cell-center samples | 32 × 32 samples including endpoints |
 | Floor completion fraction | 0.75 | 0.90 |
 | Bottom-height tolerance | 0.20 m | 0.02 m |
-| Maximum traversed layers | 8 | 8 |
-| Minimum contact cells | 1 | 1 |
-| Strict action-build floor filter | Enabled | Disabled |
+| Connectivity rule (fixed) | At least one neighboring occupied cell | Same |
+| Strict action-build floor filter | Enabled | Enabled |
 
 Starting at the target base, the policy collects stones whose bottom is within
 the current layer tolerance. If their union covers the required fraction, it
 advances the support height to the highest top among those stones and repeats
 with remaining stones. The first insufficiently filled layer is active.
+There is no configurable layer cap: every completed layer consumes at least
+one stone, and detection stops when no stones remain or no stones belong to
+the current layer. Removing `max_layers` also avoids misclassifying occupied
+layers above the old cutoff as empty.
 
 For either platform's `lower_floor_first` sampling, candidates whose estimated
 contact height is at most active support height plus the platform's bottom
@@ -1004,8 +1014,8 @@ though the effective proposal behavior is unchanged.
 
 The current five-term score, floor geometry, standalone scored-sampler floor
 context, and conditional root fallback remain active. In particular, the
-`planar.floor.footprint_scale` and `planar.floor.minimum_contact_cells` settings
-still control rectangular footprints and connectivity. The U-shape pocket
+`planar.floor.footprint_scale` controls rectangular footprints; connectivity
+requires at least one neighboring occupied cell. The U-shape pocket
 filter and its exclusive helpers have been removed. Historical score maps
 remain viewable when that filter was disabled; the viewer explicitly rejects
 runs that enabled it, since their candidate masks cannot be reproduced.

@@ -83,15 +83,18 @@ footprints count once. The placement search still uses its 32×32 grid.
 
 Layer geometry and sampling controls are configured together under
 `planar.floor`; the separate `floor_fill` block has been removed.
-`minimum_contact_cells` is shared by sampling and solved-pose connectivity,
-sampling connectivity applies whenever the active floor has occupancy, and
+Sampling and solved-pose connectivity require at least one neighboring occupied
+cell; `minimum_contact_cells` has been removed. Sampling connectivity applies
+whenever the active floor has occupancy, and
 `footprint_scale` sets its rectangular footprint size. The configurable
 `connected_after` delay and U-shape pocket filtering have been removed.
 
 Once projected coverage reaches `planar.floor.fill_ratio: 0.75`, the policy immediately
 advances to the next layer; it does not wait for search exhaustion. The new support
 height is the highest top of the completed layer, and that layer's stones are
-removed from the next layer's occupancy calculation. `bottom_tolerance: 0.2` m
+removed from the next layer's occupancy calculation. Detection continues to the
+first incomplete floor or until no stones remain; the `max_layers` cap has been
+removed. `bottom_tolerance: 0.2` m
 still determines which stones belong to each layer and how far above its support
 height a candidate may begin. Candidate diagnostics record the coverage mode and
 completed layers' support heights and coverage values.

@@ -48,6 +48,11 @@ def initial_pose_score_view(inventory, state, object_id, initial_pose, *, planar
     recorded_floor = settings.get('floor', settings.get('floor_fill'))
     if recorded_floor.get('u_shape_filter', 'floor' not in settings):
         raise ValueError('This run enabled the removed U-shape filter; its score maps cannot be reconstructed')
+    recorded_minimum = recorded_floor.get('minimum_contact_cells',
+        recorded_floor.get('u_shape_min_frontier_contact_cells', 1))
+    delayed = 0 < len(state.placed_object_indices) < int(recorded_floor.get('connected_after', 1))
+    if float(recorded_minimum) != 1. or delayed:
+        raise ValueError('This run used a different connectivity rule; its score maps cannot be reconstructed')
     if 'floor' not in settings:
         # Historical runs kept proposal settings and authoritative layer settings
         # separately. Translate at the artifact boundary, preserving their values.
@@ -56,15 +61,12 @@ def initial_pose_score_view(inventory, state, object_id, initial_pose, *, planar
             raise ValueError('Historical score inspection requires recorded floor settings')
         floor = {'coverage_mode': 'bottom_slice', **floor_settings,
             'footprint_scale': legacy.get('u_shape_footprint_scale', .9)}
-        # Old runs could set different connectivity minima for sampling and
-        # validation. This viewer only invokes sampling.
-        floor['minimum_contact_cells'] = legacy.get('u_shape_min_frontier_contact_cells', 1)
         settings = {key: value for key, value in settings.items() if key != 'floor_fill'}
         settings['floor'] = floor
-    # Retain historical delayed-connectivity settings only for inspection.
-    floor = {key: value for key, value in settings['floor'].items() if key != 'connected_after'}
-    if len(state.placed_object_indices) < int(recorded_floor.get('connected_after', 1)):
-        floor['minimum_contact_cells'] = 0
+    recorded_max_layers = settings['floor'].get('max_layers')
+    # Discard historical keys only when their rule matches current sampling.
+    floor = {key: value for key, value in settings['floor'].items()
+             if key not in {'connected_after', 'minimum_contact_cells', 'max_layers'}}
     settings = {**settings, 'floor': floor}
     index = inventory.object_ids.index(object_id)
     if index in state.placed_object_indices:
@@ -76,8 +78,11 @@ def initial_pose_score_view(inventory, state, object_id, initial_pose, *, planar
     config = PlanarSamplingConfig(tuple(planar_config['grid_shape']), (0.,),
         planar_config['minimum_xy_separation'], planar_config.get('target_anchor_inset_scale'))
     provider = MappingOrientationProvider({oid: pose[3:] for oid in inventory.object_ids})
-    sampler = ScoredPlanarPoseSampler(inventory, config, provider, settings,
-        floor_policy=ActiveFloorPolicy(inventory, **floor_policy_settings(settings['floor'])))
+    policy = ActiveFloorPolicy(inventory, **floor_policy_settings(settings['floor']))
+    if (recorded_max_layers is not None
+            and len(policy.context_details(state)['completed_layers']) >= int(recorded_max_layers)):
+        raise ValueError('This run reached its historical layer limit; its score maps cannot be reconstructed')
+    sampler = ScoredPlanarPoseSampler(inventory, config, provider, settings, floor_policy=policy)
     data = sampler.score_map(state, observation, index)
     fields = {'score': data['scores'].copy()}
     for name in ('height', 'support_likelihood', 'fill_area',

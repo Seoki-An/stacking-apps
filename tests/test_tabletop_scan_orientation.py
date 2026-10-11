@@ -34,10 +34,10 @@ def test_profile_records_scored_settings_and_scan_override(tmp_path):
     assert _values(off)['pose_from_scan'] is False
     assert resolve_pose_from_scan(off.pose_from_scan, None) is False
     assert _values(off)['sampling_settings'] == settings
-    data.pop('orientation')
+    data['orientation'].pop('pose_from_scan')
     alternate.write_text(yaml.safe_dump(data))
     assert load_action_generation_profile(alternate, **kwargs).pose_from_scan is True
-    data['orientation'] = {'pose_from_scan': 'false'}
+    data['orientation']['pose_from_scan'] = 'false'
     alternate.write_text(yaml.safe_dump(data))
     with pytest.raises(TypeError, match='must be boolean'):
         load_action_generation_profile(alternate, **kwargs)

@@ -748,7 +748,7 @@ def test_tabletop_active_floor_rejects_floating_and_disconnected_poses() -> None
             return StackObject()
 
     safety = TabletopPlacementSafety(Inventory(), bottom_tolerance=.02, fill_ratio=.9,
-        grid_size=32, max_layers=8, minimum_contact_cells=1, coverage_mode='bottom_slice')
+        grid_size=32, coverage_mode='bottom_slice')
     parent = State(
         [1, 2],
         [0],

@@ -13,7 +13,6 @@ filtering:
   posegen_gap_threshold: 0.005
 planar:
   grid_shape: [32, 32]
-  yaw_angles_degrees: [0, 90, 180, 270]
   minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.
   target_anchor_inset_scale: 0.6
   floor:
@@ -22,8 +21,6 @@ planar:
     bottom_tolerance: 0.2
     fill_ratio: 0.75
     grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.
-    max_layers: 8
-    minimum_contact_cells: 1  # Sampling and solved-pose connectivity.
     footprint_scale: 0.9
   boltzmann_temperature: 0.3
   boltzmann_min_probability: 0.0
@@ -42,3 +39,4 @@ planar:
 orientation:
   pose_from_scan: false
   roll_angles_degrees: [0, 180]
+  yaw_angles_degrees: [0, 90, 180, 270]

@@ -12,7 +12,6 @@ def floor_policy_settings(settings) -> dict:
     """Extract layer geometry and solved-pose limits from the unified floor block."""
     return {key: settings[key] for key in (
         "coverage_mode", "bottom_tolerance", "fill_ratio", "grid_size",
-        "max_layers", "minimum_contact_cells",
     )}
 
 
@@ -21,13 +20,12 @@ class ActiveFloorPolicy:
 
     def __init__(
         self, inventory: ObjectInventory, *, bottom_tolerance: float,
-        fill_ratio: float, grid_size: int, max_layers: int,
-        minimum_contact_cells: int,
+        fill_ratio: float, grid_size: int,
         coverage_mode: str = "bottom_slice",
     ) -> None:
         if not np.isfinite(bottom_tolerance) or bottom_tolerance <= 0:
             raise ValueError("floor bottom tolerance must be positive")
-        if not 0 < fill_ratio <= 1 or grid_size < 2 or max_layers < 1 or minimum_contact_cells < 0:
+        if not 0 < fill_ratio <= 1 or grid_size < 2:
             raise ValueError("invalid active-floor limits")
         if coverage_mode not in {"bottom_slice", "projected_footprint"}:
             raise ValueError("unsupported floor coverage mode")
@@ -36,8 +34,6 @@ class ActiveFloorPolicy:
         self.bottom_tolerance = float(bottom_tolerance)
         self.fill_ratio = float(fill_ratio)
         self.grid_size = int(grid_size)
-        self.max_layers = int(max_layers)
-        self.minimum_contact_cells = int(minimum_contact_cells)
         # Search states share most placed stones with their parents. Entries and
         # masks are pure functions of (object, exact pose), so they are reused;
         # cached arrays are read-only.
@@ -78,7 +74,8 @@ class ActiveFloorPolicy:
         layer_entries: list[dict[str, object]] = []
         occupied = self._empty_mask()
         completed_layers = []
-        for _ in range(self.max_layers):
+        # Every completed layer consumes at least one remaining stone.
+        while remaining:
             layer_entries = [
                 entry
                 for entry in remaining
@@ -131,9 +128,7 @@ class ActiveFloorPolicy:
             "fixed_scene_active_layer_fill_score": float(fill_score),
             "fixed_scene_active_layer_above": bool(above),
             "fixed_scene_active_layer_contact_cells": contact,
-            "fixed_scene_active_layer_min_contact_cells": (
-                self.minimum_contact_cells
-            ),
+            "fixed_scene_active_layer_min_contact_cells": 1,
             "fixed_scene_active_layer_unfilled_cells": unfilled_count,
             "fixed_scene_active_layer_overlap_cells": overlap,
             "fixed_scene_active_layer_occupancy": float(np.mean(occupied)),
@@ -144,7 +139,7 @@ class ActiveFloorPolicy:
         if (
             np.any(occupied)
             and fill_score > 0.0
-            and contact < self.minimum_contact_cells
+            and contact == 0
         ):
             diagnostics["active_floor_reject_reason"] = (
                 "disconnected_active_layer"

@@ -74,7 +74,7 @@ def test_unified_floor_profile_drives_sampling_and_validation(tmp_path, platform
     assert 'floor_fill' not in values['planar']
     floor = values['planar']['floor']
     floor.update(bottom_tolerance=.04, fill_ratio=.8, grid_size=20,
-                 minimum_contact_cells=2, footprint_scale=.85)
+                 footprint_scale=.85)
     path.write_text(yaml.safe_dump(values))
     app = Application.from_repository(tmp_path)
     generator = app.build_action_generator(inventory, SimpleNamespace())
@@ -84,21 +84,22 @@ def test_unified_floor_profile_drives_sampling_and_validation(tmp_path, platform
         assert policy.bottom_tolerance == floor['bottom_tolerance']
         assert policy.fill_ratio == floor['fill_ratio']
         assert policy.grid_size == floor['grid_size']
-        assert policy.minimum_contact_cells == floor['minimum_contact_cells']
+        assert 'minimum_contact_cells' not in floor
         assert sampler.settings['floor'] == floor
         assert 'floor_fill' not in sampler.settings
     finally:
         generator.close()
 
 
-@pytest.mark.parametrize('old_block', [True, False])
-def test_duplicate_floor_configuration_is_rejected(old_block):
+@pytest.mark.parametrize('old_key', ['floor_fill', 'lower_floor_fill_ratio',
+                                     'connected_after', 'minimum_contact_cells', 'max_layers'])
+def test_obsolete_floor_configuration_is_rejected(old_key):
     from stacking_common.profiles.action import resolve_scored_sampling_settings
     planar = yaml.safe_load((ROOT / 'apps/excavator/config/action_generation.yml').read_text())['planar']
-    if old_block:
+    if old_key == 'floor_fill':
         planar['floor_fill'] = {'lower_floor_fill_ratio': .6}
     else:
-        planar['floor']['lower_floor_fill_ratio'] = .6
+        planar['floor'][old_key] = 1
     with pytest.raises(ValueError, match='floor'):
         resolve_scored_sampling_settings(planar)
 
@@ -112,3 +113,49 @@ def test_removed_score_settings_are_rejected(platform, removed):
     planar['score'][removed] = 0.
     with pytest.raises(ValueError, match='obsolete planar.score'):
         resolve_scored_sampling_settings(planar)
+
+
+@pytest.mark.parametrize('complete_layers, next_layer', [
+    (0, 'empty'), (9, 'empty'), (9, 'partial'), (0, 'gap'), (9, 'gap'),
+])
+@pytest.mark.parametrize('coverage_mode', ['bottom_slice', 'projected_footprint'])
+def test_floor_detection_stops_at_first_incomplete_layer_without_cap(complete_layers, next_layer, coverage_mode):
+    from stacking_common.actions.floor import ActiveFloorPolicy
+    from stacking_common.actions import MappingOrientationProvider, PlanarSamplingConfig
+    from stacking_common.actions.scored import ScoredPlanarPoseSampler
+    from stacking_common.actions._scored_floor import active_floor_context
+    from stacking_common.domain import ObjectInventory, StackObject, TargetGeometry, DirectionalTaper, State
+    from test_action_generation import _BodyModel, _cube, _pose
+
+    full = _cube(.2)
+    objects = [StackObject(i, _BodyModel(), [full]) for i in range(complete_layers)]
+    poses = {i: _pose(z=.2 * i + .1) for i in range(complete_layers)}
+    expected_z = .2 * complete_layers
+    if next_layer != 'empty':
+        size = .1 if next_layer == 'partial' else .2
+        objects.append(StackObject(complete_layers, _BodyModel(), [_cube(size)]))
+        poses[complete_layers] = _pose(z=expected_z + size / 2 + (1. if next_layer == 'gap' else 0.))
+    # Include an unplaced object so the empty-scene case has an inventory.
+    objects.append(StackObject(len(objects), _BodyModel(), [full]))
+    inventory = ObjectInventory(objects, {o.object_id: _pose() for o in objects},
+        TargetGeometry(.2, .2, 4., np.zeros(3), DirectionalTaper(), 0.))
+    state = State(list(inventory.object_ids), list(poses), poses, [], [])
+    floor = dict(bottom_tolerance=.01, fill_ratio=.9, grid_size=16, coverage_mode=coverage_mode)
+    policy = ActiveFloorPolicy(inventory, **floor)
+    context = policy.context_details(state)
+    assert len(context['completed_layers']) == complete_layers
+    assert context['support_z'] == pytest.approx(expected_z)
+    if next_layer == 'partial':
+        assert 0. < context['occupancy'] < floor['fill_ratio']
+    else:
+        assert not context['occupied'].any()
+
+    # Standalone sampler detection must also advance beyond eight layers and
+    # stop on an empty layer even if unsupported stones remain above it.
+    sampler = ScoredPlanarPoseSampler(inventory, PlanarSamplingConfig((16, 16), (0.,), 0.),
+        MappingOrientationProvider({o.object_id: _pose()[3:] for o in objects}),
+        {'floor': {**floor, 'footprint_scale': .9}, 'contact_gap_tolerance': .01})
+    observation = SimpleNamespace(height_map_xlim=(-.1, .1), height_map_ylim=(-.1, .1))
+    standalone = active_floor_context(sampler.view(state, observation), sampler.state_view(state))
+    assert standalone['support_z'] == pytest.approx(expected_z)
+    np.testing.assert_array_equal(standalone['occupied'], context['occupied'])

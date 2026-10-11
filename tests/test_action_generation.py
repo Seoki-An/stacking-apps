@@ -40,7 +40,7 @@ from stacking_common.actions.scored import ScoredPlanarPoseSampler
 
 def _tabletop_floor_policy(inventory):
     return TabletopPlacementSafety(inventory, bottom_tolerance=.02, fill_ratio=.9,
-        grid_size=32, max_layers=8, minimum_contact_cells=1, coverage_mode='bottom_slice')
+        grid_size=32, coverage_mode='bottom_slice')
 
 
 class _RecoveryGenerator:

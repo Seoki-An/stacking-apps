@@ -40,12 +40,11 @@ def active_floor_context(inventory, state, min_count: Optional[int] = None) -> O
     )
     fill_ratio = float(floor_cfg.get("fill_ratio", 0.65))
     grid_size = max(int(floor_cfg.get("grid_size", 32)), 4)
-    max_layers = int(floor_cfg.get("max_layers", 8))
 
     entries = placed_floor_entries(inventory, state)
-    last_top = support_z
     used: set[int] = set()
-    for _ in range(max(max_layers, 1)):
+    # A completed layer consumes stones; an empty/incomplete layer returns.
+    while True:
         layer_items = [
             (idx, entry)
             for idx, entry in enumerate(entries)
@@ -53,11 +52,10 @@ def active_floor_context(inventory, state, min_count: Optional[int] = None) -> O
         ]
         layer = [entry for _, entry in layer_items]
         layer_top = max((entry["top"] for entry in layer), default=support_z)
-        last_top = layer_top
         context = occupancy_context(inventory, layer, support_z, bottom_tol, grid_size)
         if context is None:
             return None
-        if context["occupancy"] < fill_ratio:
+        if not layer_items or context["occupancy"] < fill_ratio:
             return context
 
         for idx, _ in layer_items:
@@ -66,7 +64,6 @@ def active_floor_context(inventory, state, min_count: Optional[int] = None) -> O
         if len(used) >= len(entries):
             return occupancy_context(inventory, [], support_z, bottom_tol, grid_size)
 
-    return occupancy_context(inventory, [], last_top, bottom_tol, grid_size)
 
 def placed_floor_entries(inventory, state) -> list[dict]:
     entries = []
@@ -416,7 +413,6 @@ def score_xy_debug_map(
     layer = active_floor if active_floor is not None else active_floor_context(inventory, state)
     has_occupied = layer is not None and np.any(layer["occupied"])
     fill_floor = has_occupied and not relax_floor_fill
-    min_contact = max(int(cfg.get("minimum_contact_cells", 1)), 0)
     gap_sizes: dict[int, int] = {}
     if fill_floor:
         gap_labels, gap_sizes, gap_centers, occupied_dilated = gap_components(layer["occupied"])
@@ -446,7 +442,7 @@ def score_xy_debug_map(
             & (yy <= (cell_xy[:, 1] + footprint_half[1])[:, None])
         )
         contact_cells = np.count_nonzero(footprints & occupied_dilated.ravel(), axis=1)
-        connected = contact_cells >= min_contact
+        connected = contact_cells > 0
         connectivity_mask[grid_index[:, 0], grid_index[:, 1]] = connected
     if fill_floor:
         unfilled = footprints & ~layer["occupied"].ravel()

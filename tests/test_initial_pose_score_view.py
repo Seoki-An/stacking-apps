@@ -37,8 +37,8 @@ def config():
                 target_boundary=1.5, planar_bias=2.,
                 planar_bias_axis='xy', planar_bias_xy=None, elite_fraction=.25),
             floor=dict(footprint_scale=.9,
-                minimum_contact_cells=1, fill_ratio=.75, grid_size=16,
-                bottom_tolerance=.02, max_layers=8, coverage_mode='projected_footprint')),
+                fill_ratio=.75, grid_size=16,
+                bottom_tolerance=.02, coverage_mode='projected_footprint')),
         height_map_resolution=(64, 64), height_map_margin=.2)
 
 
@@ -124,7 +124,7 @@ def test_score_view_reads_historical_split_floor_settings(config, u_shape_filter
     legacy = {key: value for key, value in config['settings'].items() if key != 'floor'}
     legacy['floor_fill'] = dict(connected_after=1,
         u_shape_filter=u_shape_filter, u_shape_footprint_scale=floor['footprint_scale'],
-        u_shape_min_frontier_contact_cells=floor['minimum_contact_cells'],
+        u_shape_min_frontier_contact_cells=1,
         lower_floor_fill_ratio=.6, lower_floor_occupancy_grid=32,
         lower_floor_bottom_z_tolerance=.2, lower_floor_max_layers=8)
     pose = _pose(y=.05, z=.3)
@@ -172,17 +172,6 @@ def test_connectivity_mask_excludes_high_scoring_disconnected_seeds(config, rela
             assert admitted[row, column]
             assert y < .04  # Existing slab ends at y=0; far empty cells are disconnected.
 
-    # Threshold changes affect admission, not the raw score-map values.
-    settings['floor']['minimum_contact_cells'] = 0
-    unrestricted = sampler.score_map(state, observation, 1)
-    np.testing.assert_array_equal(unrestricted['scores'], data['scores'])
-    assert unrestricted['candidate_mask'].sum() > admitted.sum()
-    settings['floor']['minimum_contact_cells'] = 10000
-    blocked = sampler.score_map(state, observation, 1)
-    assert np.isfinite(blocked['scores']).any()
-    assert not blocked['candidate_mask'].any()
-    assert sampler.sample(inventory, state, observation, 1, 32, 'lower_floor_first') == ()
-
     # The first stone on an empty floor must still be able to seed that floor.
     empty = State(list(inventory.object_ids), [], {}, [], [])
     empty_observation = SimpleNamespace(scene_height_map=renderer.render(empty),
@@ -202,4 +191,30 @@ def test_view_rejects_removed_nonzero_scores_but_accepts_zero_weights(config, re
     np.testing.assert_array_equal(previous.fields['score'], current.fields['score'])
     config['settings']['score'][removed] = 1.
     with pytest.raises(ValueError, match='removed open-area or frontier'):
+        initial_pose_score_view(inventory, state, 20, _pose(), **config)
+
+
+@pytest.mark.parametrize('minimum, delay, supported', [(1, 1, True), (0, 1, False),
+                                                       (2, 1, False), (1, 2, False)])
+def test_view_checks_historical_connectivity_rule(config, minimum, delay, supported):
+    inventory, state = scene()
+    current = initial_pose_score_view(inventory, state, 20, _pose(), **config)
+    config['settings']['floor'].update(minimum_contact_cells=minimum, connected_after=delay)
+    if not supported:
+        with pytest.raises(ValueError, match='different connectivity rule'):
+            initial_pose_score_view(inventory, state, 20, _pose(), **config)
+        return
+    historical = initial_pose_score_view(inventory, state, 20, _pose(), **config)
+    np.testing.assert_array_equal(historical.valid, current.valid)
+    np.testing.assert_array_equal(historical.fields['score'], current.fields['score'])
+
+
+def test_view_accepts_unused_historical_layer_cap_and_rejects_reached_cap(config):
+    inventory, state = scene()
+    current = initial_pose_score_view(inventory, state, 20, _pose(), **config)
+    config['settings']['floor']['max_layers'] = 8
+    historical = initial_pose_score_view(inventory, state, 20, _pose(), **config)
+    np.testing.assert_array_equal(historical.fields['score'], current.fields['score'])
+    config['settings']['floor'].update(max_layers=1, fill_ratio=.4)
+    with pytest.raises(ValueError, match='historical layer limit'):
         initial_pose_score_view(inventory, state, 20, _pose(), **config)

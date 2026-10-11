@@ -46,8 +46,7 @@ def test_same_physical_inputs_match_excavator_maps_draws_and_mutation_lookup(pla
         mcts_profile=replace(excavator.mcts_profile, root_cem=tabletop.mcts_profile.root_cem),
         floor_settings={"coverage_mode": policy.coverage_mode,
             "bottom_tolerance": policy.bottom_tolerance, "fill_ratio": policy.fill_ratio,
-            "grid_size": policy.grid_size, "max_layers": policy.max_layers,
-            "minimum_contact_cells": policy.minimum_contact_cells},
+            "grid_size": policy.grid_size},
         sampling_settings={**excavator.sampling_settings,
             "contact_gap_tolerance": tabletop.sampling_settings["contact_gap_tolerance"],
             "floor": tabletop.sampling_settings["floor"]})

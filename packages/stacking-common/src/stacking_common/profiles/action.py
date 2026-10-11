@@ -47,6 +47,9 @@ def load_action_generation_profile(
     initialization = _mapping(values, "initialization")
     filtering = _mapping(values, "filtering")
     planar = _mapping(values, "planar")
+    orientation = _mapping(values, "orientation")
+    if "yaw_angles_degrees" in planar:
+        raise ValueError("move planar.yaw_angles_degrees to orientation.yaw_angles_degrees")
     return ActionGenerationProfile(
         strict_floor_first=filtering.get("strict_floor_first", False),
         generator=PlacementActionGeneratorConfig(
@@ -69,7 +72,7 @@ def load_action_generation_profile(
             grid_shape=tuple(int(value) for value in _required(planar, "grid_shape")),
             yaw_angles=tuple(
                 float(np.deg2rad(value))
-                for value in _required(planar, "yaw_angles_degrees")
+                for value in _required(orientation, "yaw_angles_degrees")
             ),
             minimum_xy_separation=float(
                 _required(planar, "minimum_xy_separation")
@@ -96,10 +99,9 @@ def resolve_scored_sampling_settings(planar: Mapping[str, object]) -> dict:
         raise ValueError("merge floor_fill into planar.floor; use one floor configuration")
     floor = dict(_mapping(planar, "floor"))
     for key in ("coverage_mode", "bottom_tolerance", "fill_ratio", "grid_size",
-                "max_layers", "minimum_contact_cells",
                 "footprint_scale"):
         _required(floor, key)
-    obsolete = {key for key in floor if key == "connected_after"
+    obsolete = {key for key in floor if key in {"connected_after", "minimum_contact_cells", "max_layers"}
                 or key.startswith(("lower_floor_", "u_shape_"))}
     if obsolete:
         raise ValueError(f"obsolete planar.floor settings: {sorted(obsolete)}")
