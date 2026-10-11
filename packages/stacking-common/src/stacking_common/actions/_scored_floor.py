@@ -379,11 +379,10 @@ def score_xy_debug_map(
         ]
     score_map = np.full(shape, np.nan, dtype=float)
     candidate_mask = np.zeros(shape, dtype=bool)
+    connectivity_mask = valid.copy()
     height_score_map = np.full(shape, np.nan, dtype=float)
     support_likelihood_map = np.full(shape, np.nan, dtype=float)
-    open_area_map = np.full(shape, np.nan, dtype=float)
     fill_area_map = np.full(shape, np.nan, dtype=float)
-    frontier_map = np.full(shape, np.nan, dtype=float)
     target_boundary_map = np.full(shape, np.nan, dtype=float)
     planar_bias_map = np.full(shape, np.nan, dtype=float)
     placement_height_map = np.full(shape, np.nan, dtype=float)
@@ -395,6 +394,7 @@ def score_xy_debug_map(
             "scores": score_map,
             "valid": valid.copy(),
             "candidate_mask": candidate_mask,
+            "connectivity_mask": connectivity_mask,
             "candidates": [],
         }
 
@@ -402,9 +402,7 @@ def score_xy_debug_map(
     score_cfg = inventory.cfg.action.planar.get("score", {})
     w_height = float(score_cfg.get("height", -1.5))
     w_support_likelihood = float(score_cfg.get("support_likelihood", 2.0))
-    w_open_area = float(score_cfg.get("open_area", 1.0))
     w_fill_area = float(score_cfg.get("fill_area", 0.0))
-    w_frontier = float(score_cfg.get("frontier", 1.0))
     w_target_boundary = float(score_cfg.get("target_boundary", 0.0))
     # Older .stack contexts recorded these settings under excavator-specific names.
     w_planar_bias = float(score_cfg.get("planar_bias", score_cfg.get("excavator_distance", 0.25)))
@@ -413,22 +411,17 @@ def score_xy_debug_map(
         score_cfg.get("planar_bias_axis", score_cfg.get("excavator_distance_axis", "xy"))
     ).lower()
 
-    layer = None
-    if not relax_floor_fill:
-        layer = active_floor if active_floor is not None else active_floor_context(inventory, state)
-    gap_labels = None
-    gap_sizes: dict[int, int] = {}
-    gap_centers: dict[int, np.ndarray] = {}
-    connected_after = int(cfg.get("connected_after", 1))
-    require_connected = (
-        layer is not None
-        and np.any(layer["occupied"])
-        and len(state.stone_seq) >= connected_after
-    )
-    min_contact = max(int(cfg.get("minimum_contact_cells", 1)), 0)
+    # Connectivity remains active during floor-fill retries. An empty active
+    # layer needs a seed placement, so its connectivity mask is unrestricted.
+    layer = active_floor if active_floor is not None else active_floor_context(inventory, state)
     has_occupied = layer is not None and np.any(layer["occupied"])
-    if has_occupied:
+    fill_floor = has_occupied and not relax_floor_fill
+    min_contact = max(int(cfg.get("minimum_contact_cells", 1)), 0)
+    gap_sizes: dict[int, int] = {}
+    if fill_floor:
         gap_labels, gap_sizes, gap_centers, occupied_dilated = gap_components(layer["occupied"])
+    elif has_occupied:
+        occupied_dilated = dilated_mask(layer["occupied"])
 
     footprint_half = footprint_half_extent(inventory, stone_idx, _floor_cfg=cfg)
     # Anchor cells in row-major order. Every per-cell quantity below is an
@@ -437,8 +430,7 @@ def score_xy_debug_map(
     cell_xy = xy_grid[grid_index[:, 0], grid_index[:, 1]]
     count = len(grid_index)
     keep = np.ones(count, dtype=bool)
-    frontier = np.zeros(count)
-    open_area = np.ones(count)
+    connected = np.ones(count, dtype=bool)
     unfilled_cells = np.zeros(count, dtype=int)
     gap_component = np.full(count, -1, dtype=int)
     gap_component_size = np.zeros(count, dtype=int)
@@ -453,12 +445,13 @@ def score_xy_debug_map(
             & (yy >= (cell_xy[:, 1] - footprint_half[1])[:, None])
             & (yy <= (cell_xy[:, 1] + footprint_half[1])[:, None])
         )
-        cell_count = np.count_nonzero(footprints, axis=1)
+        contact_cells = np.count_nonzero(footprints & occupied_dilated.ravel(), axis=1)
+        connected = contact_cells >= min_contact
+        connectivity_mask[grid_index[:, 0], grid_index[:, 1]] = connected
+    if fill_floor:
         unfilled = footprints & ~layer["occupied"].ravel()
         unfilled_cells = np.count_nonzero(unfilled, axis=1)
-        keep = cell_count > 0
-        open_area = np.divide(unfilled_cells, cell_count, out=np.zeros(count), where=keep)
-        keep &= open_area > 0.0
+        keep = unfilled_cells > 0
         # Unfilled cells are never occupied, so all carry a gap label. The
         # most common label wins; ties keep the smallest, as np.unique does.
         labels = gap_labels.ravel()
@@ -480,12 +473,6 @@ def score_xy_debug_map(
                 gap_region[index] = (component, int(above_y), int(above_x))
         if np.any(keep):
             max_unfilled_cells = max(max_unfilled_cells, int(np.max(unfilled_cells[keep])))
-        contact_cells = np.count_nonzero(footprints & occupied_dilated.ravel(), axis=1)
-        frontier = np.minimum(
-            np.divide(contact_cells, cell_count, out=np.zeros(count), where=cell_count > 0), 1.0,
-        )
-        if require_connected and min_contact > 0:
-            keep &= contact_cells >= min_contact
     planar_bias = planar_bias_grid(
         inventory, xy_grid, planar_bias_xy, planar_bias_axis,
     )[grid_index[:, 0], grid_index[:, 1]]
@@ -539,6 +526,7 @@ def score_xy_debug_map(
             "scores": score_map,
             "valid": valid.copy(),
             "candidate_mask": candidate_mask,
+            "connectivity_mask": connectivity_mask,
             "height": heights.copy(),
             "candidates": [],
         }
@@ -548,13 +536,10 @@ def score_xy_debug_map(
     h_span = max(float(np.max(item_height) - h_min), 1e-6)
     height_term = (item_height - h_min) / h_span
     fill_area = unfilled_cells[cells] / max_unfilled_cells
-    # Same terms, in the same left-to-right order, as the scalar sum.
     candidate_scores = (
         w_height * height_term
         + w_support_likelihood * item_support
-        + w_open_area * open_area[cells]
         + w_fill_area * fill_area
-        + w_frontier * frontier[cells]
         + w_target_boundary * item_boundary
         + w_planar_bias * planar_bias[cells]
     )
@@ -565,22 +550,20 @@ def score_xy_debug_map(
     winners = order[np.r_[True, flat_cell[order][1:] != flat_cell[order][:-1]]]
     rows, columns = grid_index[cells[winners], 0], grid_index[cells[winners], 1]
     score_map[rows, columns] = candidate_scores[winners]
-    candidate_mask[rows, columns] = True
+    candidate_mask[rows, columns] = connectivity_mask[rows, columns]
     height_score_map[rows, columns] = height_term[winners]
     support_likelihood_map[rows, columns] = item_support[winners]
-    open_area_map[rows, columns] = open_area[cells[winners]]
     fill_area_map[rows, columns] = fill_area[winners]
-    frontier_map[rows, columns] = frontier[cells[winners]]
     target_boundary_map[rows, columns] = item_boundary[winners]
     planar_bias_map[rows, columns] = planar_bias[cells[winners]]
     placement_height_map[rows, columns] = item_placement[winners]
     orientation_index_map[rows, columns] = item_orientation[winners]
 
-    candidate_score_min = float(np.min(candidate_scores))
-    candidate_score_span = max(
-        float(np.max(candidate_scores) - candidate_score_min),
-        1e-12,
-    )
+    # Scores are independent of connectivity. Apply the hard mask before
+    # constructing the pool used by every elite/diversity/Boltzmann draw.
+    admitted_scores = candidate_scores[connected[cells]]
+    candidate_score_min = float(np.min(admitted_scores)) if len(admitted_scores) else 0.
+    candidate_score_span = max(float(np.ptp(admitted_scores)), 1e-12) if len(admitted_scores) else 1.
     normalized_scores = np.clip(
         (candidate_scores - candidate_score_min) / candidate_score_span, 0.0, 1.0,
     )
@@ -604,7 +587,7 @@ def score_xy_debug_map(
             item_base.tolist(), cells.tolist(), candidate_scores.tolist(), item_height.tolist(),
             item_support.tolist(), item_placement.tolist(), item_orientation.astype(int).tolist(),
             item_boundary.tolist(), normalized_scores.tolist(),
-        )
+        ) if connected[cell]
     ]
 
     return {
@@ -613,12 +596,11 @@ def score_xy_debug_map(
         "scores": score_map,
         "valid": valid.copy(),
         "candidate_mask": candidate_mask,
+        "connectivity_mask": connectivity_mask,
         "height": heights.copy(),
         "height_term": height_score_map,
         "support_likelihood": support_likelihood_map,
-        "open_area": open_area_map,
         "fill_area": fill_area_map,
-        "frontier": frontier_map,
         "target_boundary": target_boundary_map,
         "planar_bias": planar_bias_map,
         "placement_height": placement_height_map,
@@ -626,9 +608,7 @@ def score_xy_debug_map(
         "weights": {
             "height": w_height,
             "support_likelihood": w_support_likelihood,
-            "open_area": w_open_area,
             "fill_area": w_fill_area,
-            "frontier": w_frontier,
             "target_boundary": w_target_boundary,
             "planar_bias": w_planar_bias,
         },

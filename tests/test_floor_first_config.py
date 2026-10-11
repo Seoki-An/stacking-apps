@@ -101,3 +101,14 @@ def test_duplicate_floor_configuration_is_rejected(old_block):
         planar['floor']['lower_floor_fill_ratio'] = .6
     with pytest.raises(ValueError, match='floor'):
         resolve_scored_sampling_settings(planar)
+
+
+@pytest.mark.parametrize('platform', ['excavator', 'tabletop'])
+@pytest.mark.parametrize('removed', ['open_area', 'frontier'])
+def test_removed_score_settings_are_rejected(platform, removed):
+    from stacking_common.profiles.action import resolve_scored_sampling_settings
+    planar = yaml.safe_load((ROOT / 'apps' / platform / 'config/action_generation.yml').read_text())['planar']
+    assert removed not in planar['score']
+    planar['score'][removed] = 0.
+    with pytest.raises(ValueError, match='obsolete planar.score'):
+        resolve_scored_sampling_settings(planar)

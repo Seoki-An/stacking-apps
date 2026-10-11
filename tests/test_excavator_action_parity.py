@@ -43,7 +43,7 @@ def test_unified_planar_weights_change_excavator_scores(tmp_path):
     shutil.copytree(ROOT / "apps/excavator/config", config)
     path = config / "action_generation.yml"
     values = yaml.safe_load(path.read_text())
-    values["planar"]["score"].update(open_area=.25, frontier=.5, planar_bias=1.)
+    values["planar"]["score"].update(fill_area=.25, planar_bias=1.)
     path.write_text(yaml.safe_dump(values))
     changed = ExcavatorApplication.from_repository(tmp_path)
     assert "score_weights" not in changed.floor_settings
@@ -60,7 +60,7 @@ def test_unified_planar_weights_change_excavator_scores(tmp_path):
     np.testing.assert_array_equal(actual["candidate_mask"], baseline["candidate_mask"])
     valid = baseline["candidate_mask"]
     delta = sum((changed.sampling_settings["score"][key] - app.sampling_settings["score"][key])
-                * baseline[key][valid] for key in ("open_area", "frontier", "planar_bias"))
+                * baseline[key][valid] for key in ("fill_area", "planar_bias"))
     assert np.any(delta != 0.)
     np.testing.assert_allclose(actual["scores"][valid], baseline["scores"][valid] + delta,
                                rtol=0., atol=1e-12)
@@ -96,7 +96,7 @@ def test_scored_maps_and_seeded_poses_match_legacy_capture(label):
         index = META["candidate_index"]
         scores = sampler.score_map(state, observation, index)
         for key in ("scores", "candidate_mask", "placement_height", "support_likelihood",
-                    "open_area", "frontier", "orientation_index"):
+                    "orientation_index"):
             np.testing.assert_allclose(scores[key], recorded[label + "_" + key],
                                        atol=1e-12, rtol=0, equal_nan=True)
         rng_before = np.random.get_state()

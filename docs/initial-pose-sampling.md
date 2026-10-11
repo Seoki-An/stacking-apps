@@ -12,7 +12,8 @@ configuration; its effective settings must be reported separately.
 ## Working version and score inspection
 
 The planner uses the pre-region strategy from `824d204`, with consolidated
-floor configuration and renamed planar bias settings. The regional experiment
+floor configuration, renamed planar bias settings, and five score terms.
+Open-area and frontier bonuses have been removed; connectivity is a hard sampling mask. The regional experiment
 is retained in the existing Git stash; files
 that were untracked when stashing are backed up under
 `.backups/region-sampling-20261011/` with their paths and the stash hash.
@@ -28,7 +29,8 @@ the candidate's initial orientation and recomputes height normalization over
 that orientation's eligible cells with normal floor gates. Thus it is a
 diagnostic reconstruction, not an exact replay of multi-orientation scores or
 relaxed retry sampling. Runs recorded with the regional scorer are explicitly
-unsupported by this restored score viewer.
+unsupported by this restored score viewer. Runs with nonzero removed `open_area`
+or `frontier` weights are also rejected; zero historical weights are discarded.
 
 ## 1. Purpose and algorithm structure
 
@@ -164,7 +166,7 @@ where $e_{xy}$ is the object's asset-local XY bounding-box extent. The
 configured additional mask margin is zero. This inset permits controlled
 overhang; it does not establish full containment of the rotated object.
 
-For gap filling and frontier scoring, the excavator scorer uses an
+For gap filling and connectivity filtering, the excavator scorer uses an
 axis-aligned rectangular footprint with half-extents
 $0.9e_{xy}/2$. These coarse floor masks use asset-local extents. The separate
 bottom-height support kernel is orientation dependent.
@@ -207,8 +209,8 @@ The excavator YAML keeps initial planar sampling settings together under
 
 | Configuration block | Terms | Consumer |
 |---|---|---|
-| `planar.score` | Seven named weights: `height`, `support_likelihood`, `open_area`, `fill_area`, `frontier`, `target_boundary`, `planar_bias` | Excavator's `ScoredPlanarPoseSampler`, through `_scored_floor.score_xy_debug_map` |
-| `planar.floor` | Coverage mode, fill ratio, grid size, bottom tolerance, layer limit, contact-cell minimum, connectivity start, footprint scale | Shared by the scored sampler and `ActiveFloorPolicy` |
+| `planar.score` | Five named weights: `height`, `support_likelihood`, `fill_area`, `target_boundary`, `planar_bias` | Excavator's `ScoredPlanarPoseSampler`, through `_scored_floor.score_xy_debug_map` |
+| `planar.floor` | Coverage mode, fill ratio, grid size, bottom tolerance, layer limit, contact-cell minimum, footprint scale | Shared by the scored sampler and `ActiveFloorPolicy` |
 
 Both platforms use one `planar.floor` block. Excavator's values are:
 
@@ -220,15 +222,16 @@ floor:
   grid_size: 16
   max_layers: 8
   minimum_contact_cells: 1
-  connected_after: 1
   footprint_scale: 0.9
 ```
 
 Tabletop explicitly configures `bottom_slice`, 0.02 m bottom tolerance, 0.90
 fill ratio, and a 32-cell grid. Its search and planning floor checks read the
 same YAML values. `minimum_contact_cells` controls both sampling connectivity
-and the solved-pose connectivity check; `connected_after` controls when the
-sampling gate starts. `footprint_scale` sizes the sampling rectangle.
+and the solved-pose connectivity check. Sampling connectivity starts whenever
+the active floor contains occupied cells; the configurable `connected_after`
+delay has been removed. An empty active floor allows a seed placement.
+`footprint_scale` sizes the sampling rectangle.
 The U-shape pocket filter and its settings have been removed; these footprint
 and connectivity controls remain active.
 `filtering.strict_floor_first` still controls the additional solved-pose check.
@@ -258,19 +261,18 @@ list: respectively $[-3,2,0,2,0,1.5]$ and $[-3,2,1,2,1,1.5]$.
 Their active seven named weights are identical. Those files therefore do
 not record an excavator proposal-score ablation.
 
-Each retained anchor/orientation pair receives
+Each retained anchor/orientation pair receives the following score. Current
+weights on both platforms are $(-3,2,2,1.5,0)$ for $(H,Q,F,B,D)$.
 
 $$
-S=-3H+2Q+O+2F+G+1.5B+2D.
+S=w_HH+w_QQ+w_FF+w_BB+w_DD.
 $$
 
 | Term | Current definition | Intended geometric bias |
 |---|---|---|
-| $H$ | Mean contact height normalized over retained anchor/orientation candidates | Lower supporting surfaces |
+| $H$ | Mean contact height normalized over scored anchor/orientation candidates before connectivity masking | Lower supporting surfaces |
 | $Q$ | Fraction of bottom-kernel samples within the contact tolerance | Broader approximate support |
-| $O$ | Unoccupied cells divided by cells in the coarse rectangular floor footprint | More open floor under the candidate |
 | $F$ | Unoccupied footprint-cell count normalized over open anchors before connectivity filtering | Covering a larger unfilled area |
-| $G$ | Fraction of footprint cells intersecting the eight-neighbor expansion of occupancy | Adjacency to the existing footprint |
 | $B$ | Maximum absolute normalized XY coordinate relative to the height-dependent target bounds | Positions nearer a target boundary |
 | $D$ | Distance to a reference point, divided by target XY diagonal and clipped to one | Greater distance from that reference |
 
@@ -318,7 +320,8 @@ h_c(a,R)=\frac{1}{|\mathcal K_c(a,R)|}
 \sum_{u\in\mathcal K_c(a,R)}h_s(a+u).
 $$
 
-Define extrema over the retained pairs for this object in the current state:
+Define extrema over the scored pairs for this object in the current state,
+after target/open-space/support validity checks and before connectivity masking:
 
 $$
 h_{c,\min}=\min_{(a,R)\in\mathcal C}h_c(a,R),
@@ -337,7 +340,7 @@ The negative height coefficient therefore favors low contact surfaces. The
 code has a fallback to mean footprint height if the reported contact height
 is nonfinite; the equations above describe the finite-support path.
 
-#### Open-area fraction $O$
+#### Floor footprint and unfilled cells
 
 Let $\mathcal G_f$ be the active-floor sampling grid, $\Omega_s$ its occupied
 cells, and $e_x,e_y$ the object's asset-local extents. The scorer's rectangular
@@ -356,13 +359,8 @@ $$
 \qquad n_U(a)=|\mathcal U(a)|.
 $$
 
-When the active floor contains occupied cells,
-
-$$
-O(a)=\frac{n_U(a)}{n_A(a)}.
-$$
-
-Anchors with $n_A=0$ or $n_U=0$ are removed at this stage. The footprint
+When the active floor contains occupied cells, anchors with $n_U=0$ are
+removed at this stage. This is an admission rule, not an open-area score. The footprint
 $\mathcal A(a)$ does not rotate with $R$ in this excavator heuristic.
 
 #### Normalized fill area $F$
@@ -378,11 +376,10 @@ F(a)=\frac{n_U(a)}{n_{U,\max}}.
 $$
 
 If that set is empty, the code keeps the normalization denominator at one.
-$O$ measures the unoccupied fraction of a particular footprint, whereas $F$
-compares its unoccupied cell count with other anchors for the same object.
+$F$ compares the unoccupied cell count with other anchors for the same object.
 The anchor attaining $n_{U,\max}$ can be removed by a later filter.
 
-#### Frontier adjacency $G$
+#### Connectivity mask
 
 Use integer row/column coordinates on $\mathcal G_f$ to define the
 eight-neighbor expansion
@@ -393,22 +390,29 @@ $$
 \quad p-q\in\{-1,0,1\}^2\setminus\{(0,0)\}\right\}.
 $$
 
-The frontier score is
+The expansion uses eight shifts and excludes the zero shift. It can still
+include occupied cells if they neighbor other occupied cells. Connectivity
+requires at least `minimum_contact_cells` footprint cells in this expansion;
+there is no weighted frontier bonus.
+
+Connectivity is applied as a hard mask after raw score computation:
 
 $$
-G(a)=\min\left(\frac{|\mathcal A(a)\cap\mathcal N_8(\Omega_s)|}
-{|\mathcal A(a)|},1\right).
+M_C(a)=\mathbf 1[|\mathcal A(a)\cap\mathcal N_8(\Omega_s)|\ge m],
+\qquad m=\texttt{minimum\_contact\_cells}.
 $$
 
-The expansion uses eight shifts and excludes the zero shift. The numerator
-can still include occupied cells if they neighbor other occupied cells; the
-excavator expression does not restrict it to $\mathcal U(a)$. The associated
-connectivity filter uses the unnormalized count
-$|\mathcal A(a)\cap\mathcal N_8(\Omega_s)|$ and currently requires at least
-one such cell when connectivity is active.
+On an empty active floor, $M_C=1$ for target-valid anchors. The score-map API
+returns raw `scores`, a separate `connectivity_mask`, and the final
+`candidate_mask`. Only admitted candidates enter elite, diversity, or Boltzmann
+selection. Changing the contact-cell threshold changes admission, not raw score
+values; the final score normalization uses the admitted pool. If that pool is
+empty, sampling returns no proposals. Floor-fill retries retain this mask.
+The estimate uses coarse rectangular footprints, so later pose optimization
+and physical validation still determine actual contact.
 
 If there is no occupied active-floor mask, or floor-fill scoring is relaxed,
-the implementation uses the defaults **$O=1$, $F=0$, and $G=0$**.
+the fill-area score defaults to **$F=0$**.
 
 #### Target-boundary proximity $B$
 
@@ -487,8 +491,8 @@ paper should describe this direction accurately rather than calling the term
 a preference for shorter robot travel. Likewise, boundary proximity rewards
 edge proximity rather than a center-seeking preference.
 
-On an empty active floor, open area defaults to one, fill and frontier terms
-are zero, and the remaining terms drive selection. The score is a proposal
+On an empty active floor, the fill-area term is zero and the remaining terms
+drive selection. The score is a proposal
 heuristic, distinct from both MCTS return and the native pose objective.
 
 ### 5.2 Continuous integral formulation for the paper
@@ -578,7 +582,7 @@ Section 5.1. The support supremum and gap threshold are nonlinear operations;
 the complete support score cannot be replaced by an ordinary linear
 convolution.
 
-#### Open area, fill area, and frontier adjacency
+#### Fill area and connectivity
 
 Let $\mathcal T_{xy}$ be the nominal target rectangle,
 $\chi_s(p)=\mathbf 1[p\in\Omega_s]$ the active-floor occupancy field,
@@ -616,23 +620,19 @@ $$
 L_i(a)=\int_{\mathcal T_{xy}}\rho_i(p-a)\nu_s(p)\,d^2p.
 $$
 
-The three score terms become
+The fill-area score becomes
 
 $$
-O(a)=\frac{U_i(a)}{A_i(a)},
-\qquad
 F(a)=\frac{U_i(a)}
-{\max\left(\Delta A_f,\max_{a'\in\mathcal A_{\mathrm{open}}}U_i(a')\right)},
-\qquad
-G(a)=\frac{L_i(a)}{A_i(a)}.
+{\max\left(\Delta A_f,\max_{a'\in\mathcal A_{\mathrm{open}}}U_i(a')\right)}.
 $$
 
 Here $\Delta A_f=\Delta_x\Delta_y$ is the floor grid's uniform area weight;
 it expresses the discrete denominator safeguard of one sample in area units.
-An empty normalization set uses $\Delta A_f$. The continuous ratios apply to
-positive-area accepted footprints. Preserve the implementation's separate empty-floor or relaxed
-scoring branch, **$O=1$, $F=0$, $G=0$**. In particular, the excavator frontier
-integral includes occupied neighboring cells as well as unfilled ones.
+An empty normalization set uses $\Delta A_f$. Empty-floor and relaxed scoring
+use $F=0$. Connectivity is a separate mask $L_i(a)\ge m\Delta A_f$ when the
+floor is occupied, including relaxed retries. Its integral includes occupied
+neighboring cells as well as unfilled ones.
 
 For uniform samples, replacing each integral by
 $\Delta A\sum_p$ recovers the count ratios in Section 5.1; the common area
@@ -641,7 +641,7 @@ weight; their sums are not trapezoidal integration with reduced boundary
 weights. Finite masks, sparse kernel construction, and grid boundaries still
 determine the numerical approximation. $B$ and $D$ remain pointwise
 geometric expressions. The combined score remains
-$S=-3H+2Q+O+2F+G+1.5B+2D$.
+$S=w_HH+w_QQ+w_FF+w_BB+w_DD$.
 
 ### 5.3 Diversity and Boltzmann draws
 
@@ -706,7 +706,7 @@ sampling and filtering. Its current settings are:
 | Floor completion fraction | 0.75 | 0.90 |
 | Bottom-height tolerance | 0.20 m | 0.02 m |
 | Maximum traversed layers | 8 | 8 |
-| Minimum frontier contact cells | 1 | 1 |
+| Minimum contact cells | 1 | 1 |
 | Strict action-build floor filter | Enabled | Disabled |
 
 Starting at the target base, the policy collects stones whose bottom is within
@@ -728,7 +728,8 @@ occupancy. No U-shaped-pocket rejection is applied.
 The search contains a conditional fallback: if ordinary root selection fails
 with a strict floor filter present, it tries a new root under relaxed floor-fill
 sampling/filtering. Native pose feasibility and subsequent physical evaluation
-still apply. Thus the complete search policy permits an explicit floor-fill
+still apply, and sampled seeds still obey the connectivity mask. Thus the
+complete search policy permits an explicit floor-fill
 fallback, rather than guaranteeing that every selected action satisfies the
 strict lower-floor preference.
 
@@ -757,7 +758,7 @@ uniform XY coordinates. Their initial grid proposals differ as follows:
 | Floor-filling geometry | Asset-local axis-aligned rectangular footprint on the active-floor grid | Same |
 | Support contact tolerance | 0.02 m | 0.10 m |
 | Active-floor occupancy | Bottom-slab volume intersections, 32 × 32; advance at 90% | Projected component footprints, 16 × 16; advance at 75% |
-| Weighted score | $-3H+2Q+O+2F+G+1.5B+2D$ | Same |
+| Weighted score | $-3H+2Q+2F+1.5B$ | Same |
 | Boundary feature | Bounds tapered according to estimated contact height | Same |
 | Selection | Seeded weighted draws, Y-region and gap representatives, elite candidates, height/quadrant representatives | Same |
 | XY separation | No sampler distance thinning | Same |
@@ -794,7 +795,7 @@ height initializer; tabletop retains `MeshHeightInitializer` with 0.015 m
 clearance and 0.012 m padding.
 
 Tabletop's [action_generation.yml](../apps/tabletop/config/action_generation.yml)
-explicitly resolves temperature 0.3, elite fraction 0.25, the same seven
+explicitly resolves temperature 0.3, elite fraction 0.25, the same five
 dimensionless weights as excavator, and its own 0.02 m contact tolerance.
 `planar_bias` measures normalized distance from the configured reference,
 defaulting to the search-frame origin when `planar_bias_xy` is null. It does
@@ -1001,7 +1002,7 @@ bit-for-bit. Removing the ignored YAML key changes serialized settings, so
 the existing strict saved-context comparison can reject an earlier run even
 though the effective proposal behavior is unchanged.
 
-The current seven-term score, floor geometry, standalone scored-sampler floor
+The current five-term score, floor geometry, standalone scored-sampler floor
 context, and conditional root fallback remain active. In particular, the
 `planar.floor.footprint_scale` and `planar.floor.minimum_contact_cells` settings
 still control rectangular footprints and connectivity. The U-shape pocket
@@ -1253,8 +1254,8 @@ the parameter values if the experiments used different effective profiles.
 > grid restricted by a target-region mask. Orientation-dependent lower-surface
 > kernels estimate contact coverage against the current stack height map.
 > Candidate scores combine contact height, approximate support coverage,
-> unfilled floor area, adjacency to existing stones, target-boundary proximity,
-> and distance from a reference point. A combination of regional
+> unfilled floor area, target-boundary proximity, and distance from a reference
+> point. A separate footprint-connectivity mask excludes disconnected seeds. A combination of regional
 > representatives, high-scoring candidates, and Boltzmann draws preserves
 > spatial diversity while favoring promising hypotheses.
 
@@ -1306,7 +1307,11 @@ fresh fraction, and per-object caps. These are suggested experiments; this
 document contains proposal-score sensitivity measurements below, but no new
 native-placement, simulation, or end-to-end search-quality measurements.
 
-### 13.1 Measured excavator proposal-score sensitivity
+### 13.1 Historical excavator proposal-score sensitivity
+
+The historical results below used seven terms. Open-area and frontier scores
+have since been removed. The current analysis script measures the remaining
+five terms; rerunning it will not reproduce this archived report.
 
 The diagnostic [analyze_initial_pose_scores.py](../tests/analyze_initial_pose_scores.py)
 was run with the excavator configuration before its YAML layout consolidation,

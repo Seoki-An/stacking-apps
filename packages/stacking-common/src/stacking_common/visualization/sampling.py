@@ -40,6 +40,11 @@ def initial_pose_score_view(inventory, state, object_id, initial_pose, *, planar
     """
     if settings.get('strategy') or not settings.get('score') or not (settings.get('floor') or settings.get('floor_fill')):
         raise ValueError('Score inspection requires pre-region sampler settings')
+    removed_scores = {'open_area', 'frontier'}
+    if any(float(settings['score'].get(key, 0.)) != 0. for key in removed_scores):
+        raise ValueError('This run used removed open-area or frontier scores; its score maps cannot be reconstructed')
+    settings = {**settings, 'score': {key: value for key, value in settings['score'].items()
+                                    if key not in removed_scores}}
     recorded_floor = settings.get('floor', settings.get('floor_fill'))
     if recorded_floor.get('u_shape_filter', 'floor' not in settings):
         raise ValueError('This run enabled the removed U-shape filter; its score maps cannot be reconstructed')
@@ -50,13 +55,17 @@ def initial_pose_score_view(inventory, state, object_id, initial_pose, *, planar
         if floor_settings is None:
             raise ValueError('Historical score inspection requires recorded floor settings')
         floor = {'coverage_mode': 'bottom_slice', **floor_settings,
-            'connected_after': legacy.get('connected_after', 1),
             'footprint_scale': legacy.get('u_shape_footprint_scale', .9)}
         # Old runs could set different connectivity minima for sampling and
         # validation. This viewer only invokes sampling.
         floor['minimum_contact_cells'] = legacy.get('u_shape_min_frontier_contact_cells', 1)
         settings = {key: value for key, value in settings.items() if key != 'floor_fill'}
         settings['floor'] = floor
+    # Retain historical delayed-connectivity settings only for inspection.
+    floor = {key: value for key, value in settings['floor'].items() if key != 'connected_after'}
+    if len(state.placed_object_indices) < int(recorded_floor.get('connected_after', 1)):
+        floor['minimum_contact_cells'] = 0
+    settings = {**settings, 'floor': floor}
     index = inventory.object_ids.index(object_id)
     if index in state.placed_object_indices:
         raise ValueError('score-map candidate is already in the scene')
@@ -71,7 +80,7 @@ def initial_pose_score_view(inventory, state, object_id, initial_pose, *, planar
         floor_policy=ActiveFloorPolicy(inventory, **floor_policy_settings(settings['floor'])))
     data = sampler.score_map(state, observation, index)
     fields = {'score': data['scores'].copy()}
-    for name in ('height', 'support_likelihood', 'open_area', 'fill_area', 'frontier',
+    for name in ('height', 'support_likelihood', 'fill_area',
                  'target_boundary', 'planar_bias', 'placement_height'):
         source = 'height_term' if name == 'height' else name
         fields[name] = np.asarray(data.get(source, np.full(config.grid_shape, np.nan))).copy()

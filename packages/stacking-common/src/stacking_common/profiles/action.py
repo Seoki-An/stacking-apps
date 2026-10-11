@@ -96,17 +96,22 @@ def resolve_scored_sampling_settings(planar: Mapping[str, object]) -> dict:
         raise ValueError("merge floor_fill into planar.floor; use one floor configuration")
     floor = dict(_mapping(planar, "floor"))
     for key in ("coverage_mode", "bottom_tolerance", "fill_ratio", "grid_size",
-                "max_layers", "minimum_contact_cells", "connected_after",
+                "max_layers", "minimum_contact_cells",
                 "footprint_scale"):
         _required(floor, key)
-    obsolete = {key for key in floor if key.startswith(("lower_floor_", "u_shape_"))}
+    obsolete = {key for key in floor if key == "connected_after"
+                or key.startswith(("lower_floor_", "u_shape_"))}
     if obsolete:
         raise ValueError(f"obsolete planar.floor settings: {sorted(obsolete)}")
+    score = dict(_mapping(planar, "score"))
+    obsolete_scores = {"open_area", "frontier"} & score.keys()
+    if obsolete_scores:
+        raise ValueError(f"obsolete planar.score settings: {sorted(obsolete_scores)}")
     return {
         **{key: _required(planar, key) for key in (
             "boltzmann_temperature", "boltzmann_min_probability",
             "target_mask_margin", "contact_gap_tolerance")},
-        "score": dict(_mapping(planar, "score")),
+        "score": score,
         "floor": floor,
     }
 

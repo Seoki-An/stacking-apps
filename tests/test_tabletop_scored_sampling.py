@@ -116,7 +116,7 @@ def test_tabletop_yaml_weights_drive_scores_and_are_recorded(tmp_path):
     app = TabletopApplication.from_repository(ROOT)
     inventory, state, observation = scene(app, True)
     values = yaml.safe_load((ROOT / "apps/tabletop/config/action_generation.yml").read_text())
-    values["planar"]["score"].update(open_area=.25, frontier=.5, planar_bias=1.)
+    values["planar"]["score"].update(fill_area=.25, planar_bias=1.)
     path = tmp_path / "action_generation.yml"
     path.write_text(yaml.safe_dump(values))
     changed = replace(app, action_generation_profile=load_action_generation_profile(path,
@@ -131,7 +131,7 @@ def test_tabletop_yaml_weights_drive_scores_and_are_recorded(tmp_path):
         assert valid.any()
         np.testing.assert_array_equal(actual["candidate_mask"], valid)
         delta = sum((changed.sampling_settings["score"][key] - app.sampling_settings["score"][key])
-                    * baseline[key][valid] for key in ("open_area", "frontier", "planar_bias"))
+                    * baseline[key][valid] for key in ("fill_area", "planar_bias"))
         assert np.any(delta != 0.)
         np.testing.assert_allclose(actual["scores"][valid], baseline["scores"][valid] + delta,
                                    rtol=0., atol=1e-12)

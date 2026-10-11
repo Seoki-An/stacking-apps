@@ -24,7 +24,6 @@ planar:
     grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.
     max_layers: 8
     minimum_contact_cells: 1  # Sampling and solved-pose connectivity.
-    connected_after: 1
     footprint_scale: 0.9
   boltzmann_temperature: 0.3
   boltzmann_min_probability: 0.0
@@ -34,9 +33,7 @@ planar:
   score:
     height: -3.0
     support_likelihood: 2.0
-    open_area: 0.0
     fill_area: 2.0
-    frontier: 0.0
     target_boundary: 1.5
     planar_bias: 0.0
     planar_bias_axis: xy

@@ -176,7 +176,7 @@ def test_tabletop_context_records_native_joint_order_profiles_and_assets():
     assert context.sha256 != build_planning_context(changed, inventory, pick, solver, {"iterations": 5}).sha256
     changed = replace(app, action_generation_profile=replace(app.action_generation_profile,
         sampling_settings={**app.sampling_settings,
-                           "score": {**app.sampling_settings["score"], "open_area": 0.}}))
+                           "score": {**app.sampling_settings["score"], "fill_area": 0.}}))
     assert context.sha256 != build_planning_context(changed, inventory, pick, solver, {"iterations": 5}).sha256
 
 

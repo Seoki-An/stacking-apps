@@ -33,10 +33,10 @@ def config():
         planar_config=asdict(PlanarSamplingConfig((16, 20), (0.,), 0., .6)),
         settings=dict(boltzmann_temperature=.3, boltzmann_min_probability=0.,
             target_mask_margin=0., contact_gap_tolerance=.01,
-            score=dict(height=-3., support_likelihood=2., open_area=1., fill_area=2.,
-                frontier=1., target_boundary=1.5, planar_bias=2.,
+            score=dict(height=-3., support_likelihood=2., fill_area=2.,
+                target_boundary=1.5, planar_bias=2.,
                 planar_bias_axis='xy', planar_bias_xy=None, elite_fraction=.25),
-            floor=dict(connected_after=1, footprint_scale=.9,
+            floor=dict(footprint_scale=.9,
                 minimum_contact_cells=1, fill_ratio=.75, grid_size=16,
                 bottom_tolerance=.02, max_layers=8, coverage_mode='projected_footprint')),
         height_map_resolution=(64, 64), height_map_margin=.2)
@@ -58,6 +58,10 @@ def test_view_matches_fixed_orientation_production_maps_and_weighted_sum(config,
         height_map_xlim=renderer.xlim, height_map_ylim=renderer.ylim)
     data = sampler.score_map(state, observation, 1)
     assert view.valid.any()
+    assert set(view.weights) == {'height', 'support_likelihood', 'fill_area',
+                                 'target_boundary', 'planar_bias'}
+    assert not {'open_area', 'frontier'} & data.keys()
+    assert not {'open_area', 'frontier'} & view.fields.keys()
     for name, values in view.fields.items():
         key = {'score': 'scores', 'height': 'height_term'}.get(name, name)
         np.testing.assert_array_equal(values, data[key])
@@ -118,7 +122,7 @@ def test_score_view_reads_historical_split_floor_settings(config, u_shape_filter
     inventory, state = scene()
     floor = config['settings']['floor']
     legacy = {key: value for key, value in config['settings'].items() if key != 'floor'}
-    legacy['floor_fill'] = dict(connected_after=floor['connected_after'],
+    legacy['floor_fill'] = dict(connected_after=1,
         u_shape_filter=u_shape_filter, u_shape_footprint_scale=floor['footprint_scale'],
         u_shape_min_frontier_contact_cells=floor['minimum_contact_cells'],
         lower_floor_fill_ratio=.6, lower_floor_occupancy_grid=32,
@@ -135,3 +139,67 @@ def test_score_view_reads_historical_split_floor_settings(config, u_shape_filter
     np.testing.assert_array_equal(current.valid, previous.valid)
     for name in current.fields:
         np.testing.assert_array_equal(current.fields[name], previous.fields[name])
+
+
+@pytest.mark.parametrize('relaxed', [False, True])
+def test_connectivity_mask_excludes_high_scoring_disconnected_seeds(config, relaxed):
+    inventory, state = scene()
+    # Favor the empty space farthest from the existing stone: filtering must
+    # dominate this score, including elite selection and relaxed floor retries.
+    settings = config['settings']
+    settings['score'].update(height=0., support_likelihood=0.,
+        fill_area=0., target_boundary=0., planar_bias=100.,
+        planar_bias_axis='y', planar_bias_xy=[0., -.1])
+    sampler = ScoredPlanarPoseSampler(inventory, PlanarSamplingConfig(**config['planar_config']),
+        MappingOrientationProvider({oid: _pose()[3:] for oid in inventory.object_ids}),
+        settings, floor_policy=ActiveFloorPolicy(inventory, **floor_policy_settings(settings['floor'])))
+    renderer = HeightMapRenderer(inventory, config['height_map_resolution'], config['height_map_margin'])
+    observation = SimpleNamespace(scene_height_map=renderer.render(state),
+        height_map_xlim=renderer.xlim, height_map_ylim=renderer.ylim)
+    sampler.relax_floor_fill = relaxed
+    data = sampler.score_map(state, observation, 1)
+    admitted = data['candidate_mask']
+    disconnected = np.isfinite(data['scores']) & ~data['connectivity_mask']
+    assert admitted.any() and disconnected.any()
+    assert data['scores'][disconnected].max() > data['scores'][admitted].max()
+    for _ in range(5):
+        proposals = sampler.sample(inventory, state, observation, 1, 32, 'lower_floor_first')
+        assert proposals
+        for proposal in proposals:
+            x, y = proposal.pose[:2]
+            row = np.abs(data['y_coords'] - y).argmin()
+            column = np.abs(data['x_coords'] - x).argmin()
+            assert admitted[row, column]
+            assert y < .04  # Existing slab ends at y=0; far empty cells are disconnected.
+
+    # Threshold changes affect admission, not the raw score-map values.
+    settings['floor']['minimum_contact_cells'] = 0
+    unrestricted = sampler.score_map(state, observation, 1)
+    np.testing.assert_array_equal(unrestricted['scores'], data['scores'])
+    assert unrestricted['candidate_mask'].sum() > admitted.sum()
+    settings['floor']['minimum_contact_cells'] = 10000
+    blocked = sampler.score_map(state, observation, 1)
+    assert np.isfinite(blocked['scores']).any()
+    assert not blocked['candidate_mask'].any()
+    assert sampler.sample(inventory, state, observation, 1, 32, 'lower_floor_first') == ()
+
+    # The first stone on an empty floor must still be able to seed that floor.
+    empty = State(list(inventory.object_ids), [], {}, [], [])
+    empty_observation = SimpleNamespace(scene_height_map=renderer.render(empty),
+        height_map_xlim=renderer.xlim, height_map_ylim=renderer.ylim)
+    first = sampler.score_map(empty, empty_observation, 1)
+    np.testing.assert_array_equal(first['connectivity_mask'], first['valid'])
+    assert sampler.sample(inventory, empty, empty_observation, 1, 1, 'lower_floor_first')
+
+
+@pytest.mark.parametrize('removed', ['open_area', 'frontier'])
+def test_view_rejects_removed_nonzero_scores_but_accepts_zero_weights(config, removed):
+    inventory, state = scene()
+    current = initial_pose_score_view(inventory, state, 20, _pose(), **config)
+    config['settings']['score'][removed] = 0.
+    previous = initial_pose_score_view(inventory, state, 20, _pose(), **config)
+    np.testing.assert_array_equal(previous.valid, current.valid)
+    np.testing.assert_array_equal(previous.fields['score'], current.fields['score'])
+    config['settings']['score'][removed] = 1.
+    with pytest.raises(ValueError, match='removed open-area or frontier'):
+        initial_pose_score_view(inventory, state, 20, _pose(), **config)

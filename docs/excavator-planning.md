@@ -84,8 +84,9 @@ footprints count once. The placement search still uses its 32×32 grid.
 Layer geometry and sampling controls are configured together under
 `planar.floor`; the separate `floor_fill` block has been removed.
 `minimum_contact_cells` is shared by sampling and solved-pose connectivity,
-`connected_after` controls sampling's connectivity start, and `footprint_scale`
-sets its rectangular footprint size. U-shape pocket filtering has been removed.
+sampling connectivity applies whenever the active floor has occupancy, and
+`footprint_scale` sets its rectangular footprint size. The configurable
+`connected_after` delay and U-shape pocket filtering have been removed.
 
 Once projected coverage reaches `planar.floor.fill_ratio: 0.75`, the policy immediately
 advances to the next layer; it does not wait for search exhaustion. The new support
@@ -1557,7 +1558,8 @@ Excavator search first uses the configured floor-fill threshold and ordinary
 root retries. If no candidate remains selectable, its scored action generator
 allows an initial root pool and up to `rejected_root_retry_rounds` further pools
 without the active-floor rejection, lower-floor sampling priority, or
-floor-gap/connectedness masks. Later pools exclude earlier candidates. This
+floor-gap restriction. The connectivity mask remains active on sampled seeds.
+Later pools exclude earlier candidates. This
 fallback shares the original search deadline and existing candidate/validation
 limits.
 It does not reduce the configured coverage threshold globally.

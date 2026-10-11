@@ -79,8 +79,8 @@ def test_score_map_keeps_candidate_order_height_fallback_and_orientation_ties(al
         cfg=SimpleNamespace(action=SimpleNamespace(planar={
             "score_map_size": 2,
             "floor": {"boundary_inset_radius_scale": 0.},
-            "score": {"height": 0., "support_likelihood": 1., "open_area": 0.,
-                      "fill_area": 0., "frontier": 0., "target_boundary": 0.,
+            "score": {"height": 0., "support_likelihood": 1.,
+                      "fill_area": 0., "target_boundary": 0.,
                       "planar_bias": 0.},
         })),
         support_settings=SimpleNamespace(ground_z=0., contact_gap_tolerance=.01),

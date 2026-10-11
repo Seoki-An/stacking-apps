@@ -26,14 +26,12 @@ from stacking_common.visualization.heightmap import HeightMapRenderer
 from stacking_excavator import ExcavatorApplication
 
 
-TERMS = ("H", "Q", "O", "F", "G", "B", "D")
-KEYS = ("height", "support_likelihood", "open_area", "fill_area",
-        "frontier", "target_boundary", "planar_bias")
+TERMS = ("H", "Q", "F", "B", "D")
+KEYS = ("height", "support_likelihood", "fill_area", "target_boundary", "planar_bias")
 ABLATIONS = {f"drop_{term}": (term,) for term in TERMS}
-ABLATIONS.update({"H_Q_F": ("O", "G", "B", "D"),
-                  "H_Q_F_B": ("O", "G", "D"),
-                  "H_Q_O": ("F", "G", "B", "D"),
-                  "H_Q": ("O", "F", "G", "B", "D")})
+ABLATIONS.update({"H_Q_F": ("B", "D"),
+                  "H_Q_F_B": ("D",),
+                  "H_Q": ("F", "B", "D")})
 
 
 def candidate_terms(score_map):
@@ -43,11 +41,9 @@ def candidate_terms(score_map):
     rows = np.abs(xy[:, 1, None] - score_map["y_coords"]).argmin(axis=1)
     heights = np.array([item["height"] for item in candidates])
     values = np.column_stack((
-        (heights - heights.min()) / max(float(np.ptp(heights)), 1e-6),
+        (heights - score_map["h_min"]) / score_map["h_span"],
         [item["support_likelihood"] for item in candidates],
-        score_map["open_area"][rows, columns],
         score_map["fill_area"][rows, columns],
-        score_map["frontier"][rows, columns],
         [item["target_boundary"] for item in candidates],
         score_map["planar_bias"][rows, columns],
     ))
@@ -174,9 +170,7 @@ def main():
                    "priority_candidates": len(priority),
                    "weighted_std_all": dict(zip(TERMS, weighted.std(axis=0).tolist())),
                    "weighted_std_priority": dict(zip(TERMS, weighted[priority].std(axis=0).tolist())),
-                   "O_F_correlation": correlation(values[priority, 2], values[priority, 3]),
-                   "O_F_correlation_all": correlation(values[:, 2], values[:, 3]),
-                   "B_D_correlation": correlation(values[priority, 5], values[priority, 6]),
+                   "B_D_correlation": correlation(values[priority, 3], values[priority, 4]),
                    "ablations": {}}
             for label, removed in ABLATIONS.items():
                 alternate = np.round(combine(weighted, removed), 12)
@@ -199,8 +193,6 @@ def main():
             "objects_with_more_than_32_priority_candidates": sum(row["priority_candidates"] > count for row in rows),
             "weighted_std_all": {term: float(np.mean([row["weighted_std_all"][term] for row in rows])) for term in TERMS},
             "weighted_std_priority": {term: float(np.mean([row["weighted_std_priority"][term] for row in rows])) for term in TERMS},
-            "O_F_correlation": summarize(rows, "O_F_correlation"),
-            "O_F_correlation_all": summarize(rows, "O_F_correlation_all"),
             "B_D_correlation": summarize(rows, "B_D_correlation"),
             "ablations": {label: {metric: summarize([row["ablations"][label] for row in rows], metric)
                                   for metric in ("rank_correlation", "top32_overlap", "top32_overlap_when_competing", "sample_population_overlap")}
