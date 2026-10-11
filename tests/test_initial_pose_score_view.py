@@ -8,7 +8,7 @@ import pytest
 from scipy.spatial.transform import Rotation
 
 from stacking_common.actions import MappingOrientationProvider, PlanarSamplingConfig
-from stacking_common.actions.floor import ActiveFloorPolicy
+from stacking_common.actions.floor import ActiveFloorPolicy, floor_policy_settings
 from stacking_common.actions.scored import ScoredPlanarPoseSampler
 from stacking_common.domain import ConvexGeometry, DirectionalTaper, ObjectInventory, StackObject, State, TargetGeometry
 from stacking_common.visualization.heightmap import HeightMapRenderer
@@ -34,14 +34,11 @@ def config():
         settings=dict(boltzmann_temperature=.3, boltzmann_min_probability=0.,
             target_mask_margin=0., contact_gap_tolerance=.01,
             score=dict(height=-3., support_likelihood=2., open_area=1., fill_area=2.,
-                frontier=1., target_boundary=1.5, excavator_distance=2.,
-                excavator_distance_axis='xy', excavator_xy=None, elite_fraction=.25),
-            floor_fill=dict(connected_after=1, u_shape_filter=False, u_shape_footprint_scale=.9,
-                u_shape_min_frontier_contact_cells=1, lower_floor_fill_ratio=.6,
-                lower_floor_occupancy_grid=16, lower_floor_bottom_z_tolerance=.02,
-                lower_floor_max_layers=8)),
-        floor_settings=dict(bottom_tolerance=.02, fill_ratio=.75, grid_size=16,
-                            max_layers=8, minimum_contact_cells=1, coverage_mode='projected_footprint'),
+                frontier=1., target_boundary=1.5, planar_bias=2.,
+                planar_bias_axis='xy', planar_bias_xy=None, elite_fraction=.25),
+            floor=dict(connected_after=1, footprint_scale=.9,
+                minimum_contact_cells=1, fill_ratio=.75, grid_size=16,
+                bottom_tolerance=.02, max_layers=8, coverage_mode='projected_footprint')),
         height_map_resolution=(64, 64), height_map_margin=.2)
 
 
@@ -55,7 +52,7 @@ def test_view_matches_fixed_orientation_production_maps_and_weighted_sum(config,
     view = initial_pose_score_view(inventory, state, 20, pose, **config)
     sampler = ScoredPlanarPoseSampler(inventory, PlanarSamplingConfig(**config['planar_config']),
         MappingOrientationProvider({oid: quaternion for oid in inventory.object_ids}),
-        config['settings'], floor_policy=ActiveFloorPolicy(inventory, **config['floor_settings']))
+        config['settings'], floor_policy=ActiveFloorPolicy(inventory, **floor_policy_settings(config['settings']['floor'])))
     renderer = HeightMapRenderer(inventory, config['height_map_resolution'], config['height_map_margin'])
     observation = SimpleNamespace(scene_height_map=renderer.render(state),
         height_map_xlim=renderer.xlim, height_map_ylim=renderer.ylim)
@@ -101,7 +98,7 @@ def test_controller_uses_recorded_settings_pre_search_scene_and_caches(tmp_path,
     controller = OperationsController(tmp_path)  # No current YAML files available.
     controller.set_artifact(MCTSDebugArtifact('stack', (step,)))
     controller.contexts = {'recorded': SimpleNamespace(profiles={
-        'sampling_settings': config['settings'], 'floor_settings': config['floor_settings'],
+        'sampling_settings': config['settings'],
         'action_generation_profile': {'planar': config['planar_config']},
         'environment_profile': {'observation': {'height_map_resolution': config['height_map_resolution']},
                                 'height_map_margin': config['height_map_margin']},
@@ -114,3 +111,27 @@ def test_controller_uses_recorded_settings_pre_search_scene_and_caches(tmp_path,
         controller.contexts['recorded'].profiles['sampling_settings'] = settings
         with pytest.raises(ValueError, match='does not record'):
             controller.initial_pose_score_view()
+
+
+@pytest.mark.parametrize('u_shape_filter', [False, True])
+def test_score_view_reads_historical_split_floor_settings(config, u_shape_filter):
+    inventory, state = scene()
+    floor = config['settings']['floor']
+    legacy = {key: value for key, value in config['settings'].items() if key != 'floor'}
+    legacy['floor_fill'] = dict(connected_after=floor['connected_after'],
+        u_shape_filter=u_shape_filter, u_shape_footprint_scale=floor['footprint_scale'],
+        u_shape_min_frontier_contact_cells=floor['minimum_contact_cells'],
+        lower_floor_fill_ratio=.6, lower_floor_occupancy_grid=32,
+        lower_floor_bottom_z_tolerance=.2, lower_floor_max_layers=8)
+    pose = _pose(y=.05, z=.3)
+    current = initial_pose_score_view(inventory, state, 20, pose, **config)
+    if u_shape_filter:
+        with pytest.raises(ValueError, match='removed U-shape filter'):
+            initial_pose_score_view(inventory, state, 20, pose,
+                **{**config, 'settings': legacy, 'floor_settings': floor_policy_settings(floor)})
+        return
+    previous = initial_pose_score_view(inventory, state, 20, pose,
+        **{**config, 'settings': legacy, 'floor_settings': floor_policy_settings(floor)})
+    np.testing.assert_array_equal(current.valid, previous.valid)
+    for name in current.fields:
+        np.testing.assert_array_equal(current.fields[name], previous.fields[name])

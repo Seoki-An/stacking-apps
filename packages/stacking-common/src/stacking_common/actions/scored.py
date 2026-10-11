@@ -75,7 +75,7 @@ class ScoredPlanarPoseSampler:
         planar = {
             **self.settings,
             "score_map_size": list(reversed(self.config.grid_shape)),
-            "floor_fill": {**self.settings["floor_fill"],
+            "floor": {**self.settings["floor"],
                            "boundary_inset_radius_scale": self.config.target_anchor_inset_scale},
         }
         return SimpleNamespace(
@@ -85,7 +85,7 @@ class ScoredPlanarPoseSampler:
             cfg=SimpleNamespace(action=SimpleNamespace(planar=planar)),
             support_settings=SimpleNamespace(
                 ground_z=self.inventory.target.origin[2],
-                z_tolerance=self.settings["floor_fill"]["lower_floor_bottom_z_tolerance"],
+                z_tolerance=self.settings["floor"]["bottom_tolerance"],
                 contact_gap_tolerance=self.settings["contact_gap_tolerance"]),
         )
 

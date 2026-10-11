@@ -38,6 +38,11 @@ from stacking_tabletop.planning.safety import TabletopPlacementSafety
 from stacking_common.actions.scored import ScoredPlanarPoseSampler
 
 
+def _tabletop_floor_policy(inventory):
+    return TabletopPlacementSafety(inventory, bottom_tolerance=.02, fill_ratio=.9,
+        grid_size=32, max_layers=8, minimum_contact_cells=1, coverage_mode='bottom_slice')
+
+
 class _RecoveryGenerator:
     def __init__(self, total=6):
         self.total = total
@@ -146,7 +151,7 @@ def test_cem_expired_deadline_does_not_start_native_work(monkeypatch):
 def test_early_floor_filter_matches_final_validation_for_floating_and_disconnected_poses():
     inventory = _inventory()
     state = _state(inventory, placed=(0,))
-    policy = TabletopPlacementSafety(inventory)
+    policy = _tabletop_floor_policy(inventory)
     early = ActiveFloorFilter(policy)
     from stacking_common.domain import Action
     for pose, expected in [(_pose(z=0.08), "above_active_layer"),
@@ -168,7 +173,7 @@ def test_filled_floor_advances_to_next_layer_without_lowering_threshold():
     inventory = ObjectInventory([inventory[0], inventory[1]],
         {10: _pose(), 20: _pose()}, target)
     state = _state(inventory, placed=(0,))
-    policy = TabletopPlacementSafety(inventory)
+    policy = _tabletop_floor_policy(inventory)
     support_z, occupied = policy.context(state)
     assert support_z == 0.04
     assert not np.any(occupied)
@@ -189,7 +194,7 @@ def test_tabletop_generator_captured_step4_floor_gate_is_optional(strict_floor_f
     root = Path(__file__).resolve().parents[1]
     fixture = json.loads((root / "tests/fixtures/planning/active_floor_step4.json").read_text())
     app = TabletopApplication.from_repository(root)
-    assert not app.action_generation_profile.strict_floor_first
+    assert app.action_generation_profile.strict_floor_first
     app = replace(app, action_generation_profile=replace(
         app.action_generation_profile, strict_floor_first=strict_floor_first))
     ids = fixture["object_ids"]
@@ -527,7 +532,7 @@ def test_planar_sampler_uses_measured_orientation_provider() -> None:
         PlanarSamplingConfig((3, 3), (0.0,), 0.0, 0.6),
         orientation_provider=MappingOrientationProvider({10: measured}),
         settings=app.sampling_settings,
-        floor_policy=TabletopPlacementSafety(inventory),
+        floor_policy=_tabletop_floor_policy(inventory),
     )
     observation = SimpleNamespace(
         scene_height_map=np.zeros((3, 3)),
@@ -611,7 +616,7 @@ def test_scan_orientation_filter_matches_legacy_relative_rotation(rotation, sign
     inventory = ObjectInventory(list(inventory), {10: np.r_[np.zeros(3), scan.as_quat()]}, inventory.target)
     relative = Rotation.from_euler("xyz", rotation, degrees=True)
     pose = np.r_[0., 0., .2, sign * (relative * scan).as_quat()]
-    decision = ScanOrientationFilter(TabletopPlacementSafety(inventory)).evaluate(
+    decision = ScanOrientationFilter(_tabletop_floor_policy(inventory)).evaluate(
         inventory, _state(inventory), 0, InitializedPlacement(_pose(), 0.),
         PlacementSolveResult(pose, 0., 0.),
     )
@@ -629,7 +634,7 @@ def test_scan_orientation_filter_matches_legacy_relative_rotation(rotation, sign
 def test_scan_orientation_lower_fill_exception_uses_solved_pose(angle):
     inventory = _inventory(1)
     state = _state(inventory)
-    policy = TabletopPlacementSafety(inventory)
+    policy = _tabletop_floor_policy(inventory)
     orientation_filter = ScanOrientationFilter(policy)
     quaternion = Rotation.from_euler("x", angle, degrees=True).as_quat()
     points, _ = inventory[0].mesh_arrays()
@@ -658,7 +663,7 @@ def test_scan_orientation_filters_fresh_and_explicit_mutation_builds():
             initial_height_xy_padding=.012, posegen_gap_threshold=.003,
         ),
         _PlanarSampler(), _Initializer(), solver,
-        filters=(ScanOrientationFilter(TabletopPlacementSafety(inventory)),),
+        filters=(ScanOrientationFilter(_tabletop_floor_policy(inventory)),),
         worker_pose_solvers=(solver,),
     )
     try:
@@ -1131,7 +1136,7 @@ def test_batched_ply_bounds_match_scalar_and_refresh_after_state_changes(tmp_pat
 @pytest.mark.parametrize('coverage_mode', ['bottom_slice', 'projected_footprint'])
 def test_batched_floor_context_matches_scalar_for_mixed_states_and_refreshes(coverage_mode, monkeypatch):
     inventory = _inventory()
-    policy = TabletopPlacementSafety(inventory)
+    policy = _tabletop_floor_policy(inventory)
     policy.coverage_mode = coverage_mode
     first = _state(inventory, (0,))
     second = first.copy()

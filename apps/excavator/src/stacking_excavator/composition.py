@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from stacking_common.actions.floor import ActiveFloorPolicy
+from stacking_common.actions.floor import ActiveFloorPolicy, floor_policy_settings
 from stacking_common.actions.orientation import InventoryOrientationProvider, PrincipalAxisOrientationProvider
 from stacking_common.assets import ObjectAssetLoader
 from stacking_common.environment import CoreSimulationProfile, EnvironmentProfile
@@ -100,7 +100,7 @@ class ExcavatorApplication(StackingSearchApplication):
                        max_poses_per_object=environment.observation.max_poses_per_object,
                        banned_object_ids=environment.observation.banned_object_ids),
                    load_mcts_profile(mcts_config or config / "mcts_cpu.yml"), planning, settings,
-                   floor_settings, scan,
+                   floor_policy_settings(sampling_settings["floor"]), scan,
                    tuple(np.deg2rad(action["orientation"]["roll_angles_degrees"])),
                    sampling_settings)
 

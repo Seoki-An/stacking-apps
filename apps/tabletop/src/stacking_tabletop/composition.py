@@ -252,7 +252,7 @@ class TabletopApplication(StackingSearchApplication):
             TabletopMotionPlannerAdapter(native_backend.solve),
             placement_backend=placement_backend,
             safety=(
-                TabletopPlacementSafety(inventory)
+                self.build_floor_policy(inventory)
                 if self.action_generation_profile.strict_floor_first
                 else None
             ),
@@ -397,7 +397,12 @@ class TabletopApplication(StackingSearchApplication):
 
 
     def build_floor_policy(self, inventory):
-        return TabletopPlacementSafety(inventory)
+        return TabletopPlacementSafety(inventory, **self.floor_settings)
+
+    @property
+    def floor_settings(self):
+        from stacking_common.actions.floor import floor_policy_settings
+        return floor_policy_settings(self.sampling_settings["floor"])
 
     @property
     def sampling_settings(self):

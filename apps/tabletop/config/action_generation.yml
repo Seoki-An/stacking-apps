@@ -11,9 +11,10 @@ initialization:
   xy_padding: 0.012
 
 filtering:
-  # false: prefer lower floors; true: require floor filling in search and planning.
-  # Matches legacy generate_sequence without/with its strict floor-first gate.
-  strict_floor_first: false
+  # Shared filter policy; physical gap limits are platform-specific.
+  strict_floor_first: true
+  require_solver_convergence: false
+  reject_equilibrium_at_threshold: true
   posegen_equilibrium_threshold: 1.0
   # stacking-core reports the summed penetration residual across active
   # candidate contacts; 3 mm admits the commissioned single-object solves.
@@ -34,21 +35,20 @@ planar:
   score:
     height: -3.0
     support_likelihood: 2.0
-    open_area: 1.0
+    open_area: 0.0
     fill_area: 2.0
-    frontier: 1.0
+    frontier: 0.0
     target_boundary: 1.5
-    excavator_distance: 2.0
-    excavator_distance_axis: xy
-    excavator_xy: null
+    planar_bias: 0.0
+    planar_bias_axis: xy
+    planar_bias_xy: null
     elite_fraction: 0.25
-  floor_fill:
-    # TabletopPlacementSafety supplies the shared active-layer context.
+  floor:
+    coverage_mode: bottom_slice
+    bottom_tolerance: 0.02
+    fill_ratio: 0.90
+    grid_size: 32
+    max_layers: 8
+    minimum_contact_cells: 1  # Sampling and solved-pose connectivity.
     connected_after: 1
-    u_shape_filter: false
-    u_shape_footprint_scale: 0.9
-    u_shape_min_frontier_contact_cells: 1
-    lower_floor_fill_ratio: 0.90
-    lower_floor_occupancy_grid: 32
-    lower_floor_bottom_z_tolerance: 0.02
-    lower_floor_max_layers: 8
+    footprint_scale: 0.9

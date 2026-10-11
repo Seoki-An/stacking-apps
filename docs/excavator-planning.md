@@ -81,7 +81,13 @@ coverage is the union of the layer stones' full XY footprints, clipped to the
 target base and estimated on a coarse **16×16 cell-center grid**. Overlapping
 footprints count once. The placement search still uses its 32×32 grid.
 
-Once projected coverage reaches `floor.fill_ratio: 0.6`, the policy immediately
+Layer geometry and sampling controls are configured together under
+`planar.floor`; the separate `floor_fill` block has been removed.
+`minimum_contact_cells` is shared by sampling and solved-pose connectivity,
+`connected_after` controls sampling's connectivity start, and `footprint_scale`
+sets its rectangular footprint size. U-shape pocket filtering has been removed.
+
+Once projected coverage reaches `planar.floor.fill_ratio: 0.75`, the policy immediately
 advances to the next layer; it does not wait for search exhaustion. The new support
 height is the highest top of the completed layer, and that layer's stones are
 removed from the next layer's occupancy calculation. `bottom_tolerance: 0.2` m
@@ -99,7 +105,7 @@ remain independent acceptance checks.
 
 For `excavator_plan4.stack` after ten placements, the previous bottom-slice estimate
 was 56.5%; the coarse projected estimate is 68.75%, allowing immediate advancement
-at 60%. A native search from that scene found seven valid candidates out of twelve
+at the historical 60% threshold (the current profile uses 75%). A native search from that scene found seven valid candidates out of twelve
 and selected a settled stone-3 placement above the ground layer in about 17 seconds.
 A different recorded scene at roughly 55% projected coverage still rejects higher
 placements. Strict filling can still exhaust search below the coverage threshold.
@@ -1279,7 +1285,7 @@ and every `rng.choice(n, p=...)` call are unchanged, so seeded draws are identic
 Score maps evaluate anchor footprints, gap labels and candidate scores as arrays,
 with the same arithmetic order; each map cell keeps its first maximum-score
 candidate. Kernel shifts use one padded gather. Gap components are reused per
-floor occupancy grid and excavator distances per score grid, both evaluated with
+floor occupancy grid and planar biases per score grid, both evaluated with
 the original scalar code. There are no configuration, RNG or native changes.
 
 The [vectorized-sampling benchmark](benchmarks/excavator-mcts-vectorized-sampling.json)
@@ -1882,9 +1888,10 @@ the initial 10 placements, if valid placements remain available.
 orientation-aware hull support kernels, max-downsampled and smoothed height
 maps, connected floor proposals, taper-aware anchor bounds, seven score terms,
 and representative/elite/Boltzmann selection. Temperature is 0.3, elite fraction
-is 0.25, excavator-distance weight is 2.0, and support contact-gap tolerance is
+is 0.25, planar-bias weight is 0.0, and support contact-gap tolerance is
 0.10 m. The distance origin defaults to stack-local (0, 0), as in ablation;
-`planar.score.excavator_xy` can supply the reference position that the
+`planar.score.planar_bias` controls its signed weight, `planar_bias_axis` selects
+`x`, `y`, or `xy`, and `planar_bias_xy` can supply the reference position that the
 legacy sequence entrypoint set from its target offset.
 
 Fresh populations use private seeded Python and NumPy RNGs, balanced per-object

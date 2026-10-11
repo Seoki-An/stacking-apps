@@ -43,7 +43,7 @@ def test_unified_planar_weights_change_excavator_scores(tmp_path):
     shutil.copytree(ROOT / "apps/excavator/config", config)
     path = config / "action_generation.yml"
     values = yaml.safe_load(path.read_text())
-    values["planar"]["score"].update(open_area=0., frontier=0.)
+    values["planar"]["score"].update(open_area=.25, frontier=.5, planar_bias=1.)
     path.write_text(yaml.safe_dump(values))
     changed = ExcavatorApplication.from_repository(tmp_path)
     assert "score_weights" not in changed.floor_settings
@@ -59,9 +59,10 @@ def test_unified_planar_weights_change_excavator_scores(tmp_path):
     baseline, actual = maps
     np.testing.assert_array_equal(actual["candidate_mask"], baseline["candidate_mask"])
     valid = baseline["candidate_mask"]
-    removed = baseline["open_area"][valid] + baseline["frontier"][valid]
-    assert np.any(removed > 0.)
-    np.testing.assert_allclose(actual["scores"][valid], baseline["scores"][valid] - removed,
+    delta = sum((changed.sampling_settings["score"][key] - app.sampling_settings["score"][key])
+                * baseline[key][valid] for key in ("open_area", "frontier", "planar_bias"))
+    assert np.any(delta != 0.)
+    np.testing.assert_allclose(actual["scores"][valid], baseline["scores"][valid] + delta,
                                rtol=0., atol=1e-12)
 
 
@@ -87,9 +88,9 @@ def test_scored_maps_and_seeded_poses_match_legacy_capture(label):
         observation = SimpleNamespace(scene_height_map=recorded[label + "_height"],
             height_map_xlim=np.array(META["xlim"]), height_map_ylim=np.array(META["ylim"]))
         # This capture predates the excavator's coarse projected-floor policy.
-        legacy_settings = {**app.sampling_settings, "floor_fill": {
-            **app.sampling_settings["floor_fill"],
-            "lower_floor_occupancy_grid": 32, "lower_floor_fill_ratio": .9}}
+        legacy_settings = {**app.sampling_settings, "floor": {
+            **app.sampling_settings["floor"],
+            "grid_size": 32, "fill_ratio": .9}}
         sampler = ScoredPlanarPoseSampler(inventory, app.action_generation_profile.planar,
             app.build_orientation_provider(), legacy_settings, seed=META["seed"])
         index = META["candidate_index"]
@@ -263,7 +264,7 @@ def test_boundary_selection_reaches_native_problem(radius, target_only, expected
         solver.solve(inventory, state, 2, InitializedPlacement(np.array([0., 0., .5, 0., 0., 0., 1.]), 0.))
 
 
-def test_tabletop_scored_composition_preserves_physical_solver_defaults():
+def test_tabletop_scored_composition_records_aligned_filtering_policy():
     from test_action_generation import _inventory
     tabletop = TabletopApplication.from_repository(ROOT)
     inventory = _inventory()
@@ -272,12 +273,12 @@ def test_tabletop_scored_composition_preserves_physical_solver_defaults():
     assert type(generator.planar_sampler) is ScoredPlanarPoseSampler
     assert type(generator.initializer) is MeshHeightInitializer
     assert any(isinstance(f, TargetContainmentFilter) for f in generator.filters)
-    assert generator.config.require_solver_convergence is True
-    assert generator.config.reject_equilibrium_at_threshold is False
+    assert generator.config.require_solver_convergence is False
+    assert generator.config.reject_equilibrium_at_threshold is True
     assert tabletop.posegen_profile.boundary_radius is None
-    # New opt-in settings must not change hashes of existing tabletop contexts.
-    assert "require_solver_convergence" not in _values(tabletop.action_generation_profile.generator)
-    assert "reject_equilibrium_at_threshold" not in _values(tabletop.action_generation_profile.generator)
+    # Changed filter semantics must be explicit in recorded planning contexts.
+    assert _values(tabletop.action_generation_profile.generator)["require_solver_convergence"] is False
+    assert _values(tabletop.action_generation_profile.generator)["reject_equilibrium_at_threshold"] is True
     assert "boundary_radius" not in _values(tabletop.posegen_profile)
     excavator = ExcavatorApplication.from_repository(ROOT)
     assert not excavator.environment_profile.observation.banned_object_ids

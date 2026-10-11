@@ -28,7 +28,7 @@ from stacking_excavator import ExcavatorApplication
 
 TERMS = ("H", "Q", "O", "F", "G", "B", "D")
 KEYS = ("height", "support_likelihood", "open_area", "fill_area",
-        "frontier", "target_boundary", "excavator_distance")
+        "frontier", "target_boundary", "planar_bias")
 ABLATIONS = {f"drop_{term}": (term,) for term in TERMS}
 ABLATIONS.update({"H_Q_F": ("O", "G", "B", "D"),
                   "H_Q_F_B": ("O", "G", "D"),
@@ -49,7 +49,7 @@ def candidate_terms(score_map):
         score_map["fill_area"][rows, columns],
         score_map["frontier"][rows, columns],
         [item["target_boundary"] for item in candidates],
-        score_map["excavator_distance"][rows, columns],
+        score_map["planar_bias"][rows, columns],
     ))
     weights = np.array([score_map["weights"][key] for key in KEYS])
     weighted = values * weights

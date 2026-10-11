@@ -32,15 +32,15 @@ def active_floor_context(inventory, state, min_count: Optional[int] = None) -> O
     if min_count is not None and len(state.stone_seq) >= min_count:
         return None
 
-    floor_fill_cfg = inventory.cfg.action.planar.get("floor_fill", {})
+    floor_cfg = inventory.cfg.action.planar.get("floor", {})
     support = inventory.support_settings
     support_z = support.ground_z
     bottom_tol = float(
-        floor_fill_cfg.get("lower_floor_bottom_z_tolerance", support.z_tolerance)
+        floor_cfg.get("bottom_tolerance", support.z_tolerance)
     )
-    fill_ratio = float(floor_fill_cfg.get("lower_floor_fill_ratio", 0.65))
-    grid_size = max(int(floor_fill_cfg.get("lower_floor_occupancy_grid", 32)), 4)
-    max_layers = int(floor_fill_cfg.get("lower_floor_max_layers", 8))
+    fill_ratio = float(floor_cfg.get("fill_ratio", 0.65))
+    grid_size = max(int(floor_cfg.get("grid_size", 32)), 4)
+    max_layers = int(floor_cfg.get("max_layers", 8))
 
     entries = placed_floor_entries(inventory, state)
     last_top = support_z
@@ -385,7 +385,7 @@ def score_xy_debug_map(
     fill_area_map = np.full(shape, np.nan, dtype=float)
     frontier_map = np.full(shape, np.nan, dtype=float)
     target_boundary_map = np.full(shape, np.nan, dtype=float)
-    excavator_distance_map = np.full(shape, np.nan, dtype=float)
+    planar_bias_map = np.full(shape, np.nan, dtype=float)
     placement_height_map = np.full(shape, np.nan, dtype=float)
     orientation_index_map = np.full(shape, -1, dtype=int)
     if not np.any(valid):
@@ -398,7 +398,7 @@ def score_xy_debug_map(
             "candidates": [],
         }
 
-    cfg = inventory.cfg.action.planar.get("floor_fill", {})
+    cfg = inventory.cfg.action.planar.get("floor", {})
     score_cfg = inventory.cfg.action.planar.get("score", {})
     w_height = float(score_cfg.get("height", -1.5))
     w_support_likelihood = float(score_cfg.get("support_likelihood", 2.0))
@@ -406,10 +406,11 @@ def score_xy_debug_map(
     w_fill_area = float(score_cfg.get("fill_area", 0.0))
     w_frontier = float(score_cfg.get("frontier", 1.0))
     w_target_boundary = float(score_cfg.get("target_boundary", 0.0))
-    w_excavator_distance = float(score_cfg.get("excavator_distance", 0.25))
-    excavator_xy = score_excavator_xy(score_cfg)
-    excavator_distance_axis = str(
-        score_cfg.get("excavator_distance_axis", "xy")
+    # Older .stack contexts recorded these settings under excavator-specific names.
+    w_planar_bias = float(score_cfg.get("planar_bias", score_cfg.get("excavator_distance", 0.25)))
+    planar_bias_xy = score_planar_bias_xy(score_cfg)
+    planar_bias_axis = str(
+        score_cfg.get("planar_bias_axis", score_cfg.get("excavator_distance_axis", "xy"))
     ).lower()
 
     layer = None
@@ -424,12 +425,12 @@ def score_xy_debug_map(
         and np.any(layer["occupied"])
         and len(state.stone_seq) >= connected_after
     )
-    min_contact = max(int(cfg.get("u_shape_min_frontier_contact_cells", 1)), 0)
+    min_contact = max(int(cfg.get("minimum_contact_cells", 1)), 0)
     has_occupied = layer is not None and np.any(layer["occupied"])
     if has_occupied:
         gap_labels, gap_sizes, gap_centers, occupied_dilated = gap_components(layer["occupied"])
 
-    footprint_half = u_shape_footprint_half(inventory, stone_idx, _floor_cfg=cfg)
+    footprint_half = footprint_half_extent(inventory, stone_idx, _floor_cfg=cfg)
     # Anchor cells in row-major order. Every per-cell quantity below is an
     # array over these cells; filtering keeps that order.
     grid_index = np.argwhere(valid)
@@ -444,8 +445,7 @@ def score_xy_debug_map(
     gap_region: list = [None] * count
     max_unfilled_cells = 1
     if has_occupied:
-        # Footprint masks on the floor grid, one row per anchor cell, exactly
-        # as anchor_occupancy_mask evaluates them.
+        # Rectangular footprint masks on the floor grid, one row per anchor cell.
         xx, yy = layer["xx"].ravel(), layer["yy"].ravel()
         footprints = (
             (xx >= (cell_xy[:, 0] - footprint_half[0])[:, None])
@@ -486,14 +486,8 @@ def score_xy_debug_map(
         )
         if require_connected and min_contact > 0:
             keep &= contact_cells >= min_contact
-        if bool(cfg.get("u_shape_filter", True)):
-            for index in np.flatnonzero(keep):
-                keep[index] = not creates_u_shape_pocket(
-                    inventory, layer, cell_xy[index], stone_idx, _floor_cfg=cfg,
-                    _half=footprint_half, _candidate=footprints[index].reshape(layer["xx"].shape),
-                )
-    excavator_distance = excavator_distance_grid(
-        inventory, xy_grid, excavator_xy, excavator_distance_axis,
+    planar_bias = planar_bias_grid(
+        inventory, xy_grid, planar_bias_xy, planar_bias_axis,
     )[grid_index[:, 0], grid_index[:, 1]]
 
     base = np.flatnonzero(keep)
@@ -562,7 +556,7 @@ def score_xy_debug_map(
         + w_fill_area * fill_area
         + w_frontier * frontier[cells]
         + w_target_boundary * item_boundary
-        + w_excavator_distance * excavator_distance[cells]
+        + w_planar_bias * planar_bias[cells]
     )
 
     # Each map cell shows its first maximum-score candidate.
@@ -578,7 +572,7 @@ def score_xy_debug_map(
     fill_area_map[rows, columns] = fill_area[winners]
     frontier_map[rows, columns] = frontier[cells[winners]]
     target_boundary_map[rows, columns] = item_boundary[winners]
-    excavator_distance_map[rows, columns] = excavator_distance[cells[winners]]
+    planar_bias_map[rows, columns] = planar_bias[cells[winners]]
     placement_height_map[rows, columns] = item_placement[winners]
     orientation_index_map[rows, columns] = item_orientation[winners]
 
@@ -626,7 +620,7 @@ def score_xy_debug_map(
         "fill_area": fill_area_map,
         "frontier": frontier_map,
         "target_boundary": target_boundary_map,
-        "excavator_distance": excavator_distance_map,
+        "planar_bias": planar_bias_map,
         "placement_height": placement_height_map,
         "orientation_index": orientation_index_map,
         "weights": {
@@ -636,7 +630,7 @@ def score_xy_debug_map(
             "fill_area": w_fill_area,
             "frontier": w_frontier,
             "target_boundary": w_target_boundary,
-            "excavator_distance": w_excavator_distance,
+            "planar_bias": w_planar_bias,
         },
         "h_min": h_min,
         "h_span": h_span,
@@ -671,8 +665,8 @@ def target_axis_span(inventory, axis: int) -> float:
     bounds = inventory.xlim if axis == 0 else inventory.ylim
     return max(float(bounds[1] - bounds[0]), 1e-6)
 
-def score_excavator_xy(score_cfg) -> np.ndarray:
-    xy = score_cfg.get("excavator_xy", None)
+def score_planar_bias_xy(score_cfg) -> np.ndarray:
+    xy = score_cfg.get("planar_bias_xy", score_cfg.get("excavator_xy"))
     if xy is None:
         return np.zeros(2, dtype=float)
     arr = np.asarray(xy, dtype=float).reshape(-1)
@@ -680,47 +674,47 @@ def score_excavator_xy(score_cfg) -> np.ndarray:
         return np.zeros(2, dtype=float)
     return arr[:2].copy()
 
-def score_excavator_distance(
+def score_planar_bias(
     inventory,
     xy: np.ndarray,
-    excavator_xy: np.ndarray,
+    planar_bias_xy: np.ndarray,
     axis: str,
 ) -> float:
     if axis in ("x", "0"):
-        distance = abs(float(xy[0] - excavator_xy[0]))
+        distance = abs(float(xy[0] - planar_bias_xy[0]))
         scale = target_axis_span(inventory, 0)
     elif axis in ("y", "1"):
-        distance = abs(float(xy[1] - excavator_xy[1]))
+        distance = abs(float(xy[1] - planar_bias_xy[1]))
         scale = target_axis_span(inventory, 1)
     else:
-        distance = float(np.linalg.norm(xy - excavator_xy))
+        distance = float(np.linalg.norm(xy - planar_bias_xy))
         scale = target_diagonal(inventory)
     return min(distance / scale, 1.0)
 
-_EXCAVATOR_DISTANCE_GRIDS: dict = {}
+_PLANAR_BIAS_GRIDS: dict = {}
 
-def excavator_distance_grid(
+def planar_bias_grid(
     inventory,
     xy_grid: np.ndarray,
-    excavator_xy: np.ndarray,
+    planar_bias_xy: np.ndarray,
     axis: str,
 ) -> np.ndarray:
-    """score_excavator_distance for every grid cell, reused while inputs match.
+    """score_planar_bias for every grid cell, reused while inputs match.
 
     The scalar function is evaluated per cell so values stay bit-identical.
     """
     wall = inventory.target_wall
-    key = (xy_grid.shape, xy_grid.tobytes(), np.asarray(excavator_xy, dtype=float).tobytes(), axis,
+    key = (xy_grid.shape, xy_grid.tobytes(), np.asarray(planar_bias_xy, dtype=float).tobytes(), axis,
            tuple(inventory.xlim), tuple(inventory.ylim), float(wall.width), float(wall.length))
-    grid = _EXCAVATOR_DISTANCE_GRIDS.get(key)
+    grid = _PLANAR_BIAS_GRIDS.get(key)
     if grid is None:
         grid = np.array([
-            [score_excavator_distance(inventory, xy, excavator_xy, axis) for xy in row]
+            [score_planar_bias(inventory, xy, planar_bias_xy, axis) for xy in row]
             for row in xy_grid
         ]).reshape(xy_grid.shape[:2])
-        if len(_EXCAVATOR_DISTANCE_GRIDS) >= 8:
-            _EXCAVATOR_DISTANCE_GRIDS.clear()
-        _EXCAVATOR_DISTANCE_GRIDS[key] = grid
+        if len(_PLANAR_BIAS_GRIDS) >= 8:
+            _PLANAR_BIAS_GRIDS.clear()
+        _PLANAR_BIAS_GRIDS[key] = grid
     return grid
 
 def mean_top_height_at_anchor(
@@ -811,7 +805,7 @@ def anchor_grid_mask(
     stone_idx: Optional[int],
     _half: Optional[np.ndarray] = None,
 ) -> np.ndarray:
-    half = u_shape_footprint_half(inventory, stone_idx) if _half is None else _half
+    half = footprint_half_extent(inventory, stone_idx) if _half is None else _half
     xy = np.asarray(anchor, dtype=float)
     xx = xy_grid[..., 0]
     yy = xy_grid[..., 1]
@@ -950,146 +944,15 @@ def _weighted_choice(
     probs = probs / np.sum(probs)
     return int(pool[int(rng.choice(len(pool), p=probs))])
 
-def creates_u_shape_pocket(
-    inventory,
-    layer: dict,
-    anchor: np.ndarray,
-    stone_idx: Optional[int],
-    _floor_cfg=None,
-    _half=None,
-    _candidate: Optional[np.ndarray] = None,
-) -> bool:
+def footprint_half_extent(inventory, stone_idx: Optional[int], _floor_cfg=None) -> np.ndarray:
+    """Shared half-footprint extent for sampling and anchor-grid lookup."""
     cfg = (
-        inventory.cfg.action.planar.get("floor_fill", {})
+        inventory.cfg.action.planar.get("floor", {})
         if _floor_cfg is None
         else _floor_cfg
     )
-    if not bool(cfg.get("u_shape_filter", True)):
-        return False
-
-    candidate = (
-        anchor_occupancy_mask(inventory, layer, anchor, stone_idx, _half=_half)
-        if _candidate is None
-        else _candidate
-    )
-    if not np.any(candidate & ~layer["occupied"]):
-        return False
-
-    if bool(cfg.get("u_shape_require_frontier_contact", True)):
-        contact = candidate & dilated_mask(layer["occupied"])
-        min_contact = max(int(cfg.get("u_shape_min_frontier_contact_cells", 1)), 0)
-        if min_contact > 0 and int(np.count_nonzero(contact)) < min_contact:
-            return True
-
-    occupied = layer["occupied"] | candidate
-    return has_u_shape_component(inventory, ~occupied, occupied, candidate, _floor_cfg=cfg)
-
-def has_u_shape_component(
-    inventory,
-    empty: np.ndarray,
-    occupied: np.ndarray,
-    candidate: np.ndarray,
-    _floor_cfg=None,
-) -> bool:
-    cfg = (
-        inventory.cfg.action.planar.get("floor_fill", {})
-        if _floor_cfg is None
-        else _floor_cfg
-    )
-    min_empty = int(cfg.get("u_shape_min_empty_cells", 4))
-    min_contact = int(cfg.get("u_shape_min_contact_cells", 6))
-    max_opening_ratio = float(cfg.get("u_shape_max_opening_ratio", 0.40))
-
-    for component in empty_components(empty):
-        if len(component) < min_empty:
-            continue
-        component_mask = np.zeros(empty.shape, dtype=bool)
-        ys, xs = zip(*component)
-        component_mask[np.asarray(ys), np.asarray(xs)] = True
-        if not np.any(component_mask & candidate) and not adjacent_to(
-            component_mask,
-            candidate,
-        ):
-            continue
-
-        contact = int(np.count_nonzero(adjacent_to_mask(component_mask, occupied)))
-        if contact < min_contact:
-            continue
-
-        opening = int(
-            np.count_nonzero(grid_boundary_mask(component_mask.shape) & component_mask)
-        )
-        if opening / max(contact, 1) <= max_opening_ratio:
-            return True
-    return False
-
-def u_shape_footprint_half(inventory, stone_idx: Optional[int], _floor_cfg=None) -> np.ndarray:
-    """The ``anchor_occupancy_mask``/``anchor_grid_mask`` half-footprint extent.
-    Both derive it identically from the same stone mesh extent and config key;
-    hoist it once per stone_idx instead of re-deriving it on every grid cell.
-    """
-    cfg = (
-        inventory.cfg.action.planar.get("floor_fill", {})
-        if _floor_cfg is None
-        else _floor_cfg
-    )
-    scale = float(cfg.get("u_shape_footprint_scale", 0.9))
+    scale = float(cfg.get("footprint_scale", 0.9))
     return 0.5 * scale * stone_xy_extent(inventory, stone_idx)
-
-def anchor_occupancy_mask(
-    inventory,
-    layer: dict,
-    anchor: np.ndarray,
-    stone_idx: Optional[int],
-    _half: Optional[np.ndarray] = None,
-) -> np.ndarray:
-    half = u_shape_footprint_half(inventory, stone_idx) if _half is None else _half
-    xy = np.asarray(anchor, dtype=float)
-    xx = layer["xx"]
-    yy = layer["yy"]
-    return (
-        (xx >= xy[0] - half[0])
-        & (xx <= xy[0] + half[0])
-        & (yy >= xy[1] - half[1])
-        & (yy <= xy[1] + half[1])
-    )
-
-def empty_components(mask: np.ndarray) -> list[list[tuple[int, int]]]:
-    visited = np.zeros(mask.shape, dtype=bool)
-    components = []
-    height, width = mask.shape
-    for y in range(height):
-        for x in range(width):
-            if visited[y, x] or not mask[y, x]:
-                continue
-            queue = deque([(y, x)])
-            visited[y, x] = True
-            component = []
-            while queue:
-                cy, cx = queue.popleft()
-                component.append((cy, cx))
-                for ny, nx in (
-                    (cy - 1, cx),
-                    (cy + 1, cx),
-                    (cy, cx - 1),
-                    (cy, cx + 1),
-                ):
-                    if (
-                        0 <= ny < height
-                        and 0 <= nx < width
-                        and not visited[ny, nx]
-                        and mask[ny, nx]
-                    ):
-                        visited[ny, nx] = True
-                        queue.append((ny, nx))
-            components.append(component)
-    return components
-
-def adjacent_to(mask: np.ndarray, other: np.ndarray) -> bool:
-    return bool(np.any(adjacent_to_mask(mask, other)))
-
-def adjacent_to_mask(mask: np.ndarray, other: np.ndarray) -> np.ndarray:
-    return mask & dilated_mask(other)
 
 def dilated_mask(mask: np.ndarray) -> np.ndarray:
     padded = np.pad(mask, 1, mode="constant", constant_values=False)
@@ -1104,16 +967,8 @@ def dilated_mask(mask: np.ndarray) -> np.ndarray:
         | padded[2:, 2:]
     )
 
-def grid_boundary_mask(shape: tuple[int, int]) -> np.ndarray:
-    boundary = np.zeros(shape, dtype=bool)
-    boundary[0, :] = True
-    boundary[-1, :] = True
-    boundary[:, 0] = True
-    boundary[:, -1] = True
-    return boundary
-
 def anchor_inset_xy(inventory, stone_idx: Optional[int]) -> np.ndarray:
-    cfg = inventory.cfg.action.planar.get("floor_fill", {})
+    cfg = inventory.cfg.action.planar.get("floor", {})
     scale = float(cfg.get("boundary_inset_radius_scale", 0.6))
     return np.maximum(scale * 0.5 * stone_xy_extent(inventory, stone_idx), 0.0)
 

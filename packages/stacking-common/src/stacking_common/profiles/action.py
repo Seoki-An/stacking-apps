@@ -92,12 +92,22 @@ def _mapping(values: Mapping[str, object], key: str) -> Mapping[str, object]:
 
 def resolve_scored_sampling_settings(planar: Mapping[str, object]) -> dict:
     """Extract the shared scored sampler's explicit platform settings."""
+    if "floor_fill" in planar:
+        raise ValueError("merge floor_fill into planar.floor; use one floor configuration")
+    floor = dict(_mapping(planar, "floor"))
+    for key in ("coverage_mode", "bottom_tolerance", "fill_ratio", "grid_size",
+                "max_layers", "minimum_contact_cells", "connected_after",
+                "footprint_scale"):
+        _required(floor, key)
+    obsolete = {key for key in floor if key.startswith(("lower_floor_", "u_shape_"))}
+    if obsolete:
+        raise ValueError(f"obsolete planar.floor settings: {sorted(obsolete)}")
     return {
         **{key: _required(planar, key) for key in (
             "boltzmann_temperature", "boltzmann_min_probability",
             "target_mask_margin", "contact_gap_tolerance")},
         "score": dict(_mapping(planar, "score")),
-        "floor_fill": dict(_mapping(planar, "floor_fill")),
+        "floor": floor,
     }
 
 

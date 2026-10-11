@@ -57,3 +57,47 @@ def test_floor_mode_is_shared_by_search_and_planning(monkeypatch, strict):
     assert (coordinator.safety is not None) is strict
     assert coordinator.placement_backend is backend
     assert coordinator.world_T_stack is app.planning_profile.world_T_stack
+
+
+@pytest.mark.parametrize('platform', ['excavator', 'tabletop'])
+def test_unified_floor_profile_drives_sampling_and_validation(tmp_path, platform):
+    import shutil
+    from stacking_excavator import ExcavatorApplication
+
+    Application = ExcavatorApplication if platform == 'excavator' else TabletopApplication
+    original = Application.from_repository(ROOT)
+    inventory = original.load_inventory([1], {1: np.array([0., 0., 0., 0., 0., 0., 1.])})
+    config_dir = tmp_path / 'apps' / platform / 'config'
+    shutil.copytree(ROOT / 'apps' / platform / 'config', config_dir)
+    path = config_dir / 'action_generation.yml'
+    values = yaml.safe_load(path.read_text())
+    assert 'floor_fill' not in values['planar']
+    floor = values['planar']['floor']
+    floor.update(bottom_tolerance=.04, fill_ratio=.8, grid_size=20,
+                 minimum_contact_cells=2, footprint_scale=.85)
+    path.write_text(yaml.safe_dump(values))
+    app = Application.from_repository(tmp_path)
+    generator = app.build_action_generator(inventory, SimpleNamespace())
+    try:
+        sampler = generator.planar_sampler
+        policy = sampler.floor_policy
+        assert policy.bottom_tolerance == floor['bottom_tolerance']
+        assert policy.fill_ratio == floor['fill_ratio']
+        assert policy.grid_size == floor['grid_size']
+        assert policy.minimum_contact_cells == floor['minimum_contact_cells']
+        assert sampler.settings['floor'] == floor
+        assert 'floor_fill' not in sampler.settings
+    finally:
+        generator.close()
+
+
+@pytest.mark.parametrize('old_block', [True, False])
+def test_duplicate_floor_configuration_is_rejected(old_block):
+    from stacking_common.profiles.action import resolve_scored_sampling_settings
+    planar = yaml.safe_load((ROOT / 'apps/excavator/config/action_generation.yml').read_text())['planar']
+    if old_block:
+        planar['floor_fill'] = {'lower_floor_fill_ratio': .6}
+    else:
+        planar['floor']['lower_floor_fill_ratio'] = .6
+    with pytest.raises(ValueError, match='floor'):
+        resolve_scored_sampling_settings(planar)

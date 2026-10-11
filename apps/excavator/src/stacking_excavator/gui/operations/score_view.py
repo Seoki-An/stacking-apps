@@ -17,7 +17,7 @@ FIELDS = (
     ('fill_area', 'Fill area', 'higher is better'),
     ('frontier', 'Frontier contact', 'higher is better'),
     ('target_boundary', 'Target boundary', 'higher is better'),
-    ('excavator_distance', 'Excavator distance term', 'higher is better'),
+    ('planar_bias', 'Planar bias', 'higher is better'),
     ('placement_height', 'Minimum placement Z [m]', 'geometric clearance; not initial Z'),
 )
 

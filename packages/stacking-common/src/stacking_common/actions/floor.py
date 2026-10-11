@@ -8,6 +8,14 @@ from stacking_common.domain import Action, ObjectInventory, State
 from stacking_common.domain.geometry import quaternion_matrix, transform_points
 
 
+def floor_policy_settings(settings) -> dict:
+    """Extract layer geometry and solved-pose limits from the unified floor block."""
+    return {key: settings[key] for key in (
+        "coverage_mode", "bottom_tolerance", "fill_ratio", "grid_size",
+        "max_layers", "minimum_contact_cells",
+    )}
+
+
 class ActiveFloorPolicy:
     """Enforce lower-floor filling with limits supplied by the platform."""
 

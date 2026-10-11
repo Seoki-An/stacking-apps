@@ -11,8 +11,9 @@ configuration; its effective settings must be reported separately.
 
 ## Working version and score inspection
 
-The planner and both platform configurations use the pre-region version from
-`824d204`. The regional experiment is retained in the existing Git stash; files
+The planner uses the pre-region strategy from `824d204`, with consolidated
+floor configuration and renamed planar bias settings. The regional experiment
+is retained in the existing Git stash; files
 that were untracked when stashing are backed up under
 `.backups/region-sampling-20261011/` with their paths and the stash hash.
 
@@ -206,9 +207,35 @@ The excavator YAML keeps initial planar sampling settings together under
 
 | Configuration block | Terms | Consumer |
 |---|---|---|
-| `planar.score` | Seven named weights: `height`, `support_likelihood`, `open_area`, `fill_area`, `frontier`, `target_boundary`, `excavator_distance` | Excavator's `ScoredPlanarPoseSampler`, through `_scored_floor.score_xy_debug_map` |
-| `planar.floor` | Coverage mode, fill ratio, grid size, bottom tolerance, layer limit, contact-cell minimum | `ActiveFloorPolicy` supplies layer geometry and filtering |
-| `planar.floor_fill` | Legacy proposal-kernel controls | Private scored-floor helper; shared layer context overrides its layer estimate during normal composition |
+| `planar.score` | Seven named weights: `height`, `support_likelihood`, `open_area`, `fill_area`, `frontier`, `target_boundary`, `planar_bias` | Excavator's `ScoredPlanarPoseSampler`, through `_scored_floor.score_xy_debug_map` |
+| `planar.floor` | Coverage mode, fill ratio, grid size, bottom tolerance, layer limit, contact-cell minimum, connectivity start, footprint scale | Shared by the scored sampler and `ActiveFloorPolicy` |
+
+Both platforms use one `planar.floor` block. Excavator's values are:
+
+```yaml
+floor:
+  coverage_mode: projected_footprint
+  bottom_tolerance: 0.2
+  fill_ratio: 0.75
+  grid_size: 16
+  max_layers: 8
+  minimum_contact_cells: 1
+  connected_after: 1
+  footprint_scale: 0.9
+```
+
+Tabletop explicitly configures `bottom_slice`, 0.02 m bottom tolerance, 0.90
+fill ratio, and a 32-cell grid. Its search and planning floor checks read the
+same YAML values. `minimum_contact_cells` controls both sampling connectivity
+and the solved-pose connectivity check; `connected_after` controls when the
+sampling gate starts. `footprint_scale` sizes the sampling rectangle.
+The U-shape pocket filter and its settings have been removed; these footprint
+and connectivity controls remain active.
+`filtering.strict_floor_first` still controls the additional solved-pose check.
+
+The old `floor_fill` block and duplicate `lower_floor_*` keys are rejected in
+new profiles. Saved split configurations remain supported by the score viewer.
+Resume compares recorded profiles, so use a new run for this schema change.
 
 `planar.score` is the only excavator proposal-weight source. The shared
 `ActiveFloorPolicy` constructor has no score weights. Tabletop now uses the
@@ -341,8 +368,7 @@ $\mathcal A(a)$ does not rotate with $R$ in this excavator heuristic.
 #### Normalized fill area $F$
 
 Let $\mathcal A_{\mathrm{open}}$ contain base-mask-valid anchors with
-$n_A>0$ and $n_U>0$, before the later connectivity and U-shaped-pocket
-filters. The normalization is
+$n_A>0$ and $n_U>0$, before the later connectivity filter. The normalization is
 
 $$
 n_{U,\max}=\max\left(1,
@@ -449,7 +475,13 @@ $$
 where the axis spans are the observation bounds. The XY version normalizes
 by the nominal target diagonal, rather than the observation diagonal.
 
-With the current `excavator_xy: null`, the distance reference is **[0, 0]** in
+Configure this term with `planar.score.planar_bias` (signed weight),
+`planar_bias_axis` (`x`, `y`, or `xy`), and `planar_bias_xy` (reference XY in metres).
+The current weight is zero on both platforms, so the term contributes nothing.
+Older saved contexts using `excavator_distance`, `excavator_distance_axis`, and
+`excavator_xy` remain readable; score maps and the GUI expose `planar_bias`.
+
+With the current `planar_bias_xy: null`, the distance reference is **[0, 0]** in
 the search frame. A positive distance weight rewards farther positions. The
 paper should describe this direction accurately rather than calling the term
 a preference for shorter robot travel. Likewise, boundary proximity rewards
@@ -691,7 +723,7 @@ quantities and should be described separately.
 
 After a placed footprint exists, either platform's scored proposal construction
 requires some open footprint area and at least one cell touching dilated
-occupancy. Its U-shaped-pocket filter is disabled.
+occupancy. No U-shaped-pocket rejection is applied.
 
 The search contains a conditional fallback: if ordinary root selection fails
 with a strict floor filter present, it tries a new root under relaxed floor-fill
@@ -705,12 +737,8 @@ to three further retry pools, subject to the original deadline and pool
 availability. Relaxation is conditional on a final-validation request and
 available time.
 
-The YAML also retains `planar.floor_fill.lower_floor_fill_ratio: 0.6`
-for the private legacy helper. The normal excavator composition supplies the
-shared active-floor context, whose operative completion threshold is
-`planar.floor.fill_ratio: 0.75`.
-These similarly named settings should not be conflated when reporting the
-method.
+The excavator completion threshold is `planar.floor.fill_ratio: 0.75`.
+The old unused 0.6 fallback threshold has been removed from the profile.
 
 ## 7. Tabletop proposal strategy
 
@@ -741,9 +769,9 @@ contexts still produce different candidate banks and rankings. Tabletop's
 previous six-term sampler and its different feature definitions are recorded
 in Section 7.3 for historical comparisons.
 
-Tabletop's default `strict_floor_first: false` still uses scored proposals
-and prefers its lower contact-height pool through `lower_floor_first`; it
-omits the strict solved-pose floor filter. Excavator enables that strict filter.
+Both platforms enable `strict_floor_first: true` and prefer the lower
+contact-height pool through `lower_floor_first`. Both apply the strict
+solved-pose floor filter using their own physical floor settings.
 The conditional relaxed root fallback is described in Section 6.
 
 The shared strategy subsequently initializes Z and invokes native placement
@@ -768,10 +796,9 @@ clearance and 0.012 m padding.
 Tabletop's [action_generation.yml](../apps/tabletop/config/action_generation.yml)
 explicitly resolves temperature 0.3, elite fraction 0.25, the same seven
 dimensionless weights as excavator, and its own 0.02 m contact tolerance.
-`excavator_distance` retains the shared scorer's historical field name: it
-measures distance from the configured reference, with a target-relative
-fallback when `excavator_xy` is null. It does not use excavator robot geometry
-in a tabletop run.
+`planar_bias` measures normalized distance from the configured reference,
+defaulting to the search-frame origin when `planar_bias_xy` is null. It does
+not use robot geometry on either platform.
 
 `TabletopPlacementSafety` continues to supply its 32 × 32 bottom-slab floor
 context, 90% completion threshold, and 0.02 m bottom tolerance. Initial scan
@@ -976,9 +1003,11 @@ though the effective proposal behavior is unchanged.
 
 The current seven-term score, floor geometry, standalone scored-sampler floor
 context, and conditional root fallback remain active. In particular, the
-`u_shape_footprint_scale` and `u_shape_min_frontier_contact_cells` settings
-still control rectangular footprints and connectivity even with
-`u_shape_filter: false`; they are not unused parameters.
+`planar.floor.footprint_scale` and `planar.floor.minimum_contact_cells` settings
+still control rectangular footprints and connectivity. The U-shape pocket
+filter and its exclusive helpers have been removed. Historical score maps
+remain viewable when that filter was disabled; the viewer explicitly rejects
+runs that enabled it, since their candidate masks cannot be reproduced.
 
 ## 8. Initial vertical translation
 
@@ -1029,9 +1058,9 @@ Action construction applies the following current checks:
 | Check | Excavator | Tabletop |
 |---|---|---|
 | Invalid native result | Rejected | Rejected |
-| Solver convergence flag | Not required by the generic filter | Required by default |
+| Solver convergence flag | Not required by the generic filter | Not required by the generic filter |
 | Gap residual | $c_{\mathrm{gap}}\le0.005$ | $c_{\mathrm{gap}}\le0.003$ |
-| Normalized equilibrium residual | $c_{\mathrm{feq}}<1$ | $c_{\mathrm{feq}}\le1$ |
+| Normalized equilibrium residual | $c_{\mathrm{feq}}<1$ | $c_{\mathrm{feq}}<1$ |
 | Target gate | Solved object's XY AABB overlaps nominal target rectangle | Estimated volumetric containment at least 0.5 |
 | Strict floor filter | Enabled, with the conditional search fallback | Disabled |
 | Scan-relative orientation filter | Disabled in current PCA mode | Enabled |

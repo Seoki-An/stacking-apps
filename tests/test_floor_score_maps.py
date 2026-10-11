@@ -78,10 +78,10 @@ def test_score_map_keeps_candidate_order_height_fallback_and_orientation_ties(al
         stones=[], target_wall=wall, xlim=(-.5, .5), ylim=(-.5, .5),
         cfg=SimpleNamespace(action=SimpleNamespace(planar={
             "score_map_size": 2,
-            "floor_fill": {"boundary_inset_radius_scale": 0.},
+            "floor": {"boundary_inset_radius_scale": 0.},
             "score": {"height": 0., "support_likelihood": 1., "open_area": 0.,
                       "fill_area": 0., "frontier": 0., "target_boundary": 0.,
-                      "excavator_distance": 0.},
+                      "planar_bias": 0.},
         })),
         support_settings=SimpleNamespace(ground_z=0., contact_gap_tolerance=.01),
     )

@@ -5,12 +5,12 @@ initialization:
   height_clearance: 0.15
   xy_padding: 0.12
 filtering:
-  posegen_gap_threshold: 0.005
-  posegen_equilibrium_threshold: 1.0
-  # Prefer this restriction; exhausted search retries without floor-fill gates.
+  # Shared filter policy; physical gap limits are platform-specific.
   strict_floor_first: true
   require_solver_convergence: false
   reject_equilibrium_at_threshold: true
+  posegen_equilibrium_threshold: 1.0
+  posegen_gap_threshold: 0.005
 planar:
   grid_shape: [32, 32]
   yaw_angles_degrees: [0, 90, 180, 270]
@@ -23,7 +23,9 @@ planar:
     fill_ratio: 0.75
     grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.
     max_layers: 8
-    minimum_contact_cells: 1
+    minimum_contact_cells: 1  # Sampling and solved-pose connectivity.
+    connected_after: 1
+    footprint_scale: 0.9
   boltzmann_temperature: 0.3
   boltzmann_min_probability: 0.0
   target_mask_margin: 0.0
@@ -32,24 +34,14 @@ planar:
   score:
     height: -3.0
     support_likelihood: 2.0
-    open_area: 1.0
+    open_area: 0.0
     fill_area: 2.0
-    frontier: 1.0
+    frontier: 0.0
     target_boundary: 1.5
-    excavator_distance: 2.0
-    excavator_distance_axis: xy
-    excavator_xy: null
+    planar_bias: 0.0
+    planar_bias_axis: xy
+    planar_bias_xy: null
     elite_fraction: 0.25
-  floor_fill:
-    # Legacy proposal-kernel settings; planar.floor owns the shared layer rules.
-    connected_after: 1
-    u_shape_filter: false
-    u_shape_footprint_scale: 0.9
-    u_shape_min_frontier_contact_cells: 1
-    lower_floor_fill_ratio: 0.6
-    lower_floor_occupancy_grid: 16
-    lower_floor_bottom_z_tolerance: 0.2
-    lower_floor_max_layers: 8
 orientation:
   pose_from_scan: false
   roll_angles_degrees: [0, 180]

@@ -102,7 +102,7 @@ class OperationsController(CommonOperationsController):
                 self._run_path, step=step.step).context_sha256
         context = self.contexts[digest]
         settings = context.profiles.get('sampling_settings', {})
-        if settings.get('strategy') or not settings.get('score') or not settings.get('floor_fill'):
+        if settings.get('strategy') or not settings.get('score') or not (settings.get('floor') or settings.get('floor_fill')):
             raise ValueError("This run does not record the pre-region sampler settings; its score maps are unavailable")
         key = (digest, step.step, candidate.candidate_id)
         if self._score_view is not None and self._score_view[0] == key:
@@ -124,7 +124,7 @@ class OperationsController(CommonOperationsController):
         environment = context.profiles['environment_profile']
         result = initial_pose_score_view(inventory, state, candidate.object_id, candidate.init_pose,
             planar_config=context.profiles['action_generation_profile']['planar'],
-            floor_settings=context.profiles['floor_settings'],
+            floor_settings=context.profiles.get('floor_settings'),
             settings=dict(settings),
             height_map_resolution=tuple(environment['observation']['height_map_resolution']),
             height_map_margin=environment['height_map_margin'])
