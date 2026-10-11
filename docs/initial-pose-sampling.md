@@ -9,6 +9,26 @@ comparison. Values below are the current repository defaults. A recorded
 experiment may use a different profile, command-line overrides, or saved
 configuration; its effective settings must be reported separately.
 
+## Working version and score inspection
+
+The planner and both platform configurations use the pre-region version from
+`824d204`. The regional experiment is retained in the existing Git stash; files
+that were untracked when stashing are backed up under
+`.backups/region-sampling-20261011/` with their paths and the stash hash.
+
+In the excavator operations console, select a candidate in **Search Inspector**
+and click **XY score maps…**. The view compares scene height with the restored
+sampler's total score, individual terms, and weighted contributions. It also
+shows the target base, initial XY, and projected stone footprint, and can export
+a PNG. Computation occurs only when opening the view, outside the MCTS loop.
+
+The view uses the run's recorded configuration and pre-search scene. It fixes
+the candidate's initial orientation and recomputes height normalization over
+that orientation's eligible cells with normal floor gates. Thus it is a
+diagnostic reconstruction, not an exact replay of multi-orientation scores or
+relaxed retry sampling. Runs recorded with the regional scorer are explicitly
+unsupported by this restored score viewer.
+
 ## 1. Purpose and algorithm structure
 
 Initial placement poses provide starting points for the native placement

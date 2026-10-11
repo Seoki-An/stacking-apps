@@ -4,13 +4,16 @@ from collections.abc import Mapping
 
 from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QFormLayout,
     QGroupBox,
     QLabel,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSlider,
     QSpinBox,
     QVBoxLayout,
@@ -38,12 +41,22 @@ class SearchInspector(QWidget):
     ) -> None:
         super().__init__(parent)
         self.controller = controller
+        self._score_dialog = None
         self._updating = False
         self._timeline_render_timer = QTimer(self)
         self._timeline_render_timer.setSingleShot(True)
         self._timeline_render_timer.setInterval(25)
         self._timeline_render_timer.timeout.connect(self.state_changed.emit)
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        content = QWidget()
+        self.scroll_area.setWidget(content)
+        outer.addWidget(self.scroll_area)
+        layout = QVBoxLayout(content)
 
         source = QGroupBox("Stacking run")
         source_layout = QVBoxLayout(source)
@@ -96,8 +109,18 @@ class SearchInspector(QWidget):
         )
         form.addRow("Step", self.step_selector)
         form.addRow("Candidate", self.candidate_selector)
+        self.candidate_failure_reason = QLabel()
+        self.candidate_failure_reason.setWordWrap(True)
+        self.candidate_failure_reason.setTextFormat(Qt.TextFormat.PlainText)
+        self.candidate_failure_reason.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        form.addRow("Failure reason", self.candidate_failure_reason)
         form.addRow("Rendering", self.render_selector)
         form.addRow("Pose", self.pose_selector)
+        self.score_map_button = QPushButton("XY score maps…")
+        self.score_map_button.setToolTip(
+            "Compare scene height and score terms for this candidate's initial orientation")
+        self.score_map_button.clicked.connect(self._show_score_map)
+        form.addRow("Sampling", self.score_map_button)
         form.addRow("Replay", self.timeline)
         form.addRow("", self.timeline_label)
         form.addRow("Video FPS", self.video_fps)
@@ -108,7 +131,7 @@ class SearchInspector(QWidget):
         outcome_layout = QVBoxLayout(outcome)
         self.failure_details = QPlainTextEdit()
         self.failure_details.setReadOnly(True)
-        self.failure_details.setMaximumHeight(220)
+        self.failure_details.setMinimumHeight(220)
         outcome_layout.addWidget(self.failure_details)
         layout.addWidget(outcome)
 
@@ -183,6 +206,10 @@ class SearchInspector(QWidget):
                         f"{candidate.outcome.value}{marker}",
                         candidate.candidate_id,
                     )
+                    self.candidate_selector.setItemData(
+                        self.candidate_selector.count() - 1,
+                        self._candidate_failure_text(candidate), Qt.ItemDataRole.ToolTipRole,
+                    )
                 active_index = self.candidate_selector.findData(
                     self.controller.active_candidate_id
                 )
@@ -198,6 +225,8 @@ class SearchInspector(QWidget):
             self.timeline.setEnabled(frame_count > 0)
             self.video_fps.setEnabled(frame_count > 0)
             active = self.controller.active_candidate
+            self.candidate_failure_reason.setText(self._candidate_failure_text(active))
+            self.score_map_button.setEnabled(active is not None and active.init_pose is not None)
             timed = (active is not None and bool(active.timeline.tracks)
                      and all(track.times is not None for track in active.timeline.tracks))
             self.video_fps.setToolTip(
@@ -230,10 +259,37 @@ class SearchInspector(QWidget):
             self._updating = False
 
     @staticmethod
+    def _candidate_failure_text(candidate) -> str:
+        if candidate is None:
+            return "No candidate selected."
+        if candidate.rejection_reason:
+            return candidate.rejection_reason
+        if candidate.outcome.value == "succeeded":
+            return "None — candidate evaluation succeeded."
+        return "Not evaluated yet."
+
+    @staticmethod
     def _select_data(selector: QComboBox, value: str) -> None:
         index = selector.findData(value)
         if index >= 0:
             selector.setCurrentIndex(index)
+
+    def _show_score_map(self):
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            data = self.controller.initial_pose_score_view()
+        except (OSError, ValueError, KeyError, RuntimeError, ImportError, AttributeError) as error:
+            QMessageBox.warning(self, "XY score map unavailable", str(error))
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+        from .score_view import InitialPoseScoreDialog
+        if self._score_dialog is not None:
+            self._score_dialog.close()
+            self._score_dialog.deleteLater()
+        self._score_dialog = InitialPoseScoreDialog(data,
+            step=self.controller.current_step.step, candidate=self.controller.active_candidate, parent=self)
+        self._score_dialog.show()
 
     def _summary(self) -> str:
         step = self.controller.current_step

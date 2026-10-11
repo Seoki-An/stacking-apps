@@ -41,6 +41,9 @@ class OperationsController(CommonOperationsController):
         self.contexts = {}
         self.projectors = {}
         self.mesh_paths = {}
+        self._run_path = None
+        self._score_inventory = None
+        self._score_view = None
 
     def load(self, path):
         path = Path(path)
@@ -76,7 +79,57 @@ class OperationsController(CommonOperationsController):
         artifact = replace(artifact, steps=tuple(sorted(steps, key=lambda step: step.step)))
         self.contexts, self.projectors, self.mesh_paths = contexts, projectors, paths
         self.set_artifact(artifact, planning_records=records, search_statistics=statistics)
+        self._run_path = path
+        self._score_inventory = None
+        self._score_view = None
         return artifact
+
+    def initial_pose_score_view(self):
+        """Inspect recorded settings and the pre-search scene, independent of YAML."""
+        from stacking_common.assets import ObjectAssetLoader
+        from stacking_common.domain import State, TargetGeometry
+        from stacking_common.visualization.sampling import initial_pose_score_view
+
+        step, candidate = self.current_step, self.active_candidate
+        if step is None or candidate is None or candidate.init_pose is None:
+            raise ValueError("Select a candidate with a recorded initial pose")
+        if self.current_plan is not None:
+            digest = self.current_plan.context_sha256
+        elif len(self.contexts) == 1:
+            digest = next(iter(self.contexts))
+        else:
+            digest = StackRunStore.load_planning_checkpoint(
+                self._run_path, step=step.step).context_sha256
+        context = self.contexts[digest]
+        settings = context.profiles.get('sampling_settings', {})
+        if settings.get('strategy') or not settings.get('score') or not settings.get('floor_fill'):
+            raise ValueError("This run does not record the pre-region sampler settings; its score maps are unavailable")
+        key = (digest, step.step, candidate.candidate_id)
+        if self._score_view is not None and self._score_view[0] == key:
+            return self._score_view[1]
+        if self._score_inventory is None or self._score_inventory[0] != digest:
+            profile = context.profiles['inventory_profile']
+            target = dict(profile['target'])
+            target['taper'] = DirectionalTaper(**target['taper'])
+            ids = tuple(map(int, profile['object_ids']))
+            inventory = ObjectAssetLoader(self.repository / profile['model_directory'],
+                profile['density'], TargetGeometry(**target),
+                dict(profile['density_overrides'])).load(ids,
+                    {oid: np.array([0., 0., 0., 0., 0., 0., 1.]) for oid in ids})
+            self._score_inventory = (digest, inventory)
+        inventory = self._score_inventory[1]
+        poses = {obj.object_id: obj.pose for obj in step.scene.objects}
+        state = State(list(inventory.object_ids),
+            [inventory.object_ids.index(oid) for oid in poses], poses, [], [])
+        environment = context.profiles['environment_profile']
+        result = initial_pose_score_view(inventory, state, candidate.object_id, candidate.init_pose,
+            planar_config=context.profiles['action_generation_profile']['planar'],
+            floor_settings=context.profiles['floor_settings'],
+            settings=dict(settings),
+            height_map_resolution=tuple(environment['observation']['height_map_resolution']),
+            height_map_margin=environment['height_map_margin'])
+        self._score_view = (key, result)
+        return result
 
     def frame(self, *, trajectory_time=None):
         frame = super().frame(trajectory_time=trajectory_time)
