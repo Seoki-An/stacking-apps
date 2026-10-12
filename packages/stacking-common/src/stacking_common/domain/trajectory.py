@@ -1,6 +1,5 @@
 """Stack-object motion recorded during one simulation stage."""
 
-from copy import copy as shallow_copy
 from dataclasses import dataclass, field
 from typing import Iterator
 
@@ -44,7 +43,7 @@ class StackObjectTrajectory:
     def from_samples(cls, object_id, poses, times):
         """Own a dense pose history; expose the usual mutable list on demand."""
         values = np.array(poses, dtype=float, order="C", copy=True)
-        seconds = np.asarray(times, dtype=float)
+        seconds = np.array(times, dtype=float, copy=True)
         if values.ndim != 2 or values.shape[1] != 7:
             raise ValueError("trajectory poses must have shape (N, 7)")
         if not np.all(np.isfinite(values)) or np.any(np.linalg.norm(values[:, 3:], axis=1) <= 1e-12):
@@ -53,8 +52,10 @@ class StackObjectTrajectory:
                 or np.any(seconds < 0) or np.any(np.diff(seconds) <= 0)):
             raise ValueError("trajectory times must be increasing seconds, one per pose")
         result = _PackedTrajectory(object_id)
-        result.times = seconds.tolist()
+        values.setflags(write=False)
+        seconds.setflags(write=False)
         result._packed_poses = values
+        result._packed_times = seconds
         return result
 
     def add_pose(self, pose: np.ndarray, *, time: float | None = None) -> None:
@@ -74,17 +75,25 @@ class StackObjectTrajectory:
         self.poses.append(pose)
 
     def copy(self) -> "StackObjectTrajectory":
-        """Copy owned arrays without revalidating previously accepted history.
+        """Keep branch-local metadata and share immutable historical samples.
 
-        Construction and add_pose validate incoming poses. A branch copy keeps
-        the same values and gives every mutable pose/time container a new owner.
-        It owns them as one packed array, so copies of the copy are cheap.
+        Public pose/time lists may have external mutable references, so snapshot
+        those on copy. Already packed buffers are read-only and safe to share;
+        public list access detaches them before exposing anything writable.
         """
         copied = _PackedTrajectory.__new__(_PackedTrajectory)
         copied.__dict__.update(self.__dict__)
-        del copied.__dict__["poses"]
-        copied._packed_poses = np.array(self.poses, dtype=float).reshape(-1, 7)
-        copied.times = None if self.times is None else self.times.copy()
+        if "_packed_poses" not in copied.__dict__:
+            values = np.array(self.poses, dtype=float).reshape(-1, 7)
+            values.setflags(write=False)
+            copied._packed_poses = values
+        if "_packed_times" not in copied.__dict__ and self.times is not None:
+            seconds = np.array(self.times, dtype=float)
+            seconds.setflags(write=False)
+            copied._packed_times = seconds
+        copied.__dict__.pop("poses", None)
+        if "_packed_times" in copied.__dict__:
+            copied.__dict__.pop("times", None)
         return copied
 
     def __len__(self) -> int:
@@ -98,35 +107,35 @@ class StackObjectTrajectory:
 
 
 class _PackedTrajectory(StackObjectTrajectory):
-    """Preserve the public dataclass/list contract while copying history in bulk.
+    """Share immutable sample buffers until public mutable lists are accessed.
 
     Search uses final states and scalar metrics. Access to poses (including
-    dataclasses.asdict for checkpoints) materializes ordinary mutable row views.
-    Each trajectory owns its buffer; no CUDA scratch or sibling state is shared.
+    dataclasses.asdict for checkpoints) detaches the buffer and materializes
+    ordinary mutable row views. Times detach independently. Native input arrays
+    are copied at construction, so no shared buffer aliases CUDA scratch space.
     """
 
     def __getattribute__(self, name):
-        if name == "poses":
+        if name in ("poses", "times"):
             values = object.__getattribute__(self, "__dict__")
-            packed = values.pop("_packed_poses", None)
+            packed = values.pop("_packed_" + name, None)
             if packed is not None:
-                values["poses"] = list(packed)
+                values[name] = list(packed.copy()) if name == "poses" else packed.tolist()
         return super().__getattribute__(name)
 
     def __setattr__(self, name, value):
-        if name == "poses":
-            self.__dict__.pop("_packed_poses", None)
+        if name in ("poses", "times"):
+            self.__dict__.pop("_packed_" + name, None)
         super().__setattr__(name, value)
 
     def __len__(self):
         packed = self.__dict__.get("_packed_poses")
         return len(packed) if packed is not None else super().__len__()
 
-    def copy(self):
-        packed = self.__dict__.get("_packed_poses")
-        if packed is None:
-            return super().copy()
-        copied = shallow_copy(self)
-        copied._packed_poses = packed.copy()
-        copied.times = None if self.times is None else self.times.copy()
-        return copied
+    def __setstate__(self, values):
+        # NumPy pickle restores writable arrays; re-establish the sharing rule.
+        self.__dict__.update(values)
+        for name in ("_packed_poses", "_packed_times"):
+            packed = values.get(name)
+            if packed is not None:
+                packed.setflags(write=False)

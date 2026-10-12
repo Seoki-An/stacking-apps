@@ -59,6 +59,15 @@ def test_unified_planar_weights_change_excavator_scores(tmp_path):
     baseline, actual = maps
     np.testing.assert_array_equal(actual["candidate_mask"], baseline["candidate_mask"])
     valid = baseline["candidate_mask"]
+    # Fill coverage now depends on rotation, so changing its weight can also
+    # change the winning orientation shown at an aggregate map cell.
+    for data, application in zip(maps, (app, changed)):
+        expected = sum(application.sampling_settings["score"][key] * data[key][valid]
+                       for key in ("support_likelihood", "fill_area", "target_boundary", "planar_bias"))
+        expected += application.sampling_settings["score"]["height"] * data["height_term"][valid]
+        np.testing.assert_allclose(data["scores"][valid], expected, rtol=0., atol=1e-12)
+    valid = valid & (baseline["orientation_index"] == actual["orientation_index"])
+    assert valid.any()
     delta = sum((changed.sampling_settings["score"][key] - app.sampling_settings["score"][key])
                 * baseline[key][valid] for key in ("fill_area", "planar_bias"))
     assert np.any(delta != 0.)
@@ -398,6 +407,7 @@ def test_state_height_maps_shared_between_stones_and_invalidated(change, monkeyp
         sampler.view(state, observation), sampler.state_view(state), 2,
         scene_height_map=observation.scene_height_map,
         support_kernels=sampler._kernels[sampler._score_keys[2]],
+        footprint_bounds=sampler._footprint_bounds[sampler._score_keys[2]],
     )
     for key in ("scores", "height", "placement_height", "orientation_index"):
         np.testing.assert_array_equal(scores[key], expected[key])

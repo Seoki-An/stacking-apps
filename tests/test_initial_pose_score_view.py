@@ -30,7 +30,7 @@ def scene():
 @pytest.fixture
 def config():
     return dict(
-        planar_config=asdict(PlanarSamplingConfig((16, 20), (0.,), 0., .6)),
+        planar_config=asdict(PlanarSamplingConfig((16, 20), (0.,), target_anchor_inset_scale=.6)),
         settings=dict(boltzmann_temperature=.3, boltzmann_min_probability=0.,
             target_mask_margin=0., contact_gap_tolerance=.01,
             score=dict(height=-3., support_likelihood=2., fill_area=2.,

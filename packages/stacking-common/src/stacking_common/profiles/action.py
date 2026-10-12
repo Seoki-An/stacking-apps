@@ -74,9 +74,6 @@ def load_action_generation_profile(
                 float(np.deg2rad(value))
                 for value in _required(orientation, "yaw_angles_degrees")
             ),
-            minimum_xy_separation=float(
-                _required(planar, "minimum_xy_separation")
-            ),
             target_anchor_inset_scale=(
                 None
                 if planar.get("target_anchor_inset_scale") is None

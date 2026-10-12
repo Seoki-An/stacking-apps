@@ -337,17 +337,13 @@ def score_xy_debug_map(
     support_kernels: Optional[list[BottomHeightKernel]] = None,
     state_map_bundle: Optional[StateMapBundle] = None,
     relax_floor_fill: bool = False,
+    footprint_bounds: Optional[np.ndarray] = None,
 ) -> dict:
     if scene_height_map is None:
         scene_height_map = inventory.get_height_map(state)
     height_map = np.asarray(scene_height_map)
     shape = score_grid_shape(inventory, height_map)
     xy_grid = xy_grid_for_shape(inventory, shape)
-    target_lower, target_upper = target_anchor_bounds(inventory, stone_idx)
-    valid = np.all(
-        (xy_grid >= target_lower) & (xy_grid <= target_upper),
-        axis=-1,
-    )
     support = inventory.support_settings
     if state_map_bundle is None:
         state_lower, state_upper = target_anchor_bounds(inventory, None)
@@ -374,6 +370,20 @@ def score_xy_debug_map(
                 grid_dy,
             )
         ]
+    if footprint_bounds is None:
+        half = 0.5 * stone_xy_extent(inventory, stone_idx)
+        footprint_bounds = np.tile(np.array([-half, half]), (len(support_kernels), 1, 1))
+    footprint_bounds = np.asarray(footprint_bounds, dtype=float)
+    if footprint_bounds.shape != (len(support_kernels), 2, 2):
+        raise ValueError("footprint bounds must contain XY minima and maxima for each orientation")
+    target_statics = [target_anchor_static(inventory, stone_idx, xy_bounds=bounds)
+                      for bounds in footprint_bounds]
+    target_bounds = np.array([target_anchor_bounds(inventory, stone_idx, _static=static)
+                              for static in target_statics]).reshape(-1, 2, 2)
+    valid_by_orientation = np.all(
+        (xy_grid[None] >= target_bounds[:, 0, None, None, :])
+        & (xy_grid[None] <= target_bounds[:, 1, None, None, :]), axis=-1)
+    valid = np.any(valid_by_orientation, axis=0)
     score_map = np.full(shape, np.nan, dtype=float)
     candidate_mask = np.zeros(shape, dtype=bool)
     connectivity_mask = valid.copy()
@@ -419,10 +429,13 @@ def score_xy_debug_map(
     elif has_occupied:
         occupied_dilated = dilated_mask(layer["occupied"])
 
-    footprint_half = footprint_half_extent(inventory, stone_idx, _floor_cfg=cfg)
-    # Anchor cells in row-major order. Every per-cell quantity below is an
-    # array over these cells; filtering keeps that order.
-    grid_index = np.argwhere(valid)
+    # Each row is an orientation/anchor pair, in orientation-major order.
+    # This keeps footprint and support computations aligned without a K x K
+    # product between candidate orientations and bottom kernels.
+    orientations, rows, columns = np.nonzero(valid_by_orientation)
+    grid_index = np.column_stack((rows, columns))
+    scaled_bounds = float(cfg.get("footprint_scale", 0.9)) * footprint_bounds
+    bounds = scaled_bounds[orientations]
     cell_xy = xy_grid[grid_index[:, 0], grid_index[:, 1]]
     count = len(grid_index)
     keep = np.ones(count, dtype=bool)
@@ -433,26 +446,26 @@ def score_xy_debug_map(
     gap_region: list = [None] * count
     max_unfilled_cells = 1
     if has_occupied:
-        # Rectangular footprint masks on the floor grid, one row per anchor cell.
-        xx, yy = layer["xx"].ravel(), layer["yy"].ravel()
-        footprints = (
-            (xx >= (cell_xy[:, 0] - footprint_half[0])[:, None])
-            & (xx <= (cell_xy[:, 0] + footprint_half[0])[:, None])
-            & (yy >= (cell_xy[:, 1] - footprint_half[1])[:, None])
-            & (yy <= (cell_xy[:, 1] + footprint_half[1])[:, None])
+        # Summed-area queries avoid an orientations x anchors x floor-cells
+        # tensor. Each rectangle needs four lookups per occupancy/gap mask.
+        xs, ys = layer["xx"][0], layer["yy"][:, 0]
+        rectangles = (
+            np.searchsorted(xs, cell_xy[:, 0] + bounds[:, 0, 0], side="left"),
+            np.searchsorted(xs, cell_xy[:, 0] + bounds[:, 1, 0], side="right"),
+            np.searchsorted(ys, cell_xy[:, 1] + bounds[:, 0, 1], side="left"),
+            np.searchsorted(ys, cell_xy[:, 1] + bounds[:, 1, 1], side="right"),
         )
-        contact_cells = np.count_nonzero(footprints & occupied_dilated.ravel(), axis=1)
+        contact_cells = rectangle_cell_counts(occupied_dilated, rectangles)
         connected = contact_cells > 0
-        connectivity_mask[grid_index[:, 0], grid_index[:, 1]] = connected
+        connectivity_mask[:] = False
+        np.logical_or.at(connectivity_mask, (rows, columns), connected)
     if fill_floor:
-        unfilled = footprints & ~layer["occupied"].ravel()
-        unfilled_cells = np.count_nonzero(unfilled, axis=1)
+        unfilled_cells = rectangle_cell_counts(~layer["occupied"], rectangles)
         keep = unfilled_cells > 0
         # Unfilled cells are never occupied, so all carry a gap label. The
         # most common label wins; ties keep the smallest, as np.unique does.
-        labels = gap_labels.ravel()
         label_counts = np.stack(
-            [np.count_nonzero(unfilled & (labels == label), axis=1) for label in range(len(gap_sizes))],
+            [rectangle_cell_counts(gap_labels == label, rectangles) for label in range(len(gap_sizes))],
             axis=1,
         ) if gap_sizes else np.zeros((count, 0), dtype=int)
         kept = np.flatnonzero(keep)
@@ -476,38 +489,38 @@ def score_xy_debug_map(
     base = np.flatnonzero(keep)
     base_indices = grid_index[base]
     base_xy = cell_xy[base]
-    # Orientations of one anchor share its xy array, as the dict spread did.
     base_xy_items = [xy.copy() for xy in base_xy]
-    target_anchor_base = target_anchor_static(inventory, stone_idx)
-    # Support is only read at the kept anchor cells; rows align with base.
-    kernel_support = support_likelihood_maps_by_kernel(
-        bundle.surface_height,
-        support_kernels,
-        support.contact_gap_tolerance,
-        cells=(base_indices[:, 0], base_indices[:, 1]),
-    )
     parts = []
-    for orientation_index in range(kernel_support.support.shape[0]):
-        support_scores = kernel_support.support[orientation_index]
+    for orientation_index, kernel in enumerate(support_kernels):
+        group = np.flatnonzero(orientations[base] == orientation_index)
+        indices = base_indices[group]
+        if not len(indices):
+            continue
+        kernel_support = support_likelihood_maps_by_kernel(
+            bundle.surface_height, [kernel], support.contact_gap_tolerance,
+            cells=(indices[:, 0], indices[:, 1]),
+        )
+        support_scores = kernel_support.support[0]
         selected = np.flatnonzero(np.isfinite(support_scores))
-        contact_heights = kernel_support.contact_height[orientation_index][selected].copy()
+        items = group[selected]
+        contact_heights = kernel_support.contact_height[0][selected].copy()
         for index in np.flatnonzero(~np.isfinite(contact_heights)):
             contact_heights[index] = mean_top_height_at_anchor(
-                inventory, heights, xy_grid, base_xy[selected[index]], stone_idx,
-                _half=footprint_half,
+                inventory, heights, xy_grid, base_xy[items[index]], stone_idx,
+                _bounds=scaled_bounds[orientation_index],
             )
         boundary_lower, boundary_upper = target_anchor_bounds(
-            inventory, stone_idx, z=contact_heights, _static=target_anchor_base,
+            inventory, stone_idx, z=contact_heights, _static=target_statics[orientation_index],
         )
         boundary_scores = target_boundary_proximity(
-            base_xy[selected], boundary_lower, boundary_upper,
+            base_xy[items], boundary_lower, boundary_upper,
         )
         parts.append((
-            selected,
+            items,
             np.full(len(selected), orientation_index),
             contact_heights,
             support_scores[selected],
-            kernel_support.placement_height[orientation_index][selected],
+            kernel_support.placement_height[0][selected],
             boundary_scores,
         ))
 
@@ -540,13 +553,14 @@ def score_xy_debug_map(
         + w_planar_bias * planar_bias[cells]
     )
 
-    # Each map cell shows its first maximum-score candidate.
+    # Prefer an eligible orientation when a cell has both connected and
+    # disconnected poses. Keep raw scores for cells with no eligible pose.
     flat_cell = grid_index[cells, 0] * shape[1] + grid_index[cells, 1]
-    order = np.lexsort((np.arange(len(cells)), -candidate_scores, flat_cell))
+    order = np.lexsort((np.arange(len(cells)), -candidate_scores, ~connected[cells], flat_cell))
     winners = order[np.r_[True, flat_cell[order][1:] != flat_cell[order][:-1]]]
     rows, columns = grid_index[cells[winners], 0], grid_index[cells[winners], 1]
     score_map[rows, columns] = candidate_scores[winners]
-    candidate_mask[rows, columns] = connectivity_mask[rows, columns]
+    candidate_mask[rows, columns] = connected[cells[winners]]
     height_score_map[rows, columns] = height_term[winners]
     support_likelihood_map[rows, columns] = item_support[winners]
     fill_area_map[rows, columns] = fill_area[winners]
@@ -612,6 +626,13 @@ def score_xy_debug_map(
         "h_span": h_span,
         "candidates": candidates,
     }
+
+def rectangle_cell_counts(mask: np.ndarray, rectangles) -> np.ndarray:
+    """Count true grid cells in rectangles with exclusive upper indices."""
+    x0, x1, y0, y1 = rectangles
+    summed = np.pad(np.cumsum(np.cumsum(mask, axis=0), axis=1), ((1, 0), (1, 0)))
+    return summed[y1, x1] - summed[y0, x1] - summed[y1, x0] + summed[y0, x0]
+
 
 def score_grid_shape(inventory, height_map: Optional[np.ndarray]) -> tuple[int, int]:
     size = inventory.cfg.action.planar.get("score_map_size", None)
@@ -699,9 +720,9 @@ def mean_top_height_at_anchor(
     xy_grid: np.ndarray,
     anchor: np.ndarray,
     stone_idx: Optional[int],
-    _half: Optional[np.ndarray] = None,
+    _bounds: Optional[np.ndarray] = None,
 ) -> float:
-    footprint = anchor_grid_mask(inventory, xy_grid, anchor, stone_idx, _half=_half)
+    footprint = anchor_grid_mask(inventory, xy_grid, anchor, stone_idx, _bounds=_bounds)
     values = np.asarray(top_heights[footprint], dtype=float)
     values = values[np.isfinite(values)]
     if len(values) == 0:
@@ -711,7 +732,7 @@ def mean_top_height_at_anchor(
         return float(top_heights[y_idx, x_idx])
     return float(np.mean(values))
 
-def target_anchor_static(inventory, stone_idx: Optional[int]):
+def target_anchor_static(inventory, stone_idx: Optional[int], *, xy_bounds=None):
     """Precompute the per-(inventory, stone_idx) terms of ``target_anchor_bounds``
     that do not depend on ``z``. Callers that evaluate many z values for the same
     stone (e.g. a per-orientation/per-cell scoring loop) should compute this once
@@ -722,8 +743,12 @@ def target_anchor_static(inventory, stone_idx: Optional[int]):
     origin = np.asarray(wall.origin[:2], dtype=float)
     half_extent = np.asarray([wall.width, wall.length], dtype=float) / 2.0
     margin = float(inventory.cfg.action.planar.get("target_mask_margin", 0.0))
-    inset = anchor_inset_xy(inventory, stone_idx)
-    return wall, origin, half_extent, margin, inset
+    if xy_bounds is None:
+        half = 0.5 * stone_xy_extent(inventory, stone_idx)
+        xy_bounds = np.array([-half, half])
+    scale = float(inventory.cfg.action.planar.get("floor", {}).get("boundary_inset_radius_scale", 0.6))
+    offsets = scale * np.asarray(xy_bounds, dtype=float)
+    return wall, origin, half_extent, margin, offsets
 
 def target_anchor_bounds(
     inventory,
@@ -732,7 +757,7 @@ def target_anchor_bounds(
     _static=None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return XY bounds for a scalar height or an array of heights."""
-    wall, origin, half_extent, margin, inset = (
+    wall, origin, half_extent, margin, offsets = (
         target_anchor_static(inventory, stone_idx) if _static is None else _static
     )
     lower = origin - half_extent
@@ -753,8 +778,8 @@ def target_anchor_bounds(
                 max(float(wall.taper["length_positive"]), 0.0),
             ]
         )
-    lower += margin + inset
-    upper -= margin + inset
+    lower += margin - offsets[0]
+    upper -= margin + offsets[1]
     return lower, upper
 
 def target_boundary_proximity(
@@ -779,17 +804,19 @@ def anchor_grid_mask(
     xy_grid: np.ndarray,
     anchor: np.ndarray,
     stone_idx: Optional[int],
-    _half: Optional[np.ndarray] = None,
+    _bounds: Optional[np.ndarray] = None,
 ) -> np.ndarray:
-    half = footprint_half_extent(inventory, stone_idx) if _half is None else _half
+    if _bounds is None:
+        half = footprint_half_extent(inventory, stone_idx)
+        _bounds = np.array([-half, half])
     xy = np.asarray(anchor, dtype=float)
     xx = xy_grid[..., 0]
     yy = xy_grid[..., 1]
     return (
-        (xx >= xy[0] - half[0])
-        & (xx <= xy[0] + half[0])
-        & (yy >= xy[1] - half[1])
-        & (yy <= xy[1] + half[1])
+        (xx >= xy[0] + _bounds[0, 0])
+        & (xx <= xy[0] + _bounds[1, 0])
+        & (yy >= xy[1] + _bounds[0, 1])
+        & (yy <= xy[1] + _bounds[1, 1])
     )
 
 def sample_scored_candidates(
@@ -942,11 +969,6 @@ def dilated_mask(mask: np.ndarray) -> np.ndarray:
         | padded[2:, :-2]
         | padded[2:, 2:]
     )
-
-def anchor_inset_xy(inventory, stone_idx: Optional[int]) -> np.ndarray:
-    cfg = inventory.cfg.action.planar.get("floor", {})
-    scale = float(cfg.get("boundary_inset_radius_scale", 0.6))
-    return np.maximum(scale * 0.5 * stone_xy_extent(inventory, stone_idx), 0.0)
 
 def stone_xy_extent(inventory, stone_idx: Optional[int]) -> np.ndarray:
     if stone_idx is None:

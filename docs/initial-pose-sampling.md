@@ -165,21 +165,44 @@ also enables a scan-relative orientation filter. It is not the current default.
 
 ### 4.1 Target mask and floor footprint
 
-XY anchors are drawn from the regular proposal grid. The initial target mask
-uses the nominal target rectangle, inset in each direction by
+XY anchors are drawn from the regular proposal grid. For each initial rotation
+$R$ (including roll and yaw), the sampler transforms the stone's hull vertices
+and caches their XY minima $a$ and maxima $b$, relative to the stone origin.
+With target bounds $L,U$, `target_anchor_inset_scale` $s$ and
+`target_mask_margin` $m$, allowed anchor coordinates satisfy
 
 $$
-\delta_{xy}=0.6\,\frac{e_{xy}}{2},
+L + m - s a \;\leq\; (x,y) \;\leq\; U - m - s b.
 $$
 
-where $e_{xy}$ is the object's asset-local XY bounding-box extent. The
-configured additional mask margin is zero. This inset permits controlled
-overhang; it does not establish full containment of the rotated object.
+The current $s=0.6$ and $m=0$ permit initial overhang. At $s=1$, these bounds
+contain the rotated XY bounding box in the nominal target rectangle. Keeping
+both offsets handles geometry whose origin is not at its bounding-box center.
+The target-boundary score uses the same offsets with the target taper evaluated
+at the estimated contact height. Final containment is checked after pose solving.
 
-For gap filling and connectivity filtering, the excavator scorer uses an
-axis-aligned rectangular footprint with half-extents
-$0.9e_{xy}/2$. These coarse floor masks use asset-local extents. The separate
-bottom-height support kernel is orientation dependent.
+For gap filling and connectivity filtering, both platforms use a rectangle
+from $(x,y)+f a$ to $(x,y)+f b$, where $f$ is `floor.footprint_scale` (currently
+0.9). The offsets are scaled about the stone origin. This is an axis-aligned
+approximation of the rotated shape; the separate bottom-height support kernel
+retains its more detailed orientation-dependent geometry.
+
+Target eligibility, connectivity, empty-cell counts, and gap assignment are
+computed per orientation. Geometry bounds are cached alongside bottom kernels
+across MCTS states. Summed-area tables count rectangle coverage with four
+lookups, avoiding an orientation-by-anchor-by-floor-cell mask allocation.
+An aggregate score-map cell displays the best eligible orientation when one
+exists; otherwise it retains a raw score for diagnosis and is not sampleable.
+The GUI's fixed-orientation view uses these same rules. Historical runs are
+recomputed with the current rotated-footprint policy, so they can differ from
+the former asset-local rectangle approximation.
+
+A local CPU check used the saved `scored_sampling.npz` placed-scene fixture,
+two excavator stones, eight orientations, and 30 timed recomputations after
+five warmups, retaining the geometry cache but invalidating the scene cache.
+Median map times were 3.87 and 3.92 ms, versus 2.93 and 2.57 ms with commit
+`b4ef8b3`. Candidate counts changed from 576/512 to 640/576 because eligibility
+now follows rotation. These are scorer measurements, not full MCTS timings.
 
 ### 4.2 Orientation-dependent bottom kernel
 
@@ -351,40 +374,41 @@ is nonfinite; the equations above describe the finite-support path.
 #### Floor footprint and unfilled cells
 
 Let $\mathcal G_f$ be the active-floor sampling grid, $\Omega_s$ its occupied
-cells, and $e_x,e_y$ the object's asset-local extents. The scorer's rectangular
-footprint is
+cells, and $q_R^-,q_R^+$ the XY minima and maxima of the rotated vertices.
+At anchor $a$, the scorer's rectangular footprint is
 
 $$
-\mathcal A(a)=\left\{p\in\mathcal G_f:
-|p_x-a_x|\le0.45e_x,\quad |p_y-a_y|\le0.45e_y\right\}.
+\mathcal A(a,R)=\left\{p\in\mathcal G_f:
+a+f q_R^-\le p\le a+f q_R^+\right\}.
 $$
 
-The factor $0.45$ is half the configured footprint scale $0.9$. Define
+The configured footprint scale is $f=0.9$. Define
 
 $$
-\mathcal U(a)=\mathcal A(a)\setminus\Omega_s,
-\qquad n_A(a)=|\mathcal A(a)|,
-\qquad n_U(a)=|\mathcal U(a)|.
+\mathcal U(a,R)=\mathcal A(a,R)\setminus\Omega_s,
+\qquad n_A(a,R)=|\mathcal A(a,R)|,
+\qquad n_U(a,R)=|\mathcal U(a,R)|.
 $$
 
-When the active floor contains occupied cells, anchors with $n_U=0$ are
-removed at this stage. This is an admission rule, not an open-area score. The footprint
-$\mathcal A(a)$ does not rotate with $R$ in this excavator heuristic.
+In the following expressions, $R$ is implicit in $n_A,n_U$ and $\mathcal A$.
+When the active floor contains occupied cells and floor filling is not relaxed,
+anchor/orientation pairs with $n_U=0$ are removed at this stage. This is an
+admission rule, not an open-area score.
 
 #### Normalized fill area $F$
 
-Let $\mathcal A_{\mathrm{open}}$ contain base-mask-valid anchors with
+Let $\mathcal A_{\mathrm{open}}$ contain base-mask-valid anchor/orientation pairs with
 $n_A>0$ and $n_U>0$, before the later connectivity filter. The normalization is
 
 $$
 n_{U,\max}=\max\left(1,
-\max_{a\in\mathcal A_{\mathrm{open}}}n_U(a)\right),
+\max_{(a,R)\in\mathcal A_{\mathrm{open}}}n_U(a,R)\right),
 \qquad
-F(a)=\frac{n_U(a)}{n_{U,\max}}.
+F(a,R)=\frac{n_U(a,R)}{n_{U,\max}}.
 $$
 
 If that set is empty, the code keeps the normalization denominator at one.
-$F$ compares the unoccupied cell count with other anchors for the same object.
+$F$ compares the unoccupied cell count with other anchor/orientation pairs for the same object.
 The anchor attaining $n_{U,\max}$ can be removed by a later filter.
 
 #### Connectivity mask
@@ -406,7 +430,7 @@ there is no weighted frontier bonus.
 Connectivity is applied as a hard mask after raw score computation:
 
 $$
-M_C(a)=\mathbf 1[|\mathcal A(a)\cap\mathcal N_8(\Omega_s)|\ge 1].
+M_C(a,R)=\mathbf 1[|\mathcal A(a,R)\cap\mathcal N_8(\Omega_s)|\ge 1].
 $$
 
 On an empty active floor, $M_C=1$ for target-valid anchors. The score-map API
@@ -430,19 +454,19 @@ Let $\operatorname{clip}(v,l,u)=\min(\max(v,l),u)$, and define
 $$
 \zeta(a,R)=\operatorname{clip}(h_c(a,R)-o_z,0,h_t),
 \qquad
-\delta_x=m_t+0.3e_x,\quad \delta_y=m_t+0.3e_y,
+\delta^- = m_t-s q_R^-,\quad \delta^+ = m_t+s q_R^+,
 $$
 
-where the current target-mask margin is $m_t=0$. For the scorer, set
+where the current target-mask margin is $m_t=0$ and inset scale is $s=0.6$. For the scorer, set
 $\alpha_d^\pm=\tan(\max(\theta_d^\pm,0))$. Negative taper angles are
 therefore clamped to zero in this heuristic. The bounds are
 
 $$
 \begin{aligned}
-l_x&=o_x-\frac W2+\zeta\alpha_x^-+\delta_x,&
-u_x&=o_x+\frac W2-\zeta\alpha_x^+-\delta_x,\\
-l_y&=o_y-\frac\ell2+\zeta\alpha_y^-+\delta_y,&
-u_y&=o_y+\frac\ell2-\zeta\alpha_y^+-\delta_y.
+l_x&=o_x-\frac W2+\zeta\alpha_x^-+\delta_x^-,&
+u_x&=o_x+\frac W2-\zeta\alpha_x^+-\delta_x^+,\\
+l_y&=o_y-\frac\ell2+\zeta\alpha_y^-+\delta_y^-,&
+u_y&=o_y+\frac\ell2-\zeta\alpha_y^+-\delta_y^+.
 \end{aligned}
 $$
 
@@ -830,7 +854,7 @@ been removed from the live checkout. Its equations and
 selection procedure are historical, not the current tabletop defaults.
 
 The sampler enumerates valid grid anchors for each orientation. With the
-current target inset, the center bounds use 0.6 times the asset-local
+then-configured target inset, the center bounds use 0.6 times the asset-local
 half-extent. Full rotated bounding-box fitting is used only when that inset
 option is absent.
 

@@ -76,7 +76,7 @@ def initial_pose_score_view(inventory, state, object_id, initial_pose, *, planar
     observation = SimpleNamespace(scene_height_map=renderer.render(state),
         height_map_xlim=renderer.xlim, height_map_ylim=renderer.ylim)
     config = PlanarSamplingConfig(tuple(planar_config['grid_shape']), (0.,),
-        planar_config['minimum_xy_separation'], planar_config.get('target_anchor_inset_scale'))
+        target_anchor_inset_scale=planar_config.get('target_anchor_inset_scale'))
     provider = MappingOrientationProvider({oid: pose[3:] for oid in inventory.object_ids})
     policy = ActiveFloorPolicy(inventory, **floor_policy_settings(settings['floor']))
     if (recorded_max_layers is not None

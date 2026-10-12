@@ -529,7 +529,7 @@ def test_planar_sampler_uses_measured_orientation_provider() -> None:
     app = TabletopApplication.from_repository(Path(__file__).resolve().parents[1])
     sampler = ScoredPlanarPoseSampler(
         inventory,
-        PlanarSamplingConfig((3, 3), (0.0,), 0.0, 0.6),
+        PlanarSamplingConfig((3, 3), (0.0,), target_anchor_inset_scale=0.6),
         orientation_provider=MappingOrientationProvider({10: measured}),
         settings=app.sampling_settings,
         floor_policy=_tabletop_floor_policy(inventory),

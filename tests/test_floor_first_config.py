@@ -152,7 +152,7 @@ def test_floor_detection_stops_at_first_incomplete_layer_without_cap(complete_la
 
     # Standalone sampler detection must also advance beyond eight layers and
     # stop on an empty layer even if unsupported stones remain above it.
-    sampler = ScoredPlanarPoseSampler(inventory, PlanarSamplingConfig((16, 16), (0.,), 0.),
+    sampler = ScoredPlanarPoseSampler(inventory, PlanarSamplingConfig((16, 16), (0.,)),
         MappingOrientationProvider({o.object_id: _pose()[3:] for o in objects}),
         {'floor': {**floor, 'footprint_scale': .9}, 'contact_gap_tolerance': .01})
     observation = SimpleNamespace(height_map_xlim=(-.1, .1), height_map_ylim=(-.1, .1))

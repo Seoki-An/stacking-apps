@@ -48,8 +48,6 @@ class ScoredPlanarPoseSampler:
     """Legacy score-mode geometry, representatives, and Boltzmann selection."""
 
     def __init__(self, inventory, config, orientation_provider, settings, *, seed=0, floor_policy=None):
-        if config.minimum_xy_separation != 0:
-            raise ValueError("scored selection requires minimum_xy_separation: 0")
         self.floor_policy = floor_policy
         self.relax_floor_fill = False
         self._active_floor = None
@@ -64,6 +62,7 @@ class ScoredPlanarPoseSampler:
             height=inventory.target.height, origin=inventory.target.origin,
             taper=asdict(inventory.target.taper))
         self._kernels = {}
+        self._footprint_bounds = {}
         self._quaternions = {}
         self._scores = {}
         self._sampled_scores = {}
@@ -145,6 +144,10 @@ class ScoredPlanarPoseSampler:
         if key not in self._kernels:
             self._kernels[key] = [bottom_height_kernel(self.stones[object_index].points, q, dx, dy)
                                   for q in quaternions]
+            rotations = Rotation.from_quat(quaternions).as_matrix()
+            rotated = self.stones[object_index].points @ rotations.transpose(0, 2, 1)
+            self._footprint_bounds[key] = np.stack(
+                (rotated[:, :, :2].min(axis=1), rotated[:, :, :2].max(axis=1)), axis=1)
         if self._state_map_bundle is None:
             shape = floor.score_grid_shape(view, height)
             xy_grid = floor.xy_grid_for_shape(view, shape)
@@ -156,6 +159,7 @@ class ScoredPlanarPoseSampler:
             )
         scores = floor.score_xy_debug_map(view, self.state_view(state), object_index,
             scene_height_map=observation.scene_height_map, support_kernels=self._kernels[key],
+            footprint_bounds=self._footprint_bounds[key],
             active_floor=self._active_floor, state_map_bundle=self._state_map_bundle,
             relax_floor_fill=self.relax_floor_fill)
         self._scores[object_index] = (observation, scores)

@@ -13,7 +13,6 @@ filtering:
   posegen_gap_threshold: 0.005
 planar:
   grid_shape: [32, 32]
-  minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.
   target_anchor_inset_scale: 0.6
   floor:
     # Advance at fill_ratio coverage of the base in top-down projection.

@@ -19,7 +19,7 @@ def test_batched_target_bounds_and_scores_match_scalar_policy(taper):
         taper=dict(zip(("width_negative", "width_positive",
                         "length_negative", "length_positive"), taper)),
     )
-    static = (wall, wall.origin[:2], np.array([1.5, 2.]), .02, np.array([.1, .2]))
+    static = (wall, wall.origin[:2], np.array([1.5, 2.]), .02, np.array([[-.1, -.2], [.1, .2]]))
     heights = np.array([[-1., .4, .7], [1.4, 2.4, 5.]])
     actual_lower, actual_upper = floor.target_anchor_bounds(None, None, heights, _static=static)
     expected_lower, expected_upper = [], []
@@ -29,8 +29,8 @@ def test_batched_target_bounds_and_scores_match_scalar_policy(taper):
         upper = wall.origin[:2] + static[2]
         lower += relative * np.tan([max(taper[0], 0.), max(taper[2], 0.)])
         upper -= relative * np.tan([max(taper[1], 0.), max(taper[3], 0.)])
-        lower += static[3] + static[4]
-        upper -= static[3] + static[4]
+        lower += static[3] - static[4][0]
+        upper -= static[3] + static[4][1]
         expected_lower.append(lower)
         expected_upper.append(upper)
     expected_lower = np.array(expected_lower).reshape(2, 3, 2)
@@ -93,11 +93,11 @@ def test_score_map_keeps_candidate_order_height_fallback_and_orientation_ties(al
     contact[1, 1, 0] = np.inf
     original_contact = contact.copy()
     monkeypatch.setattr(floor, "support_likelihood_maps_by_kernel",
-        lambda *args, cells: KernelSupportMaps(*(values[:, cells[0], cells[1]] for values in (
+        lambda surface, kernels, tolerance, *, cells: KernelSupportMaps(*(values[kernels, :, :][:, cells[0], cells[1]] for values in (
             support, contact, np.ones_like(support)))))
     result = floor.score_xy_debug_map(
         inventory, SimpleNamespace(stone_seq=[]), None,
-        scene_height_map=np.zeros((2, 2)), support_kernels=[],
+        scene_height_map=np.zeros((2, 2)), support_kernels=[0, 1],
         active_floor={"occupied": np.zeros((2, 2), dtype=bool)},
     )
     np.testing.assert_array_equal(contact, original_contact)

@@ -1283,9 +1283,11 @@ with the same canonical normalization as the original snapshots. Native C++
 consumers use `sample.snapshot()` instead of the former snapshot field.
 
 CUDA placement reads these arrays in bulk. `StackObjectTrajectory.from_samples`
-validates and owns a dense pose array; branch copies copy that array without
-constructing a Python array for every timestep. Accessing `trajectory.poses`
-materializes the usual mutable list, preserving viewer and checkpoint contracts.
+validates and owns dense pose and timestamp arrays. Branch copies now share
+these read-only buffers. Accessing `trajectory.poses` or `trajectory.times`
+detaches that branch's corresponding buffer into the usual mutable list,
+preserving viewer and checkpoint contracts. Scalar metrics and state containers
+remain branch-local. Inputs from native simulation are copied before sharing.
 All samples and timestamps remain available. Older native installations use the
 existing snapshot path. There are no new YAML settings, precision changes,
 sample reductions, or changes to containment geometry/resolution. The earlier
@@ -1317,6 +1319,40 @@ pose access, saved checkpoints, both platforms, MCTS and viewer projection.
 A final optional-untimed-history copy check also passes; that compatibility guard
 does not affect the timed histories used in the benchmark.
 
+
+### Shared historical trajectories (2026-10-12)
+
+`excavator_plan3.stack` completed step 26 before the worker was killed during
+step 27. The kernel reported a system-memory OOM at 12:28:25 KST: approximately
+27.4 GiB anonymous resident memory in the worker, with all 8 GiB swap exhausted.
+Its saved step-26 state contained 351 trajectories and 151,281 pose samples.
+Copying the complete history into every search branch was a major avoidable
+source of memory growth.
+
+Packed trajectories now share immutable pose and timestamp buffers between
+state snapshots. Each copy retains its own metadata and mutable containers.
+Public list access first detaches the requested buffer, so editing a pose,
+changing timestamps, or appending samples cannot affect another branch. Copying
+an already exposed mutable list makes a new immutable snapshot; existing
+external references therefore remain safe. Pickle restores the read-only rule.
+Checkpoints retain the complete history and the existing artifact schema.
+
+Fresh-process measurements using the step-26 checkpoint compared against
+commit `b4ef8b3`, with no simulation or search running:
+
+| 100 state copies | Previous | Shared history |
+|---|---:|---:|
+| Additional process resident memory | 936.42 MiB | 38.59 MiB |
+| Unique historical pose buffers, including source | 35,451 | 351 |
+| Historical pose-buffer storage, including source | 816.01 MiB | 8.08 MiB |
+| Copy time | 0.911 s | 0.421 s |
+
+A larger check with 1,333 state copies retained the same 351 pose buffers
+(8.08 MiB); total additional resident memory was 757.43 MiB, including per-state
+containers and copied action histories. These copies all inherit one checkpoint.
+Actual MCTS also stores new simulation trajectories, observations, and native
+workspaces, so these measurements do not establish the full search's peak memory
+or prove that the previous failing run now completes.
 
 ### Vectorized floor sampling
 
@@ -1477,7 +1513,8 @@ trajectories pose by pose and deep-copied every action's diagnostics twice.
 - `Action.copy` now copies the pose arrays and deep-copies diagnostics once,
   without reconstructing and revalidating the action.
 - Copying a list-based trajectory returns the packed form, so later branch copies
-  copy one array. Reading `poses` still gives the usual mutable list.
+  share read-only pose/time arrays. Reading `poses` or `times` detaches that
+  trajectory's buffer into its own mutable list.
 - Batched transition steps return each newly built child directly and keep one
   independent final snapshot per chunk.
 - Short MCTS evaluations hand the evaluation's private state to the node

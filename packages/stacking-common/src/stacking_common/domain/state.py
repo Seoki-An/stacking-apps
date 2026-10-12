@@ -86,7 +86,8 @@ class State:
         """Return a branch-independent snapshot of this state."""
 
         # Construction validates external values. Copies of an existing state
-        # need ownership, not repeated array and history validation.
+        # need branch-local containers, not repeated array/history validation.
+        # Trajectory copies share immutable samples and detach on list access.
         copied = shallow_copy(self)
         copied.object_ids = self.object_ids.copy()
         copied.placed_object_indices = self.placed_object_indices.copy()

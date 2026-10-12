@@ -14,7 +14,6 @@ filtering:
   posegen_gap_threshold: 0.003
 planar:
   grid_shape: [32, 32]
-  minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.
   # Legacy anchor inset; values below 1 permit controlled target overhang.
   target_anchor_inset_scale: 0.6
   floor:

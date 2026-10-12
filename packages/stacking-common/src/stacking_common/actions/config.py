@@ -56,7 +56,6 @@ class PlanarSamplingConfig:
 
     grid_shape: tuple[int, int]
     yaw_angles: tuple[float, ...]
-    minimum_xy_separation: float
     target_anchor_inset_scale: float | None = None
 
     def __post_init__(self) -> None:
@@ -67,13 +66,6 @@ class PlanarSamplingConfig:
         yaws = tuple(float(value) for value in self.yaw_angles)
         if not yaws or not np.all(np.isfinite(yaws)):
             raise ValueError("planar yaw angles must be non-empty and finite")
-        if (
-            not np.isfinite(self.minimum_xy_separation)
-            or self.minimum_xy_separation < 0.0
-        ):
-            raise ValueError(
-                "minimum planar separation must be finite and non-negative"
-            )
         if self.target_anchor_inset_scale is not None and (
             not np.isfinite(self.target_anchor_inset_scale)
             or self.target_anchor_inset_scale < 0.0
