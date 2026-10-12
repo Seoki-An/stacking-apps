@@ -246,7 +246,7 @@ def run(args):
                 print_search_step(step, result, elapsed, search)
                 writer.append_mcts_step(project_mcts_step(result.root, result.selected, step=step,
                     frame_id=application.planning_profile.world_T_stack.child_frame,
-                    failure_reason="search_exhausted" if result.selected is None else None),
+                    failure_reason=result.failure_reason),
                     statistics=search_statistics(result, elapsed, search, step=step),
                     checkpoint=None if result.selected is None else PlanningCheckpoint(
                         step, context.sha256, result.selected.state, scene,
@@ -254,7 +254,7 @@ def run(args):
                 if result.selected is None:
                     succeeded = False
                     progress.update("step_completed", {"step": step,
-                        "status": "search_exhausted", "elapsed_seconds": elapsed})
+                        "status": result.failure_reason, "elapsed_seconds": elapsed})
                     break
                 rewards.append(float(result.selected.reward))
                 last_info = dict(result.selected.info)

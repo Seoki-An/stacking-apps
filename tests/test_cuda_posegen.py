@@ -62,7 +62,8 @@ def adapter(monkeypatch, failure=None, force_converged=True, failure_stage=2):
                                      solver=SimpleNamespace(converged=status == Status.converged, force_solver=SimpleNamespace(
                                          converged=force_converged if fail else True)))
             outputs.append(SimpleNamespace(request_id=item.request_id, status=status,
-                                           result=None if fail and failure == Status.geometry_failure else result))
+                                           result=None if fail and failure == Status.geometry_failure else result,
+                                           job=SimpleNamespace(resource=SimpleNamespace(name="bodies"), required=33, capacity=32)))
         return outputs[::-1]  # The adapter must use request IDs, not output slots.
 
     def cpu(self, inventory, state, index, initial):
@@ -94,7 +95,7 @@ def test_cuda_schedule_propagates_pose_and_per_request_gap(monkeypatch):
     assert all(r.diagnostics['posegen_result_backend'] == 'cuda' for r in results)
 
 
-@pytest.mark.parametrize('status', [s for s in Status if s not in (Status.converged, Status.precision_limit, Status.iteration_limit)])
+@pytest.mark.parametrize('status', [s for s in Status if s not in (Status.converged, Status.precision_limit, Status.iteration_limit, Status.capacity_overflow)])
 def test_failed_request_rejects_without_disrupting_other_stages(monkeypatch, status):
     solver, calls, retries = adapter(monkeypatch, failure=status)
     jobs = requests()
@@ -290,3 +291,50 @@ def test_cuda_final_diagnostics_own_arrays_without_reconstruction(monkeypatch):
     assert result.diagnostics['posegen_cuda_stage_statuses'] == ('converged', 'precision_limit')
     assert not result.converged and result.valid
     assert result.rejection_reason == 'posegen_precision_limit'
+
+
+@pytest.mark.parametrize('stage', [1, 2, 4])
+def test_capacity_failure_stops_batch_without_candidate_retries(monkeypatch, stage):
+    from stacking_common.errors import BackendCapacityError
+    solver, calls, retries = adapter(monkeypatch, failure=Status.capacity_overflow, failure_stage=stage)
+    with pytest.raises(BackendCapacityError) as raised:
+        solver.solve_batch(None, requests())
+    assert len(calls) == stage
+    assert not retries
+    assert raised.value.diagnostics == {
+        'backend': 'posegen', 'resource': 'bodies', 'required': 33, 'capacity': 32,
+        'request_id': 0, 'stage': stage - 1, 'reason': 'posegen_capacity_overflow',
+        'message': 'posegen capacity exceeded for bodies: required 33, configured capacity 32',
+    }
+
+
+def test_configured_capacity_covers_inventory_and_controls_chunking(monkeypatch):
+    from stacking_common.actions.config import CudaPosegenCapacityConfig
+    models = {i: SimpleNamespace(geometry_count=4) for i in range(70)}
+    class Inventory:
+        def __len__(self): return len(models)
+    inventory = Inventory()
+    inventory.models = models
+    def base_init(self, inventory, profile, *, core_module):
+        self.target_model = SimpleNamespace(geometry_count=1)
+    monkeypatch.setattr(CorePlacementPoseSolver, '__init__', base_init)
+    capacities = []
+    native = SimpleNamespace(
+        cuda_capabilities=lambda: {'posegen_solve': True, 'devices': [0]},
+        CudaCapacity=SimpleNamespace,
+        CudaPoseGenerator=lambda capacity: capacities.append(capacity),
+    )
+    solver = CudaPlacementPoseSolver(inventory, None, core_module=native,
+        capacity=CudaPosegenCapacityConfig(batch=512, bodies=64, geometries=256))
+    assert capacities[0].batch == 512
+    assert capacities[0].bodies == 71
+    assert capacities[0].geometries == 281
+    assert capacities[0].pairs == 4096
+    solver._validate_request = lambda *args: None
+    chunks = []
+    def chunk(inventory, jobs):
+        chunks.append(len(jobs))
+        return [job[1] for job in jobs]
+    solver._solve_chunk = chunk
+    assert solver.solve_batch(inventory, requests(513)) == tuple(range(513))
+    assert chunks == [512, 1]

@@ -1,17 +1,8 @@
-# Tabletop placement-generation values migrated from the commissioned UR5e
-# planner. Physical distances are resolved directly in SI units.
+# Independently resolved tabletop SI profile; distances are in metres.
 units: si
-
-orientation:
-  # true: scan-aligned pickup orientation; false: model principal axes with 0/180° rolls.
-  pose_from_scan: true
-  # Retain scan-aligned headings while sharing excavator's XY sampler.
-  yaw_angles_degrees: [0.0, 180.0]
-
 initialization:
   height_clearance: 0.015
   xy_padding: 0.012
-
 filtering:
   # Shared filter policy; physical gap limits are platform-specific.
   strict_floor_first: true
@@ -21,17 +12,22 @@ filtering:
   # stacking-core reports the summed penetration residual across active
   # candidate contacts; 3 mm admits the commissioned single-object solves.
   posegen_gap_threshold: 0.003
-
 planar:
   grid_shape: [32, 32]
-  minimum_xy_separation: 0.0  # Scored selection uses diversity groups instead.
+  minimum_xy_separation: 0.0  # Legacy scored selection has no distance thinning.
   # Legacy anchor inset; values below 1 permit controlled target overhang.
   target_anchor_inset_scale: 0.6
+  floor:
+    coverage_mode: bottom_slice
+    bottom_tolerance: 0.02
+    fill_ratio: 0.90
+    grid_size: 32
+    footprint_scale: 0.9
   boltzmann_temperature: 0.3
   boltzmann_min_probability: 0.0
   target_mask_margin: 0.0
   contact_gap_tolerance: 0.02
-  # Match excavator's five-term proposal ranking; distances remain tabletop SI.
+  # The only proposal-score weights. Edit these named values for ablations.
   score:
     height: -3.0
     support_likelihood: 2.0
@@ -41,9 +37,8 @@ planar:
     planar_bias_axis: xy
     planar_bias_xy: null
     elite_fraction: 0.25
-  floor:
-    coverage_mode: bottom_slice
-    bottom_tolerance: 0.02
-    fill_ratio: 0.90
-    grid_size: 32
-    footprint_scale: 0.9
+orientation:
+  # true: scan-aligned pickup orientation; false: model principal axes with 0/180° rolls.
+  pose_from_scan: true
+  # Retain scan-aligned headings while sharing excavator's XY sampler.
+  yaw_angles_degrees: [0, 180]

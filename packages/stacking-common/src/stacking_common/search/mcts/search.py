@@ -10,6 +10,7 @@ from typing import Generic, TypeVar
 
 import numpy as np
 
+from stacking_common.errors import BackendCapacityError
 from stacking_common.domain import Action
 from stacking_common.search.contracts import (
     ActionGenerator,
@@ -227,6 +228,13 @@ class MCTSSearchResult(Generic[ObservationT]):
     final_selection_mode: str = "mean"
     seeded_candidates: int = 0
     execution_rejected_candidates: int = 0
+    backend_failure: dict[str, object] | None = None
+
+    @property
+    def failure_reason(self):
+        if self.backend_failure is not None:
+            return self.backend_failure["reason"]
+        return "search_exhausted" if self.selected is None else None
 
 
 @dataclass
@@ -339,147 +347,155 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                for child in root.children):
             root.clear_children()
         self._apply_execution_rejections(root, request, counters)
-        self._seed_root(root, request, counters)
-        revalidation = SubtreeRevalidationResult()
-        if request.revalidate_children and root.children:
-            revalidation = self.revalidate_children(
-                root,
-                request.revalidation_fidelity,
-                request.max_revalidation_drift,
-                deadline=iteration_deadline,
-            )
-        if request.reset_statistics:
-            root.reset_statistics(recursive=True)
-        reset_generator_statistics = getattr(
-            self.root_action_generator, "reset_statistics", None
-        )
-        if callable(reset_generator_statistics):
-            reset_generator_statistics()
-
-        if self.config.validate_root_before_search:
-            self._prepare_authoritative_root(
-                root,
-                request,
-                counters,
-                iteration_deadline,
-            )
-        for child in root.evaluated_children():
-            if not child.children:
-                child.info.pop("root_lookahead_attempted", None)
-        counters.root_lookahead_eligible = len(
-            self._root_lookahead_eligible_children(root)
-        )
         completed = 0
-        while completed < request.iterations:
-            if (
-                iteration_deadline is not None
-                and time.monotonic() >= iteration_deadline
-            ):
-                break
-            coverage = self._root_lookahead_candidates(root)
-            if not coverage:
-                consumed = self._run_descendant_frontier_batch(
+        selected, ranked_candidates = None, ()
+        revalidation = SubtreeRevalidationResult()
+        fallback = FloorFillFallbackResult()
+        backend_failure = None
+        try:
+            self._seed_root(root, request, counters)
+            if request.revalidate_children and root.children:
+                revalidation = self.revalidate_children(
+                    root,
+                    request.revalidation_fidelity,
+                    request.max_revalidation_drift,
+                    deadline=iteration_deadline,
+                )
+            if request.reset_statistics:
+                root.reset_statistics(recursive=True)
+            reset_generator_statistics = getattr(
+                self.root_action_generator, "reset_statistics", None
+            )
+            if callable(reset_generator_statistics):
+                reset_generator_statistics()
+
+            if self.config.validate_root_before_search:
+                self._prepare_authoritative_root(
                     root,
                     request,
                     counters,
-                    request.iterations - completed,
+                    iteration_deadline,
                 )
-                if consumed > 0:
-                    completed += consumed
-                else:
-                    if (
-                        iteration_deadline is not None
-                        and time.monotonic() >= iteration_deadline
-                    ):
-                        break
-                    self._run_iteration(root, request, counters)
-                    completed += 1
-            else:
-                consumed = self._run_root_lookahead_batch(
-                    coverage[: request.iterations - completed],
-                    request,
-                    counters,
-                )
-                if consumed <= 0:
-                    break
-                completed += consumed
-
-        selected, ranked_candidates = self._final_select(
-            root, request, counters, deadline
-        )
-        excluded_actions = [
-            child.action
-            for child in root.children
-            if child.action is not None
-        ]
-        for _ in range(self.config.rejected_root_retry_rounds):
-            if selected is not None:
-                break
-            if deadline is not None and time.monotonic() >= deadline:
-                break
-            retired = root.retire_failed_children()
-            cem = getattr(self.root_action_generator, "last_statistics", None)
-            fresh_remaining = cem is not None and not cem.fresh_exhausted
-            if not retired and not fresh_remaining:
-                break
-            if not retired:
-                root.expansion_attempts = 0
-                root.expansion_exhausted = False
-            counters.generation_deadline = deadline
-            counters.root_retry_rounds += 1
-            counters.root_retry_retired += len(retired)
-            begin_retry = getattr(self.root_action_generator, "begin_retry", None)
-            if callable(begin_retry):
-                begin_retry(excluded_actions)
-            generated_before = counters.generated_candidates
-            accepted_before = counters.root_validation_attempts - (
-                counters.root_validation_failures
-            )
-            self._prepare_authoritative_root(
-                root,
-                request,
-                counters,
-                deadline,
-            )
-            counters.root_lookahead_eligible += len(
+            for child in root.evaluated_children():
+                if not child.children:
+                    child.info.pop("root_lookahead_attempted", None)
+            counters.root_lookahead_eligible = len(
                 self._root_lookahead_eligible_children(root)
             )
-            counters.root_retry_generated += (
-                counters.generated_candidates - generated_before
-            )
-            accepted_after = counters.root_validation_attempts - (
-                counters.root_validation_failures
-            )
-            counters.root_retry_accepted += max(
-                accepted_after - accepted_before,
-                0,
-            )
-            while True:
-                if deadline is not None and time.monotonic() >= deadline:
+            while completed < request.iterations:
+                if (
+                    iteration_deadline is not None
+                    and time.monotonic() >= iteration_deadline
+                ):
                     break
                 coverage = self._root_lookahead_candidates(root)
                 if not coverage:
-                    break
-                self._run_root_lookahead_batch(
-                    coverage,
-                    request,
-                    counters,
-                )
-            self._extend_retry_paths(root, request, counters, deadline)
-            excluded_actions.extend(retired)
-            excluded_actions.extend(
-                child.action
-                for child in root.children
-                if child.action is not None
-            )
+                    consumed = self._run_descendant_frontier_batch(
+                        root,
+                        request,
+                        counters,
+                        request.iterations - completed,
+                    )
+                    if consumed > 0:
+                        completed += consumed
+                    else:
+                        if (
+                            iteration_deadline is not None
+                            and time.monotonic() >= iteration_deadline
+                        ):
+                            break
+                        self._run_iteration(root, request, counters)
+                        completed += 1
+                else:
+                    consumed = self._run_root_lookahead_batch(
+                        coverage[: request.iterations - completed],
+                        request,
+                        counters,
+                    )
+                    if consumed <= 0:
+                        break
+                    completed += consumed
+
             selected, ranked_candidates = self._final_select(
                 root, request, counters, deadline
             )
-        fallback = FloorFillFallbackResult()
-        if selected is None:
-            selected, ranked_candidates, fallback = self._run_floor_fill_fallback(
-                root, request, counters, deadline
-            )
+            excluded_actions = [
+                child.action
+                for child in root.children
+                if child.action is not None
+            ]
+            for _ in range(self.config.rejected_root_retry_rounds):
+                if selected is not None:
+                    break
+                if deadline is not None and time.monotonic() >= deadline:
+                    break
+                retired = root.retire_failed_children()
+                cem = getattr(self.root_action_generator, "last_statistics", None)
+                fresh_remaining = cem is not None and not cem.fresh_exhausted
+                if not retired and not fresh_remaining:
+                    break
+                if not retired:
+                    root.expansion_attempts = 0
+                    root.expansion_exhausted = False
+                counters.generation_deadline = deadline
+                counters.root_retry_rounds += 1
+                counters.root_retry_retired += len(retired)
+                begin_retry = getattr(self.root_action_generator, "begin_retry", None)
+                if callable(begin_retry):
+                    begin_retry(excluded_actions)
+                generated_before = counters.generated_candidates
+                accepted_before = counters.root_validation_attempts - (
+                    counters.root_validation_failures
+                )
+                self._prepare_authoritative_root(
+                    root,
+                    request,
+                    counters,
+                    deadline,
+                )
+                counters.root_lookahead_eligible += len(
+                    self._root_lookahead_eligible_children(root)
+                )
+                counters.root_retry_generated += (
+                    counters.generated_candidates - generated_before
+                )
+                accepted_after = counters.root_validation_attempts - (
+                    counters.root_validation_failures
+                )
+                counters.root_retry_accepted += max(
+                    accepted_after - accepted_before,
+                    0,
+                )
+                while True:
+                    if deadline is not None and time.monotonic() >= deadline:
+                        break
+                    coverage = self._root_lookahead_candidates(root)
+                    if not coverage:
+                        break
+                    self._run_root_lookahead_batch(
+                        coverage,
+                        request,
+                        counters,
+                    )
+                self._extend_retry_paths(root, request, counters, deadline)
+                excluded_actions.extend(retired)
+                excluded_actions.extend(
+                    child.action
+                    for child in root.children
+                    if child.action is not None
+                )
+                selected, ranked_candidates = self._final_select(
+                    root, request, counters, deadline
+                )
+            if selected is None:
+                selected, ranked_candidates, fallback = self._run_floor_fill_fallback(
+                    root, request, counters, deadline
+                )
+        except BackendCapacityError as error:
+            # Resource exhaustion is independent of sampling retries or floor
+            # relaxation. Preserve the partial tree and stop this search now.
+            selected, ranked_candidates = None, ()
+            backend_failure = dict(error.diagnostics)
         deadline_exceeded = (
             deadline is not None and time.monotonic() >= deadline
         )
@@ -494,7 +510,8 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             effective_max_depth=self.config.max_depth,
             ranked_candidates=ranked_candidates,
             floor_fill_fallback=fallback,
-            timed_out=(
+            backend_failure=backend_failure,
+            timed_out=backend_failure is None and (
                 completed < request.iterations
                 or counters.final_validation_timed_out
                 or counters.root_validation_timed_out

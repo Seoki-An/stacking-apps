@@ -40,6 +40,15 @@ final_selection:
   validate_descendant_depth: 2
   require_validated_descendant: true
 parallel:
+  # Per-scene body/geometry minima cover the full inventory plus target.
+  # Batch is the independent number of parallel pose-generation jobs.
+  posegen_capacity:
+    batch: 512
+    bodies: 64
+    geometries: 256
+    pairs: 4096
+    contacts: 512
+    incidences: 1024
   posegen_backend: cuda  # cpu or cuda
   simulation_backend: cuda  # cpu or cuda
   # CPU reward/observation workers overlap the next CUDA placement chunk.

@@ -1,6 +1,11 @@
-"""Batched CUDA continuation; failed candidates are rejected without CPU retries."""
+"""Batched CUDA continuation with explicit workspace capacity and resource failures."""
+
+from dataclasses import asdict
 
 import numpy as np
+
+from stacking_common.errors import BackendCapacityError
+from .config import CudaPosegenCapacityConfig
 
 from .core_solver import CorePlacementPoseSolver
 from .types import PlacementSolveResult
@@ -9,14 +14,9 @@ from .types import PlacementSolveResult
 class CudaPlacementPoseSolver(CorePlacementPoseSolver):
     """Own one reusable GPU workspace; calls are serialized by action generation."""
 
-    # Fit a full 256-node excavator generation batch in one GPU chunk: each
-    # call costs nearly its trust-region iteration count regardless of size, so
-    # splitting a batch repeats that cost. The Small workspace reserves about
-    # 727 MiB per 128 jobs. Fixed-proposal tests preserve results across
-    # 32/64/128/256-job capacities.
-    batch_size = 256
+    batch_size = 512
 
-    def __init__(self, inventory, profile, *, core_module=None):
+    def __init__(self, inventory, profile, *, capacity=None, core_module=None):
         if core_module is None:
             import stacking_core as core_module
         capabilities = getattr(core_module, "cuda_capabilities", lambda: {})()
@@ -26,9 +26,19 @@ class CudaPlacementPoseSolver(CorePlacementPoseSolver):
                 "and a visible CUDA device; install CUDA bindings or set parallel.posegen_backend: cpu in the MCTS profile"
             )
         super().__init__(inventory, profile, core_module=core_module)
-        self.cuda_generator = core_module.CudaPoseGenerator(
-            core_module.CudaCapacity.small(self.batch_size)
-        )
+        configured = capacity if capacity is not None else CudaPosegenCapacityConfig()
+        self.capacity = asdict(configured)
+        # Cover every possible placed-stone subset and lookahead candidate,
+        # plus the target body, without allocating a second workspace later.
+        models = [*inventory.models.values(), self.target_model]
+        self.capacity["bodies"] = max(configured.bodies, len(inventory) + 1)
+        self.capacity["geometries"] = max(configured.geometries,
+                                           sum(model.geometry_count for model in models))
+        self.batch_size = configured.batch
+        native_capacity = core_module.CudaCapacity()
+        for name, value in self.capacity.items():
+            setattr(native_capacity, name, value)
+        self.cuda_generator = core_module.CudaPoseGenerator(native_capacity)
 
     def solve(self, inventory, state, object_index, initial):
         return self.solve_batch(inventory, ((state, object_index, initial),))[0]
@@ -72,6 +82,10 @@ class CudaPlacementPoseSolver(CorePlacementPoseSolver):
             next_active = []
             for index in active:
                 out = by_id[index]
+                if out.status == self.core.CudaPosegenStatus.capacity_overflow:
+                    job = out.job
+                    raise BackendCapacityError("posegen", job.resource.name,
+                        job.required, job.capacity, request_id=out.request_id, stage=step)
                 native = out.result
                 status = out.status.name
                 stages[index].append(status)
@@ -120,9 +134,9 @@ class CudaPlacementPoseSolver(CorePlacementPoseSolver):
         # Take ownership once, after all CUDA metadata and status are final.
         return PlacementSolveResult(**values)
 
-    @staticmethod
-    def _diagnostics(stages, failure_reason, valid):
+    def _diagnostics(self, stages, failure_reason, valid):
         return {
+            "posegen_capacity": dict(getattr(self, "capacity", {})),
             "posegen_backend": "cuda",
             "posegen_result_backend": "cuda",
             "posegen_cuda_stage_statuses": tuple(stages),

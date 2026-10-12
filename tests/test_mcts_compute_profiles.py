@@ -55,3 +55,19 @@ def test_explicit_cpu_cuda_profiles_select_their_backends():
 def test_excavator_default_uses_cpu_profile():
     application = ExcavatorApplication.from_repository(ROOT)
     assert application.mcts_profile == load_mcts_profile(CONFIG / "mcts_cpu.yml")
+
+
+@pytest.mark.parametrize('field', ['batch', 'bodies', 'geometries', 'pairs', 'contacts', 'incidences'])
+def test_posegen_capacity_fields_are_loaded_recorded_and_validated(tmp_path, field):
+    values = yaml.safe_load((CONFIG / 'mcts_cuda.yml').read_text())
+    values['parallel']['posegen_capacity'][field] = 777
+    path = tmp_path / 'mcts.yml'
+    path.write_text(yaml.safe_dump(values))
+    profile = load_mcts_profile(path)
+    assert getattr(profile.parallel.posegen_capacity, field) == 777
+    assert _values(profile.parallel)['posegen_capacity'][field] == 777
+    for invalid in (0, -1, 1.5, True):
+        values['parallel']['posegen_capacity'][field] = invalid
+        path.write_text(yaml.safe_dump(values))
+        with pytest.raises(ValueError, match=field):
+            load_mcts_profile(path)

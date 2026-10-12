@@ -278,6 +278,11 @@ class OperationsController:
                                ("failed_evaluations", "Failed evaluations")):
                 if key in attempt:
                     lines.append(f"  {label}: {attempt[key]}")
+            failure = attempt.get("backend_failure")
+            if failure:
+                lines.append(f"  Backend failure: {failure['message']}")
+                lines.append(f"  Resource: {failure['resource']}; required: {failure['required']}; "
+                             f"capacity: {failure['capacity']}")
             tree = attempt.get("tree", {})
             reasons("Retained tree rejection counts (all depths)", tree.get("rejection_reasons", {}))
             cem = attempt.get("cem_statistics", ())

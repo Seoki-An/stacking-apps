@@ -93,3 +93,23 @@ def test_search_inspector_displays_failure_details(platform):
     finally:
         widget.close()
         app.processEvents()
+
+
+@pytest.mark.parametrize('nested', [False, True])
+def test_backend_capacity_failure_is_visible_in_operations(tmp_path, nested):
+    data = artifact()
+    path = tmp_path / 'capacity.stack'
+    failure = {'backend': 'posegen', 'reason': 'posegen_capacity_overflow',
+               'resource': 'bodies', 'required': 33, 'capacity': 32,
+               'message': 'posegen capacity exceeded for bodies: required 33, configured capacity 32'}
+    attempt = {'backend_failure': failure, 'timed_out': False}
+    statistics = {'search_attempts': [attempt]} if nested else attempt
+    with StackRunStore.create_mcts(path, replace(data, steps=())) as writer:
+        writer.append_mcts_step(replace(data.steps[0], failure_reason='posegen_capacity_overflow'),
+                                statistics={'step': 1, **statistics})
+    controller = OperationsController()
+    controller.load(path)
+    text = controller.search_diagnostics
+    assert 'posegen_capacity_overflow' in text
+    assert 'required: 33; capacity: 32' in text
+    assert 'Search time limit reached: no' in text

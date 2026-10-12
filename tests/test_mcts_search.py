@@ -1594,3 +1594,38 @@ def test_floor_fallback_retries_fresh_pools_until_one_qualifies():
     # The second pool excludes every candidate of the first.
     assert generator.excluded and all(
         action.diagnostics['relaxed_pool'] == 1 for action in generator.excluded)
+
+
+@pytest.mark.parametrize('failure_depth', [0, 1])
+def test_backend_capacity_failure_stops_search_without_retry_or_floor_fallback(failure_depth):
+    from stacking_common.errors import BackendCapacityError
+    from stacking_common.workflows.mcts_reporting import search_statistics
+
+    class Generator(_RemainingObjectGenerator):
+        failures = 0
+        def generate(self, state, observation, request):
+            if len(state.placed_object_indices) == failure_depth:
+                self.failures += 1
+                raise BackendCapacityError('posegen', 'bodies', 33, 32, request_id=4, stage=0)
+            return super().generate(state, observation, request)
+        def floor_fill_fallback(self):
+            pytest.fail('capacity exhaustion must not retry with relaxed floor rules')
+
+    generator = Generator()
+    search = MonteCarloTreeSearch(_config(), generator, _ObjectPriorityScorer(),
+                                 _DeterministicEvaluator(), _ZeroEstimator())
+    root = MCTSNode(state=_state(), observation=())
+    result = search.search(root, MCTSSearchRequest(iterations=100))
+    assert result.root is root
+    assert generator.failures == 1
+    assert result.selected is None and result.ranked_candidates == ()
+    assert not result.timed_out
+    assert not result.floor_fill_fallback.attempted
+    assert result.root_retry.rounds == 0
+    assert result.failure_reason == 'posegen_capacity_overflow'
+    assert result.backend_failure['required'] == 33
+    assert result.backend_failure['capacity'] == 32
+    if failure_depth:
+        assert root.children  # Retain the partial tree for inspection.
+    saved = search_statistics(result, 0., search, step=30)
+    assert saved['backend_failure'] == result.backend_failure

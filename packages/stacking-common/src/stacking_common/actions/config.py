@@ -91,3 +91,23 @@ class PlanarSamplingConfig:
                 "target_anchor_inset_scale",
                 float(self.target_anchor_inset_scale),
             )
+
+
+@dataclass(frozen=True)
+class CudaPosegenCapacityConfig:
+    """CUDA workspace sizes; bodies and geometries are inventory-sized minima."""
+
+    batch: int = 512
+    bodies: int = 64
+    geometries: int = 256
+    pairs: int = 4096
+    contacts: int = 512
+    incidences: int = 1024
+
+    def __post_init__(self):
+        for name in ("batch", "bodies", "geometries", "pairs", "contacts", "incidences"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(f"posegen_capacity.{name} must be a positive integer")
+        if self.batch > 65535:
+            raise ValueError("posegen_capacity.batch must not exceed 65535")

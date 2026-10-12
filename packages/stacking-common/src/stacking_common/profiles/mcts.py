@@ -8,6 +8,7 @@ import numpy as np
 import yaml
 
 from stacking_common.actions import CEMRootConfig
+from stacking_common.actions.config import CudaPosegenCapacityConfig
 from stacking_common.search import (
     EvaluationFidelity,
     FinalSelectionConfig,
@@ -26,7 +27,11 @@ class MCTSParallelConfig:
     posegen_backend: str = field(default="cpu", metadata={"omit_default_from_context": True})
     simulation_backend: str = field(default="cpu", metadata={"omit_default_from_context": True})
 
+    posegen_capacity: CudaPosegenCapacityConfig = field(default_factory=CudaPosegenCapacityConfig)
+
     def __post_init__(self) -> None:
+        if not isinstance(self.posegen_capacity, CudaPosegenCapacityConfig):
+            raise TypeError("MCTS parallel posegen_capacity must be a capacity configuration")
         for name in ("posegen_backend", "simulation_backend"):
             if getattr(self, name) not in ("cpu", "cuda"):
                 raise ValueError(f"MCTS parallel {name} must be 'cpu' or 'cuda'")
@@ -168,6 +173,7 @@ def load_mcts_profile(path: str | Path) -> MCTSProfile:
             workers=int(_required(parallel, "workers")),
             posegen_backend=parallel.get("posegen_backend", "cpu"),
             simulation_backend=parallel.get("simulation_backend", "cpu"),
+            posegen_capacity=CudaPosegenCapacityConfig(**parallel.get("posegen_capacity", {})),
         ),
         bootstrap_mean_reward=float(_required(bootstrap, "mean_reward")),
         bootstrap_horizon=int(_required(bootstrap, "horizon")),

@@ -41,6 +41,7 @@ class PlacementAttemptRunner(Protocol):
 class PlanningSequenceStatus(str, Enum):
     COMPLETE = "complete"
     SEARCH_EXHAUSTED = "search_exhausted"
+    SEARCH_BACKEND_FAILED = "search_backend_failed"
     PLANNING_EXHAUSTED = "planning_exhausted"
     PLANNING_FAILED = "planning_failed"
 
@@ -62,6 +63,7 @@ class SequenceSearchAttempt:
     execution_rejected_candidates: int = 0
     tree_nodes: int = 0
     tree_leaves: int = 0
+    backend_failure: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -228,11 +230,14 @@ class MCTSPlanningSequenceCoordinator(Generic[ObservationT]):
                     int(getattr(result, "execution_rejected_candidates", 0)),
                     tree_nodes=tree["nodes"],
                     tree_leaves=tree["leaves"],
+                    backend_failure=getattr(result, "backend_failure", None),
                 )
             )
             if result.selected is None:
-                status = PlanningSequenceStatus.SEARCH_EXHAUSTED
-                reason = "MCTS produced no selectable root candidate"
+                failure = getattr(result, "backend_failure", None)
+                status = (PlanningSequenceStatus.SEARCH_BACKEND_FAILED if failure
+                          else PlanningSequenceStatus.SEARCH_EXHAUSTED)
+                reason = failure["message"] if failure else "MCTS produced no selectable root candidate"
                 break
 
             ranked = tuple(getattr(result, "ranked_candidates", ()))
@@ -470,6 +475,7 @@ class MCTSPlanningSequenceCoordinator(Generic[ObservationT]):
                     "execution_rejected_candidates": value.execution_rejected_candidates,
                     "tree_nodes": value.tree_nodes,
                     "tree_leaves": value.tree_leaves,
+                    "backend_failure": value.backend_failure,
                 }
                 for value in searches
             ],

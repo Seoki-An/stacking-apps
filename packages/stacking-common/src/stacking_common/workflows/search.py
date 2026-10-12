@@ -74,13 +74,16 @@ class StackingSearchApplication:
         """Build native pose generation for the platform target and objects."""
 
         solver_type = CorePlacementPoseSolver
+        options = {}
         if self.mcts_profile.parallel.posegen_backend == "cuda":
             from stacking_common.actions.cuda_solver import CudaPlacementPoseSolver
             solver_type = CudaPlacementPoseSolver
+            options["capacity"] = self.mcts_profile.parallel.posegen_capacity
         return solver_type(
             inventory,
             self.posegen_profile,
             core_module=core_module,
+            **options,
         )
 
     def build_search_environments(

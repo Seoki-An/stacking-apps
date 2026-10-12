@@ -34,7 +34,7 @@ def test_leaf_counts_include_pending_and_failed_nodes():
     assert mcts_reporting.tree_statistics(node())["leaves"] == 1
 
 
-@pytest.mark.parametrize("outcome", ["success", "catalog", "exhausted", "error"])
+@pytest.mark.parametrize("outcome", ["success", "catalog", "exhausted", "capacity", "error"])
 def test_excavator_cli_reports_search_and_stops_heartbeat(tmp_path, monkeypatch, capsys, outcome):
     succeeded = outcome in ("success", "catalog")
     reference = json.loads((ROOT / "tests/fixtures/legacy_planner/reference.json").read_text())
@@ -62,7 +62,11 @@ def test_excavator_cli_reports_search_and_stops_heartbeat(tmp_path, monkeypatch,
                 raise RuntimeError("injected native search failure")
             return MCTSSearchResult(root=root, selected=None, completed_iterations=0,
                 expansion_calls=0, generated_candidates=0, evaluated_candidates=0,
-                failed_evaluations=0, effective_max_depth=1, timed_out=False)
+                failed_evaluations=0, effective_max_depth=1, timed_out=False,
+                backend_failure=({'backend': 'posegen', 'reason': 'posegen_capacity_overflow',
+                    'resource': 'bodies', 'required': 33, 'capacity': 32,
+                    'message': 'posegen capacity exceeded for bodies: required 33, configured capacity 32'}
+                    if outcome == 'capacity' else None))
         monkeypatch.setattr(MonteCarloTreeSearch, "search", search)
     output = tmp_path / "run.stack"
     inventory_args = (["--object-ids", "56", "58", "8"] if outcome == "catalog"
@@ -70,7 +74,7 @@ def test_excavator_cli_reports_search_and_stops_heartbeat(tmp_path, monkeypatch,
     status = cli.main(["--worker", "--repository", str(ROOT), "--config", str(config),
         *inventory_args, "--save-run", str(output), "--search-only",
         "--iterations", "2", "--max-search-time", "60", "--seed", "0"])
-    assert status == {"success": 0, "catalog": 0, "exhausted": 1, "error": 2}[outcome]
+    assert status == {"success": 0, "catalog": 0, "exhausted": 1, "capacity": 1, "error": 2}[outcome]
     assert reporters and all(not reporter._thread.is_alive() for reporter in reporters)
     captured = capsys.readouterr()
     assert "debug workload: objects=3, steps=1, iterations/step=2" in captured.out
@@ -93,7 +97,12 @@ def test_excavator_cli_reports_search_and_stops_heartbeat(tmp_path, monkeypatch,
     assert "elapsed_seconds" in stats and "tree" in stats and "simulation" in stats
     assert f"leaves: {stats['tree']['leaves']}," in captured.out
     assert f"leaves={stats['tree']['leaves']}" in captured.out
-    if succeeded:
+    if outcome == 'capacity':
+        assert stats['backend_failure']['required'] == 33
+        assert stats['backend_failure']['capacity'] == 32
+        assert 'posegen_capacity_overflow' in captured.out
+        assert 'Search stopped: posegen capacity exceeded' in captured.out
+    elif succeeded:
         assert "[INFO] Root CEM:" in captured.out
         assert "[INFO] CEM round 1:" in captured.out
         assert "[Progress] step 1 finished with complete" in captured.out

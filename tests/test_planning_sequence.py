@@ -454,3 +454,26 @@ def test_empty_search_preserves_cem_rejections_in_progress_and_stack_statistics(
     assert persisted["rejection_counts"]["stone_outside_target"] == 100
     completed = next(details for event, details in events if event == "search_completed")
     assert completed["cem_statistics"][0] == persisted
+
+
+def test_sequence_records_backend_failure_without_planning_or_search_retry():
+    from stacking_common.errors import BackendCapacityError
+    failure = BackendCapacityError("posegen", "contacts", 700, 512).diagnostics
+
+    class Engine(_SearchEngine):
+        def search(self, root, request):
+            result = super().search(root, request)
+            result.backend_failure = failure
+            return result
+    engine = Engine()
+    root = MCTSNode(state=_state(), observation=object())
+    writer = _Writer()
+    coordinator = MCTSPlanningSequenceCoordinator(MCTSSession(engine, root),
+        MCTSSearchRequest(iterations=1), _AttemptRunner(), writer=writer, frame_id="stack")
+    result = coordinator.run(2, max_planning_attempts_per_step=4)
+    assert engine.calls == 1
+    assert result.status is PlanningSequenceStatus.SEARCH_BACKEND_FAILED
+    assert result.reason == failure["message"]
+    assert not writer.plans
+    assert result.steps[0].search_attempts[0].backend_failure == failure
+    assert result.steps[0].debug_step.failure_reason == "search_backend_failed"

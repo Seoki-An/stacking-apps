@@ -26,7 +26,7 @@ The active excavator CUDA profile uses 1024 iterations, an evaluation batch of
 
 | Work | Batch size |
 | --- | ---: |
-| CUDA pose generation | 256 jobs |
+| CUDA pose generation | 512 jobs (`parallel.posegen_capacity.batch`) |
 | CUDA placement simulation | 128 placements |
 | Native simulation capacity | 512 jobs, allowing four robustness trials per placement |
 | CPU reward/observation processing | 32 results |
@@ -162,7 +162,42 @@ raise a migration error. Saved contexts record both selections; resume requires
 a matching profile, so start a new run when changing backends or migrating an
 older CUDA context.
 
-One reusable GPU workspace processes batches of up to 256 initialized candidates,
+Both platform CUDA profiles configure the workspace explicitly:
+
+```yaml
+parallel:
+  posegen_backend: cuda
+  posegen_capacity:
+    batch: 512
+    bodies: 64
+    geometries: 256
+    pairs: 4096
+    contacts: 512
+    incidences: 1024
+```
+
+`batch` is the maximum number of parallel pose-generation jobs. The other
+fields are capacities **per scene**. Body and geometry settings are minima:
+construction raises them to cover all inventory objects plus the target body
+and their geometry components. This covers every MCTS continuation without
+hitting the former 32-body cutoff. Pair/contact/incidence capacities remain
+explicit limits; overflowing any of them stops the search with diagnostics.
+All fields must be positive integers. Missing capacity settings use the defaults
+above. CPU pose solving does not allocate a CUDA workspace.
+
+The configured sizes are recorded in the MCTS profile; successful pose results
+also record the resolved sizes as `posegen_capacity`. As with other profile
+changes, resume requires a matching saved context. Increasing batch capacity
+allows larger incoming batches but does not increase MCTS's candidate budget.
+
+A native check on the saved step-30 descendant (33 bodies) reproduced the old
+`required=33, capacity=32` body overflow. The new workspace packed all 33 bodies
+and ran a deliberately shortened solve. With the sizes above it allocated
+2964.15 MiB (about 2.90 GiB) on the test GPU, excluding simulation workspaces.
+This verifies capacity handling, not successful completion of the full search
+or a throughput improvement.
+
+One reusable GPU workspace processes batches of up to 512 initialized candidates,
 including candidates from different MCTS states. Each of the four continuation
 stages consumes that candidate's preceding pose and gap feedback. Geometry,
 sharpness, objective weights, tolerances, and placement filters are unchanged.
@@ -197,7 +232,7 @@ force solver converged. At the final stage it returns that pose with
 acceptance: excavator permits feasible nonconverged poses; profiles requiring
 convergence reject them. Solver tolerances and physical validation are unchanged.
 
-Geometry/numerical failures, unsupported input, capacity overflow, missing or
+Geometry/numerical failures, unsupported input, missing or
 nonfinite results, and unconverged inner force solves reject that candidate.
 There are **no automatic CPU pose retries**. Other candidates continue their
 schedule. Native runtime errors still propagate explicitly. CPU pose generation
@@ -212,8 +247,15 @@ thresholds. They must never become actions.
 
 Diagnostics include `posegen_cuda_stage_statuses`, `posegen_cuda_failure_reason`
 and `posegen_result_valid`. `posegen_result_backend` is always `cuda`, and
-`posegen_cpu_retry` is always false on this path. Small workspace capacity limits
-reject oversized candidates instead of truncating contacts. This mode remains
+`posegen_cpu_retry` is always false on this path. Capacity overflow raises a
+`BackendCapacityError` instead of classifying the proposal as physically invalid.
+MCTS stops immediately, preserves its partial tree, and skips further expansion,
+root retries, final selection, and relaxed-floor fallback. The search result and
+`.stack` statistics record `backend_failure` with backend, resource, required
+count, capacity, request ID, continuation stage, and a readable message. Search-only
+steps report `posegen_capacity_overflow`; planning sequences report
+`search_backend_failed` with the same detailed cause. Both console output and
+the operations Search outcome panel display the failure. This mode remains
 experimental and does not claim CPU/GPU search parity or an end-to-end speedup.
 
 The measurements below describe earlier policies; the GPU-only follow-up in the
@@ -278,8 +320,8 @@ These are independent complete profiles. Both use 512 iterations. CPU retains
 12 root candidates; CUDA retains 32.
 Editing one profile does not modify the other. The old `mcts.yml` is removed. The evaluation batch limits are starting points, not measured
 optima. Actual batches depend on available candidates and each profile's root CEM retention. GPU core count does not map directly to useful batch size.
-The simulation workspace still chunks at 32 placements and pose generation at
-256 proposals; increasing the MCTS batch limit does not raise those capacities.
+Pose generation chunks at `parallel.posegen_capacity.batch` (512 by default);
+increasing the MCTS evaluation batch limit does not change that capacity.
 
 CUDA simulation runs the platform's settling physics (3D single-point contacts) and
 structural physics (4D limit-surface contacts) using `CudaSimulator`. Settling

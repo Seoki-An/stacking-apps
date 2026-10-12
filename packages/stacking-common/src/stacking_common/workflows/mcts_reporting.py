@@ -146,6 +146,7 @@ def search_statistics(
     cem = getattr(search.root_action_generator, "last_statistics", None)
     return {
         "step": int(step),
+        "backend_failure": getattr(result, "backend_failure", None),
         "elapsed_seconds": float(elapsed),
         "completed_iterations": result.completed_iterations,
         "expansion_calls": result.expansion_calls,
@@ -304,6 +305,8 @@ def print_cem_statistics(statistics) -> None:
 
 
 def print_search_step(step: int, result, elapsed: float, search) -> None:
+    if getattr(result, "backend_failure", None):
+        print(f"[ERROR] Search stopped: {result.backend_failure['message']}", flush=True)
     tree = tree_statistics(result.root)
     root_children = result.root.children
     generation_rejected = sum(tree["generation_rejections"].values())
@@ -473,7 +476,8 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
     if selected is None:
         rejected = result.failed_evaluations + generation_rejected
         print(
-            f"  step {step:2d}: no feasible candidate found; "
+            f"  step {step:2d}: "
+            f"{'backend capacity failure' if getattr(result, 'backend_failure', None) else 'no feasible candidate found'}; "
             f"rejected = {rejected}  time = {elapsed:.3f}s"
         )
         return
