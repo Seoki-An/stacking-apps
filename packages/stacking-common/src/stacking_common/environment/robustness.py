@@ -1,4 +1,4 @@
-"""Noisy-placement robustness with upward-only vertical perturbations."""
+"""Noisy-placement robustness from collision-checked release poses."""
 
 from dataclasses import dataclass
 from collections.abc import Mapping
@@ -53,6 +53,12 @@ class PlaceStabilityConfig:
     def failed(self, displacement, trial_failure_reasons=()):
         if not self.active:
             return False
+        # A colliding release cannot be evaluated as a valid robustness trial.
+        # Both platforms reject these initializations, even when dynamic trial
+        # failures are used only as a reward penalty.
+        if any((reason or '').startswith('initial_clearance_')
+               for reason in trial_failure_reasons):
+            return True
         return bool(
             (self.reject_failed_trials and (
                 any(reason is not None for reason in trial_failure_reasons)
@@ -102,14 +108,18 @@ def evaluate_place_stability(backend, state, action, settled_pose):
         return 0.0, [], []
     if not np.all(np.isfinite(settled_pose)):
         return float('inf'), [float('inf')], ['nonfinite_simulation']
+    from .release_clearance import prepare_release_trials
+
+    trials = prepare_release_trials(backend, [(state, action, settled_pose)])[0]
     displacements = []
     failure_reasons = []
-    for noisy in config.noisy_poses(
-        settled_pose, step=len(state.placed_object_indices) + 1,
-        object_index=action.object_index, object_id=action.object_id,
-    ):
-        final, reason = _simulate_noisy_place(backend, state, action, noisy)
-        displacements.append(pose_displacement(noisy, final, config.rotation_weight))
+    for trial in trials:
+        if trial.failure_reason is not None:
+            displacements.append(float('inf'))
+            failure_reasons.append(trial.failure_reason)
+            continue
+        final, reason = _simulate_noisy_place(backend, state, action, trial.pose)
+        displacements.append(pose_displacement(trial.pose, final, config.rotation_weight))
         failure_reasons.append(reason)
     # Preserve raw failures; reward clipping must not hide failed trials.
     return max(displacements, default=0.0), displacements, failure_reasons

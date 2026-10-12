@@ -17,14 +17,14 @@ reward:
   containment_threshold: 0.5
   nonfinite_displacement: 0.2
   max_displacement: 0.1
-  # Noisy-placement trials using this platform's legacy config.yml values.
+  # Noisy-placement trials; blocked releases always reject while enabled.
   place_stability:
     enabled: true
     n_noise: 8
     position_std: [0.005, 0.005, 0.005]
     rotation_std_deg: 5.0
     rotation_weight: 0.01
-    # Reject if any noisy trial exceeds the motion limit or does not settle.
+    # Dynamic trial failures remain reward penalties; invalid releases reject.
     reject_failed_trials: false
     fail_displacement: null
     seed: 0

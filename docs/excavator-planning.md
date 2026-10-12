@@ -56,14 +56,43 @@ See the detailed experiments below for measurements and validation limits:
 ## Stability and floor-filling settings
 
 The excavator profile rejects a placement if any noisy-placement trial fails
-or its worst trial displacement exceeds `reward.place_stability.fail_displacement`
-(currently `0.15`). Displacement is translation in metres plus angular distance
-in radians times `rotation_weight` (`0.1` m/rad), measured from the perturbed pose.
+or its worst trial displacement exceeds `reward.place_stability.fail_displacement`.
+Displacement is translation in metres plus angular distance
+in radians times `rotation_weight` (`0.1` m/rad), measured from the corrected release pose.
 The four trials use the configured XYZ Gaussian scales (currently 2 cm on each
 axis) and 5 degree rotation noise. The common sampler takes the absolute value
 of the Z sample, so translation noise only raises the stone; X/Y remain signed.
-This preserves the seeded X/Y and rotation draws. Rotation can still lower a
-stone's corners; upward Z noise alone does not guarantee collision-free geometry.
+This preserves the seeded X/Y and rotation draws. Rotation can lower a stone's
+corners, so both CPU and CUDA now check the noisy pose against native collision
+geometry before running the trial. Small penetrations are corrected upward while
+keeping X/Y and orientation fixed, then checked again against ground and the
+other stones. The displacement score starts at this corrected release pose.
+
+Correction is bounded by the perturbation's maximum surface displacement plus
+`validation.contact_gap_tolerance`: translation magnitude plus
+`2 * bounding_radius * sin(rotation_delta / 2)` plus the tolerance. The radius
+comes from the stone's native component bounds. There is no fixed platform-sized
+lift allowance. A non-upward contact, excessive lift, failed geometry query, or
+failure to clear within 12 rounds invalidates the trial without simulating it.
+Numerical penetration tolerance is 10 micrometres; a lift targets 0.1 mm clearance.
+
+An invalid release rejects the candidate whenever robustness trials are enabled,
+on both platforms, independently of `reject_failed_trials` and
+`fail_displacement`. Those options still control dynamic simulation failures and
+displacement. The operations GUI reports `place_robustness_initial_clearance`
+unless a nominal physical failure already takes precedence. Per-trial reasons
+(`initial_clearance_lateral_contact`, `initial_clearance_lift_limit`,
+`initial_clearance_query_failure`, etc.) remain in action diagnostics.
+
+This is a conservative filter for the sampled release uncertainty. In particular,
+a lateral overlap can indicate a confined placement among neighbours, but does
+not prove that every robot insertion path is infeasible. Robot/gripper approach
+clearance remains a motion-planning check.
+
+CUDA batches the checks and caches workspaces by batch size. CPU obtains native
+contacts at the input pose using an isolated simulator query with no gravity or
+penetration correction and one solver iteration; it discards the returned scene.
+Neither path changes the main placement state during clearance correction.
 These trials move the candidate with previous stones fixed; the structural
 simulation separately checks motion of the stack. `max_displacement` clips the
 reward penalty and is not a rejection threshold.

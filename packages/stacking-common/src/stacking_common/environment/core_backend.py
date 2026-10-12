@@ -388,6 +388,7 @@ class CorePlacementBackend:
         self.models = {int(key): value for key, value in models.items()}
         self.config = config
         self.place_stability = place_stability or PlaceStabilityConfig()
+        self._release_clearance = None
         self.simulation_config = simulation_config
         self.settling_simulation_config = settling_simulation_config
         self.object_ids: list[int] = []
@@ -515,7 +516,14 @@ class CorePlacementBackend:
         )
         robustness_failed = self.place_stability.failed(displacement, trial_failure_reasons)
         if robustness_failed and rejection_reason is None:
-            rejection_reason = 'place_robustness'
+            initial_clearance_failed = any(
+                (reason or '').startswith('initial_clearance_')
+                for reason in trial_failure_reasons
+            )
+            rejection_reason = (
+                'place_robustness_initial_clearance' if initial_clearance_failed
+                else 'place_robustness'
+            )
         diagnostics.update({
             'place_robustness_enabled': self.place_stability.active,
             'place_robustness_trial_displacements': trials,
@@ -591,8 +599,16 @@ class CorePlacementBackend:
         self.settling_simulator.clear_warm_start()
 
     def close(self) -> None:
+        self._release_clearance = None
         self.simulator = None
         self.settling_simulator = None
+
+    def _release_clearance_checker(self):
+        if self._release_clearance is None:
+            from .release_clearance import ReleaseClearance
+            from ._cpu_release_clearance import CpuReleaseQueries
+            self._release_clearance = ReleaseClearance(self, CpuReleaseQueries(self))
+        return self._release_clearance
 
     def _new_settling_simulator(self):
         if self.settling_simulation_config is None:

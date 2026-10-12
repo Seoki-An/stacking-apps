@@ -1,0 +1,3762 @@
+{
+  "date": "2026-10-12",
+  "method": {
+    "replays": "Current profiles; saved root candidates and preceding checkpoints; one warmup then five repeats per mode, alternating order. Corrected replay rejects initialization failures and therefore can change simulation duration.",
+    "mcts": "Fresh processes, seed 0, 64 iterations, current mcts_cuda.yml. Probe computes clearance but discards corrected poses; original trials retained to measure cost on the same workload. One baseline/probe pair per state, not a general latency guarantee.",
+    "initial_prototype": "A 512-job clearance workspace for one candidate took 19.05 ms; fitting the workspace to the trial batch and skipping stone-pair detection on empty scenes removed most of that overhead.",
+    "geometry": "Native DSF CUDA ground and nearby stone contact queries. Reupload, broad phase, gap/gradient lifting and recheck all timed. 10 um penetration tolerance; 0.1 mm target gap on lift, positive gradient >0.05, 5 cm per round, 25 cm total, 12 rounds. Non-upward contacts or invalid/unconverged queries are unresolved initialization, never counted as success."
+  },
+  "candidate_replay": {
+    "stack": "/home/inrol-excavator/workspace/stacking/stacking-apps/.stacks/excavator_plan1.stack",
+    "stack_sha256": "f35b0b7b47472e5a6cde4c1dacb8a21c9b99dfe37e6cac1ae0da078b0aff4f26",
+    "native_sha256": "c2b41d436e410d949baf8377eff9d06355f904733389c92e85d8ffe952ba8b72",
+    "cuda": {
+      "posegen_solve": true,
+      "posegen_experimental": true,
+      "sceneid_scan": true,
+      "simulation_solve": true,
+      "simulation_constraints_3d": true,
+      "simulation_experimental": true,
+      "simulation_contacts_4d": true,
+      "error": null,
+      "compiled": true,
+      "batch_preparation": true,
+      "geometry_queries": true,
+      "force_graph_solve": true,
+      "geometry_precision": "float32",
+      "devices": [
+        {
+          "index": 0,
+          "name": "NVIDIA GeForce RTX 5060 Ti",
+          "major": 12,
+          "minor": 0,
+          "memory_bytes": 16608788480
+        }
+      ]
+    },
+    "simulation_profile": {
+      "gravity": [
+        0.0,
+        0.0,
+        -9.81
+      ],
+      "contact_model": "limit_surface_4d",
+      "detection_margin": 0.01,
+      "solver_tol_abs": 0.0001,
+      "solver_tol_rel": 1e-05,
+      "damping": 0.0,
+      "error_reduction_ratio": 0.2,
+      "solver_constraint_scale_reference": 0.001,
+      "solver_beta_init": 0.1,
+      "solver_beta_update_interval": 50,
+      "solver_max_iters": 2000,
+      "solver_stagnation_window": 0,
+      "placement": {
+        "structural": {
+          "dt": 0.01,
+          "energy_threshold": 1e-05,
+          "velocity_integral_threshold": 0.2,
+          "min_time": 3.0,
+          "max_time": 15.0,
+          "extra_steps": 150,
+          "freeze_radius": null,
+          "final_extra_steps": 300
+        },
+        "settle_dt": 0.01,
+        "settle_steps": 400,
+        "contact_gap_tolerance": 0.02,
+        "minimum_support_count": 1,
+        "short_gate": {
+          "dt": 0.01,
+          "energy_threshold": 1e-05,
+          "velocity_integral_threshold": 0.2,
+          "min_time": 0.5,
+          "max_time": 4.0,
+          "extra_steps": 20,
+          "freeze_radius": 1.5,
+          "final_extra_steps": 40
+        },
+        "ground_z": 0.0,
+        "ground_friction": 5.0,
+        "settle_sample_count": 64,
+        "frame_id": 1,
+        "support_chain_z_tolerance": 0.05
+      },
+      "settling_physics": {
+        "gravity": [
+          0.0,
+          0.0,
+          -9.81
+        ],
+        "contact_model": "single_point",
+        "detection_margin": 0.01,
+        "solver_tol_abs": 0.001,
+        "solver_tol_rel": 0.0001,
+        "damping": 0.0,
+        "error_reduction_ratio": 0.2,
+        "solver_constraint_scale_reference": 0.001,
+        "solver_beta_init": 0.1,
+        "solver_beta_update_interval": 50,
+        "solver_max_iters": 2000,
+        "solver_stagnation_window": 0
+      }
+    },
+    "place_stability": {
+      "enabled": true,
+      "n_noise": 4,
+      "position_std": [
+        0.02,
+        0.02,
+        0.02
+      ],
+      "rotation_std_deg": 5.0,
+      "rotation_weight": 0.1,
+      "fail_displacement": 0.2,
+      "seed": 0,
+      "reject_failed_trials": true
+    },
+    "measurements": [
+      {
+        "step": 1,
+        "placed": 0,
+        "batch": 1,
+        "candidates": [
+          "step-1-candidate-9"
+        ],
+        "baseline": [
+          {
+            "total_seconds": 0.1103362530702725,
+            "robustness": {
+              "seconds": 0.01495737605728209,
+              "trial_reasons": {
+                "target_motion_limit": 4
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            }
+          },
+          {
+            "total_seconds": 0.1100564639782533,
+            "robustness": {
+              "seconds": 0.014926609001122415,
+              "trial_reasons": {
+                "target_motion_limit": 4
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            }
+          },
+          {
+            "total_seconds": 0.11166252207476646,
+            "robustness": {
+              "seconds": 0.014485929044894874,
+              "trial_reasons": {
+                "target_motion_limit": 4
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            }
+          },
+          {
+            "total_seconds": 0.11007145093753934,
+            "robustness": {
+              "seconds": 0.014664700953289866,
+              "trial_reasons": {
+                "target_motion_limit": 4
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            }
+          },
+          {
+            "total_seconds": 0.10962068301159889,
+            "robustness": {
+              "seconds": 0.01480807806365192,
+              "trial_reasons": {
+                "target_motion_limit": 4
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            }
+          }
+        ],
+        "corrected": [
+          {
+            "total_seconds": 0.10811363602988422,
+            "robustness": {
+              "seconds": 0.01304354495368898,
+              "trial_reasons": {
+                "target_motion_limit": 4
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            },
+            "clearance": {
+              "seconds": 0.0007031280547380447,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 16,
+              "initially_penetrating": 3,
+              "initial_min_gap_m": -0.026577502489089966,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 3,
+              "max_lift_m": 0.026677502489089955
+            }
+          },
+          {
+            "total_seconds": 0.10782213706988841,
+            "robustness": {
+              "seconds": 0.012882065027952194,
+              "trial_reasons": {
+                "target_motion_limit": 4
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            },
+            "clearance": {
+              "seconds": 0.0007084279786795378,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 16,
+              "initially_penetrating": 3,
+              "initial_min_gap_m": -0.026577502489089966,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 3,
+              "max_lift_m": 0.026677502489089955
+            }
+          },
+          {
+            "total_seconds": 0.10898734407965094,
+            "robustness": {
+              "seconds": 0.01278162794187665,
+              "trial_reasons": {
+                "target_motion_limit": 4
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            },
+            "clearance": {
+              "seconds": 0.0007263610605150461,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 16,
+              "initially_penetrating": 3,
+              "initial_min_gap_m": -0.026577502489089966,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 3,
+              "max_lift_m": 0.026677502489089955
+            }
+          },
+          {
+            "total_seconds": 0.1081241590436548,
+            "robustness": {
+              "seconds": 0.012601363006979227,
+              "trial_reasons": {
+                "target_motion_limit": 4
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            },
+            "clearance": {
+              "seconds": 0.000645000021904707,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 16,
+              "initially_penetrating": 3,
+              "initial_min_gap_m": -0.026577502489089966,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 3,
+              "max_lift_m": 0.026677502489089955
+            }
+          },
+          {
+            "total_seconds": 0.10878910694736987,
+            "robustness": {
+              "seconds": 0.012908224016427994,
+              "trial_reasons": {
+                "target_motion_limit": 4
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            },
+            "clearance": {
+              "seconds": 0.0006839729612693191,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 16,
+              "initially_penetrating": 3,
+              "initial_min_gap_m": -0.026577502489089966,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 3,
+              "max_lift_m": 0.026677502489089955
+            }
+          }
+        ]
+      },
+      {
+        "step": 1,
+        "placed": 0,
+        "batch": 8,
+        "candidates": [
+          "step-1-candidate-9",
+          "step-1-candidate-1",
+          "step-1-candidate-2",
+          "step-1-candidate-3",
+          "step-1-candidate-4",
+          "step-1-candidate-5",
+          "step-1-candidate-6",
+          "step-1-candidate-7"
+        ],
+        "baseline": [
+          {
+            "total_seconds": 0.19603913999162614,
+            "robustness": {
+              "seconds": 0.05595904600340873,
+              "trial_reasons": {
+                "target_motion_limit": 24,
+                "passed": 8
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 2
+            }
+          },
+          {
+            "total_seconds": 0.19728094094898552,
+            "robustness": {
+              "seconds": 0.05653085990343243,
+              "trial_reasons": {
+                "target_motion_limit": 24,
+                "passed": 8
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 2
+            }
+          },
+          {
+            "total_seconds": 0.20227287500165403,
+            "robustness": {
+              "seconds": 0.05576838296838105,
+              "trial_reasons": {
+                "target_motion_limit": 24,
+                "passed": 8
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 2
+            }
+          },
+          {
+            "total_seconds": 0.19636856007855386,
+            "robustness": {
+              "seconds": 0.05632909701671451,
+              "trial_reasons": {
+                "target_motion_limit": 24,
+                "passed": 8
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 2
+            }
+          },
+          {
+            "total_seconds": 0.19447031593881547,
+            "robustness": {
+              "seconds": 0.05568803602363914,
+              "trial_reasons": {
+                "target_motion_limit": 24,
+                "passed": 8
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 2
+            }
+          }
+        ],
+        "corrected": [
+          {
+            "total_seconds": 0.20020981901325285,
+            "robustness": {
+              "seconds": 0.059647076996043324,
+              "trial_reasons": {
+                "target_motion_limit": 24,
+                "passed": 8
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 2
+            },
+            "clearance": {
+              "seconds": 0.0026308849919587374,
+              "trials": 32,
+              "rounds": 2,
+              "queries": 120,
+              "initially_penetrating": 18,
+              "initial_min_gap_m": -0.026577502489089966,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 18,
+              "max_lift_m": 0.026677502489089955
+            }
+          },
+          {
+            "total_seconds": 0.20437406201381236,
+            "robustness": {
+              "seconds": 0.06203858903609216,
+              "trial_reasons": {
+                "target_motion_limit": 24,
+                "passed": 8
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 2
+            },
+            "clearance": {
+              "seconds": 0.0026750470278784633,
+              "trials": 32,
+              "rounds": 2,
+              "queries": 120,
+              "initially_penetrating": 18,
+              "initial_min_gap_m": -0.026577502489089966,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 18,
+              "max_lift_m": 0.026677502489089955
+            }
+          },
+          {
+            "total_seconds": 0.19981049397028983,
+            "robustness": {
+              "seconds": 0.05997451895382255,
+              "trial_reasons": {
+                "target_motion_limit": 24,
+                "passed": 8
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 2
+            },
+            "clearance": {
+              "seconds": 0.0025830750819295645,
+              "trials": 32,
+              "rounds": 2,
+              "queries": 120,
+              "initially_penetrating": 18,
+              "initial_min_gap_m": -0.026577502489089966,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 18,
+              "max_lift_m": 0.026677502489089955
+            }
+          },
+          {
+            "total_seconds": 0.20119920698925853,
+            "robustness": {
+              "seconds": 0.06073120597284287,
+              "trial_reasons": {
+                "target_motion_limit": 24,
+                "passed": 8
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 2
+            },
+            "clearance": {
+              "seconds": 0.0025959989288821816,
+              "trials": 32,
+              "rounds": 2,
+              "queries": 120,
+              "initially_penetrating": 18,
+              "initial_min_gap_m": -0.026577502489089966,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 18,
+              "max_lift_m": 0.026677502489089955
+            }
+          },
+          {
+            "total_seconds": 0.20100647502113134,
+            "robustness": {
+              "seconds": 0.05991294595878571,
+              "trial_reasons": {
+                "target_motion_limit": 24,
+                "passed": 8
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 2
+            },
+            "clearance": {
+              "seconds": 0.0025934349978342652,
+              "trials": 32,
+              "rounds": 2,
+              "queries": 120,
+              "initially_penetrating": 18,
+              "initial_min_gap_m": -0.026577502489089966,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 18,
+              "max_lift_m": 0.026677502489089955
+            }
+          }
+        ]
+      },
+      {
+        "step": 1,
+        "placed": 0,
+        "batch": 32,
+        "candidates": [
+          "step-1-candidate-9",
+          "step-1-candidate-1",
+          "step-1-candidate-2",
+          "step-1-candidate-3",
+          "step-1-candidate-4",
+          "step-1-candidate-5",
+          "step-1-candidate-6",
+          "step-1-candidate-7",
+          "step-1-candidate-8",
+          "step-1-candidate-10",
+          "step-1-candidate-11",
+          "step-1-candidate-12",
+          "step-1-candidate-13",
+          "step-1-candidate-14",
+          "step-1-candidate-15",
+          "step-1-candidate-16",
+          "step-1-candidate-17",
+          "step-1-candidate-18",
+          "step-1-candidate-19",
+          "step-1-candidate-20",
+          "step-1-candidate-21",
+          "step-1-candidate-22",
+          "step-1-candidate-23",
+          "step-1-candidate-24",
+          "step-1-candidate-25",
+          "step-1-candidate-26",
+          "step-1-candidate-27",
+          "step-1-candidate-28",
+          "step-1-candidate-29",
+          "step-1-candidate-30",
+          "step-1-candidate-31",
+          "step-1-candidate-32"
+        ],
+        "baseline": [
+          {
+            "total_seconds": 0.44265914894640446,
+            "robustness": {
+              "seconds": 0.14224904193542898,
+              "trial_reasons": {
+                "target_motion_limit": 102,
+                "passed": 25,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 14,
+              "passed": 6,
+              "target_motion_limit": 12
+            }
+          },
+          {
+            "total_seconds": 0.44427964510396123,
+            "robustness": {
+              "seconds": 0.14273018692620099,
+              "trial_reasons": {
+                "target_motion_limit": 102,
+                "passed": 25,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 14,
+              "passed": 6,
+              "target_motion_limit": 12
+            }
+          },
+          {
+            "total_seconds": 0.4479455229593441,
+            "robustness": {
+              "seconds": 0.14345185505226254,
+              "trial_reasons": {
+                "target_motion_limit": 102,
+                "passed": 25,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 14,
+              "passed": 6,
+              "target_motion_limit": 12
+            }
+          },
+          {
+            "total_seconds": 0.44426956097595394,
+            "robustness": {
+              "seconds": 0.1433331900043413,
+              "trial_reasons": {
+                "target_motion_limit": 102,
+                "passed": 25,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 14,
+              "passed": 6,
+              "target_motion_limit": 12
+            }
+          },
+          {
+            "total_seconds": 0.44688616693019867,
+            "robustness": {
+              "seconds": 0.14285864192061126,
+              "trial_reasons": {
+                "target_motion_limit": 102,
+                "passed": 25,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 14,
+              "passed": 6,
+              "target_motion_limit": 12
+            }
+          }
+        ],
+        "corrected": [
+          {
+            "total_seconds": 0.4605234090704471,
+            "robustness": {
+              "seconds": 0.15706400002818555,
+              "trial_reasons": {
+                "target_motion_limit": 103,
+                "passed": 24,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 15,
+              "passed": 5,
+              "target_motion_limit": 12
+            },
+            "clearance": {
+              "seconds": 0.010804502060636878,
+              "trials": 128,
+              "rounds": 3,
+              "queries": 948,
+              "initially_penetrating": 61,
+              "initial_min_gap_m": -0.06846027076244354,
+              "final_valid_min_gap_m": 9.997189044952393e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 61,
+              "max_lift_m": 0.06856025884151459
+            }
+          },
+          {
+            "total_seconds": 0.46592167392373085,
+            "robustness": {
+              "seconds": 0.16053850296884775,
+              "trial_reasons": {
+                "target_motion_limit": 103,
+                "passed": 24,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 15,
+              "passed": 5,
+              "target_motion_limit": 12
+            },
+            "clearance": {
+              "seconds": 0.010909516946412623,
+              "trials": 128,
+              "rounds": 3,
+              "queries": 948,
+              "initially_penetrating": 61,
+              "initial_min_gap_m": -0.06846027076244354,
+              "final_valid_min_gap_m": 9.997189044952393e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 61,
+              "max_lift_m": 0.06856025884151459
+            }
+          },
+          {
+            "total_seconds": 0.46123242494650185,
+            "robustness": {
+              "seconds": 0.15708273695781827,
+              "trial_reasons": {
+                "target_motion_limit": 103,
+                "passed": 24,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 15,
+              "passed": 5,
+              "target_motion_limit": 12
+            },
+            "clearance": {
+              "seconds": 0.010881416033953428,
+              "trials": 128,
+              "rounds": 3,
+              "queries": 948,
+              "initially_penetrating": 61,
+              "initial_min_gap_m": -0.06846027076244354,
+              "final_valid_min_gap_m": 9.997189044952393e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 61,
+              "max_lift_m": 0.06856025884151459
+            }
+          },
+          {
+            "total_seconds": 0.46179119194857776,
+            "robustness": {
+              "seconds": 0.15818006498739123,
+              "trial_reasons": {
+                "target_motion_limit": 103,
+                "passed": 24,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 15,
+              "passed": 5,
+              "target_motion_limit": 12
+            },
+            "clearance": {
+              "seconds": 0.010987593908794224,
+              "trials": 128,
+              "rounds": 3,
+              "queries": 948,
+              "initially_penetrating": 61,
+              "initial_min_gap_m": -0.06846027076244354,
+              "final_valid_min_gap_m": 9.997189044952393e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 61,
+              "max_lift_m": 0.06856025884151459
+            }
+          },
+          {
+            "total_seconds": 0.4601595599669963,
+            "robustness": {
+              "seconds": 0.1574244749499485,
+              "trial_reasons": {
+                "target_motion_limit": 103,
+                "passed": 24,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 15,
+              "passed": 5,
+              "target_motion_limit": 12
+            },
+            "clearance": {
+              "seconds": 0.010909978998824954,
+              "trials": 128,
+              "rounds": 3,
+              "queries": 948,
+              "initially_penetrating": 61,
+              "initial_min_gap_m": -0.06846027076244354,
+              "final_valid_min_gap_m": 9.997189044952393e-05,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 61,
+              "max_lift_m": 0.06856025884151459
+            }
+          }
+        ]
+      },
+      {
+        "step": 8,
+        "placed": 7,
+        "batch": 1,
+        "candidates": [
+          "step-8-candidate-14"
+        ],
+        "baseline": [
+          {
+            "total_seconds": 0.2533376070205122,
+            "robustness": {
+              "seconds": 0.10569309408310801,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            }
+          },
+          {
+            "total_seconds": 0.25434931402560323,
+            "robustness": {
+              "seconds": 0.1048501399345696,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            }
+          },
+          {
+            "total_seconds": 0.25435617193579674,
+            "robustness": {
+              "seconds": 0.10533132508862764,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            }
+          },
+          {
+            "total_seconds": 0.2506310330936685,
+            "robustness": {
+              "seconds": 0.10408427705988288,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            }
+          },
+          {
+            "total_seconds": 0.25024252699222416,
+            "robustness": {
+              "seconds": 0.10348454304039478,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            }
+          }
+        ],
+        "corrected": [
+          {
+            "total_seconds": 0.21996044204570353,
+            "robustness": {
+              "seconds": 0.07320273900404572,
+              "trial_reasons": {
+                "passed": 3,
+                "clearance_non_upward_contact": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            },
+            "clearance": {
+              "seconds": 0.0012658450286835432,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 76,
+              "initially_penetrating": 2,
+              "initial_min_gap_m": -0.013665616512298584,
+              "final_valid_min_gap_m": 0.00010001659393310547,
+              "invalid_trials": 1,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 1
+              },
+              "lifted": 1,
+              "max_lift_m": 0.013765616512298573
+            }
+          },
+          {
+            "total_seconds": 0.22259778808802366,
+            "robustness": {
+              "seconds": 0.0746032081078738,
+              "trial_reasons": {
+                "passed": 3,
+                "clearance_non_upward_contact": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            },
+            "clearance": {
+              "seconds": 0.0014061159454286098,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 76,
+              "initially_penetrating": 2,
+              "initial_min_gap_m": -0.013665616512298584,
+              "final_valid_min_gap_m": 0.00010001659393310547,
+              "invalid_trials": 1,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 1
+              },
+              "lifted": 1,
+              "max_lift_m": 0.013765616512298573
+            }
+          },
+          {
+            "total_seconds": 0.21899166807997972,
+            "robustness": {
+              "seconds": 0.07230595301371068,
+              "trial_reasons": {
+                "passed": 3,
+                "clearance_non_upward_contact": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            },
+            "clearance": {
+              "seconds": 0.0013665319420397282,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 76,
+              "initially_penetrating": 2,
+              "initial_min_gap_m": -0.013665616512298584,
+              "final_valid_min_gap_m": 0.00010001659393310547,
+              "invalid_trials": 1,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 1
+              },
+              "lifted": 1,
+              "max_lift_m": 0.013765616512298573
+            }
+          },
+          {
+            "total_seconds": 0.2197307419264689,
+            "robustness": {
+              "seconds": 0.07363698293920606,
+              "trial_reasons": {
+                "passed": 3,
+                "clearance_non_upward_contact": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            },
+            "clearance": {
+              "seconds": 0.0012842899886891246,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 76,
+              "initially_penetrating": 2,
+              "initial_min_gap_m": -0.013665616512298584,
+              "final_valid_min_gap_m": 0.00010001659393310547,
+              "invalid_trials": 1,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 1
+              },
+              "lifted": 1,
+              "max_lift_m": 0.013765616512298573
+            }
+          },
+          {
+            "total_seconds": 0.22056052600964904,
+            "robustness": {
+              "seconds": 0.073868393083103,
+              "trial_reasons": {
+                "passed": 3,
+                "clearance_non_upward_contact": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 1
+            },
+            "clearance": {
+              "seconds": 0.001229958957992494,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 76,
+              "initially_penetrating": 2,
+              "initial_min_gap_m": -0.013665616512298584,
+              "final_valid_min_gap_m": 0.00010001659393310547,
+              "invalid_trials": 1,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 1
+              },
+              "lifted": 1,
+              "max_lift_m": 0.013765616512298573
+            }
+          }
+        ]
+      },
+      {
+        "step": 8,
+        "placed": 7,
+        "batch": 8,
+        "candidates": [
+          "step-8-candidate-14",
+          "step-8-candidate-1",
+          "step-8-candidate-2",
+          "step-8-candidate-3",
+          "step-8-candidate-4",
+          "step-8-candidate-5",
+          "step-8-candidate-6",
+          "step-8-candidate-7"
+        ],
+        "baseline": [
+          {
+            "total_seconds": 0.798095167032443,
+            "robustness": {
+              "seconds": 0.18833460309542716,
+              "trial_reasons": {
+                "passed": 17,
+                "target_motion_limit": 14,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "passed": 3,
+              "place_robustness": 4,
+              "target_motion_limit": 1
+            }
+          },
+          {
+            "total_seconds": 0.7872329099336639,
+            "robustness": {
+              "seconds": 0.18573050305712968,
+              "trial_reasons": {
+                "passed": 17,
+                "target_motion_limit": 14,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "passed": 3,
+              "place_robustness": 4,
+              "target_motion_limit": 1
+            }
+          },
+          {
+            "total_seconds": 0.795544664026238,
+            "robustness": {
+              "seconds": 0.19020424492191523,
+              "trial_reasons": {
+                "passed": 17,
+                "target_motion_limit": 14,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "passed": 3,
+              "place_robustness": 4,
+              "target_motion_limit": 1
+            }
+          },
+          {
+            "total_seconds": 0.7992130910279229,
+            "robustness": {
+              "seconds": 0.18796750798355788,
+              "trial_reasons": {
+                "passed": 17,
+                "target_motion_limit": 14,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "passed": 3,
+              "place_robustness": 4,
+              "target_motion_limit": 1
+            }
+          },
+          {
+            "total_seconds": 0.7901132919359952,
+            "robustness": {
+              "seconds": 0.18642499798443168,
+              "trial_reasons": {
+                "passed": 17,
+                "target_motion_limit": 14,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "passed": 3,
+              "place_robustness": 4,
+              "target_motion_limit": 1
+            }
+          }
+        ],
+        "corrected": [
+          {
+            "total_seconds": 0.779919947963208,
+            "robustness": {
+              "seconds": 0.17377887200564146,
+              "trial_reasons": {
+                "passed": 13,
+                "clearance_non_upward_contact": 5,
+                "target_motion_limit": 13,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 1,
+              "target_motion_limit": 1
+            },
+            "clearance": {
+              "seconds": 0.00889240694232285,
+              "trials": 32,
+              "rounds": 3,
+              "queries": 1026,
+              "initially_penetrating": 18,
+              "initial_min_gap_m": -0.07712799310684204,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 5,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 5
+              },
+              "lifted": 13,
+              "max_lift_m": 0.08702062168042635
+            }
+          },
+          {
+            "total_seconds": 0.7740021400386468,
+            "robustness": {
+              "seconds": 0.17072074802126735,
+              "trial_reasons": {
+                "passed": 13,
+                "clearance_non_upward_contact": 5,
+                "target_motion_limit": 13,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 1,
+              "target_motion_limit": 1
+            },
+            "clearance": {
+              "seconds": 0.008872422040440142,
+              "trials": 32,
+              "rounds": 3,
+              "queries": 1026,
+              "initially_penetrating": 18,
+              "initial_min_gap_m": -0.07712799310684204,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 5,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 5
+              },
+              "lifted": 13,
+              "max_lift_m": 0.08702062168042635
+            }
+          },
+          {
+            "total_seconds": 0.7752692679641768,
+            "robustness": {
+              "seconds": 0.16953615006059408,
+              "trial_reasons": {
+                "passed": 13,
+                "clearance_non_upward_contact": 5,
+                "target_motion_limit": 13,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 1,
+              "target_motion_limit": 1
+            },
+            "clearance": {
+              "seconds": 0.008911243989132345,
+              "trials": 32,
+              "rounds": 3,
+              "queries": 1026,
+              "initially_penetrating": 18,
+              "initial_min_gap_m": -0.07712799310684204,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 5,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 5
+              },
+              "lifted": 13,
+              "max_lift_m": 0.08702062168042635
+            }
+          },
+          {
+            "total_seconds": 0.7757201809436083,
+            "robustness": {
+              "seconds": 0.17104129400104284,
+              "trial_reasons": {
+                "passed": 13,
+                "clearance_non_upward_contact": 5,
+                "target_motion_limit": 13,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 1,
+              "target_motion_limit": 1
+            },
+            "clearance": {
+              "seconds": 0.008646240923553705,
+              "trials": 32,
+              "rounds": 3,
+              "queries": 1026,
+              "initially_penetrating": 18,
+              "initial_min_gap_m": -0.07712799310684204,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 5,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 5
+              },
+              "lifted": 13,
+              "max_lift_m": 0.08702062168042635
+            }
+          },
+          {
+            "total_seconds": 0.7757583140628412,
+            "robustness": {
+              "seconds": 0.17032171098981053,
+              "trial_reasons": {
+                "passed": 13,
+                "clearance_non_upward_contact": 5,
+                "target_motion_limit": 13,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 6,
+              "passed": 1,
+              "target_motion_limit": 1
+            },
+            "clearance": {
+              "seconds": 0.008898471016436815,
+              "trials": 32,
+              "rounds": 3,
+              "queries": 1026,
+              "initially_penetrating": 18,
+              "initial_min_gap_m": -0.07712799310684204,
+              "final_valid_min_gap_m": 9.998679161071777e-05,
+              "invalid_trials": 5,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 5
+              },
+              "lifted": 13,
+              "max_lift_m": 0.08702062168042635
+            }
+          }
+        ]
+      },
+      {
+        "step": 8,
+        "placed": 7,
+        "batch": 32,
+        "candidates": [
+          "step-8-candidate-14",
+          "step-8-candidate-1",
+          "step-8-candidate-2",
+          "step-8-candidate-3",
+          "step-8-candidate-4",
+          "step-8-candidate-5",
+          "step-8-candidate-6",
+          "step-8-candidate-7",
+          "step-8-candidate-8",
+          "step-8-candidate-9",
+          "step-8-candidate-10",
+          "step-8-candidate-11",
+          "step-8-candidate-12",
+          "step-8-candidate-13",
+          "step-8-candidate-15",
+          "step-8-candidate-16",
+          "step-8-candidate-17",
+          "step-8-candidate-18",
+          "step-8-candidate-19",
+          "step-8-candidate-20",
+          "step-8-candidate-21",
+          "step-8-candidate-22",
+          "step-8-candidate-23",
+          "step-8-candidate-24",
+          "step-8-candidate-25",
+          "step-8-candidate-26",
+          "step-8-candidate-27",
+          "step-8-candidate-28",
+          "step-8-candidate-29",
+          "step-8-candidate-30",
+          "step-8-candidate-31",
+          "step-8-candidate-32"
+        ],
+        "baseline": [
+          {
+            "total_seconds": 1.6005944999633357,
+            "robustness": {
+              "seconds": 0.643285064958036,
+              "trial_reasons": {
+                "passed": 67,
+                "target_motion_limit": 58,
+                "not_settled": 3
+              }
+            },
+            "candidate_reasons": {
+              "passed": 10,
+              "place_robustness": 13,
+              "target_motion_limit": 9
+            }
+          },
+          {
+            "total_seconds": 1.5895098419860005,
+            "robustness": {
+              "seconds": 0.6427693100413308,
+              "trial_reasons": {
+                "passed": 67,
+                "target_motion_limit": 58,
+                "not_settled": 3
+              }
+            },
+            "candidate_reasons": {
+              "passed": 10,
+              "place_robustness": 13,
+              "target_motion_limit": 9
+            }
+          },
+          {
+            "total_seconds": 1.590304217999801,
+            "robustness": {
+              "seconds": 0.6403003039304167,
+              "trial_reasons": {
+                "passed": 67,
+                "target_motion_limit": 58,
+                "not_settled": 3
+              }
+            },
+            "candidate_reasons": {
+              "passed": 10,
+              "place_robustness": 13,
+              "target_motion_limit": 9
+            }
+          },
+          {
+            "total_seconds": 1.596623147954233,
+            "robustness": {
+              "seconds": 0.6484998050145805,
+              "trial_reasons": {
+                "passed": 67,
+                "target_motion_limit": 58,
+                "not_settled": 3
+              }
+            },
+            "candidate_reasons": {
+              "passed": 10,
+              "place_robustness": 13,
+              "target_motion_limit": 9
+            }
+          },
+          {
+            "total_seconds": 1.5991581489797682,
+            "robustness": {
+              "seconds": 0.6467005810700357,
+              "trial_reasons": {
+                "passed": 67,
+                "target_motion_limit": 58,
+                "not_settled": 3
+              }
+            },
+            "candidate_reasons": {
+              "passed": 10,
+              "place_robustness": 13,
+              "target_motion_limit": 9
+            }
+          }
+        ],
+        "corrected": [
+          {
+            "total_seconds": 1.3055635798955336,
+            "robustness": {
+              "seconds": 0.3595457610208541,
+              "trial_reasons": {
+                "passed": 43,
+                "clearance_non_upward_contact": 26,
+                "target_motion_limit": 55,
+                "not_settled": 3,
+                "clearance_lift_limit": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 20,
+              "passed": 3,
+              "target_motion_limit": 9
+            },
+            "clearance": {
+              "seconds": 0.05211153591517359,
+              "trials": 128,
+              "rounds": 5,
+              "queries": 7530,
+              "initially_penetrating": 76,
+              "initial_min_gap_m": -0.07712799310684204,
+              "final_valid_min_gap_m": -9.595352821634151e-06,
+              "invalid_trials": 27,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 26,
+                "clearance_lift_limit": 1
+              },
+              "lifted": 51,
+              "max_lift_m": 0.20000000000000007
+            }
+          },
+          {
+            "total_seconds": 1.3080870029516518,
+            "robustness": {
+              "seconds": 0.36157912900671363,
+              "trial_reasons": {
+                "passed": 43,
+                "clearance_non_upward_contact": 26,
+                "target_motion_limit": 55,
+                "not_settled": 3,
+                "clearance_lift_limit": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 20,
+              "passed": 3,
+              "target_motion_limit": 9
+            },
+            "clearance": {
+              "seconds": 0.05152473202906549,
+              "trials": 128,
+              "rounds": 5,
+              "queries": 7530,
+              "initially_penetrating": 76,
+              "initial_min_gap_m": -0.07712799310684204,
+              "final_valid_min_gap_m": -9.595352821634151e-06,
+              "invalid_trials": 27,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 26,
+                "clearance_lift_limit": 1
+              },
+              "lifted": 51,
+              "max_lift_m": 0.20000000000000007
+            }
+          },
+          {
+            "total_seconds": 1.322906567947939,
+            "robustness": {
+              "seconds": 0.37022743897978216,
+              "trial_reasons": {
+                "passed": 43,
+                "clearance_non_upward_contact": 26,
+                "target_motion_limit": 55,
+                "not_settled": 3,
+                "clearance_lift_limit": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 20,
+              "passed": 3,
+              "target_motion_limit": 9
+            },
+            "clearance": {
+              "seconds": 0.062198744039051235,
+              "trials": 128,
+              "rounds": 5,
+              "queries": 7530,
+              "initially_penetrating": 76,
+              "initial_min_gap_m": -0.07712799310684204,
+              "final_valid_min_gap_m": -9.595352821634151e-06,
+              "invalid_trials": 27,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 26,
+                "clearance_lift_limit": 1
+              },
+              "lifted": 51,
+              "max_lift_m": 0.20000000000000007
+            }
+          },
+          {
+            "total_seconds": 1.3126874539302662,
+            "robustness": {
+              "seconds": 0.3631332640070468,
+              "trial_reasons": {
+                "passed": 43,
+                "clearance_non_upward_contact": 26,
+                "target_motion_limit": 55,
+                "not_settled": 3,
+                "clearance_lift_limit": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 20,
+              "passed": 3,
+              "target_motion_limit": 9
+            },
+            "clearance": {
+              "seconds": 0.05170937697403133,
+              "trials": 128,
+              "rounds": 5,
+              "queries": 7530,
+              "initially_penetrating": 76,
+              "initial_min_gap_m": -0.07712799310684204,
+              "final_valid_min_gap_m": -9.595352821634151e-06,
+              "invalid_trials": 27,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 26,
+                "clearance_lift_limit": 1
+              },
+              "lifted": 51,
+              "max_lift_m": 0.20000000000000007
+            }
+          },
+          {
+            "total_seconds": 1.309634251985699,
+            "robustness": {
+              "seconds": 0.3607444600202143,
+              "trial_reasons": {
+                "passed": 43,
+                "clearance_non_upward_contact": 26,
+                "target_motion_limit": 55,
+                "not_settled": 3,
+                "clearance_lift_limit": 1
+              }
+            },
+            "candidate_reasons": {
+              "place_robustness": 20,
+              "passed": 3,
+              "target_motion_limit": 9
+            },
+            "clearance": {
+              "seconds": 0.05163921799976379,
+              "trials": 128,
+              "rounds": 5,
+              "queries": 7530,
+              "initially_penetrating": 76,
+              "initial_min_gap_m": -0.07712799310684204,
+              "final_valid_min_gap_m": -9.595352821634151e-06,
+              "invalid_trials": 27,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 26,
+                "clearance_lift_limit": 1
+              },
+              "lifted": 51,
+              "max_lift_m": 0.20000000000000007
+            }
+          }
+        ]
+      },
+      {
+        "step": 15,
+        "placed": 14,
+        "batch": 1,
+        "candidates": [
+          "step-15-candidate-21"
+        ],
+        "baseline": [
+          {
+            "total_seconds": 0.3134570710826665,
+            "robustness": {
+              "seconds": 0.08858724893070757,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            }
+          },
+          {
+            "total_seconds": 0.31409620004706085,
+            "robustness": {
+              "seconds": 0.08988255099393427,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            }
+          },
+          {
+            "total_seconds": 0.31310105905868113,
+            "robustness": {
+              "seconds": 0.08857059094589204,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            }
+          },
+          {
+            "total_seconds": 0.3145507680019364,
+            "robustness": {
+              "seconds": 0.08811629598494619,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            }
+          },
+          {
+            "total_seconds": 0.3150938010076061,
+            "robustness": {
+              "seconds": 0.08884960389696062,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            }
+          }
+        ],
+        "corrected": [
+          {
+            "total_seconds": 0.31456994998734444,
+            "robustness": {
+              "seconds": 0.08948771201539785,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            },
+            "clearance": {
+              "seconds": 0.002288370975293219,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 424,
+              "initially_penetrating": 1,
+              "initial_min_gap_m": -0.02325679361820221,
+              "final_valid_min_gap_m": 0.0012057197745889425,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 1,
+              "max_lift_m": 0.03069564392104207
+            }
+          },
+          {
+            "total_seconds": 0.3160946909338236,
+            "robustness": {
+              "seconds": 0.09060416405554861,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            },
+            "clearance": {
+              "seconds": 0.002315570949576795,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 424,
+              "initially_penetrating": 1,
+              "initial_min_gap_m": -0.02325679361820221,
+              "final_valid_min_gap_m": 0.0012057197745889425,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 1,
+              "max_lift_m": 0.03069564392104207
+            }
+          },
+          {
+            "total_seconds": 0.315726175904274,
+            "robustness": {
+              "seconds": 0.09042263706214726,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            },
+            "clearance": {
+              "seconds": 0.002263514092192054,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 424,
+              "initially_penetrating": 1,
+              "initial_min_gap_m": -0.02325679361820221,
+              "final_valid_min_gap_m": 0.0012057197745889425,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 1,
+              "max_lift_m": 0.03069564392104207
+            }
+          },
+          {
+            "total_seconds": 0.3200079679954797,
+            "robustness": {
+              "seconds": 0.0923074089223519,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            },
+            "clearance": {
+              "seconds": 0.002379209967330098,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 424,
+              "initially_penetrating": 1,
+              "initial_min_gap_m": -0.02325679361820221,
+              "final_valid_min_gap_m": 0.0012057197745889425,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 1,
+              "max_lift_m": 0.03069564392104207
+            }
+          },
+          {
+            "total_seconds": 0.3176712290151045,
+            "robustness": {
+              "seconds": 0.0902542689582333,
+              "trial_reasons": {
+                "passed": 4
+              }
+            },
+            "candidate_reasons": {
+              "passed": 1
+            },
+            "clearance": {
+              "seconds": 0.0023113739443942904,
+              "trials": 4,
+              "rounds": 2,
+              "queries": 424,
+              "initially_penetrating": 1,
+              "initial_min_gap_m": -0.02325679361820221,
+              "final_valid_min_gap_m": 0.0012057197745889425,
+              "invalid_trials": 0,
+              "invalid_reasons": {},
+              "lifted": 1,
+              "max_lift_m": 0.03069564392104207
+            }
+          }
+        ]
+      },
+      {
+        "step": 15,
+        "placed": 14,
+        "batch": 8,
+        "candidates": [
+          "step-15-candidate-21",
+          "step-15-candidate-1",
+          "step-15-candidate-2",
+          "step-15-candidate-3",
+          "step-15-candidate-4",
+          "step-15-candidate-5",
+          "step-15-candidate-6",
+          "step-15-candidate-7"
+        ],
+        "baseline": [
+          {
+            "total_seconds": 0.86221084499266,
+            "robustness": {
+              "seconds": 0.18349951005075127,
+              "trial_reasons": {
+                "passed": 25,
+                "target_motion_limit": 7
+              }
+            },
+            "candidate_reasons": {
+              "passed": 5,
+              "place_robustness": 2,
+              "target_motion_limit": 1
+            }
+          },
+          {
+            "total_seconds": 0.862851295969449,
+            "robustness": {
+              "seconds": 0.18223494000267237,
+              "trial_reasons": {
+                "passed": 25,
+                "target_motion_limit": 7
+              }
+            },
+            "candidate_reasons": {
+              "passed": 5,
+              "place_robustness": 2,
+              "target_motion_limit": 1
+            }
+          },
+          {
+            "total_seconds": 0.8571507510496303,
+            "robustness": {
+              "seconds": 0.18221257801633328,
+              "trial_reasons": {
+                "passed": 25,
+                "target_motion_limit": 7
+              }
+            },
+            "candidate_reasons": {
+              "passed": 5,
+              "place_robustness": 2,
+              "target_motion_limit": 1
+            }
+          },
+          {
+            "total_seconds": 0.8649415350519121,
+            "robustness": {
+              "seconds": 0.18123148707672954,
+              "trial_reasons": {
+                "passed": 25,
+                "target_motion_limit": 7
+              }
+            },
+            "candidate_reasons": {
+              "passed": 5,
+              "place_robustness": 2,
+              "target_motion_limit": 1
+            }
+          },
+          {
+            "total_seconds": 0.8568191189551726,
+            "robustness": {
+              "seconds": 0.18103868199978024,
+              "trial_reasons": {
+                "passed": 25,
+                "target_motion_limit": 7
+              }
+            },
+            "candidate_reasons": {
+              "passed": 5,
+              "place_robustness": 2,
+              "target_motion_limit": 1
+            }
+          }
+        ],
+        "corrected": [
+          {
+            "total_seconds": 0.8598076730268076,
+            "robustness": {
+              "seconds": 0.18135792994871736,
+              "trial_reasons": {
+                "passed": 22,
+                "target_motion_limit": 8,
+                "clearance_non_upward_contact": 2
+              }
+            },
+            "candidate_reasons": {
+              "passed": 3,
+              "place_robustness": 4,
+              "target_motion_limit": 1
+            },
+            "clearance": {
+              "seconds": 0.014442112063989043,
+              "trials": 32,
+              "rounds": 3,
+              "queries": 2400,
+              "initially_penetrating": 24,
+              "initial_min_gap_m": -0.044431980699300766,
+              "final_valid_min_gap_m": 0.00010002493945648894,
+              "invalid_trials": 2,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 2
+              },
+              "lifted": 22,
+              "max_lift_m": 0.0833668826184516
+            }
+          },
+          {
+            "total_seconds": 0.8585736290551722,
+            "robustness": {
+              "seconds": 0.1823135829763487,
+              "trial_reasons": {
+                "passed": 22,
+                "target_motion_limit": 8,
+                "clearance_non_upward_contact": 2
+              }
+            },
+            "candidate_reasons": {
+              "passed": 3,
+              "place_robustness": 4,
+              "target_motion_limit": 1
+            },
+            "clearance": {
+              "seconds": 0.014582944917492568,
+              "trials": 32,
+              "rounds": 3,
+              "queries": 2400,
+              "initially_penetrating": 24,
+              "initial_min_gap_m": -0.044431980699300766,
+              "final_valid_min_gap_m": 0.00010002493945648894,
+              "invalid_trials": 2,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 2
+              },
+              "lifted": 22,
+              "max_lift_m": 0.0833668826184516
+            }
+          },
+          {
+            "total_seconds": 0.8583778310567141,
+            "robustness": {
+              "seconds": 0.18163794104475528,
+              "trial_reasons": {
+                "passed": 22,
+                "target_motion_limit": 8,
+                "clearance_non_upward_contact": 2
+              }
+            },
+            "candidate_reasons": {
+              "passed": 3,
+              "place_robustness": 4,
+              "target_motion_limit": 1
+            },
+            "clearance": {
+              "seconds": 0.014342627953737974,
+              "trials": 32,
+              "rounds": 3,
+              "queries": 2400,
+              "initially_penetrating": 24,
+              "initial_min_gap_m": -0.044431980699300766,
+              "final_valid_min_gap_m": 0.00010002493945648894,
+              "invalid_trials": 2,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 2
+              },
+              "lifted": 22,
+              "max_lift_m": 0.0833668826184516
+            }
+          },
+          {
+            "total_seconds": 0.8590769310249016,
+            "robustness": {
+              "seconds": 0.18113290995825082,
+              "trial_reasons": {
+                "passed": 22,
+                "target_motion_limit": 8,
+                "clearance_non_upward_contact": 2
+              }
+            },
+            "candidate_reasons": {
+              "passed": 3,
+              "place_robustness": 4,
+              "target_motion_limit": 1
+            },
+            "clearance": {
+              "seconds": 0.014617841923609376,
+              "trials": 32,
+              "rounds": 3,
+              "queries": 2400,
+              "initially_penetrating": 24,
+              "initial_min_gap_m": -0.044431980699300766,
+              "final_valid_min_gap_m": 0.00010002493945648894,
+              "invalid_trials": 2,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 2
+              },
+              "lifted": 22,
+              "max_lift_m": 0.0833668826184516
+            }
+          },
+          {
+            "total_seconds": 0.8613737639971077,
+            "robustness": {
+              "seconds": 0.18289045593701303,
+              "trial_reasons": {
+                "passed": 22,
+                "target_motion_limit": 8,
+                "clearance_non_upward_contact": 2
+              }
+            },
+            "candidate_reasons": {
+              "passed": 3,
+              "place_robustness": 4,
+              "target_motion_limit": 1
+            },
+            "clearance": {
+              "seconds": 0.014722176943905652,
+              "trials": 32,
+              "rounds": 3,
+              "queries": 2400,
+              "initially_penetrating": 24,
+              "initial_min_gap_m": -0.044431980699300766,
+              "final_valid_min_gap_m": 0.00010002493945648894,
+              "invalid_trials": 2,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 2
+              },
+              "lifted": 22,
+              "max_lift_m": 0.0833668826184516
+            }
+          }
+        ]
+      },
+      {
+        "step": 15,
+        "placed": 14,
+        "batch": 32,
+        "candidates": [
+          "step-15-candidate-21",
+          "step-15-candidate-1",
+          "step-15-candidate-2",
+          "step-15-candidate-3",
+          "step-15-candidate-4",
+          "step-15-candidate-5",
+          "step-15-candidate-6",
+          "step-15-candidate-7",
+          "step-15-candidate-8",
+          "step-15-candidate-9",
+          "step-15-candidate-10",
+          "step-15-candidate-11",
+          "step-15-candidate-12",
+          "step-15-candidate-13",
+          "step-15-candidate-14",
+          "step-15-candidate-15",
+          "step-15-candidate-16",
+          "step-15-candidate-17",
+          "step-15-candidate-18",
+          "step-15-candidate-19",
+          "step-15-candidate-20",
+          "step-15-candidate-22",
+          "step-15-candidate-23",
+          "step-15-candidate-24",
+          "step-15-candidate-25",
+          "step-15-candidate-26",
+          "step-15-candidate-27",
+          "step-15-candidate-28",
+          "step-15-candidate-29",
+          "step-15-candidate-30",
+          "step-15-candidate-31",
+          "step-15-candidate-32"
+        ],
+        "baseline": [
+          {
+            "total_seconds": 1.9499345470685512,
+            "robustness": {
+              "seconds": 0.44786333094816655,
+              "trial_reasons": {
+                "passed": 105,
+                "target_motion_limit": 23
+              }
+            },
+            "candidate_reasons": {
+              "passed": 20,
+              "place_robustness": 10,
+              "target_motion_limit": 2
+            }
+          },
+          {
+            "total_seconds": 1.9621014239965007,
+            "robustness": {
+              "seconds": 0.44922302500344813,
+              "trial_reasons": {
+                "passed": 105,
+                "target_motion_limit": 23
+              }
+            },
+            "candidate_reasons": {
+              "passed": 20,
+              "place_robustness": 10,
+              "target_motion_limit": 2
+            }
+          },
+          {
+            "total_seconds": 1.9626023329328746,
+            "robustness": {
+              "seconds": 0.44934853399172425,
+              "trial_reasons": {
+                "passed": 105,
+                "target_motion_limit": 23
+              }
+            },
+            "candidate_reasons": {
+              "passed": 20,
+              "place_robustness": 10,
+              "target_motion_limit": 2
+            }
+          },
+          {
+            "total_seconds": 1.962711940985173,
+            "robustness": {
+              "seconds": 0.4489586390554905,
+              "trial_reasons": {
+                "passed": 105,
+                "target_motion_limit": 23
+              }
+            },
+            "candidate_reasons": {
+              "passed": 20,
+              "place_robustness": 10,
+              "target_motion_limit": 2
+            }
+          },
+          {
+            "total_seconds": 1.953207242069766,
+            "robustness": {
+              "seconds": 0.4478896299842745,
+              "trial_reasons": {
+                "passed": 105,
+                "target_motion_limit": 23
+              }
+            },
+            "candidate_reasons": {
+              "passed": 20,
+              "place_robustness": 10,
+              "target_motion_limit": 2
+            }
+          }
+        ],
+        "corrected": [
+          {
+            "total_seconds": 1.965806251973845,
+            "robustness": {
+              "seconds": 0.45490280096419156,
+              "trial_reasons": {
+                "passed": 94,
+                "target_motion_limit": 24,
+                "clearance_non_upward_contact": 9,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "passed": 14,
+              "place_robustness": 16,
+              "target_motion_limit": 2
+            },
+            "clearance": {
+              "seconds": 0.07310318690724671,
+              "trials": 128,
+              "rounds": 4,
+              "queries": 13530,
+              "initially_penetrating": 96,
+              "initial_min_gap_m": -0.07040981948375702,
+              "final_valid_min_gap_m": 0.00010002493945648894,
+              "invalid_trials": 9,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 9
+              },
+              "lifted": 87,
+              "max_lift_m": 0.12093856996492602
+            }
+          },
+          {
+            "total_seconds": 1.9593595119658858,
+            "robustness": {
+              "seconds": 0.45397984702140093,
+              "trial_reasons": {
+                "passed": 94,
+                "target_motion_limit": 24,
+                "clearance_non_upward_contact": 9,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "passed": 14,
+              "place_robustness": 16,
+              "target_motion_limit": 2
+            },
+            "clearance": {
+              "seconds": 0.0713768060086295,
+              "trials": 128,
+              "rounds": 4,
+              "queries": 13530,
+              "initially_penetrating": 96,
+              "initial_min_gap_m": -0.07040981948375702,
+              "final_valid_min_gap_m": 0.00010002493945648894,
+              "invalid_trials": 9,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 9
+              },
+              "lifted": 87,
+              "max_lift_m": 0.12093856996492602
+            }
+          },
+          {
+            "total_seconds": 1.9841491150436923,
+            "robustness": {
+              "seconds": 0.4666627859696746,
+              "trial_reasons": {
+                "passed": 94,
+                "target_motion_limit": 24,
+                "clearance_non_upward_contact": 9,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "passed": 14,
+              "place_robustness": 16,
+              "target_motion_limit": 2
+            },
+            "clearance": {
+              "seconds": 0.08336603606585413,
+              "trials": 128,
+              "rounds": 4,
+              "queries": 13530,
+              "initially_penetrating": 96,
+              "initial_min_gap_m": -0.07040981948375702,
+              "final_valid_min_gap_m": 0.00010002493945648894,
+              "invalid_trials": 9,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 9
+              },
+              "lifted": 87,
+              "max_lift_m": 0.12093856996492602
+            }
+          },
+          {
+            "total_seconds": 1.9611743499990553,
+            "robustness": {
+              "seconds": 0.45267014403361827,
+              "trial_reasons": {
+                "passed": 94,
+                "target_motion_limit": 24,
+                "clearance_non_upward_contact": 9,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "passed": 14,
+              "place_robustness": 16,
+              "target_motion_limit": 2
+            },
+            "clearance": {
+              "seconds": 0.07105212204623967,
+              "trials": 128,
+              "rounds": 4,
+              "queries": 13530,
+              "initially_penetrating": 96,
+              "initial_min_gap_m": -0.07040981948375702,
+              "final_valid_min_gap_m": 0.00010002493945648894,
+              "invalid_trials": 9,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 9
+              },
+              "lifted": 87,
+              "max_lift_m": 0.12093856996492602
+            }
+          },
+          {
+            "total_seconds": 1.9596678570378572,
+            "robustness": {
+              "seconds": 0.4532001520274207,
+              "trial_reasons": {
+                "passed": 94,
+                "target_motion_limit": 24,
+                "clearance_non_upward_contact": 9,
+                "not_settled": 1
+              }
+            },
+            "candidate_reasons": {
+              "passed": 14,
+              "place_robustness": 16,
+              "target_motion_limit": 2
+            },
+            "clearance": {
+              "seconds": 0.07165648206137121,
+              "trials": 128,
+              "rounds": 4,
+              "queries": 13530,
+              "initially_penetrating": 96,
+              "initial_min_gap_m": -0.07040981948375702,
+              "final_valid_min_gap_m": 0.00010002493945648894,
+              "invalid_trials": 9,
+              "invalid_reasons": {
+                "clearance_non_upward_contact": 9
+              },
+              "lifted": 87,
+              "max_lift_m": 0.12093856996492602
+            }
+          }
+        ]
+      }
+    ],
+    "clearance_workspace_bytes": {
+      "4": 526224,
+      "32": 3647104,
+      "128": 14709620
+    }
+  },
+  "mcts": [
+    {
+      "placed": 0,
+      "baseline": {
+        "backend": "cuda",
+        "seed": 0,
+        "placed": 0,
+        "elapsed_seconds": 9.814741188078187,
+        "completed_iterations": 64,
+        "timed_out": false,
+        "generated_candidates": 184,
+        "evaluated_candidates": 204,
+        "failed_evaluations": 158,
+        "selected": {
+          "object_id": 58,
+          "pose": [
+            0.5423926115036011,
+            -0.5644646286964417,
+            0.2505023181438446,
+            0.22133974245424468,
+            0.6470770693929795,
+            -0.2492591982045112,
+            -0.685689315059325
+          ],
+          "reward": 0.9485161974874303,
+          "target_IoU": 0.004168678129470009,
+          "selectable": true
+        },
+        "tree_sha256": "1a3f1d7d08a0994f5aa4de14d4987c00006aa4431edf9653cfa26c16c10b2661",
+        "core_native_sha256": "c2b41d436e410d949baf8377eff9d06355f904733389c92e85d8ffe952ba8b72",
+        "apps_commit": "fde67a48fd543984912f0bce3249709400cfdfc7",
+        "core_commit": "426f5253b972415b916e0b20da2aba29c2ed6fa9",
+        "state_sha256": null,
+        "benchmark_overrides": {
+          "evaluation_batch_size": null,
+          "cuda_batch_size": null,
+          "root_candidates": null,
+          "iterations": 64,
+          "generation_batch_size": null,
+          "posegen_batch_size": null,
+          "workers": null,
+          "placement_batch_size": null,
+          "result_batch_size": null,
+          "serial_results": false,
+          "legacy_robustness": false,
+          "clearance_cost_probe": false,
+          "eager_observations": false
+        },
+        "clearance_calls": []
+      },
+      "cost_probe": {
+        "backend": "cuda",
+        "seed": 0,
+        "placed": 0,
+        "elapsed_seconds": 10.075236064032651,
+        "completed_iterations": 64,
+        "timed_out": false,
+        "generated_candidates": 184,
+        "evaluated_candidates": 204,
+        "failed_evaluations": 158,
+        "selected": {
+          "object_id": 58,
+          "pose": [
+            0.5423926115036011,
+            -0.5644646286964417,
+            0.2505023181438446,
+            0.22133974245424468,
+            0.6470770693929795,
+            -0.2492591982045112,
+            -0.685689315059325
+          ],
+          "reward": 0.9485161974874303,
+          "target_IoU": 0.004168678129470009,
+          "selectable": true
+        },
+        "tree_sha256": "1a3f1d7d08a0994f5aa4de14d4987c00006aa4431edf9653cfa26c16c10b2661",
+        "core_native_sha256": "c2b41d436e410d949baf8377eff9d06355f904733389c92e85d8ffe952ba8b72",
+        "apps_commit": "fde67a48fd543984912f0bce3249709400cfdfc7",
+        "core_commit": "426f5253b972415b916e0b20da2aba29c2ed6fa9",
+        "state_sha256": null,
+        "benchmark_overrides": {
+          "evaluation_batch_size": null,
+          "cuda_batch_size": null,
+          "root_candidates": null,
+          "iterations": 64,
+          "generation_batch_size": null,
+          "posegen_batch_size": null,
+          "workers": null,
+          "placement_batch_size": null,
+          "result_batch_size": null,
+          "serial_results": false,
+          "legacy_robustness": false,
+          "clearance_cost_probe": true,
+          "eager_observations": false
+        },
+        "clearance_calls": [
+          {
+            "seconds": 0.018788730958476663,
+            "trials": 128,
+            "rounds": 3,
+            "queries": 948,
+            "initially_penetrating": 61,
+            "initial_min_gap_m": -0.06846027076244354,
+            "final_valid_min_gap_m": 9.997189044952393e-05,
+            "invalid_trials": 0,
+            "invalid_reasons": {},
+            "lifted": 61,
+            "max_lift_m": 0.06856025884151459
+          },
+          {
+            "seconds": 0.02124698495026678,
+            "trials": 72,
+            "rounds": 4,
+            "queries": 1984,
+            "initially_penetrating": 46,
+            "initial_min_gap_m": -0.06734508275985718,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 3,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 3
+            },
+            "lifted": 43,
+            "max_lift_m": 0.11491111415045896
+          },
+          {
+            "seconds": 0.04095102590508759,
+            "trials": 120,
+            "rounds": 5,
+            "queries": 4873,
+            "initially_penetrating": 85,
+            "initial_min_gap_m": -0.062233276665210724,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 6,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 6
+            },
+            "lifted": 79,
+            "max_lift_m": 0.15600131687731367
+          },
+          {
+            "seconds": 0.06549597601406276,
+            "trials": 164,
+            "rounds": 6,
+            "queries": 7422,
+            "initially_penetrating": 119,
+            "initial_min_gap_m": -0.08006510138511658,
+            "final_valid_min_gap_m": 3.710713644977659e-05,
+            "invalid_trials": 14,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 14
+            },
+            "lifted": 105,
+            "max_lift_m": 0.2049639321485454
+          },
+          {
+            "seconds": 0.006777919013984501,
+            "trials": 24,
+            "rounds": 3,
+            "queries": 648,
+            "initially_penetrating": 19,
+            "initial_min_gap_m": -0.05282565951347351,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 0,
+            "invalid_reasons": {},
+            "lifted": 19,
+            "max_lift_m": 0.09118693750943885
+          },
+          {
+            "seconds": 0.04775103204883635,
+            "trials": 160,
+            "rounds": 4,
+            "queries": 5064,
+            "initially_penetrating": 104,
+            "initial_min_gap_m": -0.09407268464565277,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 20,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 20
+            },
+            "lifted": 84,
+            "max_lift_m": 0.1339268317376596
+          },
+          {
+            "seconds": 0.007678477908484638,
+            "trials": 28,
+            "rounds": 3,
+            "queries": 642,
+            "initially_penetrating": 23,
+            "initial_min_gap_m": -0.05898071825504303,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 10,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 10
+            },
+            "lifted": 13,
+            "max_lift_m": 0.09360507526857842
+          },
+          {
+            "seconds": 0.023549231933429837,
+            "trials": 92,
+            "rounds": 3,
+            "queries": 2502,
+            "initially_penetrating": 45,
+            "initial_min_gap_m": -0.06811138987541199,
+            "final_valid_min_gap_m": 9.997189044952393e-05,
+            "invalid_trials": 4,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 4
+            },
+            "lifted": 41,
+            "max_lift_m": 0.09595798276534534
+          },
+          {
+            "seconds": 0.007998174987733364,
+            "trials": 28,
+            "rounds": 3,
+            "queries": 828,
+            "initially_penetrating": 7,
+            "initial_min_gap_m": -0.027011491358280182,
+            "final_valid_min_gap_m": 0.00010000169277191162,
+            "invalid_trials": 1,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 1
+            },
+            "lifted": 6,
+            "max_lift_m": 0.058934211950921744
+          }
+        ]
+      },
+      "identical_tree": true,
+      "wall_increase_percent": 2.6541186462551103,
+      "clearance_seconds": 0.24023755372036248
+    },
+    {
+      "placed": 14,
+      "baseline": {
+        "backend": "cuda",
+        "seed": 0,
+        "placed": 14,
+        "elapsed_seconds": 109.09143916901667,
+        "completed_iterations": 64,
+        "timed_out": false,
+        "generated_candidates": 517,
+        "evaluated_candidates": 610,
+        "failed_evaluations": 368,
+        "selected": {
+          "object_id": 40,
+          "pose": [
+            0.03228861466050148,
+            -2.100766181945801,
+            0.7978296875953674,
+            -0.32996568187244724,
+            0.5453908460555106,
+            -0.6343023796900618,
+            0.437415094555309
+          ],
+          "reward": 6.451036313825874,
+          "target_IoU": 0.13626295791883675,
+          "selectable": true
+        },
+        "tree_sha256": "dfb28c65ebdc5bb9c60fd64bcbfae13f1df01c007b1f75e95470e029a08d97de",
+        "core_native_sha256": "c2b41d436e410d949baf8377eff9d06355f904733389c92e85d8ffe952ba8b72",
+        "apps_commit": "fde67a48fd543984912f0bce3249709400cfdfc7",
+        "core_commit": "426f5253b972415b916e0b20da2aba29c2ed6fa9",
+        "state_sha256": "c14b733d2de57167ae7200141063d685cb51a8e66facf06ae9fd5fba0a6a7505",
+        "benchmark_overrides": {
+          "evaluation_batch_size": null,
+          "cuda_batch_size": null,
+          "root_candidates": null,
+          "iterations": 64,
+          "generation_batch_size": null,
+          "posegen_batch_size": null,
+          "workers": null,
+          "placement_batch_size": null,
+          "result_batch_size": null,
+          "serial_results": false,
+          "legacy_robustness": false,
+          "clearance_cost_probe": false,
+          "eager_observations": false
+        },
+        "clearance_calls": []
+      },
+      "cost_probe": {
+        "backend": "cuda",
+        "seed": 0,
+        "placed": 14,
+        "elapsed_seconds": 111.99609266000334,
+        "completed_iterations": 64,
+        "timed_out": false,
+        "generated_candidates": 517,
+        "evaluated_candidates": 610,
+        "failed_evaluations": 368,
+        "selected": {
+          "object_id": 40,
+          "pose": [
+            0.03228861466050148,
+            -2.100766181945801,
+            0.7978296875953674,
+            -0.32996568187244724,
+            0.5453908460555106,
+            -0.6343023796900618,
+            0.437415094555309
+          ],
+          "reward": 6.451036313825874,
+          "target_IoU": 0.13626295791883675,
+          "selectable": true
+        },
+        "tree_sha256": "dfb28c65ebdc5bb9c60fd64bcbfae13f1df01c007b1f75e95470e029a08d97de",
+        "core_native_sha256": "c2b41d436e410d949baf8377eff9d06355f904733389c92e85d8ffe952ba8b72",
+        "apps_commit": "fde67a48fd543984912f0bce3249709400cfdfc7",
+        "core_commit": "426f5253b972415b916e0b20da2aba29c2ed6fa9",
+        "state_sha256": "c14b733d2de57167ae7200141063d685cb51a8e66facf06ae9fd5fba0a6a7505",
+        "benchmark_overrides": {
+          "evaluation_batch_size": null,
+          "cuda_batch_size": null,
+          "root_candidates": null,
+          "iterations": 64,
+          "generation_batch_size": null,
+          "posegen_batch_size": null,
+          "workers": null,
+          "placement_batch_size": null,
+          "result_batch_size": null,
+          "serial_results": false,
+          "legacy_robustness": false,
+          "clearance_cost_probe": true,
+          "eager_observations": false
+        },
+        "clearance_calls": [
+          {
+            "seconds": 0.13837597507517785,
+            "trials": 128,
+            "rounds": 6,
+            "queries": 8348,
+            "initially_penetrating": 86,
+            "initial_min_gap_m": -0.0652628093957901,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 18,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 18
+            },
+            "lifted": 70,
+            "max_lift_m": 0.23594774296070514
+          },
+          {
+            "seconds": 0.03343002893961966,
+            "trials": 28,
+            "rounds": 5,
+            "queries": 1415,
+            "initially_penetrating": 23,
+            "initial_min_gap_m": -0.05217187851667404,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 15,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 15
+            },
+            "lifted": 10,
+            "max_lift_m": 0.19999999999999996
+          },
+          {
+            "seconds": 0.03512192191556096,
+            "trials": 36,
+            "rounds": 4,
+            "queries": 1748,
+            "initially_penetrating": 30,
+            "initial_min_gap_m": -0.053072214126586914,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 15,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 15
+            },
+            "lifted": 19,
+            "max_lift_m": 0.10681035770066544
+          },
+          {
+            "seconds": 0.0349316589999944,
+            "trials": 36,
+            "rounds": 4,
+            "queries": 1576,
+            "initially_penetrating": 24,
+            "initial_min_gap_m": -0.06601063907146454,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 9,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 9
+            },
+            "lifted": 17,
+            "max_lift_m": 0.11767331862489466
+          },
+          {
+            "seconds": 0.015619350946508348,
+            "trials": 20,
+            "rounds": 3,
+            "queries": 681,
+            "initially_penetrating": 16,
+            "initial_min_gap_m": -0.07221004366874695,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 11,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 11
+            },
+            "lifted": 5,
+            "max_lift_m": 0.06284580139616175
+          },
+          {
+            "seconds": 0.009072839980944991,
+            "trials": 8,
+            "rounds": 4,
+            "queries": 440,
+            "initially_penetrating": 5,
+            "initial_min_gap_m": -0.019065463915467262,
+            "final_valid_min_gap_m": 0.00010164951527258381,
+            "invalid_trials": 2,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 2
+            },
+            "lifted": 4,
+            "max_lift_m": 0.13501921047842635
+          },
+          {
+            "seconds": 0.002998261945322156,
+            "trials": 8,
+            "rounds": 1,
+            "queries": 79,
+            "initially_penetrating": 5,
+            "initial_min_gap_m": -0.07186700403690338,
+            "final_valid_min_gap_m": 0.01106504537165165,
+            "invalid_trials": 5,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 5
+            },
+            "lifted": 0,
+            "max_lift_m": 0.0
+          },
+          {
+            "seconds": 0.020423319074325264,
+            "trials": 20,
+            "rounds": 4,
+            "queries": 1120,
+            "initially_penetrating": 15,
+            "initial_min_gap_m": -0.035174936056137085,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 8,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 8
+            },
+            "lifted": 10,
+            "max_lift_m": 0.11211265800275844
+          },
+          {
+            "seconds": 0.0041355169378221035,
+            "trials": 4,
+            "rounds": 3,
+            "queries": 180,
+            "initially_penetrating": 4,
+            "initial_min_gap_m": -0.04783397912979126,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 2,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 2
+            },
+            "lifted": 3,
+            "max_lift_m": 0.06425295641002443
+          },
+          {
+            "seconds": 0.09953111398499459,
+            "trials": 128,
+            "rounds": 4,
+            "queries": 6433,
+            "initially_penetrating": 94,
+            "initial_min_gap_m": -0.0984242856502533,
+            "final_valid_min_gap_m": 9.997189044952393e-05,
+            "invalid_trials": 20,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 20
+            },
+            "lifted": 76,
+            "max_lift_m": 0.14029045544185387
+          },
+          {
+            "seconds": 0.018371889018453658,
+            "trials": 24,
+            "rounds": 3,
+            "queries": 837,
+            "initially_penetrating": 17,
+            "initial_min_gap_m": -0.05739492177963257,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 8,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 8
+            },
+            "lifted": 9,
+            "max_lift_m": 0.09999999999999998
+          },
+          {
+            "seconds": 0.003969497047364712,
+            "trials": 4,
+            "rounds": 3,
+            "queries": 177,
+            "initially_penetrating": 4,
+            "initial_min_gap_m": -0.04522240161895752,
+            "final_valid_min_gap_m": 0.00039488624315708876,
+            "invalid_trials": 3,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 3
+            },
+            "lifted": 1,
+            "max_lift_m": 0.08158236798454366
+          },
+          {
+            "seconds": 0.0050568090518936515,
+            "trials": 8,
+            "rounds": 2,
+            "queries": 210,
+            "initially_penetrating": 7,
+            "initial_min_gap_m": -0.026616156101226807,
+            "final_valid_min_gap_m": 0.0021538548171520233,
+            "invalid_trials": 6,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 6
+            },
+            "lifted": 1,
+            "max_lift_m": 0.02284958892491784
+          },
+          {
+            "seconds": 0.03601585200522095,
+            "trials": 40,
+            "rounds": 4,
+            "queries": 1792,
+            "initially_penetrating": 29,
+            "initial_min_gap_m": -0.05176030471920967,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 13,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 13
+            },
+            "lifted": 18,
+            "max_lift_m": 0.1022858985724962
+          },
+          {
+            "seconds": 0.030207618954591453,
+            "trials": 36,
+            "rounds": 4,
+            "queries": 1398,
+            "initially_penetrating": 22,
+            "initial_min_gap_m": -0.036045610904693604,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 4,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 4
+            },
+            "lifted": 18,
+            "max_lift_m": 0.1048954849901148
+          },
+          {
+            "seconds": 0.006849049008451402,
+            "trials": 8,
+            "rounds": 3,
+            "queries": 294,
+            "initially_penetrating": 5,
+            "initial_min_gap_m": -0.036045610904693604,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 1,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 1
+            },
+            "lifted": 4,
+            "max_lift_m": 0.05940270093149663
+          },
+          {
+            "seconds": 0.017861789907328784,
+            "trials": 20,
+            "rounds": 4,
+            "queries": 1060,
+            "initially_penetrating": 12,
+            "initial_min_gap_m": -0.09070563316345215,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 3,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 3
+            },
+            "lifted": 9,
+            "max_lift_m": 0.1022858985724962
+          },
+          {
+            "seconds": 0.0024900230346247554,
+            "trials": 4,
+            "rounds": 2,
+            "queries": 104,
+            "initially_penetrating": 4,
+            "initial_min_gap_m": -0.021085143089294434,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 0,
+            "invalid_reasons": {},
+            "lifted": 4,
+            "max_lift_m": 0.0382491249064526
+          },
+          {
+            "seconds": 0.0017661709571257234,
+            "trials": 4,
+            "rounds": 1,
+            "queries": 38,
+            "initially_penetrating": 0,
+            "initial_min_gap_m": 0.0007470846176147461,
+            "final_valid_min_gap_m": 0.0007470846176147461,
+            "invalid_trials": 0,
+            "invalid_reasons": {},
+            "lifted": 0,
+            "max_lift_m": 0.0
+          },
+          {
+            "seconds": 0.12389225303195417,
+            "trials": 128,
+            "rounds": 5,
+            "queries": 7895,
+            "initially_penetrating": 93,
+            "initial_min_gap_m": -0.053146541118621826,
+            "final_valid_min_gap_m": 9.997189044952393e-05,
+            "invalid_trials": 30,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 30
+            },
+            "lifted": 64,
+            "max_lift_m": 0.1602941050767373
+          },
+          {
+            "seconds": 0.023916832054965198,
+            "trials": 24,
+            "rounds": 4,
+            "queries": 1340,
+            "initially_penetrating": 16,
+            "initial_min_gap_m": -0.05140013247728348,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 6,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 6
+            },
+            "lifted": 10,
+            "max_lift_m": 0.10615738084666065
+          },
+          {
+            "seconds": 0.006966040004044771,
+            "trials": 12,
+            "rounds": 2,
+            "queries": 212,
+            "initially_penetrating": 8,
+            "initial_min_gap_m": -0.07194242626428604,
+            "final_valid_min_gap_m": 0.0003511525865178555,
+            "invalid_trials": 7,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 7
+            },
+            "lifted": 1,
+            "max_lift_m": 0.02749203490965646
+          },
+          {
+            "seconds": 0.001855157082900405,
+            "trials": 4,
+            "rounds": 1,
+            "queries": 48,
+            "initially_penetrating": 1,
+            "initial_min_gap_m": -0.007580150850117207,
+            "final_valid_min_gap_m": 0.001243571168743074,
+            "invalid_trials": 1,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 1
+            },
+            "lifted": 0,
+            "max_lift_m": 0.0
+          },
+          {
+            "seconds": 0.03594304306898266,
+            "trials": 36,
+            "rounds": 4,
+            "queries": 1620,
+            "initially_penetrating": 21,
+            "initial_min_gap_m": -0.05228455737233162,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 10,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 10
+            },
+            "lifted": 13,
+            "max_lift_m": 0.10730274565165043
+          },
+          {
+            "seconds": 0.03410454699769616,
+            "trials": 36,
+            "rounds": 4,
+            "queries": 1900,
+            "initially_penetrating": 24,
+            "initial_min_gap_m": -0.047879815101623535,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 6,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 6
+            },
+            "lifted": 18,
+            "max_lift_m": 0.1136761089006566
+          },
+          {
+            "seconds": 0.0030508829513564706,
+            "trials": 4,
+            "rounds": 2,
+            "queries": 126,
+            "initially_penetrating": 1,
+            "initial_min_gap_m": -0.0009738390799611807,
+            "final_valid_min_gap_m": 0.00010853249114006758,
+            "invalid_trials": 0,
+            "invalid_reasons": {},
+            "lifted": 1,
+            "max_lift_m": 0.004552203720818937
+          },
+          {
+            "seconds": 0.006833462975919247,
+            "trials": 8,
+            "rounds": 3,
+            "queries": 255,
+            "initially_penetrating": 6,
+            "initial_min_gap_m": -0.05617651343345642,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 3,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 3
+            },
+            "lifted": 3,
+            "max_lift_m": 0.056276501512527444
+          },
+          {
+            "seconds": 0.009543829946778715,
+            "trials": 12,
+            "rounds": 3,
+            "queries": 339,
+            "initially_penetrating": 8,
+            "initial_min_gap_m": -0.022341301664710045,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 2,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 2
+            },
+            "lifted": 7,
+            "max_lift_m": 0.051163769860502584
+          },
+          {
+            "seconds": 0.0017509030876681209,
+            "trials": 4,
+            "rounds": 1,
+            "queries": 40,
+            "initially_penetrating": 3,
+            "initial_min_gap_m": -0.018945783376693726,
+            "final_valid_min_gap_m": 0.009662210941314697,
+            "invalid_trials": 3,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 3
+            },
+            "lifted": 0,
+            "max_lift_m": 0.0
+          },
+          {
+            "seconds": 0.11335778201464564,
+            "trials": 120,
+            "rounds": 5,
+            "queries": 7085,
+            "initially_penetrating": 77,
+            "initial_min_gap_m": -0.05949476733803749,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 17,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 17
+            },
+            "lifted": 61,
+            "max_lift_m": 0.15905393536605245
+          },
+          {
+            "seconds": 0.005485514993779361,
+            "trials": 8,
+            "rounds": 2,
+            "queries": 200,
+            "initially_penetrating": 6,
+            "initial_min_gap_m": -0.02575133740901947,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 2,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 2
+            },
+            "lifted": 5,
+            "max_lift_m": 0.04637920856448802
+          },
+          {
+            "seconds": 0.0026870130095630884,
+            "trials": 4,
+            "rounds": 2,
+            "queries": 78,
+            "initially_penetrating": 4,
+            "initial_min_gap_m": -0.016963940113782883,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 3,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 3
+            },
+            "lifted": 1,
+            "max_lift_m": 0.004507912492752064
+          },
+          {
+            "seconds": 0.006540226982906461,
+            "trials": 12,
+            "rounds": 2,
+            "queries": 196,
+            "initially_penetrating": 8,
+            "initial_min_gap_m": -0.016284525394439697,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 3,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 3
+            },
+            "lifted": 5,
+            "max_lift_m": 0.016092671251296986
+          },
+          {
+            "seconds": 0.009222983033396304,
+            "trials": 16,
+            "rounds": 2,
+            "queries": 394,
+            "initially_penetrating": 10,
+            "initial_min_gap_m": -0.05228545516729355,
+            "final_valid_min_gap_m": 0.00010001659393310547,
+            "invalid_trials": 8,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 8
+            },
+            "lifted": 2,
+            "max_lift_m": 0.02349458213233091
+          },
+          {
+            "seconds": 0.007103750016540289,
+            "trials": 12,
+            "rounds": 2,
+            "queries": 244,
+            "initially_penetrating": 9,
+            "initial_min_gap_m": -0.07351101189851761,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 6,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 6
+            },
+            "lifted": 3,
+            "max_lift_m": 0.017210973596572865
+          },
+          {
+            "seconds": 0.1604383869562298,
+            "trials": 128,
+            "rounds": 5,
+            "queries": 17385,
+            "initially_penetrating": 95,
+            "initial_min_gap_m": -0.07323494553565979,
+            "final_valid_min_gap_m": 9.998523455578834e-05,
+            "invalid_trials": 6,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 6
+            },
+            "lifted": 89,
+            "max_lift_m": 0.15732997841000607
+          },
+          {
+            "seconds": 0.30591988703235984,
+            "trials": 264,
+            "rounds": 5,
+            "queries": 30092,
+            "initially_penetrating": 166,
+            "initial_min_gap_m": -0.07116419821977615,
+            "final_valid_min_gap_m": 3.8528629374923185e-05,
+            "invalid_trials": 11,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 10,
+              "clearance_lift_limit": 1
+            },
+            "lifted": 157,
+            "max_lift_m": 0.20000000000000018
+          },
+          {
+            "seconds": 0.48698292300105095,
+            "trials": 372,
+            "rounds": 5,
+            "queries": 44643,
+            "initially_penetrating": 245,
+            "initial_min_gap_m": -0.09015519917011261,
+            "final_valid_min_gap_m": 3.974897481384687e-05,
+            "invalid_trials": 31,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 31
+            },
+            "lifted": 215,
+            "max_lift_m": 0.18446044613809542
+          },
+          {
+            "seconds": 0.14283435000106692,
+            "trials": 116,
+            "rounds": 5,
+            "queries": 16743,
+            "initially_penetrating": 82,
+            "initial_min_gap_m": -0.05090709030628204,
+            "final_valid_min_gap_m": 9.993562707677484e-05,
+            "invalid_trials": 3,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 3
+            },
+            "lifted": 79,
+            "max_lift_m": 0.19999999999999996
+          },
+          {
+            "seconds": 0.10774946596939117,
+            "trials": 96,
+            "rounds": 4,
+            "queries": 10529,
+            "initially_penetrating": 69,
+            "initial_min_gap_m": -0.04991311952471733,
+            "final_valid_min_gap_m": 9.996211883844808e-05,
+            "invalid_trials": 10,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 10
+            },
+            "lifted": 59,
+            "max_lift_m": 0.14999999999999997
+          },
+          {
+            "seconds": 0.2394836019957438,
+            "trials": 172,
+            "rounds": 6,
+            "queries": 20361,
+            "initially_penetrating": 99,
+            "initial_min_gap_m": -0.08494625240564346,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 17,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 17
+            },
+            "lifted": 82,
+            "max_lift_m": 0.22466216565619668
+          },
+          {
+            "seconds": 0.06354148802347481,
+            "trials": 40,
+            "rounds": 6,
+            "queries": 7398,
+            "initially_penetrating": 32,
+            "initial_min_gap_m": -0.07118058204650879,
+            "final_valid_min_gap_m": 0.00010000768816098571,
+            "invalid_trials": 5,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 5
+            },
+            "lifted": 27,
+            "max_lift_m": 0.22466216565619668
+          },
+          {
+            "seconds": 0.14692051196470857,
+            "trials": 116,
+            "rounds": 5,
+            "queries": 13952,
+            "initially_penetrating": 75,
+            "initial_min_gap_m": -0.0642392635345459,
+            "final_valid_min_gap_m": -5.841255187988281e-06,
+            "invalid_trials": 13,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 13
+            },
+            "lifted": 65,
+            "max_lift_m": 0.1764116315251295
+          },
+          {
+            "seconds": 0.06946769705973566,
+            "trials": 52,
+            "rounds": 5,
+            "queries": 8595,
+            "initially_penetrating": 41,
+            "initial_min_gap_m": -0.04485206678509712,
+            "final_valid_min_gap_m": 0.00010007019591284916,
+            "invalid_trials": 2,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 2
+            },
+            "lifted": 40,
+            "max_lift_m": 0.1764116315251295
+          },
+          {
+            "seconds": 0.05686981801409274,
+            "trials": 60,
+            "rounds": 4,
+            "queries": 4021,
+            "initially_penetrating": 38,
+            "initial_min_gap_m": -0.04521739110350609,
+            "final_valid_min_gap_m": 9.995698928833008e-05,
+            "invalid_trials": 1,
+            "invalid_reasons": {
+              "clearance_non_upward_contact": 1
+            },
+            "lifted": 37,
+            "max_lift_m": 0.10162461788608146
+          },
+          {
+            "seconds": 0.015701888012699783,
+            "trials": 20,
+            "rounds": 3,
+            "queries": 1289,
+            "initially_penetrating": 15,
+            "initial_min_gap_m": -0.0383736714720726,
+            "final_valid_min_gap_m": 9.998679161071777e-05,
+            "invalid_trials": 0,
+            "invalid_reasons": {},
+            "lifted": 15,
+            "max_lift_m": 0.05940258936073095
+          }
+        ]
+      },
+      "identical_tree": true,
+      "wall_increase_percent": 2.6625860957673053,
+      "clearance_seconds": 2.7043929260689765
+    }
+  ],
+  "benchmark_sources": {
+    "tests/benchmark_place_robustness_clearance.py": "bdd22cd88f61a2c8830cee8f5874b0edc9e8b02c168554ff0cadc64c7d9843f1",
+    "tests/benchmark_excavator_cuda_mcts.py": "6605855cec22228850e3a8c3a7727780422c5a4decf343dfc2292fd20e81748d"
+  },
+  "mcts_profiles": {
+    "mcts_profile": {
+      "tree": {
+        "max_depth": 4,
+        "max_children": 16,
+        "exploration_constant": 2.0,
+        "discount": 0.9,
+        "root_max_children": 32,
+        "expansion_attempt_multiplier": 3.0,
+        "failure_reward": -1.0,
+        "generation_batch_size": 32,
+        "expansion_retry_batches": 3,
+        "min_feasible_children": 3,
+        "evaluation_batch_size": 256,
+        "final_validation_candidates": 32,
+        "initial_depth1_steps": 0,
+        "validate_root_before_search": true,
+        "root_lookahead": true,
+        "rejected_root_retry_rounds": 3,
+        "final_selection": {
+          "mode": "mixed",
+          "max_weight": 0.5,
+          "validate_descendant_path": true,
+          "validate_descendant_depth": 2,
+          "require_validated_descendant": true
+        },
+        "widening": {
+          "enabled": true,
+          "coefficient": 3.0,
+          "exponent": 0.5
+        }
+      },
+      "request": {
+        "iterations": 64,
+        "evaluation_fidelity": "short",
+        "epsilon": 0.0,
+        "reset_statistics": true,
+        "root_sampling_priority": "lower_floor_first",
+        "deeper_sampling_priority": "lower_floor_first",
+        "max_time_seconds": 240.0,
+        "simulation_depth": 5,
+        "beyond_depth_fidelity": "long",
+        "final_validation_fidelity": "long",
+        "final_validation_reserve_seconds": 60.0,
+        "revalidate_children": false,
+        "revalidation_fidelity": "long",
+        "max_revalidation_drift": 0.1,
+        "execution_rejections": {
+          "actions": [],
+          "object_ids": [],
+          "xy_radius": 0.18,
+          "z_radius": 0.25,
+          "same_object_only": true,
+          "use_initial_pose": false
+        },
+        "seed_actions": []
+      },
+      "root_cem": {
+        "population": 96,
+        "elite": 32,
+        "iterations": 3,
+        "keep": 32,
+        "mutation_xy_std": 0.2,
+        "mutation_yaw_std": 0.08726646259971647,
+        "fresh_fraction": 0.5,
+        "duplicate_xy_threshold": 0.03,
+        "duplicate_yaw_threshold": 0.08726646259971647,
+        "max_per_object": 2,
+        "height_map_score_weight": 1.0,
+        "seed": 0
+      },
+      "parallel": {
+        "enabled": true,
+        "workers": 4,
+        "posegen_backend": "cuda",
+        "simulation_backend": "cuda",
+        "posegen_capacity": {
+          "batch": 512,
+          "bodies": 64,
+          "geometries": 256,
+          "pairs": 4096,
+          "contacts": 512,
+          "incidences": 1024
+        }
+      },
+      "bootstrap_mean_reward": 2.5,
+      "bootstrap_horizon": 4
+    },
+    "posegen_profile": {
+      "frame_id": 1,
+      "target_model_id": 1000000,
+      "target_entity_id": 1000001,
+      "target_friction": 1.0,
+      "target_sharpness": 20,
+      "target_epsilon": 1e-09,
+      "placed_as_boundaries": false,
+      "boundary_radius": 0.5,
+      "trust_region": {
+        "delta_expansion_rate": 2.0,
+        "delta_init": 0.125,
+        "delta_lower_thresh": 0.25,
+        "delta_max": 1.0,
+        "delta_reduction_rate": 0.25,
+        "delta_upper_thresh": 0.75,
+        "eps": 0.1,
+        "improvement_thresh": 0.125,
+        "max_iters": 100,
+        "tol": 1e-08
+      },
+      "hausdorff": {
+        "eps": 0.001,
+        "error_tol": 1e-10,
+        "gain_ratio_lower_thresh": 0.05,
+        "gain_ratio_max": 10000000000.0,
+        "gain_ratio_upper_thresh": 0.9,
+        "max_iters": 50,
+        "radius_expansion_rate": 3.0,
+        "radius_init": 10.0,
+        "radius_reduction_rate": 0.25
+      },
+      "objective": {
+        "eps_comp": 0.01,
+        "eps_cone": 0.01,
+        "eps_gap": 0.01,
+        "eps_target": 0.05,
+        "gravity": 9.81,
+        "ground_height": 0.0,
+        "k_box": 20.0,
+        "k_comp": 0.0,
+        "k_gap": 0.0,
+        "k_gap_c": 80.0,
+        "k_lower": 0.0,
+        "k_potential": 1.0,
+        "k_reg": 0.0,
+        "k_target": 1.0,
+        "k_wrench": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "k_xy": 0.0,
+        "narrow_phase_candidate_tol": 0.1,
+        "narrow_phase_scene_tol": 0.005,
+        "rho": 0.01,
+        "w_box": 2.0
+      },
+      "force_solver": {
+        "beta_consensus": 1.0,
+        "beta_contact": 1.0,
+        "beta_update_interval": 20,
+        "max_iters": 1000,
+        "tol_abs": 0.001,
+        "tol_rel": 0.0001
+      },
+      "schedule": {
+        "times": [
+          0.0,
+          0.3333333333333333,
+          0.6666666666666666,
+          1.0
+        ],
+        "max_iters_warmup": 50,
+        "max_iters_final": 75,
+        "objective_weights": {
+          "k_wrench": {
+            "ramp": 1.0
+          },
+          "k_comp": {
+            "ramp": 10.0
+          },
+          "k_gap_c": {
+            "constant": 40.0,
+            "ramp": 150.0,
+            "gap_feedback": 100000.0
+          },
+          "k_gap": {
+            "sine": 10.0
+          },
+          "k_target": {
+            "anti_ramp": 5.0
+          },
+          "k_xy": {
+            "anti_ramp": 1.0
+          },
+          "k_potential": {
+            "constant": 0.1,
+            "anti_ramp": 0.1
+          },
+          "k_reg": {
+            "anti_ramp": 3.0
+          },
+          "k_lower": {
+            "anti_ramp": 5.0
+          }
+        }
+      }
+    },
+    "simulation_profile": {
+      "gravity": [
+        0.0,
+        0.0,
+        -9.81
+      ],
+      "contact_model": "limit_surface_4d",
+      "detection_margin": 0.01,
+      "solver_tol_abs": 0.0001,
+      "solver_tol_rel": 1e-05,
+      "damping": 0.0,
+      "error_reduction_ratio": 0.2,
+      "solver_constraint_scale_reference": 0.001,
+      "solver_beta_init": 0.1,
+      "solver_beta_update_interval": 50,
+      "solver_max_iters": 2000,
+      "solver_stagnation_window": 0,
+      "placement": {
+        "structural": {
+          "dt": 0.01,
+          "energy_threshold": 1e-05,
+          "velocity_integral_threshold": 0.2,
+          "min_time": 3.0,
+          "max_time": 15.0,
+          "extra_steps": 150,
+          "freeze_radius": null,
+          "final_extra_steps": 300
+        },
+        "settle_dt": 0.01,
+        "settle_steps": 400,
+        "contact_gap_tolerance": 0.02,
+        "minimum_support_count": 1,
+        "short_gate": {
+          "dt": 0.01,
+          "energy_threshold": 1e-05,
+          "velocity_integral_threshold": 0.2,
+          "min_time": 0.5,
+          "max_time": 4.0,
+          "extra_steps": 20,
+          "freeze_radius": 1.5,
+          "final_extra_steps": 40
+        },
+        "ground_z": 0.0,
+        "ground_friction": 5.0,
+        "settle_sample_count": 64,
+        "frame_id": 1,
+        "support_chain_z_tolerance": 0.05
+      },
+      "settling_physics": {
+        "gravity": [
+          0.0,
+          0.0,
+          -9.81
+        ],
+        "contact_model": "single_point",
+        "detection_margin": 0.01,
+        "solver_tol_abs": 0.001,
+        "solver_tol_rel": 0.0001,
+        "damping": 0.0,
+        "error_reduction_ratio": 0.2,
+        "solver_constraint_scale_reference": 0.001,
+        "solver_beta_init": 0.1,
+        "solver_beta_update_interval": 50,
+        "solver_max_iters": 2000,
+        "solver_stagnation_window": 0
+      }
+    },
+    "short_simulation_profile": {
+      "gravity": [
+        0.0,
+        0.0,
+        -9.81
+      ],
+      "contact_model": "limit_surface_4d",
+      "detection_margin": 0.01,
+      "solver_tol_abs": 0.0001,
+      "solver_tol_rel": 1e-05,
+      "damping": 0.0,
+      "error_reduction_ratio": 0.2,
+      "solver_constraint_scale_reference": 0.001,
+      "solver_beta_init": 0.1,
+      "solver_beta_update_interval": 50,
+      "solver_max_iters": 2000,
+      "solver_stagnation_window": 0,
+      "placement": {
+        "structural": {
+          "dt": 0.01,
+          "energy_threshold": 1e-05,
+          "velocity_integral_threshold": 0.2,
+          "min_time": 0.5,
+          "max_time": 4.0,
+          "extra_steps": 20,
+          "freeze_radius": 1.5,
+          "final_extra_steps": 40
+        },
+        "settle_dt": 0.01,
+        "settle_steps": 400,
+        "contact_gap_tolerance": 0.02,
+        "minimum_support_count": 1,
+        "short_gate": null,
+        "ground_z": 0.0,
+        "ground_friction": 5.0,
+        "settle_sample_count": 64,
+        "frame_id": 1,
+        "support_chain_z_tolerance": 0.05
+      },
+      "settling_physics": {
+        "gravity": [
+          0.0,
+          0.0,
+          -9.81
+        ],
+        "contact_model": "single_point",
+        "detection_margin": 0.01,
+        "solver_tol_abs": 0.001,
+        "solver_tol_rel": 0.0001,
+        "damping": 0.0,
+        "error_reduction_ratio": 0.2,
+        "solver_constraint_scale_reference": 0.001,
+        "solver_beta_init": 0.1,
+        "solver_beta_update_interval": 50,
+        "solver_max_iters": 2000,
+        "solver_stagnation_window": 0
+      }
+    },
+    "environment_profile": {
+      "observation": {
+        "max_poses_per_object": 32,
+        "height_map_resolution": [
+          128,
+          128
+        ],
+        "render_height_map": true,
+        "action_sample_count": 96,
+        "banned_object_ids": []
+      },
+      "surface_sample_count": 128,
+      "height_map_margin": 1.0,
+      "overlap_resolution": 0.03,
+      "reward": {
+        "posegen_threshold": 1.0,
+        "containment_threshold": 0.5,
+        "weights": {
+          "stability": 2.0,
+          "object_containment": 2.0,
+          "target_overlap_increment": 20.0,
+          "place_stability": 2.0,
+          "large_object_lower": 3.0,
+          "inward_orientation": 6.0
+        },
+        "nonfinite_displacement": 2.0,
+        "max_displacement": 1.0
+      },
+      "place_stability": {
+        "enabled": true,
+        "n_noise": 4,
+        "position_std": [
+          0.02,
+          0.02,
+          0.02
+        ],
+        "rotation_std_deg": 5.0,
+        "rotation_weight": 0.1,
+        "fail_displacement": 0.2,
+        "seed": 0,
+        "reject_failed_trials": true
+      }
+    },
+    "action_generation_profile": {
+      "generator": {
+        "max_poses_per_object": 32,
+        "initial_height_clearance": 0.15,
+        "initial_height_xy_padding": 0.12,
+        "posegen_gap_threshold": 0.005,
+        "posegen_equilibrium_threshold": 1.0,
+        "banned_object_ids": [],
+        "require_solver_convergence": false,
+        "reject_equilibrium_at_threshold": true
+      },
+      "planar": {
+        "grid_shape": [
+          32,
+          32
+        ],
+        "yaw_angles": [
+          0.0,
+          1.5707963267948966,
+          3.141592653589793,
+          4.71238898038469
+        ],
+        "target_anchor_inset_scale": 0.9
+      },
+      "strict_floor_first": true
+    }
+  }
+}

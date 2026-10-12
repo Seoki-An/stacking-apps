@@ -49,6 +49,13 @@ class CudaPlacementBackend(CorePlacementBackend):
     def _new_settling_simulator(self):
         return None
 
+    def _release_clearance_checker(self):
+        if self._release_clearance is None:
+            from .release_clearance import ReleaseClearance
+            from ._cuda_release_clearance import CudaReleaseQueries
+            self._release_clearance = ReleaseClearance(self, CudaReleaseQueries(self))
+        return self._release_clearance
+
     def restore(self, state):
         if list(state.object_ids) != self.object_ids:
             raise ValueError('state inventory does not match the backend')
@@ -278,12 +285,19 @@ class CudaPlacementBackend(CorePlacementBackend):
         config = self.place_stability
         if not config.active:
             return [(0., [], []) for _ in jobs]
+        from .release_clearance import prepare_release_trials
+        prepared = prepare_release_trials(self, [
+            (state, action, snapshot.body_pose(self.scene_builder.entity_id(action.object_index)))
+            for state, action, snapshot in jobs])
         problems, trials = [], []
-        for i, (state, action, snapshot) in enumerate(jobs):
+        displacements = [[float('inf')] * len(group) for group in prepared]
+        reasons = [[trial.failure_reason for trial in group] for group in prepared]
+        for i, ((state, action, _), group) in enumerate(zip(jobs, prepared)):
             indices = [*state.placed_object_indices, action.object_index]
-            entity = self.scene_builder.entity_id(action.object_index)
-            for noisy in config.noisy_poses(snapshot.body_pose(entity), step=len(indices),
-                                            object_index=action.object_index, object_id=action.object_id):
+            for number, release in enumerate(group):
+                if release.failure_reason is not None:
+                    continue
+                noisy = release.pose
                 trial = action.copy()
                 trial.pose = noisy
                 scene = self._scene(state, trial, indices, dynamic_indices={action.object_index})
@@ -295,17 +309,17 @@ class CudaPlacementBackend(CorePlacementBackend):
                 phase = self._robustness_phase(phase_config, action.object_index)
                 native_stop = getattr(phase, 'robustness', None) is not None
                 problems.append(self._problem(len(problems), scene, self.simulation_config, [phase]))
-                trials.append((i, action, noisy, phase_config, native_stop))
-        displacements, reasons = [[] for _ in jobs], [[] for _ in jobs]
-        for (i, action, noisy, config_phase, native_stop), out in zip(trials, self._run(problems)):
+                trials.append((i, number, action, noisy, phase_config, native_stop))
+        outputs = self._run(problems) if problems else []
+        for (i, number, action, noisy, config_phase, native_stop), out in zip(trials, outputs, strict=True):
             stop = self._native_robustness_stop if native_stop else self._robustness_stop
             final, reason, finished = stop(action, noisy, config_phase, out)
             if not finished:
                 displacement, reason = float('inf'), 'simulation_cuda_' + out.status.name
             else:
                 displacement = pose_displacement(noisy, final, config.rotation_weight)
-            displacements[i].append(displacement)
-            reasons[i].append(reason)
+            displacements[i][number] = displacement
+            reasons[i][number] = reason
         return [(max(d, default=0.), d, r) for d, r in zip(displacements, reasons)]
 
     def _robustness_phase(self, config, object_index):

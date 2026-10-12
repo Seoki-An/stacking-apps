@@ -14,7 +14,8 @@ reward:
   containment_threshold: 0.5
   nonfinite_displacement: 2.0
   max_displacement: 1.0
-  # Placement uncertainty; Z perturbations are always upward.
+  # Placement uncertainty; noisy releases are checked and corrected upward.
+  # Unresolved initial collisions always reject while trials are enabled.
   place_stability:
     enabled: true
     n_noise: 4

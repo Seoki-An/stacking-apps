@@ -1,0 +1,676 @@
+{
+  "stack": "/home/inrol-excavator/workspace/stacking/stacking-apps/.stacks/excavator_plan1.stack",
+  "benchmark_script_sha256": "4eb1e5923264ad6ea5dee49dd8a5c45443af799ad8d8dcb9ac57b2556485a119",
+  "stack_sha256": "f35b0b7b47472e5a6cde4c1dacb8a21c9b99dfe37e6cac1ae0da078b0aff4f26",
+  "native_sha256": "c2b41d436e410d949baf8377eff9d06355f904733389c92e85d8ffe952ba8b72",
+  "cuda": {
+    "posegen_solve": true,
+    "posegen_experimental": true,
+    "sceneid_scan": true,
+    "simulation_solve": true,
+    "simulation_constraints_3d": true,
+    "simulation_experimental": true,
+    "simulation_contacts_4d": true,
+    "error": null,
+    "compiled": true,
+    "batch_preparation": true,
+    "geometry_queries": true,
+    "force_graph_solve": true,
+    "geometry_precision": "float32",
+    "devices": [
+      {
+        "index": 0,
+        "name": "NVIDIA GeForce RTX 5060 Ti",
+        "major": 12,
+        "minor": 0,
+        "memory_bytes": 16608788480
+      }
+    ]
+  },
+  "simulation_profile": {
+    "gravity": [
+      0.0,
+      0.0,
+      -9.81
+    ],
+    "contact_model": "limit_surface_4d",
+    "detection_margin": 0.01,
+    "solver_tol_abs": 0.0001,
+    "solver_tol_rel": 1e-05,
+    "damping": 0.0,
+    "error_reduction_ratio": 0.2,
+    "solver_constraint_scale_reference": 0.001,
+    "solver_beta_init": 0.1,
+    "solver_beta_update_interval": 50,
+    "solver_max_iters": 2000,
+    "solver_stagnation_window": 0,
+    "placement": {
+      "structural": {
+        "dt": 0.01,
+        "energy_threshold": 1e-05,
+        "velocity_integral_threshold": 0.2,
+        "min_time": 3.0,
+        "max_time": 15.0,
+        "extra_steps": 150,
+        "freeze_radius": null,
+        "final_extra_steps": 300
+      },
+      "settle_dt": 0.01,
+      "settle_steps": 400,
+      "contact_gap_tolerance": 0.02,
+      "minimum_support_count": 1,
+      "short_gate": {
+        "dt": 0.01,
+        "energy_threshold": 1e-05,
+        "velocity_integral_threshold": 0.2,
+        "min_time": 0.5,
+        "max_time": 4.0,
+        "extra_steps": 20,
+        "freeze_radius": 1.5,
+        "final_extra_steps": 40
+      },
+      "ground_z": 0.0,
+      "ground_friction": 5.0,
+      "settle_sample_count": 64,
+      "frame_id": 1,
+      "support_chain_z_tolerance": 0.05
+    },
+    "settling_physics": {
+      "gravity": [
+        0.0,
+        0.0,
+        -9.81
+      ],
+      "contact_model": "single_point",
+      "detection_margin": 0.01,
+      "solver_tol_abs": 0.001,
+      "solver_tol_rel": 0.0001,
+      "damping": 0.0,
+      "error_reduction_ratio": 0.2,
+      "solver_constraint_scale_reference": 0.001,
+      "solver_beta_init": 0.1,
+      "solver_beta_update_interval": 50,
+      "solver_max_iters": 2000,
+      "solver_stagnation_window": 0
+    }
+  },
+  "place_stability": {
+    "enabled": true,
+    "n_noise": 4,
+    "position_std": [
+      0.02,
+      0.02,
+      0.02
+    ],
+    "rotation_std_deg": 5.0,
+    "rotation_weight": 0.1,
+    "fail_displacement": 0.2,
+    "seed": 0,
+    "reject_failed_trials": true
+  },
+  "measurements": [
+    {
+      "step": 1,
+      "placed": 0,
+      "batch": 32,
+      "candidates": [
+        "step-1-candidate-9",
+        "step-1-candidate-1",
+        "step-1-candidate-2",
+        "step-1-candidate-3",
+        "step-1-candidate-4",
+        "step-1-candidate-5",
+        "step-1-candidate-6",
+        "step-1-candidate-7",
+        "step-1-candidate-8",
+        "step-1-candidate-10",
+        "step-1-candidate-11",
+        "step-1-candidate-12",
+        "step-1-candidate-13",
+        "step-1-candidate-14",
+        "step-1-candidate-15",
+        "step-1-candidate-16",
+        "step-1-candidate-17",
+        "step-1-candidate-18",
+        "step-1-candidate-19",
+        "step-1-candidate-20",
+        "step-1-candidate-21",
+        "step-1-candidate-22",
+        "step-1-candidate-23",
+        "step-1-candidate-24",
+        "step-1-candidate-25",
+        "step-1-candidate-26",
+        "step-1-candidate-27",
+        "step-1-candidate-28",
+        "step-1-candidate-29",
+        "step-1-candidate-30",
+        "step-1-candidate-31",
+        "step-1-candidate-32"
+      ],
+      "baseline": [
+        {
+          "total_seconds": 0.4423762949882075,
+          "robustness": {
+            "seconds": 0.14148407196626067,
+            "trial_reasons": {
+              "target_motion_limit": 102,
+              "passed": 25,
+              "not_settled": 1
+            }
+          },
+          "candidate_reasons": {
+            "place_robustness": 14,
+            "passed": 6,
+            "target_motion_limit": 12
+          }
+        },
+        {
+          "total_seconds": 0.4425243450095877,
+          "robustness": {
+            "seconds": 0.14195266307797283,
+            "trial_reasons": {
+              "target_motion_limit": 102,
+              "passed": 25,
+              "not_settled": 1
+            }
+          },
+          "candidate_reasons": {
+            "place_robustness": 14,
+            "passed": 6,
+            "target_motion_limit": 12
+          }
+        },
+        {
+          "total_seconds": 0.44266658497508615,
+          "robustness": {
+            "seconds": 0.14122531295288354,
+            "trial_reasons": {
+              "target_motion_limit": 102,
+              "passed": 25,
+              "not_settled": 1
+            }
+          },
+          "candidate_reasons": {
+            "place_robustness": 14,
+            "passed": 6,
+            "target_motion_limit": 12
+          }
+        }
+      ],
+      "corrected": [
+        {
+          "total_seconds": 0.4577919760486111,
+          "robustness": {
+            "seconds": 0.15742820699233562,
+            "trial_reasons": {
+              "target_motion_limit": 103,
+              "passed": 24,
+              "not_settled": 1
+            }
+          },
+          "candidate_reasons": {
+            "place_robustness": 15,
+            "passed": 5,
+            "target_motion_limit": 12
+          },
+          "clearance": {
+            "seconds": 0.006489894934929907,
+            "trials": 128,
+            "rounds": 2,
+            "queries": 632,
+            "initially_penetrating": 61,
+            "invalid_trials": 0,
+            "max_lift_m": 0.06856027076244356,
+            "final_valid_min_gap_m": 9.998679161071777e-05
+          }
+        },
+        {
+          "total_seconds": 0.45986197609454393,
+          "robustness": {
+            "seconds": 0.15718178008683026,
+            "trial_reasons": {
+              "target_motion_limit": 103,
+              "passed": 24,
+              "not_settled": 1
+            }
+          },
+          "candidate_reasons": {
+            "place_robustness": 15,
+            "passed": 5,
+            "target_motion_limit": 12
+          },
+          "clearance": {
+            "seconds": 0.006598933949135244,
+            "trials": 128,
+            "rounds": 2,
+            "queries": 632,
+            "initially_penetrating": 61,
+            "invalid_trials": 0,
+            "max_lift_m": 0.06856027076244356,
+            "final_valid_min_gap_m": 9.998679161071777e-05
+          }
+        },
+        {
+          "total_seconds": 0.4582828659331426,
+          "robustness": {
+            "seconds": 0.15704450500197709,
+            "trial_reasons": {
+              "target_motion_limit": 103,
+              "passed": 24,
+              "not_settled": 1
+            }
+          },
+          "candidate_reasons": {
+            "place_robustness": 15,
+            "passed": 5,
+            "target_motion_limit": 12
+          },
+          "clearance": {
+            "seconds": 0.006778251030482352,
+            "trials": 128,
+            "rounds": 2,
+            "queries": 632,
+            "initially_penetrating": 61,
+            "invalid_trials": 0,
+            "max_lift_m": 0.06856027076244356,
+            "final_valid_min_gap_m": 9.998679161071777e-05
+          }
+        }
+      ]
+    },
+    {
+      "step": 8,
+      "placed": 7,
+      "batch": 32,
+      "candidates": [
+        "step-8-candidate-14",
+        "step-8-candidate-1",
+        "step-8-candidate-2",
+        "step-8-candidate-3",
+        "step-8-candidate-4",
+        "step-8-candidate-5",
+        "step-8-candidate-6",
+        "step-8-candidate-7",
+        "step-8-candidate-8",
+        "step-8-candidate-9",
+        "step-8-candidate-10",
+        "step-8-candidate-11",
+        "step-8-candidate-12",
+        "step-8-candidate-13",
+        "step-8-candidate-15",
+        "step-8-candidate-16",
+        "step-8-candidate-17",
+        "step-8-candidate-18",
+        "step-8-candidate-19",
+        "step-8-candidate-20",
+        "step-8-candidate-21",
+        "step-8-candidate-22",
+        "step-8-candidate-23",
+        "step-8-candidate-24",
+        "step-8-candidate-25",
+        "step-8-candidate-26",
+        "step-8-candidate-27",
+        "step-8-candidate-28",
+        "step-8-candidate-29",
+        "step-8-candidate-30",
+        "step-8-candidate-31",
+        "step-8-candidate-32"
+      ],
+      "baseline": [
+        {
+          "total_seconds": 1.5819166679866612,
+          "robustness": {
+            "seconds": 0.6374631230719388,
+            "trial_reasons": {
+              "passed": 67,
+              "target_motion_limit": 58,
+              "not_settled": 3
+            }
+          },
+          "candidate_reasons": {
+            "passed": 10,
+            "place_robustness": 13,
+            "target_motion_limit": 9
+          }
+        },
+        {
+          "total_seconds": 1.5632963619427755,
+          "robustness": {
+            "seconds": 0.6335016239900142,
+            "trial_reasons": {
+              "passed": 67,
+              "target_motion_limit": 58,
+              "not_settled": 3
+            }
+          },
+          "candidate_reasons": {
+            "passed": 10,
+            "place_robustness": 13,
+            "target_motion_limit": 9
+          }
+        },
+        {
+          "total_seconds": 1.6127839280525222,
+          "robustness": {
+            "seconds": 0.6546796630136669,
+            "trial_reasons": {
+              "passed": 67,
+              "target_motion_limit": 58,
+              "not_settled": 3
+            }
+          },
+          "candidate_reasons": {
+            "passed": 10,
+            "place_robustness": 13,
+            "target_motion_limit": 9
+          }
+        }
+      ],
+      "corrected": [
+        {
+          "total_seconds": 1.2682370120892301,
+          "robustness": {
+            "seconds": 0.3230309219798073,
+            "trial_reasons": {
+              "passed": 39,
+              "initial_clearance_lateral_contact": 18,
+              "target_motion_limit": 54,
+              "initial_clearance_lift_limit": 14,
+              "not_settled": 3
+            }
+          },
+          "candidate_reasons": {
+            "place_robustness_initial_clearance": 13,
+            "place_robustness": 8,
+            "passed": 2,
+            "target_motion_limit": 9
+          },
+          "clearance": {
+            "seconds": 0.022541697951965034,
+            "trials": 128,
+            "rounds": 2,
+            "queries": 2553,
+            "initially_penetrating": 76,
+            "invalid_trials": 32,
+            "max_lift_m": 0.15067884904397727,
+            "final_valid_min_gap_m": -9.595352821634151e-06
+          }
+        },
+        {
+          "total_seconds": 1.285253838985227,
+          "robustness": {
+            "seconds": 0.3264500140212476,
+            "trial_reasons": {
+              "passed": 39,
+              "initial_clearance_lateral_contact": 18,
+              "target_motion_limit": 54,
+              "initial_clearance_lift_limit": 14,
+              "not_settled": 3
+            }
+          },
+          "candidate_reasons": {
+            "place_robustness_initial_clearance": 13,
+            "place_robustness": 8,
+            "passed": 2,
+            "target_motion_limit": 9
+          },
+          "clearance": {
+            "seconds": 0.02206778700929135,
+            "trials": 128,
+            "rounds": 2,
+            "queries": 2553,
+            "initially_penetrating": 76,
+            "invalid_trials": 32,
+            "max_lift_m": 0.15067884904397727,
+            "final_valid_min_gap_m": -9.595352821634151e-06
+          }
+        },
+        {
+          "total_seconds": 1.2828718239907175,
+          "robustness": {
+            "seconds": 0.3274561769794673,
+            "trial_reasons": {
+              "passed": 39,
+              "initial_clearance_lateral_contact": 18,
+              "target_motion_limit": 54,
+              "initial_clearance_lift_limit": 14,
+              "not_settled": 3
+            }
+          },
+          "candidate_reasons": {
+            "place_robustness_initial_clearance": 13,
+            "place_robustness": 8,
+            "passed": 2,
+            "target_motion_limit": 9
+          },
+          "clearance": {
+            "seconds": 0.02249622205272317,
+            "trials": 128,
+            "rounds": 2,
+            "queries": 2553,
+            "initially_penetrating": 76,
+            "invalid_trials": 32,
+            "max_lift_m": 0.15067884904397727,
+            "final_valid_min_gap_m": -9.595352821634151e-06
+          }
+        }
+      ]
+    },
+    {
+      "step": 15,
+      "placed": 14,
+      "batch": 32,
+      "candidates": [
+        "step-15-candidate-21",
+        "step-15-candidate-1",
+        "step-15-candidate-2",
+        "step-15-candidate-3",
+        "step-15-candidate-4",
+        "step-15-candidate-5",
+        "step-15-candidate-6",
+        "step-15-candidate-7",
+        "step-15-candidate-8",
+        "step-15-candidate-9",
+        "step-15-candidate-10",
+        "step-15-candidate-11",
+        "step-15-candidate-12",
+        "step-15-candidate-13",
+        "step-15-candidate-14",
+        "step-15-candidate-15",
+        "step-15-candidate-16",
+        "step-15-candidate-17",
+        "step-15-candidate-18",
+        "step-15-candidate-19",
+        "step-15-candidate-20",
+        "step-15-candidate-22",
+        "step-15-candidate-23",
+        "step-15-candidate-24",
+        "step-15-candidate-25",
+        "step-15-candidate-26",
+        "step-15-candidate-27",
+        "step-15-candidate-28",
+        "step-15-candidate-29",
+        "step-15-candidate-30",
+        "step-15-candidate-31",
+        "step-15-candidate-32"
+      ],
+      "baseline": [
+        {
+          "total_seconds": 1.9520832260604948,
+          "robustness": {
+            "seconds": 0.44709654396865517,
+            "trial_reasons": {
+              "passed": 105,
+              "target_motion_limit": 23
+            }
+          },
+          "candidate_reasons": {
+            "passed": 20,
+            "place_robustness": 10,
+            "target_motion_limit": 2
+          }
+        },
+        {
+          "total_seconds": 1.9419379499740899,
+          "robustness": {
+            "seconds": 0.4454211330739781,
+            "trial_reasons": {
+              "passed": 105,
+              "target_motion_limit": 23
+            }
+          },
+          "candidate_reasons": {
+            "passed": 20,
+            "place_robustness": 10,
+            "target_motion_limit": 2
+          }
+        },
+        {
+          "total_seconds": 1.9455934939906,
+          "robustness": {
+            "seconds": 0.4455133599694818,
+            "trial_reasons": {
+              "passed": 105,
+              "target_motion_limit": 23
+            }
+          },
+          "candidate_reasons": {
+            "passed": 20,
+            "place_robustness": 10,
+            "target_motion_limit": 2
+          }
+        }
+      ],
+      "corrected": [
+        {
+          "total_seconds": 1.9278748360229656,
+          "robustness": {
+            "seconds": 0.42600434098858386,
+            "trial_reasons": {
+              "passed": 93,
+              "target_motion_limit": 25,
+              "initial_clearance_lateral_contact": 6,
+              "not_settled": 1,
+              "initial_clearance_lift_limit": 3
+            }
+          },
+          "candidate_reasons": {
+            "passed": 14,
+            "place_robustness": 9,
+            "place_robustness_initial_clearance": 7,
+            "target_motion_limit": 2
+          },
+          "clearance": {
+            "seconds": 0.04279424902051687,
+            "trials": 128,
+            "rounds": 2,
+            "queries": 6553,
+            "initially_penetrating": 96,
+            "invalid_trials": 9,
+            "max_lift_m": 0.1923139566419283,
+            "final_valid_min_gap_m": 0.00010002493945648894
+          }
+        },
+        {
+          "total_seconds": 1.925373823964037,
+          "robustness": {
+            "seconds": 0.4261969180079177,
+            "trial_reasons": {
+              "passed": 93,
+              "target_motion_limit": 25,
+              "initial_clearance_lateral_contact": 6,
+              "not_settled": 1,
+              "initial_clearance_lift_limit": 3
+            }
+          },
+          "candidate_reasons": {
+            "passed": 14,
+            "place_robustness": 9,
+            "place_robustness_initial_clearance": 7,
+            "target_motion_limit": 2
+          },
+          "clearance": {
+            "seconds": 0.04302522900979966,
+            "trials": 128,
+            "rounds": 2,
+            "queries": 6553,
+            "initially_penetrating": 96,
+            "invalid_trials": 9,
+            "max_lift_m": 0.1923139566419283,
+            "final_valid_min_gap_m": 0.00010002493945648894
+          }
+        },
+        {
+          "total_seconds": 1.9313198699383065,
+          "robustness": {
+            "seconds": 0.4356659350451082,
+            "trial_reasons": {
+              "passed": 93,
+              "target_motion_limit": 25,
+              "initial_clearance_lateral_contact": 6,
+              "not_settled": 1,
+              "initial_clearance_lift_limit": 3
+            }
+          },
+          "candidate_reasons": {
+            "passed": 14,
+            "place_robustness": 9,
+            "place_robustness_initial_clearance": 7,
+            "target_motion_limit": 2
+          },
+          "clearance": {
+            "seconds": 0.05429109209217131,
+            "trials": 128,
+            "rounds": 2,
+            "queries": 6553,
+            "initially_penetrating": 96,
+            "invalid_trials": 9,
+            "max_lift_m": 0.1923139566419283,
+            "final_valid_min_gap_m": 0.00010002493945648894
+          }
+        }
+      ]
+    }
+  ],
+  "clearance_workspace_bytes": {
+    "128": 14709620
+  },
+  "clearance_source_sha256": {
+    "packages/stacking-common/src/stacking_common/environment/release_clearance.py": "0913014b1bed7c228b70c29c794f5335815be1ce31310e90d1e78ac9055e5b0b",
+    "packages/stacking-common/src/stacking_common/environment/_cpu_release_clearance.py": "0d6ede7003cedc77964cd37295c5a06b34ce92d3236db3aa9fbf24cc2644e618",
+    "packages/stacking-common/src/stacking_common/environment/_cuda_release_clearance.py": "f31b03f804c4a7a16b389e173a6856335a2dfbf98d0a90f34390f041060a6e8a",
+    "packages/stacking-common/src/stacking_common/environment/cuda_backend.py": "40fc87103ab2ebe4ae48b77d796f39b706e09b57b4d72383791180d279b3474e",
+    "packages/stacking-common/src/stacking_common/environment/core_backend.py": "741cb17e4d9df73bad339d521a3f5f0c7e81c42f105c7d37320784be30d3e6a9",
+    "packages/stacking-common/src/stacking_common/environment/robustness.py": "97740a9274b41cb2279a73496f0b823f0fe565b65b24da1cfecd1ab011656f88"
+  },
+  "method": "Production bounded clearance and filtering, compared with benchmark-only original-noise control. Three repeats per mode after warmup, alternating order; same 32 saved candidates and fixed parent state; corrected outcomes can differ.",
+  "mcts_smoke": {
+    "elapsed_seconds": 11.998480234993622,
+    "completed_iterations": 64,
+    "timed_out": false,
+    "generated_candidates": 210,
+    "evaluated_candidates": 222,
+    "selected": {
+      "object_id": 44,
+      "pose": [
+        -0.5642918348312378,
+        2.5969183444976807,
+        0.25269585847854614,
+        -0.03234238292173189,
+        -0.07175279581604346,
+        0.27897105376688563,
+        -0.9570687842154911
+      ],
+      "reward": 1.2896113790195842,
+      "target_IoU": 0.005540842432763892,
+      "selectable": true
+    },
+    "tree_sha256": "a1f3008cd57f0aabf26d877d37baa2dd5a6f3e411a2b46ea618c1141dae0ffa4",
+    "seed": 0,
+    "placed": 0,
+    "requested_iterations": 64,
+    "core_native_sha256": "c2b41d436e410d949baf8377eff9d06355f904733389c92e85d8ffe952ba8b72",
+    "clearance_seconds": 0.14230635738931596,
+    "note": "Actual corrected trials and filtering; different tree from uncorrected control. This validates integration, not isolated timing overhead."
+  }
+}

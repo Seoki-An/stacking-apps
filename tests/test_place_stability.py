@@ -64,10 +64,18 @@ def test_displacement_uses_translation_plus_shortest_rotation():
 @pytest.mark.parametrize('failed_trial', [False, True])
 def test_worst_trial_uses_settled_pose_without_mutating_state(monkeypatch, failed_trial):
     import stacking_common.environment.robustness as module
+    import stacking_common.environment.release_clearance as clearance
     config = PlaceStabilityConfig(True, 3, (.001, .001, .001), 5., .1, .02)
     backend = NS(place_stability=config)
     action = Action(0, pose(.3), pose(.4), object_id=10)
     state = State([10], [], {}, [], [])
+    def prepare(backend, jobs):
+        return [[NS(pose=noisy, failure_reason=None, lift=0.)
+                 for noisy in config.noisy_poses(
+                     settled, step=len(source.placed_object_indices) + 1,
+                     object_index=candidate.object_index, object_id=candidate.object_id)]
+                for source, candidate, settled in jobs]
+    monkeypatch.setattr(clearance, 'prepare_release_trials', prepare)
     starts = []
     def simulate(b, s, a, noisy):
         starts.append(noisy.copy())
@@ -87,6 +95,56 @@ def test_worst_trial_uses_settled_pose_without_mutating_state(monkeypatch, faile
     backend.place_stability = replace(config, enabled=False)
     assert evaluate_place_stability(backend, state, action, pose()) == (0., [], [])
     assert len(starts) == 3
+
+
+@pytest.mark.parametrize('invalid_indices', [(), (1,), (0, 1, 2)])
+def test_release_trials_use_corrected_reference_and_skip_invalid_trials(monkeypatch, invalid_indices):
+    import stacking_common.environment.robustness as module
+    import stacking_common.environment.release_clearance as clearance
+
+    config = PlaceStabilityConfig(True, 3, reject_failed_trials=False)
+    backend = NS(place_stability=config)
+    action = Action(0, pose(.3), pose(.4), object_id=10)
+    state = State([10], [], {}, [], [])
+    settled = pose(.2)
+    prepared = [NS(pose=pose(.5 + .1 * i), lift=.3 + .1 * i,
+                   failure_reason='initial_clearance_blocked' if i in invalid_indices else None)
+                for i in range(3)]
+    calls, starts = [], []
+    def prepare(received_backend, jobs):
+        assert received_backend is backend
+        assert len(jobs) == 1
+        assert jobs[0][0] is state and jobs[0][1] is action
+        np.testing.assert_array_equal(jobs[0][2], settled)
+        calls.append(jobs)
+        return [prepared]
+    def simulate(b, source, candidate, initial):
+        starts.append(initial.copy())
+        final = initial.copy()
+        final[0] += .005
+        return final, None
+    monkeypatch.setattr(clearance, 'prepare_release_trials', prepare)
+    monkeypatch.setattr(module, '_simulate_noisy_place', simulate)
+
+    displacement, trials, reasons = evaluate_place_stability(backend, state, action, settled)
+
+    assert len(calls) == 1
+    assert len(trials) == len(reasons) == 3
+    assert len(starts) == 3 - len(invalid_indices)
+    for i, (value, reason) in enumerate(zip(trials, reasons)):
+        if i in invalid_indices:
+            assert value == np.inf and reason == 'initial_clearance_blocked'
+        else:
+            assert value == pytest.approx(.005)
+            assert reason is None
+    if invalid_indices:
+        assert displacement == np.inf
+    else:
+        assert displacement == pytest.approx(.005)
+    np.testing.assert_array_equal(starts, [trial.pose for trial in prepared if trial.failure_reason is None])
+    np.testing.assert_array_equal(action.pose, pose(.3))
+    np.testing.assert_array_equal(settled, pose(.2))
+    assert state.placed_object_indices == []
 
 
 def make_backend(config):
@@ -218,6 +276,33 @@ def test_trial_filter_and_displacement_limit_are_independent():
     assert not replace(config, n_noise=0).failed(np.inf, ['not_settled'])
 
 
+@pytest.mark.parametrize('reason', ['initial_clearance_blocked', 'initial_clearance_query_failure'])
+def test_invalid_release_is_rejected_with_permissive_dynamic_trial_policy(reason):
+    config = PlaceStabilityConfig(True, 2, reject_failed_trials=False, fail_displacement=None)
+    assert config.failed(0., [None, reason])
+    assert config.failed(np.inf, [None, reason])
+    assert not config.failed(np.inf, [None, 'not_settled'])
+    assert not replace(config, enabled=False).failed(np.inf, [reason])
+    assert not replace(config, n_noise=0).failed(np.inf, [reason])
+
+
+@pytest.mark.parametrize('physical_reason', [None, 'target_motion_limit'])
+def test_initial_clearance_reason_reaches_transition_with_physical_failure_precedence(monkeypatch, physical_reason):
+    import stacking_common.environment.core_backend as module
+    backend = make_backend(PlaceStabilityConfig(True, 2, reject_failed_trials=False))
+    monkeypatch.setattr(module, 'evaluate_place_stability', lambda *a: (
+        np.inf, [.001, np.inf], [None, 'initial_clearance_blocked']))
+    monkeypatch.setattr(backend, '_physical_rejection_reason', lambda *a: physical_reason)
+    transition = SimulationTransition([10], backend)
+    transition.reset()
+    state = transition.step(Action(0, pose(), pose(.3)))
+    diagnostics = state.action_history[-1].diagnostics
+    assert state.failed
+    assert diagnostics['place_robustness_failed']
+    assert diagnostics['place_robustness_trial_failure_reasons'] == [None, 'initial_clearance_blocked']
+    assert diagnostics['rejection_reason'] == (physical_reason or 'place_robustness_initial_clearance')
+
+
 @pytest.mark.parametrize('scenario,expected', [
     ('rest', None),
     ('motion', 'target_motion_limit'),
@@ -264,7 +349,7 @@ def test_excavator_profile_rejects_failed_or_excessively_displaced_noise_trials(
     assert not config.failed(.1, [None] * config.n_noise)
     assert config.failed(.1, ['not_settled'] + [None] * (config.n_noise - 1))
     assert config.failed(.1, ['target_motion_limit'] + [None] * (config.n_noise - 1))
-    assert config.failed(.16, [None] * config.n_noise)
+    assert config.failed(config.fail_displacement + .01, [None] * config.n_noise)
     assert config.failed(float('inf'), [None] * config.n_noise)
 
 
