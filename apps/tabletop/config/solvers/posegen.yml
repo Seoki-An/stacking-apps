@@ -15,7 +15,7 @@ schedule:
   times: [0.0, 0.3333333333333333, 0.6666666666666666, 1.0]
   max_iters_warmup: 50
   max_iters_final: 75
-  # Explicit coefficients preserve the original tabletop schedule.
+  # Tabletop schedule with the shared lower-support placement preference.
   objective_weights:
     k_wrench: {ramp: 5.0}
     k_comp: {ramp: 100.0}
@@ -25,7 +25,7 @@ schedule:
     k_xy: {anti_ramp: 0.0}
     k_potential: {constant: 0.10, anti_ramp: 0.02}
     k_reg: {anti_ramp: 0.0}
-    k_lower: {anti_ramp: 0.0}
+    k_lower: {anti_ramp: 10.0}
 
 trust_region:
   max_iters: 100

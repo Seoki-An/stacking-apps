@@ -18,8 +18,9 @@ The smaller `0.00001` value is supported, but its late-scene replay failures
 prevented adopting it as the active setting (see the epsilon comparison below).
 
 The common profile loader accepts `single_point`, `limit_surface_4d`, and
-`limit_surface_6d`. Tabletop retains its existing 4D configuration: these
-saved scenes only validate excavator behavior.
+`limit_surface_6d`. Tabletop now also selects 6D with `patch_eps: 0.00003`.
+These saved scenes only validate excavator behavior; tabletop physical behavior
+has not been benchmarked here.
 
 Core's 6D model adds two tipping moments whose limits follow the estimated
 elliptical contact patch and normal impulse. These represent center-of-pressure
@@ -90,7 +91,7 @@ into the long phase; that explains 4.50 versus 4.30 seconds.
 
 `physics.structural.contact.patch_eps` is now an optional platform setting,
 passed to both CPU and CUDA. Omission preserves the core default. The excavator
-profile currently uses `0.00003`; tabletop and settling retain their defaults.
+and tabletop profiles currently use `0.00003`; settling retains its default.
 Values must be finite and non-negative.
 
 For a fixed local curvature, the patch axes scale with

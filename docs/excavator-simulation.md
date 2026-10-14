@@ -163,8 +163,8 @@ the committed scene, action, or nominal trajectories.
 | `linear_velocity_std` (world XYZ, m/s) | `[0.05, 0.05, 0.05]` | `[0.02, 0.02, 0.02]` |
 | `angular_velocity_std_deg` (each body axis, deg/s) | 5 | 5 |
 | `rotation_weight` (metres/radian) | 0.1 | 0.01 |
-| `reject_failed_trials` | `true` | `false` |
-| `fail_displacement` (metres of combined excursion) | 0.15 | `null` |
+| `reject_failed_trials` | `true` | `true` |
+| `fail_displacement` (metres of combined excursion) | 0.15 | 0.015 |
 | `seed` | 0 | 0 |
 
 Velocity magnitudes are provisional platform settings, not conversions from

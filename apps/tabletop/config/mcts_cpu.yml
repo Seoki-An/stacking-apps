@@ -87,7 +87,7 @@ tree:
   discount: 0.9
   failure_reward: -1.0
   simulation_depth: 3
-  initial_depth1_steps: 6
+  initial_depth1_steps: 0  # Use lookahead from the first placement.
   root_lookahead: true
 
 widening:
@@ -112,11 +112,11 @@ validation:
   max_state_drift: 0.1
 
 final_selection:
-  mode: mean
+  mode: mixed
   max_weight: 0.5
-  validate_descendant_path: false
-  validate_descendant_depth: 1
-  require_validated_descendant: false
+  validate_descendant_path: true
+  validate_descendant_depth: 2
+  require_validated_descendant: true
 
 parallel:
   posegen_backend: cpu  # cpu or cuda
@@ -131,10 +131,10 @@ root_cem:
   keep: 12
   mutation_xy_std: 0.01
   mutation_yaw_std_degrees: 5.0
-  fresh_fraction: 0.3
+  fresh_fraction: 0.5
   duplicate_xy_threshold: 0.003
   duplicate_yaw_threshold_degrees: 5.0
-  max_per_object: 8
+  max_per_object: 2
   height_map_score_weight: 1.0
   seed: 0
 

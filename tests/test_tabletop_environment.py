@@ -262,7 +262,8 @@ def test_simulation_profile_builds_native_config_and_backend() -> None:
     settling = profile.settling_native_config()
     assert settling.damping == profile.damping
     assert settling.contact.model.name.lower() == "single_point"
-    assert native.contact.model.name.lower() == "limit_surface_4d"
+    assert native.contact.model.name.lower() == "limit_surface_6d"
+    assert native.contact.patch_eps == pytest.approx(0.00003)
     assert settling.contact.error_reduction_ratio == profile.settling_physics.error_reduction_ratio
     assert settling.contact.detection_margin == profile.settling_physics.detection_margin
     assert settling.solver.constraint_scale_reference == profile.settling_physics.solver_constraint_scale_reference

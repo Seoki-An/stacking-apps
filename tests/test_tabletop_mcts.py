@@ -85,12 +85,15 @@ def test_tabletop_composition_loads_and_builds_native_mcts_path() -> None:
     assert application.default_mcts_request().iterations == 200
     assert application.mcts_profile.tree.generation_batch_size == 32
     assert application.mcts_profile.tree.final_validation_candidates == 8
-    assert application.mcts_profile.tree.initial_depth1_steps == 6
+    assert application.mcts_profile.tree.initial_depth1_steps == 0
     assert application.action_generation_profile.planar.yaw_angles == (0.0, np.pi)
     assert application.mcts_profile.tree.validate_root_before_search
     assert application.mcts_profile.tree.root_lookahead
     assert application.mcts_profile.tree.rejected_root_retry_rounds == 1
-    assert application.mcts_profile.tree.final_selection.mode == "mean"
+    assert application.mcts_profile.tree.final_selection.mode == "mixed"
+    assert application.mcts_profile.tree.final_selection.validate_descendant_path
+    assert application.mcts_profile.tree.final_selection.require_validated_descendant
+    assert application.mcts_profile.tree.final_selection.validate_descendant_depth == 2
     assert (
         application.default_mcts_request().final_validation_reserve_seconds
         == 30.0

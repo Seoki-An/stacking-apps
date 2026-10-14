@@ -788,6 +788,16 @@ Python and NumPy random-number generators. Retry offsets do not advance a
 fixed deterministic list as they did for the previous tabletop generator.
 Both current platforms use this fresh-population allocation procedure.
 
+Tabletop's CPU and CUDA MCTS profiles now use lookahead from the first placement
+and mixed final selection with a required, validated two-step continuation,
+matching excavator's selection policy. This enables the descendant-only floor
+relaxation described below. Both retain at most two CEM candidates per object
+and draw 50% fresh proposals in later CEM rounds. Tabletop retains its own search
+budgets, scan orientations, physical tolerances, and reward weights. Its pose
+solver now uses `k_lower: {anti_ramp: 10.0}`; structural simulation uses
+`limit_surface_6d` with `patch_eps: 0.00003`. These physical changes require
+tabletop saved-scene validation before claiming improved placement performance.
+
 ## 6. Active-floor policy
 
 Excavator's main composition shares one `ActiveFloorPolicy` between proposal

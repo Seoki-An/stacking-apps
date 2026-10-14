@@ -38,7 +38,8 @@ physics:
   # Shared by short and long structural validation.
   structural:
     contact:
-      model: limit_surface_4d
+      model: limit_surface_6d
+      patch_eps: 0.00003  # Contact-patch depth allowance, metres; verify on tabletop scenes.
       error_reduction_ratio: 0.2
       detection_margin: 0.01
     solver:

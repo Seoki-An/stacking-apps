@@ -25,9 +25,10 @@ reward:
     linear_velocity_std: [0.02, 0.02, 0.02]  # World XYZ, m/s (signed Gaussian).
     angular_velocity_std_deg: 5.0  # Body XYZ, deg/s, isotropic Gaussian.
     rotation_weight: 0.01
-    # Unsettled finite trials remain reward penalties; invalid simulations reject.
-    reject_failed_trials: false
-    fail_displacement: null
+    # Reject trials that fail to settle or exceed the peak excursion limit.
+    reject_failed_trials: true
+    # Translation (m) + rotation_weight * angular displacement (rad).
+    fail_displacement: 0.015
     seed: 0
   weights:
     stability: 0.5
