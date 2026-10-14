@@ -164,9 +164,11 @@ class WallSurfaces:
         samples.setflags(write=False)
         return self._remember(self._samples, key, (samples, area), 256)
 
-    def proposal_gains(self, envelope, index, quaternion, translations, side):
+    def proposal_gains(self, envelope, index, quaternion, translations, side, *,
+                       surface_samples=None, quality=None):
         """Batch quadrature over each candidate's outward-facing surface."""
-        samples, area = self.surface_samples(index, quaternion, side)
+        samples, area = (self.surface_samples(index, quaternion, side)
+                         if surface_samples is None else surface_samples)
         points = np.asarray(translations)[:, None, :] + samples[None]
         target = self.target
         columns = np.floor((points[..., 1] - target.origin[1] + target.length / 2)
@@ -181,7 +183,7 @@ class WallSurfaces:
         face_x = (target.origin[0] + (-1 if side == 0 else 1)
                   * (target.width / 2 - self.slopes[side] * (points[..., 2] - target.origin[2])))
         scale = np.sqrt(1 + self.slopes[side] ** 2)
-        old_q = self.quality(envelope)[side, rows, columns]
+        old_q = (self.quality(envelope) if quality is None else quality)[side, rows, columns]
         new_q = np.clip(1 - np.abs(new_x - face_x) / scale / self.config.surface_tolerance, 0, 1)
         own_q = np.clip(1 - np.abs(points[..., 0] - face_x) / scale / self.config.surface_tolerance, 0, 1)
         weights = area * scale * np.clip(1 - (points[..., 2] - target.origin[2]) / target.height, 0, 1)

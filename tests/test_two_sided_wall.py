@@ -163,6 +163,70 @@ def test_filter_and_cem_use_actual_orientation_and_pose():
     assert source.score_at_object_pose(obs, mutated, 0) == (0., 0.)  # now protrudes outside target
 
 
+def test_orientation_bank_survives_generic_cache_eviction(monkeypatch):
+    import stacking_common.actions.wall as module
+
+    # More than 256 fixed orientations must stay warm across scene-map rebuilds.
+    inv = inventory(count=34)
+    source = sampler(inv)
+    source.config = replace(source.config, yaw_angles=tuple(np.arange(8) * np.pi / 4))
+    current = state(inv)
+    obs = observation(inv, current)
+    calls = []
+    original = module.bottom_height_kernel
+
+    def build(*args):
+        calls.append(1)
+        return original(*args)
+
+    monkeypatch.setattr(module, "bottom_height_kernel", build)
+    for index in range(len(inv)):
+        source.score_map(current, obs, index)
+    assert len(calls) == 34 * 8
+    # Generic surface samples can be evicted by unrelated CEM orientations.
+    source.wall._samples.clear()
+    source._wall_context = None
+    calls.clear()
+    monkeypatch.setattr(source.wall, "_ray_bounds", lambda *a: pytest.fail("rebuilt fixed geometry"))
+    for index in range(len(inv)):
+        source.score_map(current, obs, index)
+    assert not calls
+
+
+def test_geometry_refreshes_for_grid_spacing_and_orientation_changes():
+    inv = inventory()
+    source = sampler(inv)
+    current = state(inv)
+    obs = observation(inv, current)
+    original = source._geometry(current, obs, 0)
+    assert source._geometry(current, obs, 0) is original
+    # A scene-height change does not change the stone's geometry.
+    obs.scene_height_map[:] += .1
+    assert source._geometry(current, obs, 0) is original
+    obs.height_map_xlim = (obs.height_map_xlim[0] - .5, obs.height_map_xlim[1] + .5)
+    resized = source._geometry(current, obs, 0)
+    assert resized is not original
+    source.orientation_provider.quaternions[inv.object_ids[0]] = Rotation.from_euler("z", .3).as_quat()
+    rotated = source._geometry(current, obs, 0)
+    assert rotated is not resized
+    np.testing.assert_allclose(rotated[0].quaternion, Rotation.from_euler("z", .3).as_quat())
+    # Replacing banks does not retain obsolete grids/orientations for an object.
+    assert len(source._orientation_geometry) == 1
+
+
+def test_batched_face_support_matches_separate_evaluation():
+    inv = inventory()
+    source = sampler(inv)
+    current = state(inv, [_pose(x=-.35, y=-.5, z=.15)])
+    obs = observation(inv, current)
+    q = Rotation.from_euler("xyz", [.1, .2, .3]).as_quat()
+    xy = np.array([[[-.35, -.5], [-.35, .5]], [[.35, -.5], [.35, .5]]])
+    batched = source._support(obs, 1, q, xy.reshape(-1, 2))
+    separate = [source._support(obs, 1, q, points) for points in xy]
+    for field, values in enumerate(batched):
+        np.testing.assert_array_equal(values.reshape(2, 2), [row[field] for row in separate])
+
+
 def test_wall_reward_includes_motion_of_previously_placed_stones():
     inv = inventory()
     base = RewardConfig(1., .5, RewardWeights(0., 0., 0., 0., 0., 0.))

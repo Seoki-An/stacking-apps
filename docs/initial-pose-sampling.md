@@ -104,6 +104,34 @@ not a structural certificate or a new episode-termination rule. The current
 mode does not introduce a dedicated bonding reward or a native surface-fitting
 objective. Wall thickness must be compatible with the available stone depths.
 
+### Wall sampler acceleration and benchmark
+
+The sampler keeps the current finite orientation bank's bottom kernels,
+rotated bounds, target-plane extents, and exterior samples per stone. Changing
+the orientation bank or height-map spacing replaces that stone's cache.
+Arbitrary CEM orientations use a separate bounded LRU kernel cache, so they
+cannot evict the fixed proposal bank. Scene-dependent quality and progress are
+reused only while the scene poses and height map match.
+
+Both faces now share one batched height-map interpolation per support/taper
+update. The three updates, seed order, scores, elite/Boltzmann draws, filters,
+and MCTS budgets retain their existing behavior. Score normalization is computed
+once per map rather than once per candidate.
+
+Run the CPU-only comparison with the project Python:
+
+```bash
+OPENBLAS_NUM_THREADS=1 python tests/benchmark_two_sided_sampling.py \
+  --baseline-ref 822435b --output /tmp/wall-sampling.json
+```
+
+This loads real excavator meshes, checks every candidate score/pose and seeded
+draw against the specified revision, and measures empty and ten-stone scenes.
+Warm passes rebuild scene maps while retaining orientation geometry. The initial
+five-repeat comparison measured about 2x faster sampling (roughly 0.63 to 0.31 s
+for 49 available stones, and 0.59 to 0.30 s for 39). These figures exclude native
+pose solving and simulation and do not establish end-to-end MCTS speedup.
+
 ### Inspection and verification
 
 For wall runs, the operations console's **XY score maps…** action opens sparse

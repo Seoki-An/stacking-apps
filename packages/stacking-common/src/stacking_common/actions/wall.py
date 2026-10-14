@@ -1,15 +1,30 @@
 """Opt-in proposals along the two exterior faces of one thick wall."""
 
+from collections import OrderedDict
+from dataclasses import dataclass
+
 import numpy as np
 from scipy.ndimage import map_coordinates
 from scipy.spatial.transform import Rotation
 from scipy.spatial import ConvexHull
 
 from .scored import ScoredPlanarPoseSampler
-from ._support_maps import bottom_height_kernel
+from ._support_maps import BottomHeightKernel, bottom_height_kernel
 from . import _scored_floor as floor
 from .types import PlanarPlacement, PlacementFilterDecision
 from stacking_common.wall import WallSurfaces
+from stacking_common.domain.geometry import quaternion_matrix
+
+
+@dataclass(frozen=True)
+class _OrientationGeometry:
+    quaternion: np.ndarray
+    lower: np.ndarray
+    upper: np.ndarray
+    target_extent: np.ndarray
+    side_support: np.ndarray
+    bottom_kernel: BottomHeightKernel
+    surface_samples: tuple
 
 
 class WallPlanarPoseSampler(ScoredPlanarPoseSampler):
@@ -20,19 +35,52 @@ class WallPlanarPoseSampler(ScoredPlanarPoseSampler):
         self.wall = WallSurfaces(self.inventory, construction, self.config.grid_shape)
         self._wall_context = None
         self._wall_observation = None
-        self._wall_kernels = {}
+        # Finite proposal banks live separately from arbitrary CEM rotations.
+        # Keep only the latest bank/grid spacing per object.
+        self._orientation_geometry = {}
+        self._wall_kernels = OrderedDict()
         self._target_planes = ConvexHull(self.inventory.target.points).equations
 
-    def _support(self, observation, index, quaternion, xy):
+    @staticmethod
+    def _spacing(observation):
         height = np.asarray(observation.scene_height_map)
         dx = np.diff(observation.height_map_xlim)[0] / max(height.shape[1] - 1, 1)
         dy = np.diff(observation.height_map_ylim)[0] / max(height.shape[0] - 1, 1)
-        key = (index, np.asarray(quaternion).tobytes(), float(dx), float(dy))
-        if key not in self._wall_kernels:
-            if len(self._wall_kernels) >= 256:
-                self._wall_kernels.clear()
-            self._wall_kernels[key] = bottom_height_kernel(self.stones[index].points, quaternion, dx, dy)
-        kernel = self._wall_kernels[key]
+        return float(dx), float(dy)
+
+    def _geometry(self, state, observation, index):
+        quaternions = self.quaternions(state, observation, index)
+        dx, dy = self._spacing(observation)
+        key = (tuple(q.tobytes() for q in quaternions), dx, dy)
+        cached = self._orientation_geometry.get(index)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        geometries = []
+        for q in quaternions:
+            rotated = Rotation.from_quat(q).apply(self.wall.points[index])
+            # Use the same plane support arithmetic as WallSurfaces.tangent_x.
+            plane_points = self.wall.points[index] @ quaternion_matrix(q).T
+            geometries.append(_OrientationGeometry(
+                q, rotated.min(axis=0), rotated.max(axis=0),
+                np.max(rotated @ self._target_planes[:, :3].T, axis=0),
+                np.array([np.max(plane_points @ normal) for normal in self.wall.normals]),
+                bottom_height_kernel(self.stones[index].points, q, dx, dy),
+                tuple(self.wall.surface_samples(index, q, side) for side in (0, 1)),
+            ))
+        self._orientation_geometry[index] = (key, tuple(geometries))
+        return self._orientation_geometry[index][1]
+
+    def _support(self, observation, index, quaternion, xy, *, kernel=None):
+        height = np.asarray(observation.scene_height_map)
+        dx, dy = self._spacing(observation)
+        if kernel is None:
+            key = (index, np.asarray(quaternion).tobytes(), dx, dy)
+            if key not in self._wall_kernels:
+                self._wall_kernels[key] = bottom_height_kernel(self.stones[index].points, quaternion, dx, dy)
+                if len(self._wall_kernels) > 256:
+                    self._wall_kernels.popitem(last=False)
+            self._wall_kernels.move_to_end(key)
+            kernel = self._wall_kernels[key]
         xy = np.atleast_2d(xy)
         cols = (xy[:, 0, None] - observation.height_map_xlim[0]) / dx + kernel.x_offsets
         rows = (xy[:, 1, None] - observation.height_map_ylim[0]) / dy + kernel.y_offsets
@@ -56,7 +104,10 @@ class WallPlanarPoseSampler(ScoredPlanarPoseSampler):
             self._scores.clear()
             self._wall_context = key
             self._envelope = self.wall.envelope(state)
-            self._represented = np.any(self.wall.quality(self._envelope) > 0, axis=(1, 2))
+            self._quality = self.wall.quality(self._envelope)
+            self._remaining = np.sum(self.wall.weights * (1 - self._quality), axis=(1, 2))
+            self._progress = float(np.sum(self.wall.weights * self._quality) / self.wall.total_weight)
+            self._represented = np.any(self._quality > 0, axis=(1, 2))
             self._neighbors = []
             for i in state.placed_object_indices:
                 pose = state.object_poses[state.object_ids[i]]
@@ -91,7 +142,7 @@ class WallPlanarPoseSampler(ScoredPlanarPoseSampler):
             return None
         if not self._eligible(index, pose, represented):
             return None
-        gain = self.wall.progress(self.wall.union(self._envelope, surface)) - self.wall.progress(self._envelope)
+        gain = self.wall.progress(self.wall.union(self._envelope, surface)) - self._progress
         # Height uses fixed target units so both sides and stones are comparable.
         height = np.clip((contact_height[0] - self.inventory.target.origin[2]) / self.inventory.target.height, 0, 1)
         weights = self.settings["score"]
@@ -109,25 +160,27 @@ class WallPlanarPoseSampler(ScoredPlanarPoseSampler):
         candidates = []
         y_grid = np.linspace(target.origin[1] - target.length / 2,
                              target.origin[1] + target.length / 2, self.config.grid_shape[1])
-        for orientation_index, q in enumerate(self.quaternions(state, observation, object_index)):
-            rotated = Rotation.from_quat(q).apply(self.wall.points[object_index])
-            ys = y_grid[(y_grid + rotated[:, 1].min() >= target.origin[1] - target.length / 2)
-                        & (y_grid + rotated[:, 1].max() <= target.origin[1] + target.length / 2)]
+        for orientation_index, geometry in enumerate(self._geometry(state, observation, object_index)):
+            q = geometry.quaternion
+            ys = y_grid[(y_grid + geometry.lower[1] >= target.origin[1] - target.length / 2)
+                        & (y_grid + geometry.upper[1] <= target.origin[1] + target.length / 2)]
+            if not len(ys):
+                continue
+            # Both faces share this orientation's bottom kernel. Flatten them
+            # into one interpolation call per support/taper update.
+            z = np.full((2, len(ys)), target.origin[2] - geometry.lower[2])
+            xy = np.zeros((2, len(ys), 2))
+            xy[:, :, 1] = ys
+            for _ in range(3):
+                xy[:, :, 0] = (self.wall.plane_offsets[:, None] - geometry.side_support[:, None]
+                               - self.wall.normals[:, 2, None] * z) / self.wall.normals[:, 0, None]
+                z, support, height = (values.reshape(2, len(ys)) for values in self._support(
+                    observation, object_index, q, xy.reshape(-1, 2), kernel=geometry.bottom_kernel))
             for side in (0, 1):
-                if not len(ys):
-                    continue
-                z = np.full(len(ys), target.origin[2] - rotated[:, 2].min())
-                xy = np.column_stack((np.zeros(len(ys)), ys))
-                # Bounded support/taper updates. Final geometry checks reject a
-                # seed if this approximation has not reached a feasible pose.
-                for _ in range(3):
-                    xy[:, 0] = self.wall.tangent_x(object_index, q, side, z)
-                    z, support, height = self._support(observation, object_index, q, xy)
-                translations = np.column_stack((xy, z))
+                translations = np.column_stack((xy[side], z[side]))
                 a, b = self._target_planes[:, :3], -self._target_planes[:, 3]
-                extent = np.max(rotated @ a.T, axis=0)
-                valid = np.all(translations @ a.T + extent <= b + 1e-7, axis=1)
-                lo, hi = translations + rotated.min(axis=0), translations + rotated.max(axis=0)
+                valid = np.all(translations @ a.T + geometry.target_extent <= b + 1e-7, axis=1)
+                lo, hi = translations + geometry.lower, translations + geometry.upper
                 adjacent = np.zeros(len(ys), dtype=bool)
                 gap = self.settings["contact_gap_tolerance"]
                 for lower, upper in self._neighbors:
@@ -138,28 +191,34 @@ class WallPlanarPoseSampler(ScoredPlanarPoseSampler):
                 indices = np.flatnonzero(valid)
                 if not len(indices):
                     continue
-                gains, fits = self.wall.proposal_gains(self._envelope, object_index, q, translations[indices], side)
+                gains, fits = self.wall.proposal_gains(
+                    self._envelope, object_index, q, translations[indices], side,
+                    surface_samples=geometry.surface_samples[side], quality=self._quality)
                 weights = self.settings["score"]
-                normalized_height = np.clip((height - target.origin[2]) / target.height, 0, 1)
+                normalized_height = np.clip((height[side] - target.origin[2]) / target.height, 0, 1)
                 score = (float(weights["height"]) * normalized_height[indices]
-                         + float(weights["support_likelihood"]) * support[indices]
+                         + float(weights["support_likelihood"]) * support[side, indices]
                          + self.wall.config.proposal_weight * gains)
                 items = []
+                poses = np.empty((len(ys), 7))
+                poses[:, :3], poses[:, 3:] = translations, q
                 for j, i in enumerate(indices):
                     if fits[j]:
-                        items.append(dict(xy=xy[i].copy(), pose=np.r_[translations[i], q],
-                            score=float(score[j]), height=float(height[i]),
-                            support_likelihood=float(support[i]), wall_surface_gain=float(gains[j]),
+                        items.append(dict(xy=xy[side, i].copy(), pose=poses[i].copy(),
+                            score=float(score[j]), height=float(height[side, i]),
+                            support_likelihood=float(support[side, i]), wall_surface_gain=float(gains[j]),
                             side=side, orientation_index=orientation_index))
                 if not self._represented[side] and items and not self.relax_corner_seed:
                     # Seed an unstarted face from either end; no persistent cursor.
                     items = [items[0]] if len(items) == 1 else [items[0], items[-1]]
                 candidates.extend(items)
         values = np.asarray([item["score"] for item in candidates])
+        minimum = float(values.min()) if len(values) else 0.
+        span = max(float(np.ptp(values)), 1e-12) if len(values) else 1.
         for item in candidates:
-            item["normalized_score"] = float((item["score"] - values.min()) / max(np.ptp(values), 1e-12))
-        scores = {"candidates": candidates, "wall_remaining": self.wall.remaining(self._envelope),
-                  "wall_quality": self.wall.quality(self._envelope)}
+            item["normalized_score"] = float((item["score"] - minimum) / span)
+        scores = {"candidates": candidates, "wall_remaining": self._remaining,
+                  "wall_quality": self._quality}
         self._scores[object_index] = (observation, scores)
         return scores
 
