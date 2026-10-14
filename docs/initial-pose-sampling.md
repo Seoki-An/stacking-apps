@@ -265,8 +265,8 @@ floor:
   footprint_scale: 0.9
 ```
 
-Tabletop explicitly configures `bottom_slice`, 0.02 m bottom tolerance, 0.90
-fill ratio, and a 32-cell grid. Its search and planning floor checks read the
+Tabletop explicitly configures `projected_footprint`, 0.02 m bottom tolerance,
+0.75 fill ratio, and a 16-cell grid. Its search and planning floor checks read the
 same YAML values. Sampling and solved-pose connectivity both require at least
 one neighboring occupied cell; `minimum_contact_cells` is no longer configurable. Sampling connectivity starts whenever
 the active floor contains occupied cells; the configurable `connected_after`
@@ -814,9 +814,9 @@ sampling and filtering. Its current settings are:
 
 | Setting | Excavator | Tabletop |
 |---|---:|---:|
-| Occupancy representation | Projected union of convex-component footprints | Component-volume intersections with a bottom slab |
-| Occupancy grid | 16 × 16 cell-center samples | 32 × 32 samples including endpoints |
-| Floor completion fraction | 0.75 | 0.90 |
+| Occupancy representation | Projected union of convex-component footprints | Same |
+| Occupancy grid | 16 × 16 cell-center samples | Same |
+| Floor completion fraction | 0.75 | 0.75 |
 | Bottom-height tolerance | 0.20 m | 0.02 m |
 | Connectivity rule (fixed) | At least one neighboring occupied cell | Same |
 | Strict action-build floor filter | Enabled | Enabled |
@@ -887,7 +887,7 @@ uniform XY coordinates. Their initial grid proposals differ as follows:
 | Support geometry | Orientation-dependent global convex-hull bottom kernel | Same |
 | Floor-filling geometry | Asset-local axis-aligned rectangular footprint on the active-floor grid | Same |
 | Support contact tolerance | 0.02 m | 0.10 m |
-| Active-floor occupancy | Bottom-slab volume intersections, 32 × 32; advance at 90% | Projected component footprints, 16 × 16; advance at 75% |
+| Active-floor occupancy | Projected component footprints, 16 × 16; advance at 75% | Same |
 | Weighted score | $-3H+2Q+2F+1.5B$ | Same |
 | Boundary feature | Bounds tapered according to estimated contact height | Same |
 | Selection | Highest-scoring elites followed by seeded Boltzmann draws without replacement | Same |
@@ -913,6 +913,15 @@ improved physical placement or end-to-end search quality.
 
 ### 7.2 Current tabletop composition and configuration
 
+Tabletop CPU and CUDA profiles share the current excavator CUDA search policy:
+depth 4, 1,024 iterations, a 240 s search limit, exploration constant 1.0,
+bootstrap mean reward 1.0, and 32 retained root candidates. CUDA uses evaluation
+batches of 256 and four workers; CPU retains batches of 12 and twelve workers.
+The debug overrides use the same iteration and time limits. Tabletop retains
+its 0.01 m CEM mutation deviation and 0.003 m duplicate threshold. Reward
+weights match excavator, and both use four velocity-disturbance trials;
+tabletop retains its own disturbance magnitudes and 0.015 m excursion limit.
+
 Tabletop currently enables `pose_from_scan`. It finds the object's longest
 local axis, transforms that axis with the measured orientation, and applies a
 world-Z correction that aligns its projected heading with X modulo 180°. The
@@ -931,8 +940,8 @@ dimensionless weights as excavator, and its own 0.02 m contact tolerance.
 defaulting to the search-frame origin when `planar_bias_xy` is null. It does
 not use robot geometry on either platform.
 
-`TabletopPlacementSafety` continues to supply its 32 × 32 bottom-slab floor
-context, 90% completion threshold, and 0.02 m bottom tolerance. Initial scan
+`TabletopPlacementSafety` uses a 16 × 16 projected-footprint floor
+context, 75% completion threshold, and 0.02 m bottom tolerance. Initial scan
 orientation, solved-orientation filtering, target-containment checks, and
 solver acceptance limits remain platform-owned.
 
@@ -1369,6 +1378,65 @@ Three configured rounds mean one initial population plus two mutation/fresh
 rounds. In normal parent-supported rounds, the fresh quota is 48 for excavator
 and 29 for tabletop, with the remainder allocated to mutation. Root retries
 increment the mutation seed and exclude earlier root proposals.
+
+### MCTS surface-flatness reward
+
+Both platforms enable `reward.weights.surface_flatness: 2.0` in
+`environment.yml`. This is an initial tuning value. A missing weight defaults
+to zero for older profiles; zero disables all surface computation and caches.
+The initial pose sampler and CEM prior are unchanged. The additional term
+scores the settled state during MCTS reward evaluation:
+
+$$
+h_{\mathrm{ref}}=\sqrt[3]{\bar V},\qquad
+R_{\mathrm{flat}}(s)=-w_{\mathrm{flat}}
+\frac{\max_j h_j(s)-\frac{1}{M}\sum_j h_j(s)}{h_{\mathrm{ref}}}.
+$$
+
+The heights are the scene's upper surface sampled at the centers of a fixed
+32-by-32 grid spanning the target's rectangular footprint at floor height.
+They are relative to `target.origin[2]`, floored at zero, and include empty
+floor cells in the mean. Geometry outside that footprint contributes nothing.
+Heights above the target are not clipped. The reference length is fixed from
+the initial inventory, like the overlap reward normalization.
+
+The max-minus-mean difference is a penalty, so smaller relief earns a higher
+reward. It encourages filling below the existing peak and penalizes raising
+that peak. It is not variance: scenes with equal maxima and means receive
+equal penalties despite potentially different height distributions. It also
+cannot detect cavities hidden below a bridging stone, and the coarse grid
+can miss small peaks or holes. Existing containment, overlap, and physical
+validation terms remain necessary; an empty surface alone has zero penalty.
+
+Each reward worker retains bounded caches of 128 object-pose projections and
+64 scene envelopes (about 1.5 MiB of grid arrays at capacity). A child whose
+earlier stone poses exactly match a cached parent updates the surface sum by
+`sum(max(new_stone_surface - parent_surface, 0))`, and updates the maximum.
+Sibling branches never modify the parent's grid. If any previous stone has
+moved, the envelope is recomposed from the current object projections; exact
+pose keys prevent stale heights when stones move downward or uncover cells.
+This path does not materialize the deferred 128-by-128 observation.
+
+Diagnostics record `surface_height_max`, `surface_height_mean`,
+`surface_height_relief`, `surface_height_reference`, `surface_flatness`, and
+`surface_flatness_reward`. Heights are in metres; the last two are the
+dimensionless negative score and its weighted contribution. When disabled,
+only the zero score and zero contribution are reported.
+
+Reproduce the CPU microbenchmark with:
+
+```bash
+OPENBLAS_NUM_THREADS=1 python tests/benchmark_surface_flatness.py \
+  --scene .stacks/excavator_plan8.stack:3 \
+  --scene .stacks/excavator_plan8.stack:15 \
+  --scene .stacks/excavator_plan8-resumed.stack:35
+```
+
+On these saved scenes, median surface costs for a fresh placement were
+0.084/0.113/0.174 ms at 3/15/35 stones, respectively. Moving every stone
+required 0.216/1.115/2.680 ms. Cached-state evaluation cost
+0.004/0.017/0.039 ms. These are local component timings with synthetic pose
+perturbations, not complete MCTS timings or a stacking-quality validation.
 
 ## 11. CPU/CUDA placement and scene-identification initialization
 

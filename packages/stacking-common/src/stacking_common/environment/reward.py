@@ -38,6 +38,7 @@ class RewardWeights:
     place_stability: float
     large_object_lower: float
     inward_orientation: float
+    surface_flatness: float = 0.0
 
     def __post_init__(self) -> None:
         values = np.asarray(
@@ -48,6 +49,7 @@ class RewardWeights:
                 self.place_stability,
                 self.large_object_lower,
                 self.inward_orientation,
+                self.surface_flatness,
             ],
             dtype=float,
         )
@@ -114,6 +116,10 @@ class StackingReward:
             raise ValueError("reward normalization requires a finite positive target volume")
         self.mean_object_volume = float(volumes.mean())
         self.target_overlap_increment_scale = target_volume / self.mean_object_volume
+        self._surface = None
+        if config.weights.surface_flatness != 0.:
+            from .surface import SurfaceFlatness
+            self._surface = SurfaceFlatness(inventory)
 
     def compute(self, state: State) -> tuple[float, dict[str, object]]:
         if not state.placed_object_indices or not state.action_history:
@@ -193,6 +199,19 @@ class StackingReward:
         )
 
         weights = self.config.weights
+        flatness = 0.0
+        surface_info = {}
+        if self._surface is not None:
+            maximum, mean = self._surface.measure(state)
+            reference = float(np.cbrt(self.mean_object_volume))
+            relief = max(maximum - mean, 0.)
+            flatness = -relief / reference
+            surface_info = {
+                "surface_height_max": maximum,
+                "surface_height_mean": mean,
+                "surface_height_relief": relief,
+                "surface_height_reference": reference,
+            }
         reward = (
             weights.stability * stability
             + weights.object_containment * containment_reward
@@ -200,8 +219,12 @@ class StackingReward:
             + weights.place_stability * place_stability
             + weights.large_object_lower * large_object_lower
             + weights.inward_orientation * inward_orientation
+            + weights.surface_flatness * flatness
         )
         return float(reward), {
+            **surface_info,
+            "surface_flatness": flatness,
+            "surface_flatness_reward": weights.surface_flatness * flatness,
             "stability": stability,
             "target_IoU": target_overlap,
             "previous_target_IoU": previous_overlap,

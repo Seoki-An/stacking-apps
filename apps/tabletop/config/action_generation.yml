@@ -18,12 +18,12 @@ filtering:
 planar:
   grid_shape: [32, 32]
   # Legacy anchor inset; values below 1 permit controlled target overhang.
-  target_anchor_inset_scale: 0.95
+  target_anchor_inset_scale: 0.9
   floor:
-    coverage_mode: bottom_slice
+    coverage_mode: projected_footprint
     bottom_tolerance: 0.02
-    fill_ratio: 0.90
-    grid_size: 32
+    fill_ratio: 0.75
+    grid_size: 16
     footprint_scale: 0.9
   boltzmann_temperature: 0.3
   boltzmann_min_probability: 0.0

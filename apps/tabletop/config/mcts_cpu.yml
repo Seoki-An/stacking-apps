@@ -78,15 +78,15 @@
 units: si
 
 tree:
-  max_depth: 3
-  iterations: 200
-  max_search_time: 500.0
-  max_children: 32
-  root_max_children: 12
-  exploration_constant: 2.0
+  max_depth: 4
+  iterations: 1024
+  max_search_time: 240.0
+  max_children: 16
+  root_max_children: 32
+  exploration_constant: 1.0
   discount: 0.9
   failure_reward: -1.0
-  simulation_depth: 3
+  simulation_depth: 5
   initial_depth1_steps: 0  # Use lookahead from the first placement.
   root_lookahead: true
 
@@ -105,10 +105,10 @@ generation:
   deeper_sampling_priority: lower_floor_first
 
 validation:
-  max_candidates: 8
+  max_candidates: 32
   root_before_search: true
-  rejected_root_retry_rounds: 1
-  time_reserve: 30.0
+  rejected_root_retry_rounds: 3
+  time_reserve: 60.0
   max_state_drift: 0.1
 
 final_selection:
@@ -126,9 +126,9 @@ parallel:
 
 root_cem:
   population: 96
-  elite: 24
+  elite: 32
   iterations: 3
-  keep: 12
+  keep: 32
   mutation_xy_std: 0.01
   mutation_yaw_std_degrees: 5.0
   fresh_fraction: 0.5
@@ -139,14 +139,14 @@ root_cem:
   seed: 0
 
 bootstrap:
-  mean_reward: 2.5
+  mean_reward: 1.0
   horizon: 4
 
 debug:
   object_ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
   steps: 20
-  iterations: 200
-  max_search_time: 600.0
+  iterations: 1024
+  max_search_time: 240.0
   transition_backend: simulation
   pose_solver: native
   initial_yaw_degrees: 90.0

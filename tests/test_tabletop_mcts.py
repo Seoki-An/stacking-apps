@@ -28,11 +28,17 @@ def test_tabletop_cpu_and_cuda_profiles_preserve_platform_settings() -> None:
     assert cpu["parallel"]["simulation_backend"] == "cpu"
     assert cuda["parallel"]["posegen_backend"] == "cuda"
     assert cuda["parallel"]["simulation_backend"] == "cuda"
+    assert cpu["generation"]["evaluation_batch_size"] == 12
+    assert cuda["generation"]["evaluation_batch_size"] == 256
     for section in cpu:
-        if section != "parallel":
+        if section == "generation":
+            assert {k: v for k, v in cuda[section].items() if k != "evaluation_batch_size"} == {
+                k: v for k, v in cpu[section].items() if k != "evaluation_batch_size"}
+        elif section != "parallel":
             assert cuda[section] == cpu[section]
-    for key in ("enabled", "workers"):
-        assert cuda["parallel"][key] == cpu["parallel"][key]
+    assert cuda["parallel"]["enabled"] == cpu["parallel"]["enabled"]
+    assert cpu["parallel"]["workers"] == 12
+    assert cuda["parallel"]["workers"] == 4
 
     assert (
         TabletopApplication.from_repository(ROOT).mcts_profile
@@ -82,21 +88,21 @@ def test_tabletop_composition_loads_and_builds_native_mcts_path() -> None:
     assert isinstance(search, MonteCarloTreeSearch)
     assert search.action_generator.pose_solver is pose_solver
     assert search.root_action_generator.generator is search.action_generator
-    assert application.default_mcts_request().iterations == 200
+    assert application.default_mcts_request().iterations == 1024
     assert application.mcts_profile.tree.generation_batch_size == 32
-    assert application.mcts_profile.tree.final_validation_candidates == 8
+    assert application.mcts_profile.tree.final_validation_candidates == 32
     assert application.mcts_profile.tree.initial_depth1_steps == 0
     assert application.action_generation_profile.planar.yaw_angles == (0.0, np.pi)
     assert application.mcts_profile.tree.validate_root_before_search
     assert application.mcts_profile.tree.root_lookahead
-    assert application.mcts_profile.tree.rejected_root_retry_rounds == 1
+    assert application.mcts_profile.tree.rejected_root_retry_rounds == 3
     assert application.mcts_profile.tree.final_selection.mode == "mixed"
     assert application.mcts_profile.tree.final_selection.validate_descendant_path
     assert application.mcts_profile.tree.final_selection.require_validated_descendant
     assert application.mcts_profile.tree.final_selection.validate_descendant_depth == 2
     assert (
         application.default_mcts_request().final_validation_reserve_seconds
-        == 30.0
+        == 60.0
     )
     assert application.mcts_profile.parallel.enabled
     assert application.mcts_profile.parallel.effective_workers == 12
