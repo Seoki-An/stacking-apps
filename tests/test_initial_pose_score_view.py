@@ -115,6 +115,11 @@ def test_controller_uses_recorded_settings_pre_search_scene_and_caches(tmp_path,
         controller.contexts['recorded'].profiles['sampling_settings'] = settings
         with pytest.raises(ValueError, match='does not record'):
             controller.initial_pose_score_view()
+    controller.contexts['recorded'].profiles['sampling_settings'] = config['settings']
+    controller.contexts['recorded'].profiles['action_generation_profile']['construction'] = {
+        'mode': 'two_sided_wall'}
+    with pytest.raises(ValueError, match='removed construction mode'):
+        controller.initial_pose_score_view()
 
 
 @pytest.mark.parametrize('u_shape_filter', [False, True])

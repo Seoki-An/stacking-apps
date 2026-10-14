@@ -251,10 +251,9 @@ class TabletopApplication(StackingSearchApplication):
             build_problem,
             TabletopMotionPlannerAdapter(native_backend.solve),
             placement_backend=placement_backend,
-            construction_filter=self.build_construction_filter(inventory),
             safety=(
                 self.build_floor_policy(inventory)
-                if self.action_generation_profile.use_floor_filter
+                if self.action_generation_profile.strict_floor_first
                 else None
             ),
             world_T_stack=self.planning_profile.world_T_stack,

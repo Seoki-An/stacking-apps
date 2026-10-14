@@ -19,7 +19,6 @@ class ExcavatorPlanningCoordinator:
         self.backend.reset(inventory.object_ids)
         self.progress = progress
         self.context_sha256 = context_sha256
-        self.construction_filter = application.build_construction_filter(inventory)
 
     def close(self):
         self.backend.close()
@@ -48,12 +47,7 @@ class ExcavatorPlanningCoordinator:
             rejection = "fixed_scene_resettle_" + str(placement.diagnostics.get("rejection_reason", "invalid"))
         else:
             prepared.pose = np.asarray(placement.object_poses[action.object_id], dtype=float).copy()
-            if self.construction_filter is not None:
-                decision = self.construction_filter.check(state, prepared.object_index, prepared.pose)
-                diagnostics.update(decision.diagnostics)
-                if not decision.accepted:
-                    rejection = decision.reason
-            if self.application.action_generation_profile.use_floor_filter:
+            if self.application.action_generation_profile.strict_floor_first:
                 reason, floor = self.application.build_floor_policy(self.inventory).active_floor_rejection(state, prepared)
                 diagnostics.update(floor)
                 relaxed = bool(action.diagnostics.get("floor_fill_fallback", False))

@@ -261,11 +261,6 @@ class StackingSearchApplication:
             reward, info = reward_evaluator.compute(state)
             return observation_builder.build(state), float(reward), info
 
-        if callable(getattr(reward_evaluator, "compute_transition", None)):
-            def transition(parent, state):
-                reward, info = reward_evaluator.compute_transition(parent, state)
-                return observation_builder.build(state), float(reward), info
-            evaluate.transition = transition
         return evaluate
 
     def _build_state_evaluators(self, inventory: ObjectInventory):
@@ -290,18 +285,10 @@ class StackingSearchApplication:
             inventory.target,
             resolution=profile.overlap_resolution,
         )
-        reward_type, options = StackingReward, {}
-        construction = self.action_generation_profile.construction
-        if construction.enabled:
-            from stacking_common.environment.wall import WallReward
-            reward_type = WallReward
-            options = {"construction": construction,
-                       "grid_shape": self.action_generation_profile.planar.grid_shape}
-        reward_evaluator = reward_type(
+        reward_evaluator = StackingReward(
             inventory,
             overlap_evaluator,
             profile.reward,
-            **options,
         )
         return observation_builder, reward_evaluator
 
@@ -317,29 +304,21 @@ class StackingSearchApplication:
 
         profile = self.action_generation_profile
         floor_policy = self.build_floor_policy(inventory)
-        sampler_type, options = ScoredPlanarPoseSampler, {}
-        wall_filters = ()
-        if profile.construction.enabled:
-            from stacking_common.actions.wall import WallPlanarPoseSampler, WallPlacementFilter
-            sampler_type = WallPlanarPoseSampler
-            options["construction"] = profile.construction
-        sampler = sampler_type(
-            inventory, profile.planar,
-            orientation_provider or self.build_orientation_provider(),
-            self.sampling_settings, seed=self.mcts_profile.root_cem.seed,
-            floor_policy=floor_policy, **options)
-        if profile.construction.enabled:
-            wall_filters = (WallPlacementFilter(sampler.wall),)
         return ScoredPlacementActionGenerator(
             inventory=inventory,
             config=profile.generator,
-            planar_sampler=sampler,
+            planar_sampler=ScoredPlanarPoseSampler(
+                inventory, profile.planar,
+                orientation_provider or self.build_orientation_provider(),
+                self.sampling_settings,
+                seed=self.mcts_profile.root_cem.seed,
+                floor_policy=floor_policy,
+            ),
             initializer=self.build_height_initializer(),
             pose_solver=pose_solver,
             worker_pose_solvers=worker_pose_solvers,
             filters=(
-                *((ActiveFloorFilter(floor_policy),) if profile.use_floor_filter else ()),
-                *wall_filters,
+                *((ActiveFloorFilter(floor_policy),) if profile.strict_floor_first else ()),
                 *self.build_orientation_filters(floor_policy),
                 *filters,
             ),
@@ -355,15 +334,6 @@ class StackingSearchApplication:
 
     def build_floor_policy(self, inventory):
         raise NotImplementedError
-
-    def build_construction_filter(self, inventory):
-        """Optional final-pose check for platform motion-planning coordinators."""
-        profile = self.action_generation_profile
-        if not profile.construction.enabled:
-            return None
-        from stacking_common.actions.wall import WallPlacementFilter
-        from stacking_common.wall import WallSurfaces
-        return WallPlacementFilter(WallSurfaces(inventory, profile.construction, profile.planar.grid_shape))
 
     def build_target_filters(self, inventory, overlap_evaluator):
         return (TargetContainmentFilter(overlap_evaluator,

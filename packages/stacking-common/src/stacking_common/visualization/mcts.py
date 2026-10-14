@@ -102,7 +102,6 @@ class MCTSCandidateDiagnostic:
     pose_solve_forces: tuple[ForceMarker, ...] = ()
     best_sequence: tuple[SceneObjectPose, ...] = ()
     scene_motion: SceneMotionDiagnostic | None = None
-    construction_diagnostics: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         candidate_id = str(self.candidate_id).strip()
@@ -174,7 +173,6 @@ class MCTSCandidateDiagnostic:
         object.__setattr__(self, "rejection_reason", rejection_reason)
         object.__setattr__(self, "visits", visits)
         object.__setattr__(self, "score_field_id", score_field_id)
-        object.__setattr__(self, "construction_diagnostics", MappingProxyType(dict(self.construction_diagnostics)))
         object.__setattr__(self, "simulation_contacts", simulation_contacts)
         object.__setattr__(self, "pose_solve_forces", pose_solve_forces)
         object.__setattr__(self, "best_sequence", best_sequence)
@@ -429,9 +427,6 @@ def _project_candidate(
         pose_solve_forces=_forces(action.object_id, node.info),
         best_sequence=_best_sequence(node),
         scene_motion=_scene_motion(parent_state, timeline, node.failed),
-        construction_diagnostics={key: value for key, value in
-            {**action.diagnostics, **node.info}.items()
-            if key == "construction_mode" or key.startswith("wall_")},
     )
 
 

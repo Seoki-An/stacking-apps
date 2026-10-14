@@ -9,154 +9,6 @@ comparison. Values below are the current repository defaults. A recorded
 experiment may use a different profile, command-line overrides, or saved
 configuration; its effective settings must be reported separately.
 
-## Optional two-sided wall mode
-
-`action_generation.yml` now accepts an opt-in construction policy on both
-platforms. The default remains `construction.mode: volume_fill`: its sampler,
-floor gate, reward weights, and native solver settings are preserved. The
-default construction value is omitted from recorded resolved profiles, so the
-new option alone does not change legacy run-context compatibility.
-
-For a new excavator wall experiment, replace the construction block with:
-
-```yaml
-construction:
-  mode: two_sided_wall
-  surface_tolerance: 0.10  # metres; provisional surface-fit tolerance
-  proposal_weight: 2.0
-  reward_weight: 20.0
-```
-
-For tabletop, a provisional starting surface tolerance is `0.005` metres.
-These are independently chosen experimental values, not validated physical
-limits. Enabling the mode requires an explicit positive tolerance. Changed
-construction settings are recorded in the run context; start a new run rather
-than changing the policy of a retained tree.
-
-### Geometry and proposals
-
-There is one target volume. Its width is the full wall thickness, its length
-runs along Y, and its two facing rows approach the target's tapered −X/+X
-surfaces. There is no prescribed middle gap, center partition, side cursor, or
-forced alternation. A stone can contribute to both exterior faces.
-
-The wall sampler uses the existing legal orientation bank and stone-volume
-allocation. For each orientation and surface, it samples Y and computes the X
-anchor from the rotated stone's support extent against that target plane.
-Three bounded updates couple the predicted support height to the taper offset;
-the elevated release/initialization Z is not used for this calculation.
-Infeasible seeds are discarded using the full tapered target geometry.
-
-The wall proposal score combines the existing `height` and
-`support_likelihood` weights with `construction.proposal_weight` times
-estimated new exterior coverage. The generic `fill_area`, `target_boundary`,
-`planar_bias`, target-mask margin and anchor-inset settings belong to the
-volume-fill sampler and do not control wall seeds. Existing Boltzmann and elite
-settings are reused. Height is normalized by target height, giving both sides
-the same scale. Cached exterior samples estimate proposal contributions; exact
-convex-component union rasterization checks solved and settled poses.
-
-The fixed total proposal budget is shared in proportion to remaining weighted
-surface area. Unused slots are redistributed when one pool is empty. Each
-unstarted face can receive a ground seed near either Y end; later proposals
-must have coarse 3D bounding-box adjacency to existing work. Thus the second
-row is not blocked by the first row's connectivity mask. Coarse adjacency is
-only a proposal check; physical feasibility still comes from the native solver
-and simulation. Side metadata records intent, not immutable row membership.
-The existing empty-root corner retry can broaden Y seeds along both wall faces;
-it retains the wall geometry and does not switch back to volume-fill sampling.
-
-### Floor behavior, reward, and validation
-
-Wall mode does not install `ActiveFloorFilter` or enter its floor-relaxation
-fallback. The volume-fill `strict_floor_first` setting therefore remains
-applicable only to volume mode. Lower support scores and height-weighted
-surface completion favor lower opportunities without requiring full interior
-XY coverage before upper wall growth. This is a preference, not a strict
-floor-first guarantee.
-
-Two YZ maps use the existing planar grid dimensions (rows = Z, columns = Y).
-For each cell, the visible outer union of convex components determines the
-normal distance `d` from the target surface. Quality is
-`max(0, 1 - abs(d) / surface_tolerance)`. Internal component faces are not
-counted, and an outward protrusion can obscure previously good coverage.
-Surface progress is the area-weighted mean quality over both surfaces, with
-the fixed lower-height weight `1 - (z - target_origin_z) / target_height`.
-
-The existing MCTS reward receives the signed addition
-`reward_weight * (progress(child) - progress(parent))`. The original parent
-and actual settled child are used, including movement of previously placed
-stones. Scalar, batched, pipelined, and fixed-scene commit evaluation preserve
-that parent context. Wall-mode inward-orientation scoring uses horizontal
-inward ±X directions. MCTS selection, tree policy, and native pose optimization
-are unchanged. CEM scores the actual mutated pose rather than borrowing the
-best orientation at the nearest XY cell.
-
-Solved poses missing both surfaces are rejected as `wall_surface_miss`;
-settled misses are reported as `wall_settled_surface_miss`. Pose optimization
-may change the proposed side. Native equilibrium, containment, motion, and
-velocity-disturbance checks still apply. The wall-mode final-pose check also
-runs after fixed-scene preparation for motion planning.
-
-Cross-row connectivity is reported from stone–stone contact paths and stones
-that serve both faces; shared ground alone is not a bond. This is a diagnostic,
-not a structural certificate or a new episode-termination rule. The current
-mode does not introduce a dedicated bonding reward or a native surface-fitting
-objective. Wall thickness must be compatible with the available stone depths.
-
-### Wall sampler acceleration and benchmark
-
-The sampler keeps the current finite orientation bank's bottom kernels,
-rotated bounds, target-plane extents, and exterior samples per stone. Changing
-the orientation bank or height-map spacing replaces that stone's cache.
-Arbitrary CEM orientations use a separate bounded LRU kernel cache, so they
-cannot evict the fixed proposal bank. Scene-dependent quality and progress are
-reused only while the scene poses and height map match.
-
-Both faces now share one batched height-map interpolation per support/taper
-update. The three updates, seed order, scores, elite/Boltzmann draws, filters,
-and MCTS budgets retain their existing behavior. Score normalization is computed
-once per map rather than once per candidate.
-
-Run the CPU-only comparison with the project Python:
-
-```bash
-OPENBLAS_NUM_THREADS=1 python tests/benchmark_two_sided_sampling.py \
-  --baseline-ref 822435b --output /tmp/wall-sampling.json
-```
-
-This loads real excavator meshes, checks every candidate score/pose and seeded
-draw against the specified revision, and measures empty and ten-stone scenes.
-Warm passes rebuild scene maps while retaining orientation geometry. The initial
-five-repeat comparison measured about 2x faster sampling (roughly 0.63 to 0.31 s
-for 49 available stones, and 0.59 to 0.30 s for 39). These figures exclude native
-pose solving and simulation and do not establish end-to-end MCTS speedup.
-
-### Inspection and verification
-
-For wall runs, the operations console's **XY score maps…** action opens sparse
-XY proposals and the two exterior-completion maps using the recorded profile
-and initial orientation. Candidate details preserve the proposed side,
-settled coverage, signed surface increment, and cross-row connectivity.
-These are coarse diagnostic maps, not a replay of every CEM mutation.
-
-Focused geometry tests cover asymmetric taper, rotated bounds, component-union
-occlusion, opposite-row seeding, lower-area preference, CEM rotation, parent
-alignment through the evaluation pipeline, and default-mode isolation.
-On the saved excavator step-11 fixture, three stones took approximately
-10.0–10.3 ms each to rebuild wall proposals with warm geometry caches, versus
-2.2 ms for volume-fill scores. The initial per-seed rasterization prototype
-took 92–110 ms; cached exterior quadrature removed most of that overhead.
-These are CPU scorer timings, not full MCTS runtime or construction-quality
-measurements. A four-proposal native CPU smoke check accepted all four solves
-and all four short simulations retained an exterior contribution. A full wall
-construction experiment is still needed to tune tolerance and reward weight.
-A native CPU MCTS smoke search also selected a validated candidate using the
-wall reward and ordinary descendant validation. CUDA performance and complete
-wall-sequence quality have not yet been established. GUI data and widget setup
-are tested; visual verification was blocked by unavailable OpenGL rendering
-in the development environment.
-
 ## Working version and score inspection
 
 The planner uses the pre-region strategy from `824d204`, with consolidated
@@ -165,6 +17,13 @@ Open-area and frontier bonuses have been removed; connectivity is a hard samplin
 is retained in the existing Git stash; files
 that were untracked when stashing are backed up under
 `.backups/region-sampling-20261011/` with their paths and the stash hash.
+
+The experimental two-sided wall mode has been removed. Both platforms use
+the conventional volume-filling sampler and floor policy. Its implementation,
+including the lower-gap allocation and refinement experiment, is archived
+locally in `.backups/two-sided-wall-20261014-202619/snapshot.tar.gz` (Git-ignored).
+The archive includes a file manifest, patches, and restoration instructions.
+Inventory-volume normalization of the overlap reward remains enabled.
 
 In the excavator operations console, select a candidate in **Search Inspector**
 and click **XY score maps…**. The view compares scene height with the restored
@@ -183,6 +42,8 @@ Historical connectivity settings are accepted only when they match the fixed
 one-cell rule without an active delay in the displayed state. Runs whose
 recorded layer cap is reached are rejected by the viewer, since their capped
 floor context cannot be reconstructed with the current policy.
+Historical wall runs also cannot reconstruct score maps in this viewer;
+their saved scenes and candidate trajectories remain readable.
 
 ## 1. Purpose and algorithm structure
 
@@ -1445,7 +1306,7 @@ the same.
 Both platforms now use `reward.weights.target_overlap_increment: 1.0`
 (previously `20.0`). With `object_containment: 2.0` and containment threshold
 `0.5`, a fully contained average stone receives one reward unit from each
-term. These weight semantics apply to both volume-fill and wall modes.
+term. These weight semantics apply to both platforms.
 Historical weights must be interpreted with the reward version that produced
 their run; the old value `20.0` is not equivalent under this normalization.
 

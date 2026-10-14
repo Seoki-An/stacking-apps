@@ -101,6 +101,9 @@ class OperationsController(CommonOperationsController):
             digest = StackRunStore.load_planning_checkpoint(
                 self._run_path, step=step.step).context_sha256
         context = self.contexts[digest]
+        construction = context.profiles['action_generation_profile'].get('construction', {})
+        if construction.get('mode', 'volume_fill') != 'volume_fill':
+            raise ValueError("This run used a removed construction mode; its score maps are unavailable")
         settings = context.profiles.get('sampling_settings', {})
         if settings.get('strategy') or not settings.get('score') or not (settings.get('floor') or settings.get('floor_fill')):
             raise ValueError("This run does not record the pre-region sampler settings; its score maps are unavailable")
@@ -122,16 +125,9 @@ class OperationsController(CommonOperationsController):
         state = State(list(inventory.object_ids),
             [inventory.object_ids.index(oid) for oid in poses], poses, [], [])
         environment = context.profiles['environment_profile']
-        construction = context.profiles['action_generation_profile'].get('construction', {})
-        view_builder = initial_pose_score_view
-        options = {'floor_settings': context.profiles.get('floor_settings')}
-        if construction.get('mode') == 'two_sided_wall':
-            from stacking_common.visualization.sampling import wall_pose_score_view
-            view_builder = wall_pose_score_view
-            options = {'construction': construction}
-        result = view_builder(inventory, state, candidate.object_id, candidate.init_pose,
+        result = initial_pose_score_view(inventory, state, candidate.object_id, candidate.init_pose,
             planar_config=context.profiles['action_generation_profile']['planar'],
-            **options,
+            floor_settings=context.profiles.get('floor_settings'),
             settings=dict(settings),
             height_map_resolution=tuple(environment['observation']['height_map_resolution']),
             height_map_margin=environment['height_map_margin'])

@@ -1,7 +1,7 @@
 """Loading of the resolved platform action-generation profile."""
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -11,7 +11,6 @@ from stacking_common.actions import (
     PlacementActionGeneratorConfig,
     PlanarSamplingConfig,
 )
-from stacking_common.wall import ConstructionConfig
 
 
 @dataclass(frozen=True)
@@ -21,12 +20,6 @@ class ActionGenerationProfile:
     generator: PlacementActionGeneratorConfig
     planar: PlanarSamplingConfig
     strict_floor_first: bool = False
-    construction: ConstructionConfig = field(default=ConstructionConfig(), kw_only=True,
-        metadata={"omit_default_from_context": True})
-
-    @property
-    def use_floor_filter(self):
-        return self.strict_floor_first and not self.construction.enabled
 
     def __post_init__(self) -> None:
         if not isinstance(self.strict_floor_first, bool):
@@ -61,7 +54,6 @@ def load_action_generation_profile(
     if "yaw_angles_degrees" in planar:
         raise ValueError("move planar.yaw_angles_degrees to orientation.yaw_angles_degrees")
     return ActionGenerationProfile(
-        construction=ConstructionConfig.from_mapping(values.get("construction", {})),
         strict_floor_first=filtering.get("strict_floor_first", False),
         generator=PlacementActionGeneratorConfig(
             stone_volume_exponent=float(stone_sampling.get("volume_exponent", 0.0)),

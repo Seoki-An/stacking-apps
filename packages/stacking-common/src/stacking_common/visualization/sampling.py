@@ -29,45 +29,6 @@ class SamplingScoreView:
     weights: dict[str, float]
 
 
-@dataclass(frozen=True)
-class WallSamplingScoreView:
-    """Sparse face seeds and the two pre-search exterior coverage maps."""
-
-    y: np.ndarray
-    z: np.ndarray
-    quality: np.ndarray
-    valid: np.ndarray
-    proposal_xy: np.ndarray
-    proposal_scores: np.ndarray
-    initial_xy: np.ndarray
-    target_bounds: tuple[np.ndarray, np.ndarray]
-
-
-def wall_pose_score_view(inventory, state, object_id, initial_pose, *, planar_config,
-                         construction, settings, height_map_resolution, height_map_margin):
-    from stacking_common.actions.wall import WallPlanarPoseSampler
-    from stacking_common.wall import ConstructionConfig
-
-    index = inventory.object_ids.index(object_id)
-    if index in state.placed_object_indices:
-        raise ValueError("score-map candidate is already in the scene")
-    pose = np.asarray(initial_pose, dtype=float)
-    renderer = HeightMapRenderer(inventory, height_map_resolution, height_map_margin)
-    observation = SimpleNamespace(scene_height_map=renderer.render(state),
-        height_map_xlim=renderer.xlim, height_map_ylim=renderer.ylim)
-    config = PlanarSamplingConfig(tuple(planar_config['grid_shape']), (0.,))
-    sampler = WallPlanarPoseSampler(inventory, config,
-        MappingOrientationProvider({oid: pose[3:] for oid in inventory.object_ids}), settings,
-        construction=ConstructionConfig.from_mapping(construction))
-    data = sampler.score_map(state, observation, index)
-    half = np.array([inventory.target.width, inventory.target.length]) / 2
-    return WallSamplingScoreView(sampler.wall.y, sampler.wall.z,
-        data['wall_quality'], sampler.wall.valid,
-        np.asarray([item['xy'] for item in data['candidates']]).reshape(-1, 2),
-        np.asarray([item['score'] for item in data['candidates']]), pose[:2].copy(),
-        (inventory.target.origin[:2] - half, inventory.target.origin[:2] + half))
-
-
 def initial_pose_score_view(inventory, state, object_id, initial_pose, *, planar_config,
                             settings, height_map_resolution, height_map_margin, floor_settings=None):
     """Recompute a fixed initial orientation in the pre-search scene.

@@ -403,11 +403,9 @@ class MCTSPlanningSequenceCoordinator(Generic[ObservationT]):
 
         observation, reward = node.observation, node.reward
         if self.committed_state_evaluator is not None:
-            transition = getattr(self.committed_state_evaluator, "transition", None)
-            if callable(transition):
-                observation, reward, diagnostics = transition(parent_state, committed.copy())
-            else:
-                observation, reward, diagnostics = self.committed_state_evaluator(committed.copy())
+            observation, reward, diagnostics = self.committed_state_evaluator(
+                committed.copy()
+            )
             info.update(diagnostics)
         if poses_changed:
             # These are unknown after invalidating the simulation contacts,

@@ -1,9 +1,5 @@
 # Independently resolved tabletop SI profile; distances are in metres.
 units: si
-construction:
-  mode: volume_fill  # Opt in: two_sided_wall, with surface_tolerance in metres.
-  # Wall-mode example: surface_tolerance: 0.005 (provisional, calibrate to stone scans).
-  # Optional wall-only weights: proposal_weight: 2.0, reward_weight: 20.0.
 stone_sampling:
   # Fresh proposal probability proportional to volume^exponent; 0 restores equal allocation.
   volume_exponent: 1.0
