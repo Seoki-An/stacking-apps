@@ -31,6 +31,7 @@ class TabletopPlanningCoordinator:
         *,
         placement_backend=None,
         safety: TabletopPlacementSafety | None = None,
+        construction_filter=None,
         world_T_stack: FrameTransform | None = None,
         progress: Callable[[str, Mapping[str, object]], None] | None = None,
         context_sha256: str | None = None,
@@ -44,6 +45,7 @@ class TabletopPlanningCoordinator:
         self.planner = planner
         self.placement_backend = placement_backend
         self.safety = safety
+        self.construction_filter = construction_filter
         self.world_T_stack = world_T_stack
         self.progress = progress
         self.context_sha256 = context_sha256
@@ -186,6 +188,11 @@ class TabletopPlanningCoordinator:
             )
             prepared.pose = np.asarray(settled_pose, dtype=float).copy()
 
+        if self.construction_filter is not None:
+            decision = self.construction_filter.check(state, prepared.object_index, prepared.pose)
+            diagnostics.update(decision.diagnostics)
+            if not decision.accepted:
+                return prepared, self._infeasible(decision.reason, diagnostics), diagnostics
         if self.safety is not None:
             reason, active_floor = self.safety.active_floor_rejection(
                 state, prepared
@@ -241,6 +248,14 @@ class TabletopPlanningCoordinator:
                 score=result.score,
                 diagnostics={**diagnostics, "retryable": True},
             )
+        if self.construction_filter is not None:
+            decision = self.construction_filter.check(state, achieved_action.object_index, settled)
+            diagnostics.update(decision.diagnostics)
+            if not decision.accepted:
+                return PlacementPlanningResult(
+                    PlanningStatus.INFEASIBLE, segments=result.segments,
+                    grasp_events=result.grasp_events, reason=decision.reason,
+                    score=result.score, diagnostics={**diagnostics, "retryable": True})
         return PlacementPlanningResult(
             result.status,
             segments=result.segments,

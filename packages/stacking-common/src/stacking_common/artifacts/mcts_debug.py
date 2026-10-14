@@ -218,6 +218,8 @@ def _decode_step(values: Mapping[str, object], frame_id: str) -> MCTSDebugStep:
 
 def _encode_candidate(value: MCTSCandidateDiagnostic) -> dict[str, object]:
     return {
+        **({"construction_diagnostics": dict(value.construction_diagnostics)}
+           if value.construction_diagnostics else {}),
         "candidate_id": value.candidate_id,
         "rank": value.rank,
         "object_index": value.object_index,
@@ -255,6 +257,7 @@ def _decode_candidate(values: Mapping[str, object]) -> MCTSCandidateDiagnostic:
     raw_final = values.get("final_pose")
     raw_motion = values.get("scene_motion")
     return MCTSCandidateDiagnostic(
+        construction_diagnostics=values.get("construction_diagnostics", {}),
         candidate_id=values["candidate_id"],
         rank=values["rank"],
         object_index=values["object_index"],

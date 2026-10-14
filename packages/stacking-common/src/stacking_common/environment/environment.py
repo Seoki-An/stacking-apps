@@ -49,12 +49,20 @@ class StackingEnvironment(Generic[observation_t]):
         )
 
     def step(self, action: Action) -> StepResult[observation_t]:
+        parent = (self.snapshot() if callable(getattr(self.reward_evaluator, "compute_transition", None))
+                  else None)
         state = self.transition.step(action)
-        return self._step_result(state)
+        return self._step_result(state, parent=parent)
 
-    def _step_result(self, state, evaluators=None):
+    def _step_result(self, state, evaluators=None, *, parent=None):
         observation_builder, reward_evaluator = evaluators or self._evaluators[0]
-        reward, info = reward_evaluator.compute(state)
+        transition_reward = getattr(reward_evaluator, "compute_transition", None)
+        if callable(transition_reward):
+            if parent is None:
+                raise ValueError("transition reward requires the original parent state")
+            reward, info = transition_reward(parent, state)
+        else:
+            reward, info = reward_evaluator.compute(state)
         observe = observation_builder.build
         if self.defer_observations:
             observe = getattr(observation_builder, "defer", observe)
@@ -71,30 +79,32 @@ class StackingEnvironment(Generic[observation_t]):
             raise ValueError("environment batch states and actions must align")
         backend = getattr(self.transition, "backend", None)
         if callable(getattr(backend, "place_batch", None)):
+            parents = states if callable(getattr(self.reward_evaluator, "compute_transition", None)) else None
             batches = getattr(self.transition, "iter_step_batches", None)
             chunk_size = getattr(backend, "placement_batch_size", len(states))
             if callable(batches) and self.result_workers > 1 and len(states) > chunk_size:
-                return self._pipelined_step_results(batches(states, actions))
+                return self._pipelined_step_results(batches(states, actions), parents=parents)
             evaluated_states = tuple(self.transition.step_batch(states, actions))
-            return self._step_result_chunks(evaluated_states)
+            return self._step_result_chunks(evaluated_states, parents=parents)
         results = []
         for state, action in zip(states, actions):
             self.restore(state)
             results.append(self.step(action))
         return tuple(results)
 
-    def _step_result_chunks(self, states, *, start_index=0):
+    def _step_result_chunks(self, states, *, start_index=0, parents=None):
         """Process small CPU chunks with stable evaluator assignment."""
         if self.result_batch_size <= 0:
             raise ValueError("result batch size must be positive")
         results = []
         for start in range(0, len(states), self.result_batch_size):
+            options = {} if parents is None else {"parents": parents[start:start + self.result_batch_size]}
             results.extend(self._step_results(
                 states[start:start + self.result_batch_size],
-                start_index=start_index + start))
+                start_index=start_index + start, **options))
         return tuple(results)
 
-    def _pipelined_step_results(self, batches):
+    def _pipelined_step_results(self, batches, *, parents=None):
         """Queue CPU chunks independently of GPU batches, with bounded backlog.
 
         One coordinator serializes result groups to protect evaluator caches.
@@ -122,7 +132,8 @@ class StackingEnvironment(Generic[observation_t]):
                 if len(pending) == 2:
                     collect()
                 pending.append(self._pipeline_executor.submit(
-                    self._step_result_chunks, states, start_index=start_index))
+                    self._step_result_chunks, states, start_index=start_index,
+                    parents=None if parents is None else parents[start_index:start_index + len(states)]))
                 start_index += len(states)
             while pending:
                 collect()
@@ -134,19 +145,22 @@ class StackingEnvironment(Generic[observation_t]):
                 future.cancel()
             wait(pending)
 
-    def _step_results(self, states, *, start_index=0):
+    def _step_results(self, states, *, start_index=0, parents=None):
         if self.result_workers == 1 or len(states) <= 1:
             return tuple(self._step_result(state, self._evaluators[
-                (start_index + index) % self.result_workers])
+                (start_index + index) % self.result_workers],
+                parent=None if parents is None else parents[index])
                 for index, state in enumerate(states))
         if self._result_executor is None:
             self._result_executor = ThreadPoolExecutor(max_workers=self.result_workers)
         buckets = [[] for _ in self._evaluators]
         for index, state in enumerate(states, start=start_index):
-            buckets[index % self.result_workers].append((index, state))
+            buckets[index % self.result_workers].append((index, state,
+                None if parents is None else parents[index - start_index]))
 
         def evaluate(evaluators, jobs):
-            return [(index, self._step_result(state, evaluators)) for index, state in jobs]
+            return [(index, self._step_result(state, evaluators, parent=parent))
+                    for index, state, parent in jobs]
 
         futures = [self._result_executor.submit(evaluate, evaluators, jobs)
                    for evaluators, jobs in zip(self._evaluators, buckets) if jobs]

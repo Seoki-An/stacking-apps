@@ -114,6 +114,11 @@ class SearchInspector(QWidget):
         self.candidate_failure_reason.setTextFormat(Qt.TextFormat.PlainText)
         self.candidate_failure_reason.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         form.addRow("Failure reason", self.candidate_failure_reason)
+        self.wall_details = QLabel()
+        self.wall_details.setWordWrap(True)
+        self.wall_details.setTextFormat(Qt.TextFormat.PlainText)
+        form.addRow("Wall", self.wall_details)
+        self.wall_label = form.labelForField(self.wall_details)
         form.addRow("Rendering", self.render_selector)
         form.addRow("Pose", self.pose_selector)
         self.score_map_button = QPushButton("XY score maps…")
@@ -226,6 +231,10 @@ class SearchInspector(QWidget):
             self.video_fps.setEnabled(frame_count > 0)
             active = self.controller.active_candidate
             self.candidate_failure_reason.setText(self._candidate_failure_text(active))
+            wall = {} if active is None else active.construction_diagnostics
+            self.wall_details.setText(self._wall_text(wall))
+            self.wall_details.setVisible(bool(wall))
+            self.wall_label.setVisible(bool(wall))
             self.score_map_button.setEnabled(active is not None and active.init_pose is not None)
             timed = (active is not None and bool(active.timeline.tracks)
                      and all(track.times is not None for track in active.timeline.tracks))
@@ -259,6 +268,23 @@ class SearchInspector(QWidget):
             self._updating = False
 
     @staticmethod
+    def _wall_text(values):
+        if not values:
+            return "Not enabled for this candidate."
+        parts = [f"Proposed side: {values.get('wall_proposal_side', 'unrecorded')}"]
+        for key, label in (("wall_negative_x_coverage", "−X completion"),
+                           ("wall_positive_x_coverage", "+X completion")):
+            if key in values:
+                parts.append(f"{label}: {float(values[key]):.1%}")
+        if "wall_surface_increment" in values:
+            parts.append(f"Surface progress: {float(values['wall_surface_increment']):+.4f}")
+        if "wall_cross_row_connected" in values:
+            status = ("yes" if values["wall_cross_row_connected"] else
+                      "not established" if values.get("wall_contact_data_available") else "unknown (no contacts)")
+            parts.append(f"Cross-row connection: {status}")
+        return "\n".join(parts)
+
+    @staticmethod
     def _candidate_failure_text(candidate) -> str:
         if candidate is None:
             return "No candidate selected."
@@ -284,10 +310,15 @@ class SearchInspector(QWidget):
         finally:
             QApplication.restoreOverrideCursor()
         from .score_view import InitialPoseScoreDialog
+        from stacking_common.visualization.sampling import WallSamplingScoreView
+        dialog_type = InitialPoseScoreDialog
+        if isinstance(data, WallSamplingScoreView):
+            from .wall_score_view import WallScoreDialog
+            dialog_type = WallScoreDialog
         if self._score_dialog is not None:
             self._score_dialog.close()
             self._score_dialog.deleteLater()
-        self._score_dialog = InitialPoseScoreDialog(data,
+        self._score_dialog = dialog_type(data,
             step=self.controller.current_step.step, candidate=self.controller.active_candidate, parent=self)
         self._score_dialog.show()
 

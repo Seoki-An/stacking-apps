@@ -33,6 +33,7 @@ def load_action_generation_profile(path, *, max_poses_per_object, banned_object_
         raise TypeError("orientation must be a mapping")
     return TabletopActionGenerationProfile(profile.generator, profile.planar, profile.strict_floor_first,
         orientation.get("pose_from_scan", True),
+        construction=profile.construction,
         sampling_settings=resolve_scored_sampling_settings(values["planar"]))
 
 

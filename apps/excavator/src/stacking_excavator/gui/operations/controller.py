@@ -122,9 +122,16 @@ class OperationsController(CommonOperationsController):
         state = State(list(inventory.object_ids),
             [inventory.object_ids.index(oid) for oid in poses], poses, [], [])
         environment = context.profiles['environment_profile']
-        result = initial_pose_score_view(inventory, state, candidate.object_id, candidate.init_pose,
+        construction = context.profiles['action_generation_profile'].get('construction', {})
+        view_builder = initial_pose_score_view
+        options = {'floor_settings': context.profiles.get('floor_settings')}
+        if construction.get('mode') == 'two_sided_wall':
+            from stacking_common.visualization.sampling import wall_pose_score_view
+            view_builder = wall_pose_score_view
+            options = {'construction': construction}
+        result = view_builder(inventory, state, candidate.object_id, candidate.init_pose,
             planar_config=context.profiles['action_generation_profile']['planar'],
-            floor_settings=context.profiles.get('floor_settings'),
+            **options,
             settings=dict(settings),
             height_map_resolution=tuple(environment['observation']['height_map_resolution']),
             height_map_margin=environment['height_map_margin'])
