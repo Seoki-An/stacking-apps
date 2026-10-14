@@ -1,0 +1,212 @@
+{
+  "stack": "/home/inrol-excavator/workspace/stacking/stacking-apps/.stacks/excavator_plan5.stack",
+  "stack_sha256": "98546161b3cf9f2be10ded78962fe3571f34b4b6c62d630d7e9d14b7f64217b0",
+  "native_sha256": "fc32af17251d6bc9d03936849abac2415bb0ece986a4264734f366f79b2cf388",
+  "simulation_profile": {
+    "gravity": [
+      0.0,
+      0.0,
+      -9.81
+    ],
+    "contact_model": "limit_surface_6d",
+    "detection_margin": 0.01,
+    "solver_tol_abs": 0.0001,
+    "solver_tol_rel": 1e-05,
+    "damping": 0.0,
+    "error_reduction_ratio": 0.2,
+    "patch_eps": 3e-05,
+    "solver_constraint_scale_reference": 0.001,
+    "solver_beta_init": 0.1,
+    "solver_beta_update_interval": 50,
+    "solver_max_iters": 2000,
+    "solver_stagnation_window": 0,
+    "placement": {
+      "structural": {
+        "dt": 0.01,
+        "energy_threshold": 1e-05,
+        "velocity_integral_threshold": 0.2,
+        "min_time": 3.0,
+        "max_time": 15.0,
+        "extra_steps": 150,
+        "freeze_radius": null,
+        "final_extra_steps": 300
+      },
+      "settle_dt": 0.01,
+      "settle_steps": 400,
+      "contact_gap_tolerance": 0.02,
+      "minimum_support_count": 1,
+      "short_gate": {
+        "dt": 0.01,
+        "energy_threshold": 1e-05,
+        "velocity_integral_threshold": 0.2,
+        "min_time": 0.5,
+        "max_time": 4.0,
+        "extra_steps": 20,
+        "freeze_radius": 1.5,
+        "final_extra_steps": 40
+      },
+      "ground_z": 0.0,
+      "ground_friction": 5.0,
+      "settle_sample_count": 64,
+      "frame_id": 1,
+      "support_chain_z_tolerance": 0.05
+    },
+    "settling_physics": {
+      "gravity": [
+        0.0,
+        0.0,
+        -9.81
+      ],
+      "contact_model": "single_point",
+      "detection_margin": 0.01,
+      "solver_tol_abs": 0.001,
+      "solver_tol_rel": 0.0001,
+      "damping": 0.0,
+      "error_reduction_ratio": 0.2,
+      "patch_eps": null,
+      "solver_constraint_scale_reference": 0.001,
+      "solver_beta_init": 0.1,
+      "solver_beta_update_interval": 50,
+      "solver_max_iters": 2000,
+      "solver_stagnation_window": 0
+    }
+  },
+  "place_stability": {
+    "enabled": true,
+    "n_noise": 4,
+    "linear_velocity_std": [
+      0.05,
+      0.05,
+      0.05
+    ],
+    "angular_velocity_std_deg": 5.0,
+    "rotation_weight": 0.1,
+    "fail_displacement": 0.15,
+    "seed": 0,
+    "reject_failed_trials": true,
+    "settling_position_tolerance": 0.002,
+    "settling_rotation_tolerance_deg": 0.5
+  },
+  "measurements": [
+    {
+      "step": 1,
+      "candidates": 32,
+      "modes": {
+        "nominal_only": {
+          "seconds": [
+            0.1630586750106886,
+            0.16273021302185953,
+            0.1635405890410766
+          ],
+          "median_seconds": 0.1630586750106886,
+          "accepted": 32,
+          "rejections": {
+            "passed": 32
+          },
+          "trial_outcomes": {}
+        },
+        "velocity_disturbance": {
+          "seconds": [
+            0.42067573603708297,
+            0.41811458696611226,
+            0.4214670719811693
+          ],
+          "median_seconds": 0.42067573603708297,
+          "accepted": 32,
+          "rejections": {
+            "passed": 32
+          },
+          "trial_outcomes": {
+            "settled": 128
+          }
+        }
+      },
+      "saved_rejections": {
+        "passed": 30,
+        "place_robustness": 2
+      },
+      "maximum_excursion": 0.010959480693794045
+    },
+    {
+      "step": 3,
+      "candidates": 57,
+      "modes": {
+        "nominal_only": {
+          "seconds": [
+            0.32195742905605584,
+            0.3169071100419387,
+            0.3157505850540474
+          ],
+          "median_seconds": 0.3169071100419387,
+          "accepted": 57,
+          "rejections": {
+            "passed": 57
+          },
+          "trial_outcomes": {}
+        },
+        "velocity_disturbance": {
+          "seconds": [
+            0.9288378059864044,
+            0.9340630839578807,
+            0.9199805889511481
+          ],
+          "median_seconds": 0.9288378059864044,
+          "accepted": 57,
+          "rejections": {
+            "passed": 57
+          },
+          "trial_outcomes": {
+            "settled": 228
+          }
+        }
+      },
+      "saved_rejections": {
+        "passed": 28,
+        "place_robustness_initial_clearance": 18,
+        "place_robustness": 11
+      },
+      "maximum_excursion": 0.01395622986833749
+    },
+    {
+      "step": 4,
+      "candidates": 67,
+      "modes": {
+        "nominal_only": {
+          "seconds": [
+            0.38874454994220287,
+            0.3810191589873284,
+            0.3820557240396738
+          ],
+          "median_seconds": 0.3820557240396738,
+          "accepted": 67,
+          "rejections": {
+            "passed": 67
+          },
+          "trial_outcomes": {}
+        },
+        "velocity_disturbance": {
+          "seconds": [
+            1.1987983079161495,
+            1.1907959800446406,
+            1.199866826995276
+          ],
+          "median_seconds": 1.1987983079161495,
+          "accepted": 67,
+          "rejections": {
+            "passed": 67
+          },
+          "trial_outcomes": {
+            "settled": 268
+          }
+        }
+      },
+      "saved_rejections": {
+        "passed": 21,
+        "place_robustness_initial_clearance": 34,
+        "place_robustness": 12
+      },
+      "maximum_excursion": 0.015623930390880482
+    }
+  ],
+  "scope": "Long-fidelity saved-candidate replay, three timed repeats; not full MCTS or a comparison against the former pose-noise implementation."
+}

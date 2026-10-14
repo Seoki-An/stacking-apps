@@ -147,60 +147,88 @@ xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 \
 
 ## Placement robustness reward
 
-Both platform `config/environment.yml` files now expose `reward.place_stability`.
-This restores the noisy-placement trials from `stacking-planner` and
-`stacking-tabletop`; it is distinct from the ordinary structural motion limit.
-After initial settling, each trial perturbs that settled pose, creates a fresh
-simulation with previously placed stones fixed at their pre-action poses, and
-moves only the new stone. The metric is the maximum across trials of
-translation distance plus `rotation_weight` times shortest rotation angle in
-radians, measured from the noisy start to the final pose. Trials never replace
-the nominal scene or action pose. Seeds depend on configured seed, placement
-step, inventory index and object ID, as in the legacy implementations.
+Both platforms configure `reward.place_stability` in `config/environment.yml`.
+After a placement passes nominal physical checks **and settles**, each trial
+starts from the final structural snapshot. All poses and static/dynamic roles
+are preserved. Residual velocities are reset; only the newly placed stone gets
+an initial Gaussian linear velocity in world axes and angular velocity in body
+axes. Supporting stones that were dynamic in structural validation remain dynamic.
+Pose-identified and structurally frozen stones remain fixed. Trials do not alter
+the committed scene, action, or nominal trajectories.
 
 | Field under `reward.place_stability` | Excavator | Tabletop |
 | --- | --- | --- |
 | `enabled` | `true` | `true` |
 | `n_noise` | 4 | 8 |
-| `position_std` (XYZ, metres) | `[0.02, 0.02, 0.05]` | `[0.005, 0.005, 0.005]` |
-| `rotation_std_deg` | 5 | 5 |
+| `linear_velocity_std` (world XYZ, m/s) | `[0.05, 0.05, 0.05]` | `[0.02, 0.02, 0.02]` |
+| `angular_velocity_std_deg` (each body axis, deg/s) | 5 | 5 |
 | `rotation_weight` (metres/radian) | 0.1 | 0.01 |
 | `reject_failed_trials` | `true` | `false` |
-| `fail_displacement` | `null` | `null` |
+| `fail_displacement` (metres of combined excursion) | 0.15 | `null` |
 | `seed` | 0 | 0 |
 
-Noise values follow each legacy project's `agent/configs/config.yml`. The excavator
-legacy ablation profile disabled robustness and used smaller XY noise;
-set `enabled: false` to skip the trials. Missing sections in older profiles
-also leave trials disabled. More trials increase candidate evaluation cost.
-Trials use the selected short/long structural phase's stopping thresholds,
-twice its time step, and the corresponding structural physics in fresh
-simulators. Existing placements remain at rest throughout each trial.
+Velocity magnitudes are provisional platform settings, not conversions from
+previous pose-noise magnitudes. Calibrate them against measured release motion.
+All axes use signed, independent, zero-mean Gaussian draws; downward velocity
+is allowed without changing the initial geometry. Seeds depend on placement
+step, inventory index, object ID, and configured seed.
 
-`reward.weights.place_stability` multiplies the negative worst displacement.
-The existing `reward.max_displacement` caps only the reward value;
-`reward.nonfinite_displacement` supplies its nonfinite fallback.
-`reject_failed_trials: true` rejects a candidate if **any** noisy trial exceeds
-its structural `velocity_integral_threshold`, produces nonfinite simulation
-values, or stops without settling. Settling requires energy below
-`energy_threshold` for the phase's extra steps after `min_time`; reaching
-`max_time` without that rest period fails. The legacy near-motion-limit stopping
-shortcut is retained for scoring but does not count as genuine rest. The option
-is enabled for excavator and defaults to false when omitted; tabletop exposes
-it as false so its existing acceptance behavior is preserved. Both short search
-and long validation apply it. Failures use rejection reason `place_robustness`,
-so another reward term cannot compensate for a failed trial.
+The score is the largest **peak** excursion across trials and dynamic bodies:
+translation from that body's nominal settled position plus `rotation_weight`
+times its shortest rotation angle in radians. Every integration step is checked;
+a stone cannot hide a large excursion by returning to its initial pose.
+`reward.weights.place_stability` multiplies the negative score. Reward clipping
+via `max_displacement` does not affect rejection checks.
 
-The independent `fail_displacement` option rejects a result whose worst trial
-displacement exceeds its numeric limit (including nonfinite results).
-`reject_failed_trials: false` together with `fail_displacement: null` leaves
-robustness as a soft reward signal. Unlike the old pre-rejection clipping, the hard check uses
-the raw displacement so the reward cap cannot hide failure.
+Trials use structural physics, twice the structural timestep, and its time and
+quiet-window bounds. Energy must remain below threshold for the quiet window
+for **all dynamic bodies**. The cumulative speed-integral cutoff is disabled for
+intentional disturbances. CUDA uses the existing multi-body phase stopping rule;
+its older single-body `CudaRobustnessStopping` is not used. Per-step histories
+are downloaded in batches sized to an estimated 512 MiB sample-storage budget,
+then discarded. This is not a total simulator memory limit.
 
-Action diagnostics retain per-trial and raw displacement, enabled/failed flags,
-and `place_robustness_trial_failure_reasons` (one entry per trial: `null` for a
-pass, otherwise `target_motion_limit`, `not_settled`, or `nonfinite_simulation`),
-plus `simulation_robustness_wall_seconds`. The measured value propagates through
-`PlacementResult`, action history, and saved action artifacts into the reward.
-Ordinary structural acceptance still uses `velocity_integral_threshold` in
-`config/solvers/simulation.yml`; it is not a substitute for these noisy trials.
+If energy settling is not reached, each body's terminal-window motion can still
+qualify as `bounded_rocking` when configured tolerances are satisfied (excavator:
+2 mm and 0.5 degrees; tabletop: disabled). Unresolved motion is `not_settled` and
+follows `reject_failed_trials`. Nonfinite/invalid simulations, missing history,
+and excursion above `fail_displacement` always reject. Excursion failures use
+`excursion_limit`; other invalid CUDA statuses use `simulation_cuda_<status>`.
+The candidate rejection is `place_robustness`; nominal physical failures retain
+precedence and skip disturbance trials.
+
+Diagnostics include `place_robustness_model: velocity_disturbance`,
+`place_robustness_evaluated`, per-trial excursions/outcomes/failure reasons, raw
+score, and wall time. An enabled but unevaluated trial set means nominal
+validation did not provide an eligible settled scene. Ordinary structural
+validation still uses its own motion-integral limits.
+
+Pose perturbation and clearance/lift correction have been removed. Old
+`position_std` / `rotation_std_deg` settings fail explicitly instead of silently
+changing their units. Saved runs retain their historical diagnostics; use the
+current configuration for a fresh run. Velocity disturbances test dynamic
+stability under release motion, not placement-pose uncertainty or robot/gripper
+insertion feasibility; the latter remains a motion-planning responsibility.
+
+Replay saved candidates with `tests/benchmark_place_velocity_disturbance.py
+--stack PATH --steps 1 3 4 --repeats 3 --output /tmp/velocity.json`. The comparison
+with nominal validation alone measures candidate overhead, not full-MCTS speed.
+
+### Saved first-floor replay — 2026-10-14
+
+The [recorded replay](benchmarks/excavator-velocity-disturbance-20261014.json)
+used `excavator_plan5.stack`, current long-validation physics, and three timed
+repeats after warmup. Median GPU batch times:
+
+| Step | Candidates | Nominal only | With velocity trials | Accepted |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 32 | 0.163 s | 0.421 s | 32 |
+| 3 | 57 | 0.317 s | 0.929 s | 57 |
+| 4 | 67 | 0.382 s | 1.199 s | 67 |
+
+All 664 trials settled, including those for 52 candidates originally rejected
+for initial clearance. Maximum combined excursion was 0.0156 m. Added trial
+cost was approximately 8–12 ms per candidate in these batches. These are not
+whole-MCTS timings or a controlled speed comparison with the former pose-noise
+implementation. All candidates passing at these provisional disturbance scales
+does not establish real release robustness; calibration remains necessary.

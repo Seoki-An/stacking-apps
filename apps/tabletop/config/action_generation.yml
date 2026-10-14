@@ -1,5 +1,8 @@
 # Independently resolved tabletop SI profile; distances are in metres.
 units: si
+stone_sampling:
+  # Fresh proposal probability proportional to volume^exponent; 0 restores equal allocation.
+  volume_exponent: 1.0
 initialization:
   height_clearance: 0.015
   xy_padding: 0.012
@@ -15,7 +18,7 @@ filtering:
 planar:
   grid_shape: [32, 32]
   # Legacy anchor inset; values below 1 permit controlled target overhang.
-  target_anchor_inset_scale: 0.6
+  target_anchor_inset_scale: 0.95
   floor:
     coverage_mode: bottom_slice
     bottom_tolerance: 0.02

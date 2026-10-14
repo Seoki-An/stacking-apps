@@ -547,6 +547,32 @@ def test_planar_sampler_uses_measured_orientation_provider() -> None:
     np.testing.assert_allclose(proposal.pose[3:], measured)
 
 
+@pytest.mark.parametrize('relaxed', [False, True])
+def test_lower_floor_sampling_priority_survives_relaxed_admission(relaxed, monkeypatch):
+    from pathlib import Path
+    from stacking_tabletop import TabletopApplication
+
+    inventory = _inventory()
+    app = TabletopApplication.from_repository(Path(__file__).resolve().parents[1])
+    sampler = ScoredPlanarPoseSampler(
+        inventory, PlanarSamplingConfig((3, 3), (0.,)),
+        MappingOrientationProvider({i: np.array([0., 0., 0., 1.]) for i in inventory.object_ids}),
+        app.sampling_settings, floor_policy=_tabletop_floor_policy(inventory),
+    )
+    sampler.relax_floor_fill = relaxed
+    sampler._active_floor = dict(support_z=0., bottom_tol=.02)
+    candidates = [dict(xy=np.array([x, 0.]), height=h, score=s, orientation_index=0)
+                  for x, h, s in [(0., 0., 0.), (.1, 1., 100.)]]
+    monkeypatch.setattr(sampler, 'score_map', lambda *args: dict(candidates=candidates))
+    observation = SimpleNamespace(scene_height_map=np.zeros((3, 3)),
+        height_map_xlim=np.array([-.15, .15]), height_map_ylim=np.array([-.15, .15]))
+    state = _state(inventory, placed=(0,))
+    first = sampler.sample(inventory, state, observation, 1, 1, 'lower_floor_first')
+    assert first[0].pose[0] == 0.  # Lower pool wins despite the upper seed's score.
+    both = sampler.sample(inventory, state, observation, 1, 2, 'lower_floor_first')
+    assert [p.pose[0] for p in both] == [0., .1]  # Upper continuations remain available.
+
+
 def test_scan_orientation_yaw_aligns_longest_axis() -> None:
     geometry = _cube(0.04)
     points = geometry.points.copy()

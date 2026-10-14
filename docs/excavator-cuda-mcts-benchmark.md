@@ -102,15 +102,10 @@ failure mechanism.
 The measured computation cost was modest. The production refinement above now
 rejects unresolved initialization explicitly.
 
-Reproduce candidate replay with
-`tests/benchmark_place_robustness_clearance.py --stack PATH --steps 1 8 15 --batches 1 8 32 --repeats 5 --output /tmp/clearance.json`.
-For the MCTS cost comparison, run `tests/benchmark_excavator_cuda_mcts.py` with
-`--backend cuda --seed 0 --config apps/excavator/config/mcts_cuda.yml --iterations 64`,
-once with `--uncorrected-robustness` and once with `--clearance-cost-probe`, using different `--output`
-paths. Use the same trusted checkpoint-state pickle with `--state` for both
-populated-scene runs. The commands now exercise the production refinement; the
-older prototype measurements are retained above for comparison. These commands
-require the project Python and GPU access.
+These are historical pose-noise measurements. Clearance repair and its benchmark
+controls have been removed after switching to velocity disturbances. Use
+`tests/benchmark_place_velocity_disturbance.py` to measure current candidate
+validation overhead; it compares disturbance trials with nominal validation alone.
 
 ## Original CPU/CUDA comparison — 2026-10-02
 

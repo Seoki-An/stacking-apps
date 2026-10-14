@@ -1,0 +1,476 @@
+{
+  "baseline": "c4827b8",
+  "stack": "/home/inrol-excavator/workspace/stacking/stacking-apps/.stacks/excavator_plan3.stack",
+  "native_sha256": "c2b41d436e410d949baf8377eff9d06355f904733389c92e85d8ffe952ba8b72",
+  "simulation_profile": {
+    "gravity": [
+      0.0,
+      0.0,
+      -9.81
+    ],
+    "contact_model": "limit_surface_4d",
+    "detection_margin": 0.01,
+    "solver_tol_abs": 0.0001,
+    "solver_tol_rel": 1e-05,
+    "damping": 0.0,
+    "error_reduction_ratio": 0.2,
+    "solver_constraint_scale_reference": 0.001,
+    "solver_beta_init": 0.1,
+    "solver_beta_update_interval": 50,
+    "solver_max_iters": 2000,
+    "solver_stagnation_window": 0,
+    "placement": {
+      "structural": {
+        "dt": 0.01,
+        "energy_threshold": 1e-05,
+        "velocity_integral_threshold": 0.2,
+        "min_time": 3.0,
+        "max_time": 15.0,
+        "extra_steps": 150,
+        "freeze_radius": null,
+        "final_extra_steps": 300
+      },
+      "settle_dt": 0.01,
+      "settle_steps": 400,
+      "contact_gap_tolerance": 0.02,
+      "minimum_support_count": 1,
+      "short_gate": {
+        "dt": 0.01,
+        "energy_threshold": 1e-05,
+        "velocity_integral_threshold": 0.2,
+        "min_time": 0.5,
+        "max_time": 4.0,
+        "extra_steps": 20,
+        "freeze_radius": 1.5,
+        "final_extra_steps": 40
+      },
+      "ground_z": 0.0,
+      "ground_friction": 5.0,
+      "settle_sample_count": 64,
+      "frame_id": 1,
+      "support_chain_z_tolerance": 0.05
+    },
+    "settling_physics": {
+      "gravity": [
+        0.0,
+        0.0,
+        -9.81
+      ],
+      "contact_model": "single_point",
+      "detection_margin": 0.01,
+      "solver_tol_abs": 0.001,
+      "solver_tol_rel": 0.0001,
+      "damping": 0.0,
+      "error_reduction_ratio": 0.2,
+      "solver_constraint_scale_reference": 0.001,
+      "solver_beta_init": 0.1,
+      "solver_beta_update_interval": 50,
+      "solver_max_iters": 2000,
+      "solver_stagnation_window": 0
+    }
+  },
+  "place_stability": {
+    "enabled": true,
+    "n_noise": 4,
+    "position_std": [
+      0.02,
+      0.02,
+      0.02
+    ],
+    "rotation_std_deg": 5.0,
+    "rotation_weight": 0.1,
+    "fail_displacement": 0.2,
+    "seed": 0,
+    "reject_failed_trials": true,
+    "settling_position_tolerance": 0.002,
+    "settling_rotation_tolerance_deg": 0.5
+  },
+  "measurements": [
+    {
+      "step": 1,
+      "batch": 1,
+      "candidates": [
+        "step-1-candidate-9"
+      ],
+      "baseline": [
+        {
+          "seconds": 0.04886265401728451,
+          "robustness_seconds": 0.007411935017444193,
+          "outcomes": {
+            "target_motion_limit": 4
+          },
+          "rejections": {
+            "place_robustness": 1
+          }
+        },
+        {
+          "seconds": 0.04913907195441425,
+          "robustness_seconds": 0.007531007984653115,
+          "outcomes": {
+            "target_motion_limit": 4
+          },
+          "rejections": {
+            "place_robustness": 1
+          }
+        },
+        {
+          "seconds": 0.04871360503602773,
+          "robustness_seconds": 0.007411194033920765,
+          "outcomes": {
+            "target_motion_limit": 4
+          },
+          "rejections": {
+            "place_robustness": 1
+          }
+        }
+      ],
+      "updated": [
+        {
+          "seconds": 0.1225103500764817,
+          "robustness_seconds": 0.08135534706525505,
+          "outcomes": {
+            "not_settled": 4
+          },
+          "rejections": {
+            "place_robustness": 1
+          }
+        },
+        {
+          "seconds": 0.11986091500148177,
+          "robustness_seconds": 0.07795817998703569,
+          "outcomes": {
+            "not_settled": 4
+          },
+          "rejections": {
+            "place_robustness": 1
+          }
+        },
+        {
+          "seconds": 0.12117981794290245,
+          "robustness_seconds": 0.07964469096623361,
+          "outcomes": {
+            "not_settled": 4
+          },
+          "rejections": {
+            "place_robustness": 1
+          }
+        }
+      ]
+    },
+    {
+      "step": 1,
+      "batch": 16,
+      "candidates": [
+        "step-1-candidate-9",
+        "step-1-candidate-1",
+        "step-1-candidate-2",
+        "step-1-candidate-3",
+        "step-1-candidate-4",
+        "step-1-candidate-5",
+        "step-1-candidate-6",
+        "step-1-candidate-7",
+        "step-1-candidate-8",
+        "step-1-candidate-10",
+        "step-1-candidate-11",
+        "step-1-candidate-12",
+        "step-1-candidate-13",
+        "step-1-candidate-14",
+        "step-1-candidate-15",
+        "step-1-candidate-16"
+      ],
+      "baseline": [
+        {
+          "seconds": 0.30354009196162224,
+          "robustness_seconds": 0.07654157595243305,
+          "outcomes": {
+            "target_motion_limit": 52,
+            "settled": 12
+          },
+          "rejections": {
+            "place_robustness": 12,
+            "accepted": 3,
+            "target_motion_limit": 1
+          }
+        },
+        {
+          "seconds": 0.30017267900984734,
+          "robustness_seconds": 0.07622557401191443,
+          "outcomes": {
+            "target_motion_limit": 52,
+            "settled": 12
+          },
+          "rejections": {
+            "place_robustness": 12,
+            "accepted": 3,
+            "target_motion_limit": 1
+          }
+        },
+        {
+          "seconds": 0.3006200978998095,
+          "robustness_seconds": 0.07526177901308984,
+          "outcomes": {
+            "target_motion_limit": 52,
+            "settled": 12
+          },
+          "rejections": {
+            "place_robustness": 12,
+            "accepted": 3,
+            "target_motion_limit": 1
+          }
+        }
+      ],
+      "updated": [
+        {
+          "seconds": 0.7644418589770794,
+          "robustness_seconds": 0.539667206001468,
+          "outcomes": {
+            "not_settled": 52,
+            "settled": 12
+          },
+          "rejections": {
+            "place_robustness": 12,
+            "accepted": 3,
+            "target_motion_limit": 1
+          }
+        },
+        {
+          "seconds": 0.7642005949746817,
+          "robustness_seconds": 0.5407516240375116,
+          "outcomes": {
+            "not_settled": 52,
+            "settled": 12
+          },
+          "rejections": {
+            "place_robustness": 12,
+            "accepted": 3,
+            "target_motion_limit": 1
+          }
+        },
+        {
+          "seconds": 0.7636245740577579,
+          "robustness_seconds": 0.5350052859866992,
+          "outcomes": {
+            "not_settled": 52,
+            "settled": 12
+          },
+          "rejections": {
+            "place_robustness": 12,
+            "accepted": 3,
+            "target_motion_limit": 1
+          }
+        }
+      ]
+    },
+    {
+      "step": 7,
+      "batch": 1,
+      "candidates": [
+        "step-7-candidate-36"
+      ],
+      "baseline": [
+        {
+          "seconds": 0.2717465909663588,
+          "robustness_seconds": 0.16443350992631167,
+          "outcomes": {
+            "settled": 2,
+            "target_motion_limit": 1,
+            "not_settled": 1
+          },
+          "rejections": {
+            "place_robustness": 1
+          }
+        },
+        {
+          "seconds": 0.271521151997149,
+          "robustness_seconds": 0.16302597406320274,
+          "outcomes": {
+            "settled": 2,
+            "target_motion_limit": 1,
+            "not_settled": 1
+          },
+          "rejections": {
+            "place_robustness": 1
+          }
+        },
+        {
+          "seconds": 0.2664750530384481,
+          "robustness_seconds": 0.16028327401727438,
+          "outcomes": {
+            "settled": 2,
+            "target_motion_limit": 1,
+            "not_settled": 1
+          },
+          "rejections": {
+            "place_robustness": 1
+          }
+        }
+      ],
+      "updated": [
+        {
+          "seconds": 0.2931393679464236,
+          "robustness_seconds": 0.1871821490349248,
+          "outcomes": {
+            "settled": 2,
+            "not_settled": 1,
+            "bounded_rocking": 1
+          },
+          "rejections": {
+            "place_robustness": 1
+          }
+        },
+        {
+          "seconds": 0.2933108829893172,
+          "robustness_seconds": 0.18672941299155354,
+          "outcomes": {
+            "settled": 2,
+            "not_settled": 1,
+            "bounded_rocking": 1
+          },
+          "rejections": {
+            "place_robustness": 1
+          }
+        },
+        {
+          "seconds": 0.29272837203461677,
+          "robustness_seconds": 0.18644830596167594,
+          "outcomes": {
+            "settled": 2,
+            "not_settled": 1,
+            "bounded_rocking": 1
+          },
+          "rejections": {
+            "place_robustness": 1
+          }
+        }
+      ]
+    },
+    {
+      "step": 7,
+      "batch": 16,
+      "candidates": [
+        "step-7-candidate-36",
+        "step-7-candidate-60",
+        "step-7-candidate-1",
+        "step-7-candidate-2",
+        "step-7-candidate-3",
+        "step-7-candidate-4",
+        "step-7-candidate-5",
+        "step-7-candidate-6",
+        "step-7-candidate-7",
+        "step-7-candidate-8",
+        "step-7-candidate-9",
+        "step-7-candidate-10",
+        "step-7-candidate-11",
+        "step-7-candidate-12",
+        "step-7-candidate-13",
+        "step-7-candidate-14"
+      ],
+      "baseline": [
+        {
+          "seconds": 0.8826747030252591,
+          "robustness_seconds": 0.3161619210150093,
+          "outcomes": {
+            "settled": 22,
+            "target_motion_limit": 39,
+            "not_settled": 2,
+            "initial_clearance_lift_limit": 1
+          },
+          "rejections": {
+            "place_robustness": 5,
+            "accepted": 3,
+            "target_motion_limit": 7,
+            "place_robustness_initial_clearance": 1
+          }
+        },
+        {
+          "seconds": 0.8817891960497946,
+          "robustness_seconds": 0.31652901403140277,
+          "outcomes": {
+            "settled": 22,
+            "target_motion_limit": 39,
+            "not_settled": 2,
+            "initial_clearance_lift_limit": 1
+          },
+          "rejections": {
+            "place_robustness": 5,
+            "accepted": 3,
+            "target_motion_limit": 7,
+            "place_robustness_initial_clearance": 1
+          }
+        },
+        {
+          "seconds": 0.8841765070101246,
+          "robustness_seconds": 0.31595180090516806,
+          "outcomes": {
+            "settled": 22,
+            "target_motion_limit": 39,
+            "not_settled": 2,
+            "initial_clearance_lift_limit": 1
+          },
+          "rejections": {
+            "place_robustness": 5,
+            "accepted": 3,
+            "target_motion_limit": 7,
+            "place_robustness_initial_clearance": 1
+          }
+        }
+      ],
+      "updated": [
+        {
+          "seconds": 1.5437914569629356,
+          "robustness_seconds": 0.9703324879519641,
+          "outcomes": {
+            "settled": 24,
+            "not_settled": 30,
+            "bounded_rocking": 2,
+            "excursion_limit": 7,
+            "initial_clearance_lift_limit": 1
+          },
+          "rejections": {
+            "place_robustness": 5,
+            "accepted": 3,
+            "target_motion_limit": 7,
+            "place_robustness_initial_clearance": 1
+          }
+        },
+        {
+          "seconds": 1.5411569299176335,
+          "robustness_seconds": 0.9765845609363168,
+          "outcomes": {
+            "settled": 24,
+            "not_settled": 30,
+            "bounded_rocking": 2,
+            "excursion_limit": 7,
+            "initial_clearance_lift_limit": 1
+          },
+          "rejections": {
+            "place_robustness": 5,
+            "accepted": 3,
+            "target_motion_limit": 7,
+            "place_robustness_initial_clearance": 1
+          }
+        },
+        {
+          "seconds": 1.5346819160040468,
+          "robustness_seconds": 0.9660445230547339,
+          "outcomes": {
+            "settled": 24,
+            "not_settled": 30,
+            "bounded_rocking": 2,
+            "excursion_limit": 7,
+            "initial_clearance_lift_limit": 1
+          },
+          "rejections": {
+            "place_robustness": 5,
+            "accepted": 3,
+            "target_motion_limit": 7,
+            "place_robustness_initial_clearance": 1
+          }
+        }
+      ]
+    }
+  ],
+  "history_budget_mib": 512,
+  "history_bytes_per_body_step_estimate": 320,
+  "benchmark_scope": "Saved-candidate CUDA placement replay; not full MCTS. Current clearance correction on both paths."
+}

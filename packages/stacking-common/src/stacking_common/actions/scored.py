@@ -45,11 +45,12 @@ class _StoneView:
 
 
 class ScoredPlanarPoseSampler:
-    """Legacy score-mode geometry, representatives, and Boltzmann selection."""
+    """Orientation-aware scores, empty-scene corner seeds, and elite/Boltzmann draws."""
 
     def __init__(self, inventory, config, orientation_provider, settings, *, seed=0, floor_policy=None):
         self.floor_policy = floor_policy
         self.relax_floor_fill = False
+        self.relax_corner_seed = False
         self._active_floor = None
         self.inventory = inventory
         self.config = config
@@ -162,6 +163,16 @@ class ScoredPlanarPoseSampler:
             footprint_bounds=self._footprint_bounds[key],
             active_floor=self._active_floor, state_map_bundle=self._state_map_bundle,
             relax_floor_fill=self.relax_floor_fill)
+        if not state.placed_object_indices:
+            # Corner seeds use full footprints even when ordinary sampling
+            # permits overhang via target_anchor_inset_scale < 1.
+            corner_bounds = []
+            for bounds in self._footprint_bounds[key]:
+                static = floor.target_anchor_static(view, object_index, xy_bounds=bounds)
+                static = (*static[:-1], max(self.config.target_anchor_inset_scale, 1.) * bounds)
+                corner_bounds.append(floor.target_anchor_bounds(view, object_index, _static=static))
+            scores["corner_candidates"] = floor.corner_seed_candidates(
+                scores.get("candidates", []), corner_bounds, np.array([dx, dy]))
         self._scores[object_index] = (observation, scores)
         self._score_keys[object_index] = key
         self._sampled_scores.pop(object_index, None)
@@ -173,9 +184,10 @@ class ScoredPlanarPoseSampler:
         if not candidates:
             return ()
         view = self.view(state, observation)
-        pools = [candidates]
-        if (not self.relax_floor_fill and sampling_priority == "lower_floor_first"
-                and state.placed_object_indices):
+        corner_seeds = (scores.get("corner_candidates", [])
+                        if not state.placed_object_indices and not self.relax_corner_seed else [])
+        pools = [] if corner_seeds else [candidates]
+        if sampling_priority == "lower_floor_first" and state.placed_object_indices:
             layer = (self._active_floor if self.floor_policy is not None
                      else floor.active_floor_context(view, self.state_view(state)))
             if layer is not None:
@@ -186,7 +198,8 @@ class ScoredPlanarPoseSampler:
                     [item for item in candidates if item["height"] <= ceiling],
                     [item for item in candidates if item["height"] > ceiling],
                 ]
-        selected = []
+        selected = (floor.sample_corner_candidates(view, corner_seeds, count, rng=self.rng)
+                    if corner_seeds else [])
         for pool in pools:
             remaining = count - len(selected)
             if pool and remaining > 0:
@@ -197,6 +210,10 @@ class ScoredPlanarPoseSampler:
             pose=np.r_[item["xy"], 0., quaternions[item["orientation_index"]]],
             score=float(item["score"]),
             diagnostics={"source": "scored_floor", "orientation_index": item["orientation_index"],
+                         "sampling_policy": ("corner_seed" if corner_seeds else "scored"),
+                         **({"seed_corner": item["seed_corner"]} if "seed_corner" in item else {}),
+                         **({"corner_seed_fallback": True}
+                            if not state.placed_object_indices and not corner_seeds else {}),
                          "height_map_score": float(item["score"]),
                          "height_map_score_normalized": float(item.get("normalized_score", 0.))},
         ) for item in selected)
@@ -235,17 +252,66 @@ class ScoredPlanarPoseSampler:
 
 
 class ScoredPlacementActionGenerator(PlacementActionGenerator):
-    """Allocate each fresh request as legacy action sampling did.
+    """Draw fresh pose populations with optional volume-biased stone budgets.
 
-The common deterministic sampler pages through a fixed proposal stream. This
-policy instead samples a new population on every call, using private seeded
-Python/NumPy RNGs. Retry offsets therefore do not skip a newly drawn prefix.
-"""
+    Private seeded RNGs keep runs reproducible. Retry offsets do not skip a
+    newly drawn prefix; a zero volume exponent preserves legacy allocation.
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.rng = random.Random(self.planar_sampler.seed)
         self._sampling_calls = 0
+        self._stone_weights = None
+        if self.config.stone_volume_exponent > 0:
+            volumes = np.asarray([obj.volume for obj in self.inventory], dtype=float)
+            if np.any(~np.isfinite(volumes)) or np.any(volumes <= 0):
+                raise ValueError("volume-biased sampling requires finite positive stone volumes")
+            if len(volumes):
+                weights = (volumes / volumes.max()) ** self.config.stone_volume_exponent
+                self._stone_weights = np.maximum(weights, np.finfo(float).tiny).tolist()
+
+    def _proposal_counts(self, available, budget, priority):
+        """Allocate fresh proposals, retaining the per-stone attempt cap."""
+        counts = dict.fromkeys(available, 0)
+        if self._stone_weights is not None:
+            pool = list(available)
+            weights = [self._stone_weights[index] for index in pool]
+            for _ in range(min(budget, len(pool) * self.config.max_poses_per_object)):
+                slot = self.rng.choices(range(len(pool)), weights=weights, k=1)[0]
+                index = pool[slot]
+                counts[index] += 1
+                if counts[index] == self.config.max_poses_per_object:
+                    pool.pop(slot)
+                    weights.pop(slot)
+            return counts
+        # Preserve the previous allocation and RNG sequence when bias is disabled.
+        available = list(available)
+        if not priority:
+            self.rng.shuffle(available)
+        elif available and budget < len(available):
+            offset = (self._sampling_calls - 1) % len(available)
+            available = available[offset:] + available[:offset]
+        counts = dict.fromkeys(available, 0)
+        for _ in range(self.config.max_poses_per_object):
+            for index in available:
+                if budget <= 0:
+                    break
+                counts[index] += 1
+                budget -= 1
+            if budget <= 0:
+                break
+        return counts
+
+    @contextmanager
+    def corner_seed_fallback(self):
+        """Retry an exhausted empty root using ordinary scored sampling."""
+        previous = self.planar_sampler.relax_corner_seed
+        self.planar_sampler.relax_corner_seed = True
+        try:
+            yield True
+        finally:
+            self.planar_sampler.relax_corner_seed = previous
 
     @contextmanager
     def floor_fill_fallback(self):
@@ -280,28 +346,15 @@ Python/NumPy RNGs. Retry offsets therefore do not skip a newly drawn prefix.
                          and object_id not in self.config.banned_object_ids]
             exhausted.append(not available)
             priority = request.sampling_priority == "lower_floor_first" and bool(state.placed_object_indices)
-            if not priority:
-                self.rng.shuffle(available)
-            elif available and request.max_candidates < len(available):
-                offset = (self._sampling_calls - 1) % len(available)
-                available = available[offset:] + available[:offset]
-            counts = dict.fromkeys(available, 0)
-            remaining = request.max_candidates
-            for _ in range(self.config.max_poses_per_object):
-                for index in available:
-                    if remaining <= 0:
-                        break
-                    counts[index] += 1
-                    remaining -= 1
-                if remaining <= 0:
-                    break
+            counts = self._proposal_counts(available, request.max_candidates, priority)
             for index, count in counts.items():
                 if not count or (request.deadline is not None and time.monotonic() >= request.deadline):
                     continue
                 proposals = self.planar_sampler.sample(self.inventory, state, observation,
                     index, self.config.max_poses_per_object, request.sampling_priority)
                 count = min(count, len(proposals))
-                chosen = proposals[:count] if priority else self.rng.sample(proposals, count)
+                corner_seed = bool(proposals and proposals[0].diagnostics.get("sampling_policy") == "corner_seed")
+                chosen = proposals[:count] if priority or corner_seed else self.rng.sample(proposals, count)
                 jobs.extend((batch, state, index, proposal) for proposal in chosen)
                 attempts[batch] += count
         candidates = [[] for _ in states]

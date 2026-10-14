@@ -25,7 +25,8 @@ physics:
       tol_rel: 0.0001
   structural:
     contact:
-      model: limit_surface_4d
+      model: limit_surface_6d
+      patch_eps: 0.00003  # Contact-patch depth allowance, metres.
       error_reduction_ratio: 0.2
       detection_margin: 0.01
     solver:

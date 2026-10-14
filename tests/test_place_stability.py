@@ -1,4 +1,4 @@
-"""Upward noisy-placement trials, isolation, and reward propagation."""
+"""Velocity-disturbance trials, isolation, and reward propagation."""
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace as NS
@@ -20,131 +20,67 @@ def pose(z=.2):
 
 
 @pytest.mark.parametrize('platform,count,std,weight', [
-    ('excavator', 4, [.02, .02, .02], .1),
-    ('tabletop', 8, [.005, .005, .005], .01),
+    ('excavator', 4, [.05, .05, .05], .1),
+    ('tabletop', 8, [.02, .02, .02], .01),
 ])
-def test_platform_profiles_reproduce_seeded_upward_noise(platform, count, std, weight):
-    profile = load_environment_profile(ROOT / f'apps/{platform}/config/environment.yml')
-    config = profile.place_stability
+def test_platform_profiles_reproduce_seeded_velocity_disturbances(platform, count, std, weight):
+    config = load_environment_profile(ROOT / f'apps/{platform}/config/environment.yml').place_stability
     assert config.active and config.n_noise == count
     assert config.rotation_weight == weight
-    np.testing.assert_array_equal(config.position_std, std)
-    initial = pose()
-    initial[3:] = Rotation.from_euler('xyz', [25, 12, 47], degrees=True).as_quat()
-    # Seed and left-multiplied Gaussian rotvec convention from both legacy simulators.
-    rng = np.random.default_rng(1009 * 2 + 6361 * 1 + 9176 * 20)
-    actual = list(config.noisy_poses(initial, step=2, object_index=1, object_id=20))
-    for noisy in actual:
-        expected = initial.copy()
-        position_noise = rng.normal(0., std, size=3)
-        expected[:3] += [position_noise[0], position_noise[1], abs(position_noise[2])]
-        noise = rng.normal(0., np.deg2rad(5.), size=3)
-        expected[3:] = (Rotation.from_rotvec(noise) * Rotation.from_quat(initial[3:])).as_quat()
-        np.testing.assert_allclose(noisy, expected, atol=1e-14)
-    np.testing.assert_array_equal(actual, list(config.noisy_poses(initial, step=2, object_index=1, object_id=20)))
+    np.testing.assert_array_equal(config.linear_velocity_std, std)
+    rng = np.random.default_rng(1009 * 2 + 6361 + 9176 * 20)
+    actual = list(config.velocity_disturbances(step=2, object_index=1, object_id=20))
+    for linear, angular in actual:
+        np.testing.assert_array_equal(linear, rng.normal(0., std, size=3))
+        np.testing.assert_array_equal(angular, rng.normal(0., np.deg2rad(5.), size=3))
+    np.testing.assert_array_equal(actual, list(config.velocity_disturbances(step=2, object_index=1, object_id=20)))
 
 
-@pytest.mark.parametrize('changes', [dict(reject_failed_trials='true'), dict(enabled='true'), dict(n_noise=-1), dict(n_noise=1.2), dict(seed=-1), dict(position_std=[1, 2]), dict(position_std=[0, -1, 0]), dict(rotation_std_deg=np.inf), dict(rotation_weight=-1), dict(fail_displacement=-1)])
+@pytest.mark.parametrize('changes', [dict(reject_failed_trials='true'), dict(enabled='true'),
+    dict(n_noise=-1), dict(n_noise=1.2), dict(seed=-1), dict(linear_velocity_std=[1, 2]),
+    dict(linear_velocity_std=[0, -1, 0]), dict(angular_velocity_std_deg=np.inf),
+    dict(rotation_weight=-1), dict(fail_displacement=-1)])
 def test_invalid_settings_are_rejected(changes):
     with pytest.raises(ValueError):
         PlaceStabilityConfig(**changes)
 
 
-def test_displacement_uses_translation_plus_shortest_rotation():
-    initial = pose()
-    final = initial.copy()
-    final[:3] += [.03, .04, 0]
-    final[3:] = Rotation.from_euler('z', 90, degrees=True).as_quat()
-    assert pose_displacement(initial, final, .1) == pytest.approx(.05 + .1 * np.pi / 2)
-    final[3:] *= -1
-    assert pose_displacement(initial, final, .1) == pytest.approx(.05 + .1 * np.pi / 2)
-    assert pose_displacement(initial, np.full(7, np.nan), .1) == np.inf
+def test_pose_noise_config_cannot_be_silently_reinterpreted_as_velocity():
+    with pytest.raises(ValueError, match='pose-noise'):
+        PlaceStabilityConfig.from_mapping(dict(position_std=[.02] * 3))
+
+
+def test_signed_disturbances_include_every_direction():
+    config = PlaceStabilityConfig(True, 128, (.05, .05, .05), 5.)
+    trials = np.array(list(config.velocity_disturbances(step=7, object_index=1, object_id=2)))
+    assert np.all(np.any(trials < 0., axis=0))
+    assert np.all(np.any(trials > 0., axis=0))
+    zero = PlaceStabilityConfig(True, 2)
+    np.testing.assert_array_equal(list(zero.velocity_disturbances(step=1, object_index=0, object_id=1)), 0.)
 
 
 @pytest.mark.parametrize('failed_trial', [False, True])
-def test_worst_trial_uses_settled_pose_without_mutating_state(monkeypatch, failed_trial):
+def test_worst_trial_preserves_nominal_snapshot_and_state(monkeypatch, failed_trial):
     import stacking_common.environment.robustness as module
-    import stacking_common.environment.release_clearance as clearance
-    config = PlaceStabilityConfig(True, 3, (.001, .001, .001), 5., .1, .02)
-    backend = NS(place_stability=config)
-    action = Action(0, pose(.3), pose(.4), object_id=10)
+    backend = NS(place_stability=PlaceStabilityConfig(True, 3, (.05, .05, .05), 5.))
     state = State([10], [], {}, [], [])
-    def prepare(backend, jobs):
-        return [[NS(pose=noisy, failure_reason=None, lift=0.)
-                 for noisy in config.noisy_poses(
-                     settled, step=len(source.placed_object_indices) + 1,
-                     object_index=candidate.object_index, object_id=candidate.object_id)]
-                for source, candidate, settled in jobs]
-    monkeypatch.setattr(clearance, 'prepare_release_trials', prepare)
-    starts = []
-    def simulate(b, s, a, noisy):
-        starts.append(noisy.copy())
-        final = noisy.copy()
-        final[0] += .01 * len(starts)
-        if failed_trial and len(starts) == 2:
-            final[:] = np.nan
-        return final, 'nonfinite_simulation' if not np.all(np.isfinite(final)) else None
-    monkeypatch.setattr(module, '_simulate_noisy_place', simulate)
-    displacement, trials, reasons = evaluate_place_stability(backend, state, action, pose(.2))
-    assert len(trials) == 3
-    assert displacement == pytest.approx(np.inf if failed_trial else .03, abs=1e-8)
-    assert config.failed(displacement)
-    assert all(abs(p[2] - .2) < .01 for p in starts)
-    np.testing.assert_array_equal(action.pose, pose(.3))
-    assert state.placed_object_indices == []
-    backend.place_stability = replace(config, enabled=False)
-    assert evaluate_place_stability(backend, state, action, pose()) == (0., [], [])
-    assert len(starts) == 3
-
-
-@pytest.mark.parametrize('invalid_indices', [(), (1,), (0, 1, 2)])
-def test_release_trials_use_corrected_reference_and_skip_invalid_trials(monkeypatch, invalid_indices):
-    import stacking_common.environment.robustness as module
-    import stacking_common.environment.release_clearance as clearance
-
-    config = PlaceStabilityConfig(True, 3, reject_failed_trials=False)
-    backend = NS(place_stability=config)
     action = Action(0, pose(.3), pose(.4), object_id=10)
-    state = State([10], [], {}, [], [])
-    settled = pose(.2)
-    prepared = [NS(pose=pose(.5 + .1 * i), lift=.3 + .1 * i,
-                   failure_reason='initial_clearance_blocked' if i in invalid_indices else None)
-                for i in range(3)]
-    calls, starts = [], []
-    def prepare(received_backend, jobs):
-        assert received_backend is backend
-        assert len(jobs) == 1
-        assert jobs[0][0] is state and jobs[0][1] is action
-        np.testing.assert_array_equal(jobs[0][2], settled)
-        calls.append(jobs)
-        return [prepared]
-    def simulate(b, source, candidate, initial):
-        starts.append(initial.copy())
-        final = initial.copy()
-        final[0] += .005
-        return final, None
-    monkeypatch.setattr(clearance, 'prepare_release_trials', prepare)
-    monkeypatch.setattr(module, '_simulate_noisy_place', simulate)
-
-    displacement, trials, reasons = evaluate_place_stability(backend, state, action, settled)
-
-    assert len(calls) == 1
-    assert len(trials) == len(reasons) == 3
-    assert len(starts) == 3 - len(invalid_indices)
-    for i, (value, reason) in enumerate(zip(trials, reasons)):
-        if i in invalid_indices:
-            assert value == np.inf and reason == 'initial_clearance_blocked'
-        else:
-            assert value == pytest.approx(.005)
-            assert reason is None
-    if invalid_indices:
-        assert displacement == np.inf
-    else:
-        assert displacement == pytest.approx(.005)
-    np.testing.assert_array_equal(starts, [trial.pose for trial in prepared if trial.failure_reason is None])
+    snapshot = object()
+    calls = []
+    def simulate(b, s, a, nominal, linear, angular):
+        assert b is backend and s is state and a is action and nominal is snapshot
+        calls.append((linear, angular))
+        if failed_trial and len(calls) == 2:
+            return np.inf, 'nonfinite_simulation'
+        return .01 * len(calls), None
+    monkeypatch.setattr(module, '_simulate_velocity_disturbance', simulate)
+    maximum, values, reasons = evaluate_place_stability(backend, state, action, snapshot)
+    assert len(values) == len(reasons) == len(calls) == 3
+    assert maximum == pytest.approx(np.inf if failed_trial else .03)
     np.testing.assert_array_equal(action.pose, pose(.3))
-    np.testing.assert_array_equal(settled, pose(.2))
-    assert state.placed_object_indices == []
+    assert state.object_poses == {}
+    backend.place_stability = replace(backend.place_stability, enabled=False)
+    assert evaluate_place_stability(backend, state, action, snapshot) == (0., [], [])
 
 
 def make_backend(config):
@@ -180,30 +116,28 @@ def test_native_trial_result_reaches_reward_and_does_not_move_main_scene():
     assert value == pytest.approx(-2 * displacement)
 
 
-def test_native_trials_keep_previous_bodies_static_and_start_fresh():
+def test_trial_scene_preserves_poses_roles_and_resets_residual_motion():
+    from stacking_common.environment.robustness import disturbance_scene
     backend = make_backend(PlaceStabilityConfig(True, 2))
-    backend.models[20] = backend.models[10]
-    backend.scene_builder.models[20] = backend.models[10]
-    backend.reset([20, 10])
-    previous = pose(.05); previous[0] = 2.
-    state = State([20, 10], [0], {20: previous.copy()}, [], [])
-    action = Action(1, pose(), pose(.3), object_id=10)
-    scenes = []
-    original = backend._new_simulator
-    def simulator():
-        native = original()
-        def step(scene, dt):
-            result = native.step(scene, dt)
-            np.testing.assert_array_equal(result.snapshot.body_pose(1), previous)
-            np.testing.assert_array_equal(result.snapshot.body_linear_velocity(1), np.zeros(3))
-            return result
-        scenes.append(native)
-        return NS(step=step)
-    backend._new_simulator = simulator
-    displacement, trials, reasons = evaluate_place_stability(backend, state, action, pose())
-    assert displacement > 0 and len(trials) == len(scenes) == 2
-    assert scenes[0] is not scenes[1]
-    np.testing.assert_array_equal(state.object_poses[20], previous)
+    core = backend.core
+    model = backend.models[10]
+    backend.reset([10])
+    q = pose(.5)
+    q[3:] = Rotation.from_euler('z', 90, degrees=True).as_quat()
+    bodies = [core.BodyInstance(i, model, q + np.array([i, 0, 0, 0, 0, 0, 0]),
+        linear=np.ones(3), angular=np.ones(3), mobility=mobility)
+        for i, mobility in [(1, core.Mobility.DYNAMIC), (2, core.Mobility.DYNAMIC),
+                            (3, core.Mobility.STATIC)]]
+    snapshot = core.SceneSnapshot(0, bodies)
+    action = Action(0, pose(), pose(), object_id=10)
+    v, w = np.array([.1, -.2, -.1]), np.array([.2, -.1, .3])
+    scene = disturbance_scene(backend, snapshot, action, v, w)
+    for before, after in zip(snapshot.bodies, scene.bodies):
+        np.testing.assert_array_equal(after.pose, before.pose)
+        assert after.mobility == before.mobility
+        np.testing.assert_array_equal(after.linear, v if before.id == 1 else np.zeros(3))
+        np.testing.assert_array_equal(after.angular, w if before.id == 1 else np.zeros(3))
+        np.testing.assert_array_equal(before.linear, np.ones(3))
 
 
 def test_hard_reject_reaches_transition_even_when_reward_would_clip(monkeypatch):
@@ -245,9 +179,9 @@ def test_older_environment_profiles_keep_trials_disabled():
     assert not EnvironmentProfile.from_mapping(values).place_stability.active
 
 
-@pytest.mark.parametrize('reason', ['target_motion_limit', 'not_settled', 'nonfinite_simulation'])
+@pytest.mark.parametrize('reason', ['target_motion_limit', 'not_settled', 'nonfinite_simulation', 'bounded_rocking'])
 @pytest.mark.parametrize('reject', [False, True])
-def test_any_failed_trial_rejects_candidate_only_when_enabled(monkeypatch, reason, reject):
+def test_trial_outcome_rejection_and_diagnostics(monkeypatch, reason, reject):
     import stacking_common.environment.core_backend as module
     backend = make_backend(PlaceStabilityConfig(
         True, 3, reject_failed_trials=reject,
@@ -259,11 +193,13 @@ def test_any_failed_trial_rejects_candidate_only_when_enabled(monkeypatch, reaso
     transition = SimulationTransition([10], backend)
     transition.reset()
     state = transition.step(Action(0, pose(), pose(.3)))
-    assert state.failed is reject
+    expected = reason == 'nonfinite_simulation' or (reject and reason != 'bounded_rocking')
+    assert state.failed is expected
     diagnostics = state.action_history[-1].diagnostics
-    assert diagnostics['place_robustness_trial_failure_reasons'] == [None, reason, None]
-    assert diagnostics['place_robustness_failed'] is reject
-    if reject:
+    assert diagnostics['place_robustness_trial_failure_reasons'] == [None, None if reason == 'bounded_rocking' else reason, None]
+    assert diagnostics['place_robustness_trial_outcomes'] == ['settled', reason, 'settled']
+    assert diagnostics['place_robustness_failed'] is expected
+    if expected:
         assert diagnostics['rejection_reason'] == 'place_robustness'
 
 
@@ -276,104 +212,51 @@ def test_trial_filter_and_displacement_limit_are_independent():
     assert not replace(config, n_noise=0).failed(np.inf, ['not_settled'])
 
 
-@pytest.mark.parametrize('reason', ['initial_clearance_blocked', 'initial_clearance_query_failure'])
-def test_invalid_release_is_rejected_with_permissive_dynamic_trial_policy(reason):
-    config = PlaceStabilityConfig(True, 2, reject_failed_trials=False, fail_displacement=None)
-    assert config.failed(0., [None, reason])
-    assert config.failed(np.inf, [None, reason])
-    assert not config.failed(np.inf, [None, 'not_settled'])
-    assert not replace(config, enabled=False).failed(np.inf, [reason])
-    assert not replace(config, n_noise=0).failed(np.inf, [reason])
-
-
-@pytest.mark.parametrize('physical_reason', [None, 'target_motion_limit'])
-def test_initial_clearance_reason_reaches_transition_with_physical_failure_precedence(monkeypatch, physical_reason):
+@pytest.mark.parametrize('physical_reason,settled', [('target_motion_limit', True), (None, False)])
+def test_nominal_failure_skips_disturbance_trials(monkeypatch, physical_reason, settled):
     import stacking_common.environment.core_backend as module
-    backend = make_backend(PlaceStabilityConfig(True, 2, reject_failed_trials=False))
-    monkeypatch.setattr(module, 'evaluate_place_stability', lambda *a: (
-        np.inf, [.001, np.inf], [None, 'initial_clearance_blocked']))
+    backend = make_backend(PlaceStabilityConfig(True, 2))
+    backend.reset([10])
+    original = backend._simulate_structural
+    def structural(*args):
+        return replace(original(*args), settled=settled)
+    monkeypatch.setattr(backend, '_simulate_structural', structural)
     monkeypatch.setattr(backend, '_physical_rejection_reason', lambda *a: physical_reason)
-    transition = SimulationTransition([10], backend)
-    transition.reset()
-    state = transition.step(Action(0, pose(), pose(.3)))
-    diagnostics = state.action_history[-1].diagnostics
-    assert state.failed
-    assert diagnostics['place_robustness_failed']
-    assert diagnostics['place_robustness_trial_failure_reasons'] == [None, 'initial_clearance_blocked']
-    assert diagnostics['rejection_reason'] == (physical_reason or 'place_robustness_initial_clearance')
+    def unexpected(*a):
+        pytest.fail('must skip disturbances after nominal failure')
+    monkeypatch.setattr(module, 'evaluate_place_stability', unexpected)
+    result = backend.place(State([10], [], {}, [], []), Action(0, pose(), pose(), object_id=10))
+    assert not result.diagnostics['place_robustness_evaluated']
+    assert result.diagnostics['place_robustness_trial_displacements'] == []
 
 
-@pytest.mark.parametrize('scenario,expected', [
-    ('rest', None),
-    ('motion', 'target_motion_limit'),
-    ('timeout', 'not_settled'),
-    ('shortcut', 'not_settled'),
-    ('nonfinite_pose', 'nonfinite_simulation'),
-    ('nonfinite_velocity', 'nonfinite_simulation'),
-])
-def test_trial_simulation_reports_actual_failure(scenario, expected):
-    from stacking_common.environment.robustness import _simulate_noisy_place
-    phase = SimulationPhaseConfig(
-        dt=.01, energy_threshold=1e-8,
-        velocity_integral_threshold=.05 if scenario == 'shortcut' else .5,
-        min_time=0., max_time=.1, extra_steps=2, final_extra_steps=2,
-    )
-    calls = []
-    def step(scene, dt):
-        calls.append(dt)
-        speed = {'rest': 0., 'motion': 100., 'timeout': 1.,
-                 'shortcut': 2.3 if len(calls) == 1 else .001,
-                 'nonfinite_pose': 0., 'nonfinite_velocity': np.nan}[scenario]
-        final = np.full(7, np.nan) if scenario == 'nonfinite_pose' else pose()
-        return NS(snapshot=NS(
-            body_pose=lambda _: final,
-            body_linear_velocity=lambda _: np.array([speed, 0., 0.]),
-            body_angular_velocity=lambda _: np.zeros(3),
-        ))
-    backend = NS(
-        config=NS(structural=phase), object_ids=[10],
-        scene_builder=NS(entity_id=lambda _: 1),
-        models={10: NS(inertia=np.eye(3), mass=1.)},
-        _scene=lambda *a, **kw: None, _new_simulator=lambda: NS(step=step),
-    )
-    state = State([10], [], {}, [], [])
-    action = Action(0, pose(), pose(.3), object_id=10)
-    _, reason = _simulate_noisy_place(backend, state, action, pose())
-    assert reason == expected
-    assert calls and all(dt == .02 for dt in calls)
+def test_excavator_profile_preserves_strict_recovery_and_hard_guards():
+    config = load_environment_profile(ROOT / 'apps/excavator/config/environment.yml').place_stability
+    assert config.reject_failed_trials
+    assert not config.failed(.1, [None, 'bounded_rocking'])
+    assert config.failed(.1, ['not_settled'])
+    for reason in ('nonfinite_simulation', 'simulation_cuda_geometry_failure',
+                   'incomplete_robustness_history', 'excursion_limit'):
+        assert replace(config, reject_failed_trials=False).failed(.1, [reason])
+    assert config.failed(config.fail_displacement + .01, [None])
 
 
-def test_excavator_profile_rejects_failed_or_excessively_displaced_noise_trials():
-    config = load_environment_profile(
-        ROOT / 'apps/excavator/config/environment.yml').place_stability
-    assert not config.failed(.1, [None] * config.n_noise)
-    assert config.failed(.1, ['not_settled'] + [None] * (config.n_noise - 1))
-    assert config.failed(.1, ['target_motion_limit'] + [None] * (config.n_noise - 1))
-    assert config.failed(config.fail_displacement + .01, [None] * config.n_noise)
-    assert config.failed(float('inf'), [None] * config.n_noise)
-
-
-@pytest.mark.parametrize('z_std', [0., .02, .05])
-@pytest.mark.parametrize('base_z', [-.5, .2])
-def test_vertical_noise_never_lowers_pose_and_horizontal_noise_keeps_both_signs(z_std, base_z):
-    config = PlaceStabilityConfig(True, 128, (.02, .02, z_std), 5.)
-    initial = pose(base_z)
-    before = initial.copy()
-    trials = np.array(list(config.noisy_poses(initial, step=7, object_index=1, object_id=2)))
-    offsets = trials[:, :3] - initial[:3]
-    assert np.all(offsets[:, 2] >= 0.)
-    if z_std == 0.:
-        np.testing.assert_array_equal(offsets[:, 2], 0.)
-    else:
-        assert np.any(offsets[:, 2] > 0.)
-    assert np.all(np.any(offsets[:, :2] < 0., axis=0))
-    assert np.all(np.any(offsets[:, :2] > 0., axis=0))
-    np.testing.assert_array_equal(initial, before)
-
-
-def test_step7_stone2_trial3_reflects_downward_noise_upward():
-    # This seed previously translated the third trial 12.57 cm into the ground.
-    config = PlaceStabilityConfig(True, 4, (.02, .02, .05), 5.)
-    initial = pose()
-    trials = list(config.noisy_poses(initial, step=7, object_index=1, object_id=2))
-    np.testing.assert_allclose(trials[2][:3] - initial[:3], [.01022, .01973, .12571], atol=1e-5)
+def test_robustness_receives_final_structural_snapshot(monkeypatch):
+    import stacking_common.environment.core_backend as module
+    backend = make_backend(PlaceStabilityConfig(True, 2))
+    backend.reset([10])
+    original = backend._simulate_structural
+    snapshots = []
+    def structural(*args):
+        result = original(*args)
+        assert result.settled
+        snapshots.append(result.snapshot)
+        return result
+    def evaluate(b, state, action, snapshot):
+        assert snapshot is snapshots[0]
+        return .01, [.01], [None]
+    monkeypatch.setattr(backend, '_simulate_structural', structural)
+    monkeypatch.setattr(module, 'evaluate_place_stability', evaluate)
+    result = backend.place(State([10], [], {}, [], []), Action(0, pose(), pose(), object_id=10))
+    assert result.diagnostics['place_robustness_evaluated']
+    assert result.diagnostics['place_robustness_model'] == 'velocity_disturbance'

@@ -1486,12 +1486,13 @@ def test_floor_fallback_finds_valid_placement_after_strict_exhaustion(reject_flo
     assert result.floor_fill_fallback.accepted == 2
     assert result.selected.action.diagnostics['floor_fill_fallback']
     assert generator.calls[0] == (False, 'lower_floor_first')
-    assert all(priority is None for relaxed, priority in generator.calls if relaxed)
+    assert all(priority == 'lower_floor_first' for relaxed, priority in generator.calls if relaxed)
     assert not generator.relaxed
     assert all(f is EvaluationFidelity.LONG for _, f in evaluator.calls)
     saved = search_statistics(result, 0., search, step=1)
     assert saved['floor_fill_fallback'] == {
         'attempted': True, 'pools': 1, 'generated': 2, 'accepted': 2, 'selected': True,
+        'policy': 'floor_fill',
     }
     if not reject_floor:
         assert result.root_retry.rounds == 2
@@ -1505,6 +1506,44 @@ def test_floor_fallback_does_not_run_when_strict_search_succeeds():
     assert result.selected is not None
     assert not result.floor_fill_fallback.attempted
     assert not any(relaxed for relaxed, _ in generator.calls)
+
+
+@pytest.mark.parametrize('fail_descendants', [False, True])
+def test_floor_root_survives_when_only_its_continuation_needs_relaxation(fail_descendants):
+    class Generator(_FloorFallbackGenerator):
+        roots = []
+
+        def generate(self, state, observation, request):
+            if not state.placed_object_indices:
+                self.roots.append(self.relaxed)
+            elif not self.relaxed:
+                return ActionGenerationResult((), attempts=1, exhausted=True,
+                    rejection_counts={'active_floor_above_active_layer': 1})
+            return super().generate(state, observation, request)
+
+    generator = Generator()
+    evaluator = _FloorFallbackEvaluator(strict_succeeds=True,
+                                       fail_descendants=fail_descendants)
+    search = _floor_fallback_search(generator, evaluator, depth=3)
+    root = MCTSNode(state=State([10, 20, 30, 40], [], {}, [], []), observation=())
+    result = search.search(root, MCTSSearchRequest(iterations=1,
+        root_sampling_priority='lower_floor_first', deeper_sampling_priority='lower_floor_first',
+        final_validation_fidelity=EvaluationFidelity.LONG))
+    assert not generator.relaxed
+    if fail_descendants:
+        assert result.selected is None
+        assert result.floor_fill_fallback.attempted
+        return
+    assert result.selected is not None
+    assert not result.floor_fill_fallback.attempted
+    assert not any(generator.roots)  # Never rebuild or relax the root pool.
+    assert not result.selected.action.diagnostics.get('floor_fill_fallback')
+    assert result.selected.info['floor_fill_continuation_recovered']
+    assert result.selected.info['validated_descendant_path_available']
+    assert result.selected.rejected_expansions['active_floor_above_active_layer'] > 0
+    assert any(child.action.diagnostics.get('floor_fill_fallback')
+               for child in result.selected.children)
+    assert all(priority == 'lower_floor_first' for _, priority in generator.calls)
 
 
 @pytest.mark.parametrize('fail_descendants', [False, True])
@@ -1629,3 +1668,22 @@ def test_backend_capacity_failure_stops_search_without_retry_or_floor_fallback(f
         assert root.children  # Retain the partial tree for inspection.
     saved = search_statistics(result, 0., search, step=30)
     assert saved['backend_failure'] == result.backend_failure
+
+
+@pytest.mark.parametrize('generation_failure', [False, True])
+def test_empty_root_retries_ordinary_sampling_after_corner_validation_failure(generation_failure):
+    class CornerGenerator(_FloorFallbackGenerator):
+        def corner_seed_fallback(self):
+            return super().floor_fill_fallback()
+        def floor_fill_fallback(self):
+            pytest.fail('empty-root fallback must not relax the floor policy')
+    generator = CornerGenerator(reject_floor=generation_failure)
+    result = _floor_fallback_search(generator, _FloorFallbackEvaluator()).search(
+        MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
+            root_sampling_priority='lower_floor_first', deeper_sampling_priority='lower_floor_first',
+            final_validation_fidelity=EvaluationFidelity.LONG))
+    assert result.selected is not None
+    assert result.floor_fill_fallback.policy == 'corner_seed'
+    assert result.floor_fill_fallback.attempted and result.floor_fill_fallback.selected
+    assert all(priority == 'lower_floor_first' for _, priority in generator.calls)
+    assert not generator.relaxed

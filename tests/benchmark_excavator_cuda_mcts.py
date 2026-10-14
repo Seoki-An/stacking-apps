@@ -61,13 +61,6 @@ def main():
     parser.add_argument('--cuda-batch-size', type=int)
     parser.add_argument('--placement-batch-size', type=int,
                         help='CUDA branches per streamed physics/result chunk.')
-    parser.add_argument('--legacy-robustness', action='store_true',
-                        help='Use full-horizon CUDA robustness and Python replay as a control.')
-    clearance_mode = parser.add_mutually_exclusive_group()
-    clearance_mode.add_argument('--clearance-cost-probe', action='store_true',
-                                help='Compute production clearance but simulate original trials for an equal-work comparison.')
-    clearance_mode.add_argument('--uncorrected-robustness', action='store_true',
-                                help='Benchmark the historical CUDA baseline without release clearance.')
     parser.add_argument('--eager-observations', action='store_true',
                         help='Build all search observations as a step-3 control.')
     parser.add_argument('--serial-results', action='store_true',
@@ -85,8 +78,6 @@ def main():
             parser.error(f'{name} must be positive')
     if args.cuda_batch_size is not None and args.backend != 'cuda':
         parser.error('--cuda-batch-size requires --backend cuda')
-    if (args.clearance_cost_probe or args.uncorrected_robustness) and args.backend != 'cuda':
-        parser.error('--clearance-cost-probe and --uncorrected-robustness require --backend cuda')
     if (args.placement_batch_size is not None or args.serial_results) and args.backend != 'cuda':
         parser.error('--placement-batch-size and --serial-results require --backend cuda')
     if args.posegen_batch_size is not None:
@@ -124,43 +115,12 @@ def main():
             return tuple(results)
         StackingEnvironment._pipelined_step_results = serial_step_results
     cuda_calls = []
-    clearance_calls = []
     if args.backend == 'cuda':
         from stacking_common.environment import cuda_backend
-        from benchmark_place_robustness_clearance import IdentityClearance
-
-        class MeasuredClearance:
-            def __init__(self, checker):
-                self.checker = checker
-
-            def correct(self, rows, poses, bases):
-                corrected = self.checker.correct(rows, poses, bases)
-                clearance_calls.append(dict(self.checker.last))
-                if args.clearance_cost_probe:
-                    # Keep identical simulation inputs to the uncorrected
-                    # control while measuring the production computation once.
-                    return IdentityClearance().correct(rows, poses, bases)
-                return corrected
-
         class MeasuredCudaBackend(cuda_backend.CudaPlacementBackend):
             batch_size = args.cuda_batch_size or cuda_backend.CudaPlacementBackend.batch_size
             placement_batch_size = args.placement_batch_size or cuda_backend.CudaPlacementBackend.placement_batch_size
             benchmark_stage = 'structural'
-
-            def _release_clearance_checker(self):
-                if args.uncorrected_robustness:
-                    return IdentityClearance()
-                if not hasattr(self, '_benchmark_clearance'):
-                    self._benchmark_clearance = MeasuredClearance(super()._release_clearance_checker())
-                return self._benchmark_clearance
-
-            def _robustness_phase(self, config, object_index):
-                phase = super()._robustness_phase(config, object_index)
-                if args.legacy_robustness:
-                    if hasattr(phase, 'robustness'):
-                        phase.robustness = None
-                    phase.quiet_steps, phase.motion_limit, phase.sample_stride = 0, 0., 1
-                return phase
 
             def _settling(self, states, actions):
                 self.benchmark_stage = 'settling'
@@ -233,7 +193,6 @@ def main():
         setup_seconds = time.perf_counter() - started
         load_before = os.getloadavg()
         cuda_calls.clear()
-        clearance_calls.clear()
         result_batches.clear()
         started_search = time.perf_counter()
         result = search.search(root, request)
@@ -255,11 +214,10 @@ def main():
                    benchmark_overrides={name: getattr(args, name) for name in (
                        'evaluation_batch_size', 'cuda_batch_size', 'root_candidates',
                        'iterations', 'generation_batch_size', 'posegen_batch_size', 'workers',
-                       'placement_batch_size', 'result_batch_size', 'serial_results', 'legacy_robustness',
-                       'clearance_cost_probe', 'uncorrected_robustness', 'eager_observations')},
+                       'placement_batch_size', 'result_batch_size', 'serial_results',
+                       'eager_observations')},
                    config_path=str(args.config.resolve()) if args.config else None,
                    cuda_simulation_calls=cuda_calls,
-                   clearance_calls=clearance_calls,
                    result_processing_batches=result_batches,
                    result_cuda_overlap_seconds=overlap, tree_sha256=tree_digest(root),
                    benchmark_script_sha256=digest(__file__),

@@ -69,7 +69,7 @@ schedule:
     k_xy: {anti_ramp: 1.0}
     k_potential: {constant: 0.10, anti_ramp: 0.10}
     k_reg: {anti_ramp: 3.0}
-    k_lower: {anti_ramp: 5.0}
+    k_lower: {anti_ramp: 10.0}
 scene:
   frame_id: 1
   target_model_id: 1000000

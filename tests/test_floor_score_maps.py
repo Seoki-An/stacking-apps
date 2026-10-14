@@ -8,6 +8,43 @@ import pytest
 from stacking_common.actions import _scored_floor as floor
 
 
+@pytest.mark.parametrize("count", [1, 4, 8, 20])
+def test_selection_uses_scores_without_gap_or_spatial_groups(count):
+    inventory = SimpleNamespace(cfg=SimpleNamespace(action=SimpleNamespace(planar={
+        "boltzmann_temperature": .3, "score": {"elite_fraction": .25},
+    })))
+    plain = [dict(score=float(10 - i)) for i in range(10)]
+    annotated = [dict(item, height=float(i), xy=np.array([(-1.)**i, i - 5.]),
+                      gap_region=(i, 0, 0), gap_component_size=100 * i)
+                 for i, item in enumerate(plain)]
+    selections = [floor.sample_scored_candidates(
+        inventory, pool, count, True, rng=np.random.default_rng(17))
+        for pool in (plain, annotated)]
+    assert [p["score"] for p in selections[0]] == [p["score"] for p in selections[1]]
+    chosen = selections[0]
+    assert len(chosen) == min(count, len(plain))
+    assert len({id(p) for p in chosen}) == len(chosen)
+    elite_count = min(int(np.ceil(count * .25)), len(plain))
+    assert [p["score"] for p in chosen[:elite_count]] == [p["score"] for p in plain[:elite_count]]
+
+
+@pytest.mark.parametrize("elite_fraction", [0., .25])
+def test_small_draw_follows_scores_without_high_y_priority(elite_fraction):
+    inventory = SimpleNamespace(
+        target_wall=SimpleNamespace(origin=np.zeros(3)),
+        cfg=SimpleNamespace(action=SimpleNamespace(planar={
+            "boltzmann_temperature": .3,
+            "score": {"elite_fraction": elite_fraction},
+        })),
+    )
+    candidates = [dict(xy=np.array([-1., y]), height=0., score=score)
+                  for y, score in [(-3., 1000.), (0., 0.), (3., -1000.)]]
+    selected = floor.sample_scored_candidates(
+        inventory, candidates, 1, True, rng=np.random.default_rng(0))
+    assert len(selected) == 1
+    assert selected[0] is candidates[0]
+
+
 @pytest.mark.parametrize("taper", [
     (0., 0., 0., 0.),
     (.15, -.2, .3, .05),
@@ -112,6 +149,39 @@ def test_score_map_keeps_candidate_order_height_fallback_and_orientation_ties(al
     assert all(item["height"] == 0. for item in candidates)
     assert all(item["normalized_score"] == 0. for item in candidates)
     np.testing.assert_array_equal(result["orientation_index"], [[1, 0], [1, 0]])
+
+
+def test_floor_fallback_preserves_fill_scores_while_admitting_covered_cells():
+    from stacking_common.actions._support_maps import BottomHeightKernel
+    wall = SimpleNamespace(origin=np.zeros(3), width=2., length=2., height=2.,
+        taper=dict.fromkeys(("width_negative", "width_positive",
+                             "length_negative", "length_positive"), 0.))
+    inventory = SimpleNamespace(
+        stones=[], target_wall=wall, xlim=(-.5, .5), ylim=(-.5, .5),
+        cfg=SimpleNamespace(action=SimpleNamespace(planar={
+            "score_map_size": 3, "floor": {"footprint_scale": 1.},
+            "score": {"height": 0., "support_likelihood": 0.,
+                      "fill_area": 2., "target_boundary": 0., "planar_bias": 0.},
+        })),
+        support_settings=SimpleNamespace(ground_z=0., contact_gap_tolerance=.01),
+    )
+    xx, yy = np.meshgrid([-.5, 0., .5], [-.5, 0., .5])
+    occupied = np.zeros((3, 3), dtype=bool)
+    occupied[:, 0] = True
+    kwargs = dict(scene_height_map=np.zeros((3, 3)),
+                  active_floor=dict(occupied=occupied, xx=xx, yy=yy),
+                  support_kernels=[BottomHeightKernel(np.array([0]), np.array([0]), np.array([0.]))],
+                  footprint_bounds=np.array([[[-.1, -.1], [.1, .1]]]))
+    strict = floor.score_xy_debug_map(inventory, None, None, **kwargs)
+    relaxed = floor.score_xy_debug_map(inventory, None, None, relax_floor_fill=True, **kwargs)
+    assert relaxed['candidate_mask'][:, 0].all()
+    assert not strict['candidate_mask'][:, 0].any()
+    assert strict['candidate_mask'][:, 1].all()
+    assert not relaxed['candidate_mask'][:, 2].any()  # Connectivity still required.
+    np.testing.assert_array_equal(relaxed['fill_area'][:, 1], 1.)
+    np.testing.assert_array_equal(relaxed['fill_area'][:, 0], 0.)
+    mask = strict['candidate_mask']
+    np.testing.assert_array_equal(strict['scores'][mask], relaxed['scores'][mask])
 
 
 def test_shifted_samples_match_per_offset_slices():

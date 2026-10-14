@@ -187,7 +187,7 @@ from $(x,y)+f a$ to $(x,y)+f b$, where $f$ is `floor.footprint_scale` (currently
 approximation of the rotated shape; the separate bottom-height support kernel
 retains its more detailed orientation-dependent geometry.
 
-Target eligibility, connectivity, empty-cell counts, and gap assignment are
+Target eligibility, connectivity, and empty-cell counts are
 computed per orientation. Geometry bounds are cached alongside bottom kernels
 across MCTS states. Summed-area tables count rectangle coverage with four
 lookups, avoiding an orientation-by-anchor-by-floor-cell mask allocation.
@@ -435,15 +435,16 @@ $$
 
 On an empty active floor, $M_C=1$ for target-valid anchors. The score-map API
 returns raw `scores`, a separate `connectivity_mask`, and the final
-`candidate_mask`. Only admitted candidates enter elite, diversity, or Boltzmann
+`candidate_mask`. Only admitted candidates enter elite or Boltzmann
 selection. Connectivity changes admission, not raw score values; the final
 score normalization uses the admitted pool. If that pool is
 empty, sampling returns no proposals. Floor-fill retries retain this mask.
 The estimate uses coarse rectangular footprints, so later pose optimization
 and physical validation still determine actual contact.
 
-If there is no occupied active-floor mask, or floor-fill scoring is relaxed,
-the fill-area score defaults to **$F=0$**.
+If there is no occupied active-floor mask, the fill-area score defaults to
+**$F=0$**. Floor-fill retries retain this score; only the hard requirement
+$n_U>0$ is relaxed.
 
 #### Target-boundary proximity $B$
 
@@ -660,8 +661,8 @@ $$
 
 Here $\Delta A_f=\Delta_x\Delta_y$ is the floor grid's uniform area weight;
 it expresses the discrete denominator safeguard of one sample in area units.
-An empty normalization set uses $\Delta A_f$. Empty-floor and relaxed scoring
-use $F=0$. Connectivity is a separate mask $L_i(a)\ge\Delta A_f$ when the
+An empty normalization set uses $\Delta A_f$. Empty-floor scoring uses $F=0$;
+relaxed scoring retains $F$. Connectivity is a separate mask $L_i(a)\ge\Delta A_f$ when the
 floor is occupied, including relaxed retries. Its integral includes occupied
 neighboring cells as well as unfilled ones.
 
@@ -674,7 +675,7 @@ determine the numerical approximation. $B$ and $D$ remain pointwise
 geometric expressions. The combined score remains
 $S=w_HH+w_QQ+w_FF+w_BB+w_DD$.
 
-### 5.3 Diversity and Boltzmann draws
+### 5.3 Elite and Boltzmann draws
 
 Within a candidate pool, weighted draws use
 
@@ -687,38 +688,100 @@ over the currently unselected members of that pool. Numerical evaluation
 subtracts the maximum logit before exponentiation. The probability floor is
 zero.
 
-Selection proceeds through several pools:
+Within each eligible priority pool, selection now has two stages:
 
-1. Draw representatives from the upper, middle, and lower thirds of the
-   candidate Y range, subject to the requested count.
-2. Draw representatives from empty-gap subregions, processing larger gaps
-   first. A subregion is identified by its connected empty component and its
-   position relative to that component's center.
-3. Add high-scoring candidates using an elite-count target of
-   $\lceil0.25k\rceil$, where $k$ is the requested count. Earlier diversity
-   selections can consume this budget.
-4. Draw representatives from combinations of three height bands and four XY
-   quadrants, ordered by the best score in each pool.
-5. Fill remaining slots with weighted draws from unselected candidates.
+1. Take the highest-scoring $\min(\lceil f k\rceil,n)$ candidates as elites,
+   where $f=0.25$, $k$ is the requested count and $n$ is the available count.
+2. Fill the remaining slots with Boltzmann draws without replacement from all
+   unselected candidates in that pool.
 
-The excavator profile uses no minimum-distance thinning between XY proposals.
-Root population deduplication later applies its own thresholds.
+For positive requests, the result contains $\min(k,n)$ distinct candidates.
+Elite counts retain ceiling rounding: a one-candidate request with nonzero
+elite fraction chooses the highest-scoring candidate. Lower-floor priority
+still divides candidates into lower and higher pools before these stages.
 
-An implementation detail is that gap representatives are not capped by the
-number of selections already made. The sampler can therefore return more
-than its nominal requested count. The action generator subsequently selects
-only the allocated number. Consequently, the full proposal distribution is a
-composition of diversity draws, score draws, and generator-level selection;
-it is not a single global softmax over every candidate.
+Y-band, gap-component, and height/quadrant representative draws have been
+removed. Gap labeling, component-center calculations, and per-candidate gap
+metadata are no longer computed. Fill-area scores still count empty floor
+cells, and connectivity still uses the occupied-cell neighborhood mask.
+Score-map values and eligibility masks are unchanged by this removal, while
+seeded proposal sequences change on both platforms.
+
+There is no minimum-distance thinning between XY proposals. Root population
+deduplication later applies its own thresholds. Object allocation and subsequent
+generator-level selection still contribute to the overall proposal distribution;
+it is not a single global softmax across all objects and floor priorities.
+
+### Empty-scene corner seeding
+
+When `state.placed_object_indices` is empty, both platforms restrict fresh XY
+proposals to the four feasible target corners. This tests the actual scene
+state, so a newly active upper floor does **not** restart corner seeding.
+
+For each initial orientation, rotate the mesh hull and compute its signed XY
+minimum/maximum offsets. Subtract these offsets from the target bounds to obtain
+feasible **center** coordinates. Corner seeds use at least the full footprint
+(`max(target_anchor_inset_scale, 1)`); ordinary sampling may still permit the
+configured overhang. Existing target margins and all score-map eligibility
+checks still apply. Among eligible grid cells, take those within one grid
+interval in each axis of a feasible corner. No extra score weight or neighborhood
+radius is configured. For narrow bounds, each cell belongs to its nearest corner
+only, avoiding duplicate proposals.
+
+Shuffle the available corners and draw one seed per corner while budget remains,
+using the existing score selector within each corner. Fill any remaining slots
+with elite/Boltzmann draws from unselected corner seeds. Small requests therefore
+have an opportunity to visit every corner across draws; four-or-more proposals
+cover all available corners. Generator allocation retains that shuffled prefix.
+Scores themselves remain unchanged, and CEM/pose solving may move proposals away
+from a corner. MCTS uses its normal reward and validation ranking. This is an
+initial-position preference, not a constraint on the final settled pose.
+
+If no eligible corner cells exist, immediately use ordinary scored sampling.
+If corner proposals produce no valid root selection after generation/physical
+validation, the existing final retry stage uses ordinary sampling within the
+original deadline and retry budget. This retry requires a final-validation
+request and available time. It preserves floor priorities and filters, physical
+checks, and reward weights. The temporary sampler override is restored on exit.
+Once any stone has been placed, descendants use ordinary sampling and the
+existing connectivity filter. No region cursor is introduced.
+
+Proposal diagnostics record `sampling_policy: corner_seed` and `seed_corner`
+(0: lower-X/lower-Y, then counterclockwise), or `corner_seed_fallback: true` for
+ordinary empty-scene proposals. Score-map debug data retains the complete score
+map and exposes the seed pool as `corner_candidates`. For artifact compatibility,
+root retry statistics retain the `floor_fill_fallback` field, with
+`policy: corner_seed` identifying this new retry; ordinary floor retries have
+`policy: floor_fill`.
 
 ### 5.4 Allocation across objects
 
-Each fresh generation call allocates requested attempts in round-robin order
-across unplaced, non-banned objects, up to 32 allocations per object. When
-lower-floor priority is inactive, available objects are shuffled and the
-generator randomly selects from each object's sampled list. When lower-floor
-priority is active and at least one object is placed, it takes a prefix of
-each list. For small requests, it rotates the starting object across calls.
+Both platforms set `stone_sampling.volume_exponent: 1.0` in
+`action_generation.yml`. Each fresh proposal slot is assigned to an unplaced,
+non-banned stone with probability
+
+$$
+P(i)=\frac{V_i^\alpha}{\sum_{j\in\mathcal E} V_j^\alpha},
+\qquad \alpha=\texttt{volume\_exponent},
+$$
+
+where $V_i$ is the inventory geometry volume and $\mathcal E$ excludes stones
+that have reached the per-request proposal cap (currently 32). Slots are drawn
+with replacement until that cap; probabilities are renormalized when a stone
+reaches it. Positive-volume smaller stones remain eligible. Volumes and weights
+are cached when constructing the generator, outside the MCTS iteration loop.
+This biases proposal opportunities, not MCTS reward or the within-stone XY score.
+It applies to fresh root/CEM proposals, descendants, and relaxed retries; CEM's
+separate retained-candidate per-object cap still applies. Mutation parent
+selection remains governed by CEM scores.
+
+Setting the exponent to zero (also the default for older profiles without this
+block) restores the previous round-robin allocation: shuffled objects without
+lower-floor priority, rotating the starting object for small floor-first requests.
+For each object's allocated budget, the generator takes a prefix of its sampled
+list when lower-floor priority is active or corner seeding applies. Otherwise,
+it randomly selects from that list. The exponent is recorded in the resolved
+generator profile for run-context compatibility checks.
 
 The sampler draws a fresh population on each call using persistent private
 Python and NumPy random-number generators. Retry offsets do not advance a
@@ -755,14 +818,28 @@ tolerance are selected before higher candidates: 0.20 m for excavator and
 height and connectivity of the **solved** pose. These checks act on different
 quantities and should be described separately.
 
-After a placed footprint exists, either platform's scored proposal construction
-requires some open footprint area and at least one cell touching dilated
-occupancy. No U-shaped-pocket rejection is applied.
+After a placed footprint exists, either platform's strict scored proposal
+construction requires some open footprint area and at least one cell touching
+dilated occupancy. No U-shaped-pocket rejection is applied.
 
-The search contains a conditional fallback: if ordinary root selection fails
-with a strict floor filter present, it tries a new root under relaxed floor-fill
-sampling/filtering. Native pose feasibility and subsequent physical evaluation
-still apply, and sampled seeds still obey the connectivity mask. Thus the
+Before rejecting a physically validated root for a missing required continuation,
+the search tries to repair its descendant path with relaxed floor admission.
+This happens once per root candidate, after ordinary path repair, within the
+existing deadline and bounded repair budget. The root pose and its physical
+validation are preserved; existing descendants and physical failures remain
+attached. Exhausted descendant generation is reopened for the changed admission
+rule. Newly generated descendants still require physical validation. Diagnostic
+fields `floor_fill_continuation_attempted` and `floor_fill_continuation_recovered`
+record this repair on the root candidate. When a repaired branch is promoted for
+the next placement, its relaxed immediate continuations are rebuilt under the
+strict policy.
+
+If root selection still fails with a strict floor filter present, the search
+tries a new root under relaxed floor-fill admission. Both this fallback and
+descendant repair retain the fill-area score and any requested
+`lower_floor_first` sampling priority. Native pose feasibility and subsequent
+physical evaluation still apply, and sampled seeds still obey the connectivity
+mask. Thus the
 complete search policy permits an explicit floor-fill
 fallback, rather than guaranteeing that every selected action satisfies the
 strict lower-floor preference.
@@ -794,7 +871,7 @@ uniform XY coordinates. Their initial grid proposals differ as follows:
 | Active-floor occupancy | Bottom-slab volume intersections, 32 × 32; advance at 90% | Projected component footprints, 16 × 16; advance at 75% |
 | Weighted score | $-3H+2Q+2F+1.5B$ | Same |
 | Boundary feature | Bounds tapered according to estimated contact height | Same |
-| Selection | Seeded weighted draws, Y-region and gap representatives, elite candidates, height/quadrant representatives | Same |
+| Selection | Highest-scoring elites followed by seeded Boltzmann draws without replacement | Same |
 | XY separation | No sampler distance thinning | Same |
 | Repeated requests | New draws advance persistent private RNGs | Same |
 
@@ -1289,9 +1366,8 @@ the parameter values if the experiments used different effective profiles.
 > kernels estimate contact coverage against the current stack height map.
 > Candidate scores combine contact height, approximate support coverage,
 > unfilled floor area, target-boundary proximity, and distance from a reference
-> point. A separate footprint-connectivity mask excludes disconnected seeds. A combination of regional
-> representatives, high-scoring candidates, and Boltzmann draws preserves
-> spatial diversity while favoring promising hypotheses.
+> point. A separate footprint-connectivity mask excludes disconnected seeds. Highest-scoring elites and Boltzmann draws select promising hypotheses while
+> retaining stochastic exploration.
 
 > We initialize vertical translation above the highest placed-object bounding
 > box whose padded planar footprint overlaps the candidate. Each hypothesis is
@@ -1325,7 +1401,7 @@ The current geometry and sampling impose the following limits on claims:
 4. Different stages use global hulls, component unions, PLY bounds, and smooth
    DSFs. Their approximation errors differ and can change proposal ranking
    and refinement behavior.
-5. Score normalization, diversity pools, and object allocation make sampling
+5. Score normalization, floor-priority pools, and object allocation make sampling
    state dependent. The Boltzmann formula applies within each draw's pool.
 6. Boundary and distance weights currently favor target edges and greater
    reference distance. Their utility should be supported by the paper's
@@ -1336,7 +1412,7 @@ The current geometry and sampling impose the following limits on claims:
    should report whether that fallback occurred in the evaluated runs.
 
 Potential ablations include orientation-bank size, contact-kernel scoring,
-regional diversity, Boltzmann temperature, floor priority, root mutations,
+elite fraction, Boltzmann temperature, floor priority, root mutations,
 fresh fraction, and per-object caps. These are suggested experiments; this
 document contains proposal-score sensitivity measurements below, but no new
 native-placement, simulation, or end-to-end search-quality measurements.

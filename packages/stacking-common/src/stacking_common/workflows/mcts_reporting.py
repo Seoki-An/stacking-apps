@@ -448,7 +448,7 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
     if result.floor_fill_fallback.attempted:
         fallback = result.floor_fill_fallback
         print(
-            "[INFO] Floor-fill fallback: "
+            f"[INFO] {fallback.policy.replace('_', '-')} fallback: "
             f"pools={fallback.pools}, generated={fallback.generated}, "
             f"kept={fallback.accepted}, selected={fallback.selected}"
         )

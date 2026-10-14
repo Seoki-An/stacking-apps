@@ -6,8 +6,6 @@ through the canonical inventory adapter in scored.py.
 
 from __future__ import annotations
 
-from collections import deque
-
 from typing import Optional
 
 import numpy as np
@@ -270,64 +268,6 @@ def neighbor_mask(mask: np.ndarray) -> np.ndarray:
             neighbors |= padded[dx : dx + mask.shape[0], dy : dy + mask.shape[1]]
     return neighbors
 
-def connected_component_labels(mask: np.ndarray) -> tuple[np.ndarray, dict[int, int]]:
-    mask = np.asarray(mask, dtype=bool)
-    labels = np.full(mask.shape, -1, dtype=int)
-    sizes: dict[int, int] = {}
-    component_id = 0
-    height, width = mask.shape
-    for start_y, start_x in np.argwhere(mask):
-        start_y = int(start_y)
-        start_x = int(start_x)
-        if labels[start_y, start_x] >= 0:
-            continue
-        queue = deque([(start_y, start_x)])
-        labels[start_y, start_x] = component_id
-        size = 0
-        while queue:
-            y, x = queue.popleft()
-            size += 1
-            for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-                ny = y + dy
-                nx = x + dx
-                if ny < 0 or ny >= height or nx < 0 or nx >= width:
-                    continue
-                if not mask[ny, nx] or labels[ny, nx] >= 0:
-                    continue
-                labels[ny, nx] = component_id
-                queue.append((ny, nx))
-        sizes[component_id] = size
-        component_id += 1
-    return labels, sizes
-
-_GAP_COMPONENTS: dict = {}
-
-def gap_components(occupied: np.ndarray):
-    """Gap labels, sizes, centers and dilated occupancy for one floor grid.
-
-    Every object scored on the same state shares this result, so it is reused
-    while the occupancy bytes match. Returned arrays must be treated read-only.
-    """
-    occupied = np.asarray(occupied, dtype=bool)
-    key = (occupied.shape, occupied.tobytes())
-    result = _GAP_COMPONENTS.get(key)
-    if result is None:
-        labels, sizes = connected_component_labels(~occupied)
-        result = (labels, sizes, component_centers(labels, sizes), dilated_mask(occupied))
-        if len(_GAP_COMPONENTS) >= 64:
-            _GAP_COMPONENTS.clear()
-        _GAP_COMPONENTS[key] = result
-    return result
-
-def component_centers(labels: np.ndarray, sizes: dict[int, int]) -> dict[int, np.ndarray]:
-    centers: dict[int, np.ndarray] = {}
-    for component_id in sizes:
-        coords = np.argwhere(labels == component_id)
-        if len(coords) == 0:
-            continue
-        centers[int(component_id)] = np.mean(coords, axis=0)
-    return centers
-
 def score_xy_debug_map(
     inventory,
     state,
@@ -422,11 +362,7 @@ def score_xy_debug_map(
     # layer needs a seed placement, so its connectivity mask is unrestricted.
     layer = active_floor if active_floor is not None else active_floor_context(inventory, state)
     has_occupied = layer is not None and np.any(layer["occupied"])
-    fill_floor = has_occupied and not relax_floor_fill
-    gap_sizes: dict[int, int] = {}
-    if fill_floor:
-        gap_labels, gap_sizes, gap_centers, occupied_dilated = gap_components(layer["occupied"])
-    elif has_occupied:
+    if has_occupied:
         occupied_dilated = dilated_mask(layer["occupied"])
 
     # Each row is an orientation/anchor pair, in orientation-major order.
@@ -441,13 +377,10 @@ def score_xy_debug_map(
     keep = np.ones(count, dtype=bool)
     connected = np.ones(count, dtype=bool)
     unfilled_cells = np.zeros(count, dtype=int)
-    gap_component = np.full(count, -1, dtype=int)
-    gap_component_size = np.zeros(count, dtype=int)
-    gap_region: list = [None] * count
     max_unfilled_cells = 1
     if has_occupied:
         # Summed-area queries avoid an orientations x anchors x floor-cells
-        # tensor. Each rectangle needs four lookups per occupancy/gap mask.
+        # tensor. Each rectangle needs four lookups per occupancy mask.
         xs, ys = layer["xx"][0], layer["yy"][:, 0]
         rectangles = (
             np.searchsorted(xs, cell_xy[:, 0] + bounds[:, 0, 0], side="left"),
@@ -459,29 +392,13 @@ def score_xy_debug_map(
         connected = contact_cells > 0
         connectivity_mask[:] = False
         np.logical_or.at(connectivity_mask, (rows, columns), connected)
-    if fill_floor:
+    if has_occupied:
         unfilled_cells = rectangle_cell_counts(~layer["occupied"], rectangles)
-        keep = unfilled_cells > 0
-        # Unfilled cells are never occupied, so all carry a gap label. The
-        # most common label wins; ties keep the smallest, as np.unique does.
-        label_counts = np.stack(
-            [rectangle_cell_counts(gap_labels == label, rectangles) for label in range(len(gap_sizes))],
-            axis=1,
-        ) if gap_sizes else np.zeros((count, 0), dtype=int)
-        kept = np.flatnonzero(keep)
-        if len(kept):
-            components = np.argmax(label_counts[kept], axis=1)
-            centers = np.array([gap_centers[label] for label in range(len(gap_sizes))])[components]
-            gap_component[kept] = components
-            gap_component_size[kept] = np.array([gap_sizes[label] for label in range(len(gap_sizes))])[components]
-            for index, component, above_y, above_x in zip(
-                kept.tolist(), components.tolist(),
-                (grid_index[kept, 0] >= centers[:, 0]).tolist(),
-                (grid_index[kept, 1] >= centers[:, 1]).tolist(),
-            ):
-                gap_region[index] = (component, int(above_y), int(above_x))
-        if np.any(keep):
-            max_unfilled_cells = max(max_unfilled_cells, int(np.max(unfilled_cells[keep])))
+        max_unfilled_cells = max(1, int(np.max(unfilled_cells, initial=0)))
+        # Relax only the admission mask. Empty floor remains valuable when
+        # upper placements are needed to continue the search.
+        if not relax_floor_fill:
+            keep = unfilled_cells > 0
     planar_bias = planar_bias_grid(
         inventory, xy_grid, planar_bias_xy, planar_bias_axis,
     )[grid_index[:, 0], grid_index[:, 1]]
@@ -570,15 +487,13 @@ def score_xy_debug_map(
     orientation_index_map[rows, columns] = item_orientation[winners]
 
     # Scores are independent of connectivity. Apply the hard mask before
-    # constructing the pool used by every elite/diversity/Boltzmann draw.
+    # constructing the pool used by every elite/Boltzmann draw.
     admitted_scores = candidate_scores[connected[cells]]
     candidate_score_min = float(np.min(admitted_scores)) if len(admitted_scores) else 0.
     candidate_score_span = max(float(np.ptp(admitted_scores)), 1e-12) if len(admitted_scores) else 1.
     normalized_scores = np.clip(
         (candidate_scores - candidate_score_min) / candidate_score_span, 0.0, 1.0,
     )
-    gap_component = gap_component.tolist()
-    gap_component_size = gap_component_size.tolist()
     candidates = [
         {
             "xy": base_xy_items[item],
@@ -587,9 +502,6 @@ def score_xy_debug_map(
             "support_likelihood": support,
             "placement_height": placement,
             "orientation_index": orientation,
-            "gap_component": gap_component[cell],
-            "gap_component_size": gap_component_size[cell],
-            "gap_region": gap_region[cell],
             "target_boundary": boundary,
             "normalized_score": normalized,
         }
@@ -819,6 +731,47 @@ def anchor_grid_mask(
         & (yy <= xy[1] + _bounds[1, 1])
     )
 
+def corner_seed_candidates(candidates, anchor_bounds, grid_spacing):
+    """Eligible grid cells within one grid interval of a feasible corner.
+
+    Bounds include the full rotated footprint, so a seed's center is inset.
+    A candidate belongs to its nearest corner only, even for narrow targets.
+    Existing score values and orientation indices are preserved.
+    """
+    if not candidates:
+        return []
+    xy = np.asarray([item["xy"] for item in candidates])
+    orientations = np.asarray([item["orientation_index"] for item in candidates], dtype=int)
+    bounds = np.asarray(anchor_bounds)[orientations]
+    lower, upper = bounds[:, 0], bounds[:, 1]
+    valid = np.all((lower <= upper) & (xy >= lower) & (xy <= upper), axis=1)
+    # Counterclockwise starting from the lower-X/lower-Y corner.
+    sides = np.array([[0, 0], [1, 0], [1, 1], [0, 1]], dtype=bool)
+    corners = np.where(sides[None], upper[:, None], lower[:, None])
+    distance = np.abs(xy[:, None] - corners) / np.maximum(np.abs(grid_spacing), 1e-12)
+    nearest = np.argmin(np.sum(distance ** 2, axis=2), axis=1)
+    close = np.all(distance[np.arange(len(xy)), nearest] <= 1. + 1e-9, axis=1)
+    return [dict(item, seed_corner=int(corner))
+            for item, corner, keep in zip(candidates, nearest, valid & close) if keep]
+
+
+def sample_corner_candidates(inventory, candidates, count, *, rng):
+    """Give available corners a first draw, then fill from the same seed pool."""
+    selected = []
+    corners = np.unique([item["seed_corner"] for item in candidates])
+    rng.shuffle(corners)
+    for corner in corners[:max(count, 0)]:
+        pool = [item for item in candidates if item["seed_corner"] == corner]
+        selected.extend(sample_scored_candidates(inventory, pool, 1, True, rng=rng))
+    if len(selected) < count:
+        chosen = {id(item) for item in selected}
+        remaining = [item for item in candidates if id(item) not in chosen]
+        if remaining:
+            selected.extend(sample_scored_candidates(
+                inventory, remaining, count - len(selected), True, rng=rng))
+    return selected
+
+
 def sample_scored_candidates(
     inventory,
     candidates: list[dict],
@@ -826,10 +779,8 @@ def sample_scored_candidates(
     random_start: bool,
     *, rng,
 ) -> list[dict]:
-    """Boltzmann/diversity selection over candidate indices.
+    """Select highest-scoring elites, then Boltzmann draws without replacement.
 
-    Pools, their order and every ``rng.choice(n, p=...)`` call match the
-    original per-dict implementation, so seeded draws are unchanged.
     Candidates must be distinct objects.
     """
     k = max(int(k), 1)
@@ -846,15 +797,6 @@ def sample_scored_candidates(
     if elite_fraction < 0.0:
         raise ValueError("action.planar.score.elite_fraction must be >= 0")
     scores = np.asarray([item["score"] for item in candidates], dtype=float)
-    heights = np.asarray([item["height"] for item in candidates], dtype=float)
-    xy = np.asarray([item["xy"] for item in candidates], dtype=float).reshape(len(candidates), -1)
-    h_min = float(np.min(heights))
-    h_span = max(float(np.max(heights) - h_min), 1e-6)
-    origin = np.asarray(inventory.target_wall.origin[:2], dtype=float)
-    h_bin = np.clip(np.floor(3.0 * (heights - h_min) / h_span), 0, 2).astype(int)
-    quadrant = (xy[:, 0] >= origin[0]).astype(int) + 2 * (xy[:, 1] >= origin[1]).astype(int)
-    by_mode = _index_groups(4 * h_bin + quadrant)
-
     chosen = np.zeros(len(candidates), dtype=bool)
     selected: list[int] = []
 
@@ -866,34 +808,6 @@ def sample_scored_candidates(
         chosen[index] = True
         return True
 
-    # Representatives of the upper, middle and lower thirds of the Y range.
-    y_min, y_max = float(np.min(xy[:, 1])), float(np.max(xy[:, 1]))
-    if y_max > y_min:
-        region = np.clip(np.floor(3.0 * (xy[:, 1] - y_min) / (y_max - y_min)), 0, 2)
-        for value in (2, 1, 0):
-            if len(selected) >= k:
-                break
-            choose(np.flatnonzero(region == value))
-
-    # Gap representatives, largest components first; not capped by k.
-    gap_keys: dict[tuple, int] = {}
-    gap_ids = np.full(len(candidates), -1, dtype=int)
-    gap_sizes = np.zeros(len(candidates), dtype=int)
-    for index, item in enumerate(candidates):
-        gap_region = item.get("gap_region", None)
-        if gap_region is not None:
-            gap_ids[index] = gap_keys.setdefault(tuple(gap_region), len(gap_keys))
-            gap_sizes[index] = int(item.get("gap_component_size", 0))
-    if gap_keys:
-        has_gap = np.flatnonzero(gap_ids >= 0)
-        gap_groups = sorted(
-            (has_gap[group] for group in _index_groups(gap_ids[has_gap])),
-            key=lambda group: (int(np.max(gap_sizes[group])), float(np.max(scores[group]))),
-            reverse=True,
-        )
-        for group in gap_groups[: min(k, len(gap_groups))]:
-            choose(group)
-
     elite_count = min(int(np.ceil(k * min(elite_fraction, 1.0))), len(candidates))
     if elite_count > 0:
         # Stable descending order, as sorted(..., reverse=True) on finite scores.
@@ -904,12 +818,6 @@ def sample_scored_candidates(
                 selected.append(index)
                 chosen[index] = True
 
-    modes = sorted(by_mode, key=lambda group: float(np.max(scores[group])), reverse=True)
-    for group in modes:
-        if len(selected) >= k:
-            break
-        choose(group)
-
     remaining = np.flatnonzero(~chosen)
     while len(selected) < k and choose(remaining):
         pass
@@ -917,16 +825,6 @@ def sample_scored_candidates(
     if not random_start:
         selected.sort(key=scores.__getitem__, reverse=True)
     return [candidates[index] for index in selected]
-
-def _index_groups(keys: np.ndarray) -> list[np.ndarray]:
-    """Ascending indices for each key, ordered by the key's first appearance."""
-    if not len(keys):
-        return []
-    order = np.argsort(keys, kind="stable")
-    starts = np.flatnonzero(np.r_[True, keys[order][1:] != keys[order][:-1]])
-    groups = np.split(order, starts[1:])
-    groups.sort(key=lambda group: group[0])
-    return groups
 
 def _weighted_choice(
     indices: np.ndarray,

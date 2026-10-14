@@ -100,9 +100,9 @@ def test_fixed_settling_preserves_placed_poses(backends):
     assert result.diagnostics['fixed_scene_resettle_steps'] == 4
 
 
-def test_robustness_samples_preserve_legacy_score_and_failure_policy(backends):
+def test_velocity_disturbance_cpu_cuda_parity(backends):
     cpu, gpu = backends
-    config = PlaceStabilityConfig(enabled=True, n_noise=2, position_std=(.001, .001, .001), seed=4)
+    config = PlaceStabilityConfig(enabled=True, n_noise=2, linear_velocity_std=(.001, .001, .001), seed=4)
     cpu.place_stability = gpu.place_stability = config
     action = Action(0, pose(), pose(), object_id=10)
     actual, reference = gpu.place(state(), action), cpu.place(state(), action)
@@ -110,6 +110,28 @@ def test_robustness_samples_preserve_legacy_score_and_failure_policy(backends):
     assert len(actual.diagnostics['place_robustness_trial_displacements']) == 2
     assert actual.diagnostics['place_robustness_trial_failure_reasons'] == reference.diagnostics['place_robustness_trial_failure_reasons']
     assert actual.place_robustness_displacement == pytest.approx(reference.place_robustness_displacement, abs=2e-7)
+
+
+def test_falling_disturbance_trial_exceeds_excursion_limit_on_cpu_and_cuda(backends):
+    from stacking_common.environment.robustness import _simulate_velocity_disturbance
+    cpu, gpu = backends
+    policy = PlaceStabilityConfig(True, 1, fail_displacement=.02, reject_failed_trials=True,
+        settling_position_tolerance=.002, settling_rotation_tolerance_deg=.5)
+    action = Action(0, pose(z=.4), pose(z=.4), object_id=10)
+    physics = core.SimulationConfig()
+    physics.gravity = np.array([0., 0., -9.81])
+    for backend in (cpu, gpu):
+        backend.place_stability = policy
+        backend.simulation_config = physics
+    snapshot = cpu._scene(state(), action, [0], dynamic_indices={0})
+    peak, reason = _simulate_velocity_disturbance(cpu, state(), action, snapshot, np.zeros(3), np.zeros(3))
+    assert reason == 'excursion_limit' and peak > .02
+    # Robustness normally starts from the final structural snapshot. This
+    # deliberately raised snapshot exercises a known falling release instead.
+    snapshot = gpu._scene(state(), action, [0], dynamic_indices={0})
+    maximum, displacements, reasons = gpu._robustness([(state(), action, snapshot)])[0]
+    assert reasons == ['excursion_limit'] and maximum > .02
+    assert policy.failed(maximum, reasons)
 
 
 def test_missing_capability_fails_at_construction(monkeypatch):
@@ -235,23 +257,12 @@ def test_streamed_gpu_results_match_serial_results(backends, placement_size):
 
 
 
-def test_native_robustness_matches_older_core_replay_fallback(backends, monkeypatch):
+def test_robustness_monitors_all_dynamic_entities_without_cumulative_cutoff(backends):
     _, gpu = backends
-    if not hasattr(core, 'CudaRobustnessStopping'):
-        pytest.skip('requires native robustness stopping')
-    gpu.place_stability = PlaceStabilityConfig(enabled=True, n_noise=2,
-                                               position_std=(.001, .001, .001), seed=4)
-    action = Action(0, pose(), pose(), object_id=10)
-    phase = gpu._robustness_phase(gpu.config.structural, 0)
-    assert phase.robustness is not None and phase.sample_stride == 0
-    actual = gpu.place(state(), action)
-    monkeypatch.delattr(core, 'CudaRobustnessStopping')
-    phase = gpu._robustness_phase(gpu.config.structural, 0)
-    assert phase.robustness is None and phase.sample_stride == 1
-    expected = gpu.place(state(), action)
-    for key in ('place_robustness_trial_displacements', 'place_robustness_trial_failure_reasons'):
-        assert actual.diagnostics[key] == expected.diagnostics[key]
-    assert actual.place_robustness_displacement == expected.place_robustness_displacement
+    phase = gpu._robustness_phase(gpu.config.structural, [1, 2])
+    assert phase.monitored == [1, 2]
+    assert phase.motion_limit == 0 and phase.sample_stride == 1
+    assert phase.robustness is None
 
 
 def test_bulk_placement_samples_match_snapshot_path(backends, monkeypatch):
@@ -259,7 +270,7 @@ def test_bulk_placement_samples_match_snapshot_path(backends, monkeypatch):
     if not hasattr(core.CudaSimulationResult, 'sample_poses'):
         pytest.skip('requires bulk sample bindings')
     gpu.place_stability = PlaceStabilityConfig(enabled=True, n_noise=2,
-        position_std=(.001, .001, .001), seed=4)
+        linear_velocity_std=(.001, .001, .001), seed=4)
     action = Action(1, pose(.5), pose(.5), object_id=20)
     actual = gpu.place(state(True), action)
     for trajectory in actual.trajectories.values():
@@ -286,3 +297,41 @@ def test_bulk_placement_samples_match_snapshot_path(backends, monkeypatch):
         assert trajectory.times == reference.times
         for name in ('energy', 'vel_integral', 'settle_pose_count', 'settle_position_delta', 'settle_path_length'):
             assert getattr(trajectory, name) == getattr(reference, name)
+
+
+def test_support_motion_is_checked_on_cpu_and_cuda(backends):
+    from stacking_common.environment.robustness import evaluate_place_stability
+    cpu, gpu = backends
+    # Target is fixed in this synthetic scene to isolate a falling support's
+    # excursion. A real trial keeps the new stone dynamic too.
+    action = Action(1, pose(x=2., z=.4), pose(x=2., z=.4), object_id=20)
+    source = state(True)
+    physics = core.SimulationConfig()
+    physics.gravity = np.array([0., 0., -9.81])
+    for backend in (cpu, gpu):
+        backend.simulation_config = physics
+        backend.place_stability = PlaceStabilityConfig(True, 1, fail_displacement=.02)
+    snapshot = core.SceneSnapshot(0, [
+        core.BodyInstance(1, cpu.models[10], pose(z=.4)),
+        core.BodyInstance(2, cpu.models[20], action.pose, mobility=core.Mobility.STATIC),
+    ])
+    expected = evaluate_place_stability(cpu, source, action, snapshot)
+    actual = gpu._robustness([(source, action, snapshot)])[0]
+    for maximum, values, reasons in (actual, expected):
+        assert maximum > .02 and reasons == ['excursion_limit']
+
+
+def test_cuda_nominal_failure_skips_disturbances(backends, monkeypatch):
+    _, gpu = backends
+    gpu.place_stability = PlaceStabilityConfig(True, 2)
+    gpu.simulation_config = core.SimulationConfig()
+    gpu.config = replace(gpu.config,
+        short_gate=replace(gpu.config.short_gate, velocity_integral_threshold=.0001))
+    original = gpu._robustness
+    def capture(jobs):
+        assert jobs == []
+        return original(jobs)
+    monkeypatch.setattr(gpu, '_robustness', capture)
+    result = gpu.place(state(), Action(0, pose(), pose(), object_id=10))
+    assert result.diagnostics['rejection_reason'] == 'target_motion_limit'
+    assert not result.diagnostics['place_robustness_evaluated']

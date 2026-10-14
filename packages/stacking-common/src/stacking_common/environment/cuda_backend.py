@@ -7,10 +7,9 @@ import time
 import numpy as np
 
 from stacking_common.domain import StackObjectTrajectory
-from stacking_common.domain.geometry import quaternion_matrix
 
 from .core_backend import CorePlacementBackend, _StructuralSimulation
-from .robustness import pose_displacement
+from .robustness import disturbance_scene, disturbance_phase, scene_trial_outcome
 from .transition import PlacementResult
 
 
@@ -41,6 +40,7 @@ class CudaPlacementBackend(CorePlacementBackend):
         geometries = 1 + sum(model.geometry_count for model in self.models.values())
         cap.geometries = max(cap.geometries, geometries)
         cap.pairs = max(cap.pairs, geometries * (geometries - 1) // 2)
+        self._sample_body_capacity = cap.bodies
         self.cuda_simulator = self.core.CudaSimulator(cap)
 
     def _new_simulator(self):
@@ -48,13 +48,6 @@ class CudaPlacementBackend(CorePlacementBackend):
 
     def _new_settling_simulator(self):
         return None
-
-    def _release_clearance_checker(self):
-        if self._release_clearance is None:
-            from .release_clearance import ReleaseClearance
-            from ._cuda_release_clearance import CudaReleaseQueries
-            self._release_clearance = ReleaseClearance(self, CudaReleaseQueries(self))
-        return self._release_clearance
 
     def restore(self, state):
         if list(state.object_ids) != self.object_ids:
@@ -173,9 +166,15 @@ class CudaPlacementBackend(CorePlacementBackend):
         structural_started = time.perf_counter()
         outputs = self._run(problems)
         structural_wall = time.perf_counter() - structural_started
-        valid = [(p.request_id, out) for p, out in zip(problems, outputs) if out.snapshot is not None]
+        simulations = {p.request_id: self._structural_result(
+            contexts[p.request_id][2], contexts[p.request_id][0], actions[p.request_id],
+            settled[p.request_id], out)
+            for p, out in zip(problems, outputs) if out.snapshot is not None}
+        valid = [(i, simulation) for i, simulation in simulations.items()
+                 if self._robustness_eligible(states[i], actions[i], simulation)]
         robustness_started = time.perf_counter()
-        robustness = self._robustness([(states[i], actions[i], settled[i].snapshot) for i, _ in valid])
+        robustness = self._robustness([(states[i], actions[i], simulation.snapshot)
+                                      for i, simulation in valid])
         robustness_wall = time.perf_counter() - robustness_started
         robust_by_id = {i: value for (i, _), value in zip(valid, robustness)}
         for problem, out in zip(problems, outputs):
@@ -185,11 +184,11 @@ class CudaPlacementBackend(CorePlacementBackend):
                 results[i] = self._failure(state, action, out, 'structural')
                 continue
             indices, frozen, scene = contexts[i]
-            simulation = self._structural_result(scene, indices, action, settled[i], out)
+            simulation = simulations[i]
             result = self._finish_placement(
-                state, action, settled[i].snapshot, simulation, frozen,
+                state, action, simulation, frozen,
                 settling_wall / len(states), structural_wall / len(problems), started,
-                robustness=robust_by_id[i],
+                robustness=robust_by_id.get(i, (0., [], [])),
             )
             results[i] = replace(result, diagnostics={
                 **result.diagnostics,
@@ -285,88 +284,49 @@ class CudaPlacementBackend(CorePlacementBackend):
         config = self.place_stability
         if not config.active:
             return [(0., [], []) for _ in jobs]
-        from .release_clearance import prepare_release_trials
-        prepared = prepare_release_trials(self, [
-            (state, action, snapshot.body_pose(self.scene_builder.entity_id(action.object_index)))
-            for state, action, snapshot in jobs])
         problems, trials = [], []
-        displacements = [[float('inf')] * len(group) for group in prepared]
-        reasons = [[trial.failure_reason for trial in group] for group in prepared]
-        for i, ((state, action, _), group) in enumerate(zip(jobs, prepared)):
-            indices = [*state.placed_object_indices, action.object_index]
-            for number, release in enumerate(group):
-                if release.failure_reason is not None:
-                    continue
-                noisy = release.pose
-                trial = action.copy()
-                trial.pose = noisy
-                scene = self._scene(state, trial, indices, dynamic_indices={action.object_index})
-                structural = self.config.structural
-                extra = structural.extra_steps
-                if len(indices) == len(self.object_ids):
-                    extra = structural.final_extra_steps or 2 * extra
-                phase_config = replace(structural, dt=2 * structural.dt, extra_steps=extra)
-                phase = self._robustness_phase(phase_config, action.object_index)
-                native_stop = getattr(phase, 'robustness', None) is not None
+        displacements = [[float('inf')] * config.n_noise for _ in jobs]
+        reasons = [[None] * config.n_noise for _ in jobs]
+        for i, (state, action, snapshot) in enumerate(jobs):
+            phase_config = disturbance_phase(self, state)
+            for number, (linear, angular) in enumerate(config.velocity_disturbances(
+                    step=len(state.placed_object_indices) + 1,
+                    object_index=action.object_index, object_id=action.object_id)):
+                scene = disturbance_scene(self, snapshot, action, linear, angular)
+                initial = {body.id: np.asarray(body.pose) for body in scene.bodies
+                           if body.mobility == self.core.Mobility.DYNAMIC}
+                phase = self._robustness_phase(phase_config, initial)
                 problems.append(self._problem(len(problems), scene, self.simulation_config, [phase]))
-                trials.append((i, number, action, noisy, phase_config, native_stop))
-        outputs = self._run(problems) if problems else []
-        for (i, number, action, noisy, config_phase, native_stop), out in zip(trials, outputs, strict=True):
-            stop = self._native_robustness_stop if native_stop else self._robustness_stop
-            final, reason, finished = stop(action, noisy, config_phase, out)
-            if not finished:
-                displacement, reason = float('inf'), 'simulation_cuda_' + out.status.name
-            else:
-                displacement = pose_displacement(noisy, final, config.rotation_weight)
-            displacements[i][number] = displacement
-            reasons[i][number] = reason
+                trials.append((i, number, initial, phase_config))
+        # Bound downloads of every integration step across all scene bodies.
+        steps = max((p.phases[0].steps + 1 for p in problems), default=1)
+        chunk_size = max(1, min(self.batch_size,
+            (512 * 1024**2) // (steps * self._sample_body_capacity * 320)))
+        for start in range(0, len(problems), chunk_size):
+            outputs = self._run(problems[start:start + chunk_size])
+            for context, out in zip(trials[start:start + chunk_size], outputs, strict=True):
+                i, number, initial, config_phase = context
+                value, reason = self._robustness_outcome(initial, config_phase, out)
+                displacements[i][number], reasons[i][number] = value, reason
+            del outputs
         return [(max(d, default=0.), d, r) for d, r in zip(displacements, reasons)]
 
-    def _robustness_phase(self, config, object_index):
-        phase = self._phase(config, [object_index], final_object=False)
-        stopping_type = getattr(self.core, 'CudaRobustnessStopping', None)
-        if stopping_type is None:
-            # Compatibility with older core installations: retain exact replay.
-            phase.quiet_steps = 0
-            phase.motion_limit = 0.
-        else:
-            stopping = stopping_type()
-            stopping.min_time, stopping.max_time = config.min_time, config.max_time
-            phase.robustness = stopping
-            phase.sample_stride = 0
+    def _robustness_phase(self, config, entities):
+        # The ordinary phase supports all dynamic bodies. The older native
+        # CudaRobustnessStopping API only monitors one body, missing support motion.
+        phase = self._phase(config, [], final_object=False)
+        phase.monitored = list(entities)
+        phase.motion_limit = 0.  # Intentional disturbances use peak excursion instead.
         return phase
 
-    def _native_robustness_stop(self, action, noisy, config, out):
-        if out.snapshot is None or not out.phases:
-            return noisy, None, False
-        phase = out.phases[-1]
-        elapsed = phase.steps * config.dt
-        integral = phase.max_motion_integral
-        finished = (phase.quiet_steps >= config.extra_steps or elapsed > config.max_time
-                    or integral > config.velocity_integral_threshold)
-        reason = ('target_motion_limit' if integral > config.velocity_integral_threshold else
-                  'not_settled' if phase.settled_steps < config.extra_steps or elapsed <= config.min_time else None)
-        return out.snapshot.body_pose(self.scene_builder.entity_id(action.object_index)), reason, finished
-
-    def _robustness_stop(self, action, noisy, phase, out):
-        entity = self.scene_builder.entity_id(action.object_index)
-        quiet = settled_steps = 0
-        integral = 0.
-        pose = noisy
-        elapsed = 0.
-        finished = False
-        for sample in out.samples:
-            pose = sample.snapshot.body_pose(entity)
-            linear = sample.snapshot.body_linear_velocity(entity)
-            angular = quaternion_matrix(pose[3:]).T @ sample.snapshot.body_angular_velocity(entity)
-            energy = self._normalized_energy(action.object_id, linear, angular)
-            integral += np.sqrt(max(energy, 0.)) * phase.dt
-            elapsed = sample.step * phase.dt
-            settled_steps = settled_steps + 1 if energy < phase.energy_threshold and elapsed > phase.min_time else 0
-            quiet = quiet + 1 if (energy < phase.energy_threshold or integral > .9 * phase.velocity_integral_threshold) and elapsed > phase.min_time else 0
-            if quiet >= phase.extra_steps or elapsed > phase.max_time or integral > phase.velocity_integral_threshold:
-                finished = True
-                break
-        reason = ('target_motion_limit' if integral > phase.velocity_integral_threshold else
-                  'not_settled' if settled_steps < phase.extra_steps or elapsed <= phase.min_time else None)
-        return pose, reason, finished
+    def _robustness_outcome(self, initial, config, out):
+        if out.snapshot is None or out.status.name not in ('quiet', 'complete'):
+            return float('inf'), 'simulation_cuda_' + out.status.name
+        histories = {entity: (out.sample_poses(entity) if hasattr(out, 'sample_poses') else
+                     np.array([s.snapshot.body_pose(entity) for s in out.samples]))
+                     for entity in initial}
+        if not out.phases or any(len(poses) != out.phases[-1].steps for poses in histories.values()):
+            return float('inf'), 'incomplete_robustness_history'
+        settled = out.phases[-1].quiet_steps >= config.extra_steps
+        return scene_trial_outcome(initial, histories, self.place_stability, config,
+                                   energy_settled=settled)

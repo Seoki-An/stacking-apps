@@ -1,0 +1,2451 @@
+{
+  "active_patch_eps": 0.0001,
+  "tested_patch_eps": [
+    0.0001,
+    1e-05
+  ],
+  "replays": [
+    {
+      "native_path": "/home/inrol-excavator/workspace/stacking/stacking-core/python/stacking_core/_native.cpython-312-x86_64-linux-gnu.so",
+      "native_sha256": "fc32af17251d6bc9d03936849abac2415bb0ece986a4264734f366f79b2cf388",
+      "script_sha256": "4b064a28a00189cd06d5f7cceb5e8f93874aed2136fe0e8d045d3ddeb19ecfe5",
+      "apps_commit": "c4827b818048745bc558e4aced53ae9c126c19ac",
+      "cuda": {
+        "posegen_solve": true,
+        "posegen_experimental": true,
+        "sceneid_scan": true,
+        "simulation_solve": true,
+        "simulation_constraints_3d": true,
+        "simulation_experimental": true,
+        "simulation_contacts_4d": true,
+        "simulation_contacts_6d": true,
+        "error": null,
+        "compiled": true,
+        "batch_preparation": true,
+        "geometry_queries": true,
+        "force_graph_solve": true,
+        "geometry_precision": "float32",
+        "devices": [
+          {
+            "index": 0,
+            "name": "NVIDIA GeForce RTX 5060 Ti",
+            "major": 12,
+            "minor": 0,
+            "memory_bytes": 16608788480
+          }
+        ]
+      },
+      "simulation_profile": {
+        "gravity": [
+          0.0,
+          0.0,
+          -9.81
+        ],
+        "contact_model": "limit_surface_6d",
+        "detection_margin": 0.01,
+        "solver_tol_abs": 0.0001,
+        "solver_tol_rel": 1e-05,
+        "damping": 0.0,
+        "error_reduction_ratio": 0.2,
+        "patch_eps": null,
+        "solver_constraint_scale_reference": 0.001,
+        "solver_beta_init": 0.1,
+        "solver_beta_update_interval": 50,
+        "solver_max_iters": 2000,
+        "solver_stagnation_window": 0,
+        "placement": {
+          "structural": {
+            "dt": 0.01,
+            "energy_threshold": 1e-05,
+            "velocity_integral_threshold": 0.2,
+            "min_time": 3.0,
+            "max_time": 15.0,
+            "extra_steps": 150,
+            "freeze_radius": null,
+            "final_extra_steps": 300
+          },
+          "settle_dt": 0.01,
+          "settle_steps": 400,
+          "contact_gap_tolerance": 0.02,
+          "minimum_support_count": 1,
+          "short_gate": {
+            "dt": 0.01,
+            "energy_threshold": 1e-05,
+            "velocity_integral_threshold": 0.2,
+            "min_time": 0.5,
+            "max_time": 4.0,
+            "extra_steps": 20,
+            "freeze_radius": 1.5,
+            "final_extra_steps": 40
+          },
+          "ground_z": 0.0,
+          "ground_friction": 5.0,
+          "settle_sample_count": 64,
+          "frame_id": 1,
+          "support_chain_z_tolerance": 0.05
+        },
+        "settling_physics": {
+          "gravity": [
+            0.0,
+            0.0,
+            -9.81
+          ],
+          "contact_model": "single_point",
+          "detection_margin": 0.01,
+          "solver_tol_abs": 0.001,
+          "solver_tol_rel": 0.0001,
+          "damping": 0.0,
+          "error_reduction_ratio": 0.2,
+          "patch_eps": null,
+          "solver_constraint_scale_reference": 0.001,
+          "solver_beta_init": 0.1,
+          "solver_beta_update_interval": 50,
+          "solver_max_iters": 2000,
+          "solver_stagnation_window": 0
+        }
+      },
+      "place_stability": {
+        "enabled": true,
+        "n_noise": 4,
+        "position_std": [
+          0.02,
+          0.02,
+          0.02
+        ],
+        "rotation_std_deg": 5.0,
+        "rotation_weight": 0.1,
+        "fail_displacement": 0.2,
+        "seed": 0,
+        "reject_failed_trials": false,
+        "settling_position_tolerance": 0.002,
+        "settling_rotation_tolerance_deg": 0.5
+      },
+      "batch_size": 32,
+      "repeats": 3,
+      "variants": {
+        "limit_surface_6d/patch_eps=0.0001": {
+          "contact_model": "limit_surface_6d",
+          "patch_eps": 0.0001
+        },
+        "limit_surface_6d/patch_eps=1e-05": {
+          "contact_model": "limit_surface_6d",
+          "patch_eps": 1e-05
+        }
+      },
+      "stacks": [
+        {
+          "path": "/home/inrol-excavator/workspace/stacking/stacking-apps/.stacks/excavator_plan1.stack",
+          "sha256": "24b1f2a93f4b4f633efeab40504928377daa3dbdbdfc9cd6dd321983a2afcc71",
+          "steps": [
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "path": "/home/inrol-excavator/workspace/stacking/stacking-apps/.stacks/excavator_plan2.stack",
+          "sha256": "6e87ef19389bbe959ae243c3dd970e1a57eda9419385849b6f303b8c01ef268a",
+          "steps": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ]
+        }
+      ],
+      "detailed_report": ".benchmarks/contact-patch-eps-20261014.json",
+      "detailed_report_sha256": "e6600d80d417a3c94802d391fa7753af5921f17eb2d1bcf8f86816df36369cad",
+      "summary": {
+        "long": {
+          "candidates": 655,
+          "models": {
+            "limit_surface_6d/patch_eps=0.0001": {
+              "outcomes": {
+                "accepted": 421,
+                "place_robustness": 61,
+                "place_robustness_initial_clearance": 173
+              },
+              "nominal_settled": 655,
+              "noisy_trial_outcomes": {
+                "settled": 2230,
+                "excursion_limit": 96,
+                "initial_clearance_lift_limit": 294
+              },
+              "unconverged_steps": 0,
+              "sum_step_median_seconds": 15.87398309004493
+            },
+            "limit_surface_6d/patch_eps=1e-05": {
+              "outcomes": {
+                "accepted": 411,
+                "place_robustness": 56,
+                "target_motion_limit": 15,
+                "place_robustness_initial_clearance": 173
+              },
+              "nominal_settled": 640,
+              "noisy_trial_outcomes": {
+                "settled": 2226,
+                "excursion_limit": 100,
+                "initial_clearance_lift_limit": 294
+              },
+              "unconverged_steps": 0,
+              "sum_step_median_seconds": 18.055324842222035
+            }
+          },
+          "lost_accepted": [
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-1-candidate-29",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-2-candidate-27",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-2-candidate-57",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-4-candidate-9",
+              "old_outcome": "accepted",
+              "new_outcome": "place_robustness",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-4-candidate-34",
+              "old_outcome": "accepted",
+              "new_outcome": "place_robustness",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-4-candidate-47",
+              "old_outcome": "accepted",
+              "new_outcome": "place_robustness",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-4-candidate-66",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-4-candidate-78",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan2.stack",
+              "candidate_id": "step-1-candidate-30",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan2.stack",
+              "candidate_id": "step-3-candidate-27",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan2.stack",
+              "candidate_id": "step-5-candidate-34",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            }
+          ],
+          "newly_accepted": [
+            {
+              "stack": "excavator_plan2.stack",
+              "candidate_id": "step-3-candidate-47",
+              "old_outcome": "place_robustness",
+              "new_outcome": "accepted",
+              "recorded_selected": false
+            }
+          ]
+        },
+        "short": {
+          "candidates": 655,
+          "models": {
+            "limit_surface_6d/patch_eps=0.0001": {
+              "outcomes": {
+                "accepted": 421,
+                "place_robustness": 61,
+                "place_robustness_initial_clearance": 173
+              },
+              "nominal_settled": 655,
+              "noisy_trial_outcomes": {
+                "settled": 2230,
+                "excursion_limit": 96,
+                "initial_clearance_lift_limit": 294
+              },
+              "unconverged_steps": 0,
+              "sum_step_median_seconds": 7.807025439920835
+            },
+            "limit_surface_6d/patch_eps=1e-05": {
+              "outcomes": {
+                "accepted": 411,
+                "place_robustness": 56,
+                "target_motion_limit": 15,
+                "place_robustness_initial_clearance": 173
+              },
+              "nominal_settled": 640,
+              "noisy_trial_outcomes": {
+                "settled": 2194,
+                "excursion_limit": 100,
+                "initial_clearance_lift_limit": 294,
+                "not_settled": 18,
+                "bounded_rocking": 14
+              },
+              "unconverged_steps": 0,
+              "sum_step_median_seconds": 9.504896711790934
+            }
+          },
+          "lost_accepted": [
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-1-candidate-29",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-2-candidate-27",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-2-candidate-57",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-4-candidate-9",
+              "old_outcome": "accepted",
+              "new_outcome": "place_robustness",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-4-candidate-34",
+              "old_outcome": "accepted",
+              "new_outcome": "place_robustness",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-4-candidate-47",
+              "old_outcome": "accepted",
+              "new_outcome": "place_robustness",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-4-candidate-66",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan1.stack",
+              "candidate_id": "step-4-candidate-78",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan2.stack",
+              "candidate_id": "step-1-candidate-30",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan2.stack",
+              "candidate_id": "step-3-candidate-27",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan2.stack",
+              "candidate_id": "step-5-candidate-34",
+              "old_outcome": "accepted",
+              "new_outcome": "target_motion_limit",
+              "recorded_selected": false
+            }
+          ],
+          "newly_accepted": [
+            {
+              "stack": "excavator_plan2.stack",
+              "candidate_id": "step-3-candidate-47",
+              "old_outcome": "place_robustness",
+              "new_outcome": "accepted",
+              "recorded_selected": false
+            }
+          ]
+        }
+      },
+      "measurements": [
+        {
+          "stack": "excavator_plan1.stack",
+          "step": 1,
+          "fidelity": "short",
+          "count": 32,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                0.24969136994332075,
+                0.24549931194633245,
+                0.24247493292205036
+              ],
+              "outcomes": [
+                {
+                  "accepted": 30,
+                  "place_robustness": 1,
+                  "target_motion_limit": 1
+                },
+                {
+                  "accepted": 30,
+                  "place_robustness": 1,
+                  "target_motion_limit": 1
+                },
+                {
+                  "accepted": 30,
+                  "place_robustness": 1,
+                  "target_motion_limit": 1
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                0.23655564105138183,
+                0.23595329595264047,
+                0.22932724095880985
+              ],
+              "outcomes": [
+                {
+                  "accepted": 31,
+                  "place_robustness": 1
+                },
+                {
+                  "accepted": 31,
+                  "place_robustness": 1
+                },
+                {
+                  "accepted": 31,
+                  "place_robustness": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan1.stack",
+          "step": 2,
+          "fidelity": "short",
+          "count": 65,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                0.7280531430151314,
+                0.7183788709808141,
+                0.7098121589515358
+              ],
+              "outcomes": [
+                {
+                  "accepted": 45,
+                  "place_robustness_initial_clearance": 14,
+                  "target_motion_limit": 3,
+                  "place_robustness": 3
+                },
+                {
+                  "accepted": 45,
+                  "place_robustness_initial_clearance": 14,
+                  "target_motion_limit": 3,
+                  "place_robustness": 3
+                },
+                {
+                  "accepted": 45,
+                  "place_robustness_initial_clearance": 14,
+                  "target_motion_limit": 3,
+                  "place_robustness": 3
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                0.6347306399838999,
+                0.6388404120225459,
+                0.6263996190391481
+              ],
+              "outcomes": [
+                {
+                  "accepted": 47,
+                  "place_robustness_initial_clearance": 14,
+                  "place_robustness": 4
+                },
+                {
+                  "accepted": 47,
+                  "place_robustness_initial_clearance": 14,
+                  "place_robustness": 4
+                },
+                {
+                  "accepted": 47,
+                  "place_robustness_initial_clearance": 14,
+                  "place_robustness": 4
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan1.stack",
+          "step": 3,
+          "fidelity": "short",
+          "count": 78,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                1.091124520986341,
+                1.084794295951724,
+                1.0858985839877278
+              ],
+              "outcomes": [
+                {
+                  "accepted": 23,
+                  "place_robustness_initial_clearance": 47,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 23,
+                  "place_robustness_initial_clearance": 47,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 23,
+                  "place_robustness_initial_clearance": 47,
+                  "place_robustness": 8
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                0.8055563670350239,
+                0.8052725399611518,
+                0.8023961640428752
+              ],
+              "outcomes": [
+                {
+                  "accepted": 23,
+                  "place_robustness_initial_clearance": 47,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 23,
+                  "place_robustness_initial_clearance": 47,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 23,
+                  "place_robustness_initial_clearance": 47,
+                  "place_robustness": 8
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan1.stack",
+          "step": 4,
+          "fidelity": "short",
+          "count": 79,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                1.063955745077692,
+                1.07312588498462,
+                1.068339844001457
+              ],
+              "outcomes": [
+                {
+                  "accepted": 35,
+                  "place_robustness": 10,
+                  "place_robustness_initial_clearance": 32,
+                  "target_motion_limit": 2
+                },
+                {
+                  "accepted": 35,
+                  "place_robustness": 10,
+                  "place_robustness_initial_clearance": 32,
+                  "target_motion_limit": 2
+                },
+                {
+                  "accepted": 35,
+                  "place_robustness": 10,
+                  "place_robustness_initial_clearance": 32,
+                  "target_motion_limit": 2
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                1.0008473109919578,
+                1.0037971549900249,
+                1.0076124859042466
+              ],
+              "outcomes": [
+                {
+                  "accepted": 40,
+                  "place_robustness": 7,
+                  "place_robustness_initial_clearance": 32
+                },
+                {
+                  "accepted": 40,
+                  "place_robustness": 7,
+                  "place_robustness_initial_clearance": 32
+                },
+                {
+                  "accepted": 40,
+                  "place_robustness": 7,
+                  "place_robustness_initial_clearance": 32
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan1.stack",
+          "step": 1,
+          "fidelity": "long",
+          "count": 32,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                0.5544895220082253,
+                0.5574626820161939,
+                0.5583062010118738
+              ],
+              "outcomes": [
+                {
+                  "accepted": 30,
+                  "place_robustness": 1,
+                  "target_motion_limit": 1
+                },
+                {
+                  "accepted": 30,
+                  "place_robustness": 1,
+                  "target_motion_limit": 1
+                },
+                {
+                  "accepted": 30,
+                  "place_robustness": 1,
+                  "target_motion_limit": 1
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                0.5491580669768155,
+                0.5433762239990756,
+                0.5294796288944781
+              ],
+              "outcomes": [
+                {
+                  "accepted": 31,
+                  "place_robustness": 1
+                },
+                {
+                  "accepted": 31,
+                  "place_robustness": 1
+                },
+                {
+                  "accepted": 31,
+                  "place_robustness": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan1.stack",
+          "step": 2,
+          "fidelity": "long",
+          "count": 65,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                1.5382119880523533,
+                1.5455038790823892,
+                1.5435654199682176
+              ],
+              "outcomes": [
+                {
+                  "accepted": 45,
+                  "place_robustness_initial_clearance": 14,
+                  "target_motion_limit": 3,
+                  "place_robustness": 3
+                },
+                {
+                  "accepted": 45,
+                  "place_robustness_initial_clearance": 14,
+                  "target_motion_limit": 3,
+                  "place_robustness": 3
+                },
+                {
+                  "accepted": 45,
+                  "place_robustness_initial_clearance": 14,
+                  "target_motion_limit": 3,
+                  "place_robustness": 3
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                1.480469491914846,
+                1.4640973299974576,
+                1.4634306270163506
+              ],
+              "outcomes": [
+                {
+                  "accepted": 47,
+                  "place_robustness_initial_clearance": 14,
+                  "place_robustness": 4
+                },
+                {
+                  "accepted": 47,
+                  "place_robustness_initial_clearance": 14,
+                  "place_robustness": 4
+                },
+                {
+                  "accepted": 47,
+                  "place_robustness_initial_clearance": 14,
+                  "place_robustness": 4
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan1.stack",
+          "step": 3,
+          "fidelity": "long",
+          "count": 78,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                1.8781750369817019,
+                1.8880465909605846,
+                1.8899795529432595
+              ],
+              "outcomes": [
+                {
+                  "accepted": 23,
+                  "place_robustness_initial_clearance": 47,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 23,
+                  "place_robustness_initial_clearance": 47,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 23,
+                  "place_robustness_initial_clearance": 47,
+                  "place_robustness": 8
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                1.598704423988238,
+                1.5937026739120483,
+                1.5950826620683074
+              ],
+              "outcomes": [
+                {
+                  "accepted": 23,
+                  "place_robustness_initial_clearance": 47,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 23,
+                  "place_robustness_initial_clearance": 47,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 23,
+                  "place_robustness_initial_clearance": 47,
+                  "place_robustness": 8
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan1.stack",
+          "step": 4,
+          "fidelity": "long",
+          "count": 79,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                2.153755272971466,
+                2.144293643068522,
+                2.1464569170493633
+              ],
+              "outcomes": [
+                {
+                  "accepted": 35,
+                  "place_robustness": 10,
+                  "place_robustness_initial_clearance": 32,
+                  "target_motion_limit": 2
+                },
+                {
+                  "accepted": 35,
+                  "place_robustness": 10,
+                  "place_robustness_initial_clearance": 32,
+                  "target_motion_limit": 2
+                },
+                {
+                  "accepted": 35,
+                  "place_robustness": 10,
+                  "place_robustness_initial_clearance": 32,
+                  "target_motion_limit": 2
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                2.040762320975773,
+                2.051603095023893,
+                2.0493131990078837
+              ],
+              "outcomes": [
+                {
+                  "accepted": 40,
+                  "place_robustness": 7,
+                  "place_robustness_initial_clearance": 32
+                },
+                {
+                  "accepted": 40,
+                  "place_robustness": 7,
+                  "place_robustness_initial_clearance": 32
+                },
+                {
+                  "accepted": 40,
+                  "place_robustness": 7,
+                  "place_robustness_initial_clearance": 32
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan2.stack",
+          "step": 1,
+          "fidelity": "short",
+          "count": 32,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                0.28370468597859144,
+                0.28034664900042117,
+                0.28478490107227117
+              ],
+              "outcomes": [
+                {
+                  "accepted": 30,
+                  "target_motion_limit": 1,
+                  "place_robustness": 1
+                },
+                {
+                  "accepted": 30,
+                  "target_motion_limit": 1,
+                  "place_robustness": 1
+                },
+                {
+                  "accepted": 30,
+                  "target_motion_limit": 1,
+                  "place_robustness": 1
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                0.23554270900785923,
+                0.23288069397676736,
+                0.23213317594490945
+              ],
+              "outcomes": [
+                {
+                  "accepted": 31,
+                  "place_robustness": 1
+                },
+                {
+                  "accepted": 31,
+                  "place_robustness": 1
+                },
+                {
+                  "accepted": 31,
+                  "place_robustness": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan2.stack",
+          "step": 2,
+          "fidelity": "short",
+          "count": 76,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                1.0291530969552696,
+                1.0248549419920892,
+                1.034455516957678
+              ],
+              "outcomes": [
+                {
+                  "accepted": 58,
+                  "target_motion_limit": 3,
+                  "place_robustness": 9,
+                  "place_robustness_initial_clearance": 6
+                },
+                {
+                  "accepted": 58,
+                  "target_motion_limit": 3,
+                  "place_robustness": 9,
+                  "place_robustness_initial_clearance": 6
+                },
+                {
+                  "accepted": 58,
+                  "target_motion_limit": 3,
+                  "place_robustness": 9,
+                  "place_robustness_initial_clearance": 6
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                0.8385935040423647,
+                0.83136574504897,
+                0.8356747070793062
+              ],
+              "outcomes": [
+                {
+                  "accepted": 58,
+                  "place_robustness": 12,
+                  "place_robustness_initial_clearance": 6
+                },
+                {
+                  "accepted": 58,
+                  "place_robustness": 12,
+                  "place_robustness_initial_clearance": 6
+                },
+                {
+                  "accepted": 58,
+                  "place_robustness": 12,
+                  "place_robustness_initial_clearance": 6
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan2.stack",
+          "step": 3,
+          "fidelity": "short",
+          "count": 75,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                1.1126298799645156,
+                1.1187884130049497,
+                1.0994066060520709
+              ],
+              "outcomes": [
+                {
+                  "accepted": 46,
+                  "place_robustness_initial_clearance": 18,
+                  "place_robustness": 10,
+                  "target_motion_limit": 1
+                },
+                {
+                  "accepted": 46,
+                  "place_robustness_initial_clearance": 18,
+                  "place_robustness": 10,
+                  "target_motion_limit": 1
+                },
+                {
+                  "accepted": 46,
+                  "place_robustness_initial_clearance": 18,
+                  "place_robustness": 10,
+                  "target_motion_limit": 1
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                1.0913176740286872,
+                1.087355026975274,
+                1.085564304026775
+              ],
+              "outcomes": [
+                {
+                  "accepted": 46,
+                  "place_robustness_initial_clearance": 18,
+                  "place_robustness": 11
+                },
+                {
+                  "accepted": 46,
+                  "place_robustness_initial_clearance": 18,
+                  "place_robustness": 11
+                },
+                {
+                  "accepted": 46,
+                  "place_robustness_initial_clearance": 18,
+                  "place_robustness": 11
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan2.stack",
+          "step": 4,
+          "fidelity": "short",
+          "count": 76,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                1.3714527409756556,
+                1.3712084589060396,
+                1.3910909419646487
+              ],
+              "outcomes": [
+                {
+                  "accepted": 35,
+                  "place_robustness_initial_clearance": 33,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 35,
+                  "place_robustness_initial_clearance": 33,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 35,
+                  "place_robustness_initial_clearance": 33,
+                  "place_robustness": 8
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                1.1341615219134837,
+                1.1153496790211648,
+                1.114710423978977
+              ],
+              "outcomes": [
+                {
+                  "accepted": 35,
+                  "place_robustness_initial_clearance": 33,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 35,
+                  "place_robustness_initial_clearance": 33,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 35,
+                  "place_robustness_initial_clearance": 33,
+                  "place_robustness": 8
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan2.stack",
+          "step": 5,
+          "fidelity": "short",
+          "count": 72,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                1.3426711520878598,
+                1.3251331920037046,
+                1.3360785180702806
+              ],
+              "outcomes": [
+                {
+                  "accepted": 47,
+                  "place_robustness_initial_clearance": 16,
+                  "target_motion_limit": 4,
+                  "place_robustness": 5
+                },
+                {
+                  "accepted": 47,
+                  "place_robustness_initial_clearance": 16,
+                  "target_motion_limit": 4,
+                  "place_robustness": 5
+                },
+                {
+                  "accepted": 47,
+                  "place_robustness_initial_clearance": 16,
+                  "target_motion_limit": 4,
+                  "place_robustness": 5
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                0.9832340040011331,
+                0.9634886529529467,
+                0.9649127080338076
+              ],
+              "outcomes": [
+                {
+                  "accepted": 48,
+                  "place_robustness_initial_clearance": 16,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 48,
+                  "place_robustness_initial_clearance": 16,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 48,
+                  "place_robustness_initial_clearance": 16,
+                  "place_robustness": 8
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan2.stack",
+          "step": 6,
+          "fidelity": "short",
+          "count": 70,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                1.2541260881116614,
+                1.2386067330371588,
+                1.25376117893029
+              ],
+              "outcomes": [
+                {
+                  "accepted": 62,
+                  "place_robustness": 1,
+                  "place_robustness_initial_clearance": 7
+                },
+                {
+                  "accepted": 62,
+                  "place_robustness": 1,
+                  "place_robustness_initial_clearance": 7
+                },
+                {
+                  "accepted": 62,
+                  "place_robustness": 1,
+                  "place_robustness_initial_clearance": 7
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                0.8930429959436879,
+                0.8870905099902302,
+                0.8910989939467981
+              ],
+              "outcomes": [
+                {
+                  "accepted": 62,
+                  "place_robustness": 1,
+                  "place_robustness_initial_clearance": 7
+                },
+                {
+                  "accepted": 62,
+                  "place_robustness": 1,
+                  "place_robustness_initial_clearance": 7
+                },
+                {
+                  "accepted": 62,
+                  "place_robustness": 1,
+                  "place_robustness_initial_clearance": 7
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan2.stack",
+          "step": 1,
+          "fidelity": "long",
+          "count": 32,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                0.5894864239962772,
+                0.5879088600631803,
+                0.581049186992459
+              ],
+              "outcomes": [
+                {
+                  "accepted": 30,
+                  "target_motion_limit": 1,
+                  "place_robustness": 1
+                },
+                {
+                  "accepted": 30,
+                  "target_motion_limit": 1,
+                  "place_robustness": 1
+                },
+                {
+                  "accepted": 30,
+                  "target_motion_limit": 1,
+                  "place_robustness": 1
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                0.5521191080333665,
+                0.5474266459932551,
+                0.5393440080806613
+              ],
+              "outcomes": [
+                {
+                  "accepted": 31,
+                  "place_robustness": 1
+                },
+                {
+                  "accepted": 31,
+                  "place_robustness": 1
+                },
+                {
+                  "accepted": 31,
+                  "place_robustness": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan2.stack",
+          "step": 2,
+          "fidelity": "long",
+          "count": 76,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                2.049593550967984,
+                2.0399536250624806,
+                2.037260561948642
+              ],
+              "outcomes": [
+                {
+                  "accepted": 58,
+                  "target_motion_limit": 3,
+                  "place_robustness": 9,
+                  "place_robustness_initial_clearance": 6
+                },
+                {
+                  "accepted": 58,
+                  "target_motion_limit": 3,
+                  "place_robustness": 9,
+                  "place_robustness_initial_clearance": 6
+                },
+                {
+                  "accepted": 58,
+                  "target_motion_limit": 3,
+                  "place_robustness": 9,
+                  "place_robustness_initial_clearance": 6
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                1.7827468940522522,
+                1.761018323013559,
+                1.7688676160760224
+              ],
+              "outcomes": [
+                {
+                  "accepted": 58,
+                  "place_robustness": 12,
+                  "place_robustness_initial_clearance": 6
+                },
+                {
+                  "accepted": 58,
+                  "place_robustness": 12,
+                  "place_robustness_initial_clearance": 6
+                },
+                {
+                  "accepted": 58,
+                  "place_robustness": 12,
+                  "place_robustness_initial_clearance": 6
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan2.stack",
+          "step": 3,
+          "fidelity": "long",
+          "count": 75,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                2.082557235029526,
+                2.0779308220371604,
+                2.0846577949123457
+              ],
+              "outcomes": [
+                {
+                  "accepted": 46,
+                  "place_robustness_initial_clearance": 18,
+                  "place_robustness": 10,
+                  "target_motion_limit": 1
+                },
+                {
+                  "accepted": 46,
+                  "place_robustness_initial_clearance": 18,
+                  "place_robustness": 10,
+                  "target_motion_limit": 1
+                },
+                {
+                  "accepted": 46,
+                  "place_robustness_initial_clearance": 18,
+                  "place_robustness": 10,
+                  "target_motion_limit": 1
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                2.0393637659726664,
+                2.0370604069903493,
+                2.047077020048164
+              ],
+              "outcomes": [
+                {
+                  "accepted": 46,
+                  "place_robustness_initial_clearance": 18,
+                  "place_robustness": 11
+                },
+                {
+                  "accepted": 46,
+                  "place_robustness_initial_clearance": 18,
+                  "place_robustness": 11
+                },
+                {
+                  "accepted": 46,
+                  "place_robustness_initial_clearance": 18,
+                  "place_robustness": 11
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan2.stack",
+          "step": 4,
+          "fidelity": "long",
+          "count": 76,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                2.4536983660655096,
+                2.4519026780035347,
+                2.451158993993886
+              ],
+              "outcomes": [
+                {
+                  "accepted": 35,
+                  "place_robustness_initial_clearance": 33,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 35,
+                  "place_robustness_initial_clearance": 33,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 35,
+                  "place_robustness_initial_clearance": 33,
+                  "place_robustness": 8
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                2.061793330940418,
+                2.064802711014636,
+                2.1055608009919524
+              ],
+              "outcomes": [
+                {
+                  "accepted": 35,
+                  "place_robustness_initial_clearance": 33,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 35,
+                  "place_robustness_initial_clearance": 33,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 35,
+                  "place_robustness_initial_clearance": 33,
+                  "place_robustness": 8
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan2.stack",
+          "step": 5,
+          "fidelity": "long",
+          "count": 72,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                2.3453060319880024,
+                2.3302399499807507,
+                2.3427705640206113
+              ],
+              "outcomes": [
+                {
+                  "accepted": 47,
+                  "place_robustness_initial_clearance": 16,
+                  "target_motion_limit": 4,
+                  "place_robustness": 5
+                },
+                {
+                  "accepted": 47,
+                  "place_robustness_initial_clearance": 16,
+                  "target_motion_limit": 4,
+                  "place_robustness": 5
+                },
+                {
+                  "accepted": 47,
+                  "place_robustness_initial_clearance": 16,
+                  "target_motion_limit": 4,
+                  "place_robustness": 5
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                1.9110307729570195,
+                1.929346228018403,
+                1.917903656954877
+              ],
+              "outcomes": [
+                {
+                  "accepted": 48,
+                  "place_robustness_initial_clearance": 16,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 48,
+                  "place_robustness_initial_clearance": 16,
+                  "place_robustness": 8
+                },
+                {
+                  "accepted": 48,
+                  "place_robustness_initial_clearance": 16,
+                  "place_robustness": 8
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan2.stack",
+          "step": 6,
+          "fidelity": "long",
+          "count": 70,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                2.4147002700483426,
+                2.3906185859814286,
+                2.430411585024558
+              ],
+              "outcomes": [
+                {
+                  "accepted": 62,
+                  "place_robustness": 1,
+                  "place_robustness_initial_clearance": 7
+                },
+                {
+                  "accepted": 62,
+                  "place_robustness": 1,
+                  "place_robustness_initial_clearance": 7
+                },
+                {
+                  "accepted": 62,
+                  "place_robustness": 1,
+                  "place_robustness_initial_clearance": 7
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                1.8837492789607495,
+                1.9226655999664217,
+                1.8799223171081394
+              ],
+              "outcomes": [
+                {
+                  "accepted": 62,
+                  "place_robustness": 1,
+                  "place_robustness_initial_clearance": 7
+                },
+                {
+                  "accepted": 62,
+                  "place_robustness": 1,
+                  "place_robustness_initial_clearance": 7
+                },
+                {
+                  "accepted": 62,
+                  "place_robustness": 1,
+                  "place_robustness_initial_clearance": 7
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "candidate25": [
+        {
+          "fidelity": "short",
+          "model": "limit_surface_6d/patch_eps=1e-05",
+          "candidate_id": "step-1-candidate-25",
+          "recorded_rejection": "target_motion_limit",
+          "recorded_selected": false,
+          "failed": false,
+          "settled": true,
+          "diagnostics": {
+            "simulation_stage_times": {
+              "structural": 1.45,
+              "total": 1.45
+            },
+            "simulation_elapsed": 1.45,
+            "simulation_settled": true,
+            "simulation_velocity_integral_threshold": 0.2,
+            "simulation_velocity_integrals": {
+              "15": 0.08610262721776962
+            },
+            "simulation_target_velocity_integral": 0.08610262721776962,
+            "simulation_previous_velocity_integrals": {},
+            "simulation_previous_displacements": {},
+            "simulation_max_previous_displacement": 0.0,
+            "short_gate_used": false,
+            "short_gate_passed": true,
+            "contact_gap_tolerance": 0.02,
+            "support_count": 1,
+            "support_has_ground": true,
+            "support_sources": [
+              "ground"
+            ],
+            "place_plane_min_gap": -1.4901161193847656e-08,
+            "simulation_settling_wall_seconds": 0.0013526040929718874,
+            "simulation_structural_wall_seconds": 0.0017351132519252133,
+            "simulation_total_wall_seconds": 0.007768119561660569,
+            "simulation_frozen_object_indices": [],
+            "simulation_frozen_object_count": 0,
+            "place_robustness_enabled": true,
+            "place_robustness_trial_displacements": [
+              0.025080520216192913,
+              0.09401584156764373,
+              0.09873498465746981,
+              0.07326802937612342
+            ],
+            "place_robustness_trial_failure_reasons": [
+              null,
+              null,
+              null,
+              null
+            ],
+            "place_robustness_trial_outcomes": [
+              "settled",
+              "settled",
+              "settled",
+              "settled"
+            ],
+            "place_robustness_raw_displacement": 0.09873498465746981,
+            "place_robustness_failed": false,
+            "simulation_robustness_wall_seconds": 0.004539252844551811,
+            "simulation_backend": "cuda",
+            "simulation_cuda_status": "quiet",
+            "simulation_cuda_phase_statuses": [
+              "quiet"
+            ],
+            "simulation_cuda_unconverged_steps": 0
+          },
+          "motion": {
+            "status": "quiet",
+            "max_energy": 4.406177140481304e-06,
+            "max_motion_integral": 0.08610262721776962,
+            "quiet_steps": 20,
+            "unconverged_steps": 0,
+            "tail_duration_seconds": 1.0,
+            "tail_position_extent_m": 0.011707195074602213,
+            "tail_angle_extent_degrees": 2.6686506742268326,
+            "max_target_translation_m": 0.031155154836299652
+          },
+          "final_pose": [
+            0.27204838395118713,
+            2.5580222606658936,
+            0.25106605887413025,
+            -0.717235151417934,
+            0.5445166996088119,
+            0.35626682830766915,
+            -0.24929750994587566
+          ]
+        },
+        {
+          "fidelity": "short",
+          "model": "limit_surface_6d/patch_eps=0.0001",
+          "candidate_id": "step-1-candidate-25",
+          "recorded_rejection": "target_motion_limit",
+          "recorded_selected": false,
+          "failed": false,
+          "settled": true,
+          "diagnostics": {
+            "simulation_stage_times": {
+              "structural": 0.8300000000000001,
+              "total": 0.8300000000000001
+            },
+            "simulation_elapsed": 0.8300000000000001,
+            "simulation_settled": true,
+            "simulation_velocity_integral_threshold": 0.2,
+            "simulation_velocity_integrals": {
+              "15": 0.05041121691465378
+            },
+            "simulation_target_velocity_integral": 0.05041121691465378,
+            "simulation_previous_velocity_integrals": {},
+            "simulation_previous_displacements": {},
+            "simulation_max_previous_displacement": 0.0,
+            "short_gate_used": false,
+            "short_gate_passed": true,
+            "contact_gap_tolerance": 0.02,
+            "support_count": 1,
+            "support_has_ground": true,
+            "support_sources": [
+              "ground"
+            ],
+            "place_plane_min_gap": -5.513429641723633e-07,
+            "simulation_settling_wall_seconds": 0.0013449831858451944,
+            "simulation_structural_wall_seconds": 0.0013294019372551702,
+            "simulation_total_wall_seconds": 0.007357113310717978,
+            "simulation_frozen_object_indices": [],
+            "simulation_frozen_object_count": 0,
+            "place_robustness_enabled": true,
+            "place_robustness_trial_displacements": [
+              0.025080520216192913,
+              0.09326755720870164,
+              0.09827802078166345,
+              0.07312017677597477
+            ],
+            "place_robustness_trial_failure_reasons": [
+              null,
+              null,
+              null,
+              null
+            ],
+            "place_robustness_trial_outcomes": [
+              "settled",
+              "settled",
+              "settled",
+              "settled"
+            ],
+            "place_robustness_raw_displacement": 0.09827802078166345,
+            "place_robustness_failed": false,
+            "simulation_robustness_wall_seconds": 0.004545405063254293,
+            "simulation_backend": "cuda",
+            "simulation_cuda_status": "quiet",
+            "simulation_cuda_phase_statuses": [
+              "quiet"
+            ],
+            "simulation_cuda_unconverged_steps": 0
+          },
+          "motion": {
+            "status": "quiet",
+            "max_energy": 9.845239901107306e-11,
+            "max_motion_integral": 0.05041121691465378,
+            "quiet_steps": 20,
+            "unconverged_steps": 0,
+            "tail_duration_seconds": 0.8200000000000001,
+            "tail_position_extent_m": 0.028755450152738424,
+            "tail_angle_extent_degrees": 6.515286852810299,
+            "max_target_translation_m": 0.028790359232315224
+          },
+          "final_pose": [
+            0.2721216380596161,
+            2.558058738708496,
+            0.2510673701763153,
+            -0.7171656481446426,
+            0.5445052379312546,
+            0.3563295300837227,
+            -0.24943284662813778
+          ]
+        },
+        {
+          "fidelity": "long",
+          "model": "limit_surface_6d/patch_eps=1e-05",
+          "candidate_id": "step-1-candidate-25",
+          "recorded_rejection": "target_motion_limit",
+          "recorded_selected": false,
+          "failed": false,
+          "settled": true,
+          "diagnostics": {
+            "simulation_stage_times": {
+              "short": 1.45,
+              "long_extension": 2.85,
+              "total": 4.3
+            },
+            "simulation_elapsed": 4.3,
+            "simulation_settled": true,
+            "simulation_velocity_integral_threshold": 0.2,
+            "simulation_velocity_integrals": {
+              "15": 0.08626356720924377
+            },
+            "simulation_target_velocity_integral": 0.08626356720924377,
+            "simulation_previous_velocity_integrals": {},
+            "simulation_previous_displacements": {},
+            "simulation_max_previous_displacement": 0.0,
+            "short_gate_used": true,
+            "short_gate_passed": true,
+            "contact_gap_tolerance": 0.02,
+            "support_count": 1,
+            "support_has_ground": true,
+            "support_sources": [
+              "ground"
+            ],
+            "place_plane_min_gap": 2.9802322387695312e-08,
+            "simulation_settling_wall_seconds": 0.0013265743727970403,
+            "simulation_structural_wall_seconds": 0.0042815727465495,
+            "simulation_total_wall_seconds": 0.01724863909475971,
+            "simulation_frozen_object_indices": [],
+            "simulation_frozen_object_count": 0,
+            "place_robustness_enabled": true,
+            "place_robustness_trial_displacements": [
+              0.025080520216192913,
+              0.09401584156764373,
+              0.09873498465746981,
+              0.07326802937612342
+            ],
+            "place_robustness_trial_failure_reasons": [
+              null,
+              null,
+              null,
+              null
+            ],
+            "place_robustness_trial_outcomes": [
+              "settled",
+              "settled",
+              "settled",
+              "settled"
+            ],
+            "place_robustness_raw_displacement": 0.09873498465746981,
+            "place_robustness_failed": false,
+            "simulation_robustness_wall_seconds": 0.011429349124227883,
+            "simulation_backend": "cuda",
+            "simulation_cuda_status": "quiet",
+            "simulation_cuda_phase_statuses": [
+              "quiet",
+              "quiet"
+            ],
+            "simulation_cuda_unconverged_steps": 0
+          },
+          "motion": {
+            "status": "quiet",
+            "max_energy": 5.924933395469456e-13,
+            "max_motion_integral": 0.08626356720924377,
+            "quiet_steps": 150,
+            "unconverged_steps": 0,
+            "tail_duration_seconds": 1.0,
+            "tail_position_extent_m": 0.0,
+            "tail_angle_extent_degrees": 0.0,
+            "max_target_translation_m": 0.031155154836299652
+          },
+          "final_pose": [
+            0.2719395160675049,
+            2.557966470718384,
+            0.25106388330459595,
+            -0.7173399096931571,
+            0.5445313277370822,
+            0.3561713580208139,
+            -0.24910048333938023
+          ]
+        },
+        {
+          "fidelity": "long",
+          "model": "limit_surface_6d/patch_eps=0.0001",
+          "candidate_id": "step-1-candidate-25",
+          "recorded_rejection": "target_motion_limit",
+          "recorded_selected": false,
+          "failed": false,
+          "settled": true,
+          "diagnostics": {
+            "simulation_stage_times": {
+              "short": 0.8300000000000001,
+              "long_extension": 3.47,
+              "total": 4.300000000000001
+            },
+            "simulation_elapsed": 4.300000000000001,
+            "simulation_settled": true,
+            "simulation_velocity_integral_threshold": 0.2,
+            "simulation_velocity_integrals": {
+              "15": 0.05041730776429176
+            },
+            "simulation_target_velocity_integral": 0.05041730776429176,
+            "simulation_previous_velocity_integrals": {},
+            "simulation_previous_displacements": {},
+            "simulation_max_previous_displacement": 0.0,
+            "short_gate_used": true,
+            "short_gate_passed": true,
+            "contact_gap_tolerance": 0.02,
+            "support_count": 1,
+            "support_has_ground": true,
+            "support_sources": [
+              "ground"
+            ],
+            "place_plane_min_gap": -8.940696716308594e-08,
+            "simulation_settling_wall_seconds": 0.0013787479692837223,
+            "simulation_structural_wall_seconds": 0.003891280877724057,
+            "simulation_total_wall_seconds": 0.01710626800195314,
+            "simulation_frozen_object_indices": [],
+            "simulation_frozen_object_count": 0,
+            "place_robustness_enabled": true,
+            "place_robustness_trial_displacements": [
+              0.025080520216192913,
+              0.09326755720870164,
+              0.09827802078166345,
+              0.07312017677597477
+            ],
+            "place_robustness_trial_failure_reasons": [
+              null,
+              null,
+              null,
+              null
+            ],
+            "place_robustness_trial_outcomes": [
+              "settled",
+              "settled",
+              "settled",
+              "settled"
+            ],
+            "place_robustness_raw_displacement": 0.09827802078166345,
+            "place_robustness_failed": false,
+            "simulation_robustness_wall_seconds": 0.011635266750090523,
+            "simulation_backend": "cuda",
+            "simulation_cuda_status": "quiet",
+            "simulation_cuda_phase_statuses": [
+              "quiet",
+              "quiet"
+            ],
+            "simulation_cuda_unconverged_steps": 0
+          },
+          "motion": {
+            "status": "quiet",
+            "max_energy": 2.0503273558125645e-12,
+            "max_motion_integral": 0.05041730776429176,
+            "quiet_steps": 150,
+            "unconverged_steps": 0,
+            "tail_duration_seconds": 1.0,
+            "tail_position_extent_m": 0.0,
+            "tail_angle_extent_degrees": 0.0,
+            "max_target_translation_m": 0.028790359232315224
+          },
+          "final_pose": [
+            0.27212199568748474,
+            2.558058738708496,
+            0.2510676980018616,
+            -0.7171657958151985,
+            0.5445043798207817,
+            0.35633109413290437,
+            -0.24943206093601156
+          ]
+        }
+      ]
+    },
+    {
+      "native_path": "/home/inrol-excavator/workspace/stacking/stacking-core/python/stacking_core/_native.cpython-312-x86_64-linux-gnu.so",
+      "native_sha256": "fc32af17251d6bc9d03936849abac2415bb0ece986a4264734f366f79b2cf388",
+      "script_sha256": "d332cea4bb3ce6285d698d5cf5b12e5f832d6acfe098783f06cd84b3d7c14af2",
+      "apps_commit": "c4827b818048745bc558e4aced53ae9c126c19ac",
+      "cuda": {
+        "posegen_solve": true,
+        "posegen_experimental": true,
+        "sceneid_scan": true,
+        "simulation_solve": true,
+        "simulation_constraints_3d": true,
+        "simulation_experimental": true,
+        "simulation_contacts_4d": true,
+        "simulation_contacts_6d": true,
+        "error": null,
+        "compiled": true,
+        "batch_preparation": true,
+        "geometry_queries": true,
+        "force_graph_solve": true,
+        "geometry_precision": "float32",
+        "devices": [
+          {
+            "index": 0,
+            "name": "NVIDIA GeForce RTX 5060 Ti",
+            "major": 12,
+            "minor": 0,
+            "memory_bytes": 16608788480
+          }
+        ]
+      },
+      "simulation_profile": {
+        "gravity": [
+          0.0,
+          0.0,
+          -9.81
+        ],
+        "contact_model": "limit_surface_6d",
+        "detection_margin": 0.01,
+        "solver_tol_abs": 0.0001,
+        "solver_tol_rel": 1e-05,
+        "damping": 0.0,
+        "error_reduction_ratio": 0.2,
+        "patch_eps": 1e-05,
+        "solver_constraint_scale_reference": 0.001,
+        "solver_beta_init": 0.1,
+        "solver_beta_update_interval": 50,
+        "solver_max_iters": 2000,
+        "solver_stagnation_window": 0,
+        "placement": {
+          "structural": {
+            "dt": 0.01,
+            "energy_threshold": 1e-05,
+            "velocity_integral_threshold": 0.2,
+            "min_time": 3.0,
+            "max_time": 15.0,
+            "extra_steps": 150,
+            "freeze_radius": null,
+            "final_extra_steps": 300
+          },
+          "settle_dt": 0.01,
+          "settle_steps": 400,
+          "contact_gap_tolerance": 0.02,
+          "minimum_support_count": 1,
+          "short_gate": {
+            "dt": 0.01,
+            "energy_threshold": 1e-05,
+            "velocity_integral_threshold": 0.2,
+            "min_time": 0.5,
+            "max_time": 4.0,
+            "extra_steps": 20,
+            "freeze_radius": 1.5,
+            "final_extra_steps": 40
+          },
+          "ground_z": 0.0,
+          "ground_friction": 5.0,
+          "settle_sample_count": 64,
+          "frame_id": 1,
+          "support_chain_z_tolerance": 0.05
+        },
+        "settling_physics": {
+          "gravity": [
+            0.0,
+            0.0,
+            -9.81
+          ],
+          "contact_model": "single_point",
+          "detection_margin": 0.01,
+          "solver_tol_abs": 0.001,
+          "solver_tol_rel": 0.0001,
+          "damping": 0.0,
+          "error_reduction_ratio": 0.2,
+          "patch_eps": null,
+          "solver_constraint_scale_reference": 0.001,
+          "solver_beta_init": 0.1,
+          "solver_beta_update_interval": 50,
+          "solver_max_iters": 2000,
+          "solver_stagnation_window": 0
+        }
+      },
+      "place_stability": {
+        "enabled": true,
+        "n_noise": 4,
+        "position_std": [
+          0.02,
+          0.02,
+          0.02
+        ],
+        "rotation_std_deg": 5.0,
+        "rotation_weight": 0.1,
+        "fail_displacement": 0.2,
+        "seed": 0,
+        "reject_failed_trials": false,
+        "settling_position_tolerance": 0.002,
+        "settling_rotation_tolerance_deg": 0.5
+      },
+      "batch_size": 32,
+      "repeats": 1,
+      "variants": {
+        "limit_surface_6d/patch_eps=0.0001": {
+          "contact_model": "limit_surface_6d",
+          "patch_eps": 0.0001
+        },
+        "limit_surface_6d/patch_eps=1e-05": {
+          "contact_model": "limit_surface_6d",
+          "patch_eps": 1e-05
+        }
+      },
+      "stacks": [
+        {
+          "path": "/home/inrol-excavator/workspace/stacking/stacking-apps/.stacks/excavator_plan3.stack",
+          "sha256": "eb1218e1b024cda4ff4b9bd96ca390ce4f66dd926119a1f2b90a88802ee0a692",
+          "steps": [
+            32,
+            33
+          ]
+        }
+      ],
+      "detailed_report": ".benchmarks/contact-patch-eps-late-20261014.json",
+      "detailed_report_sha256": "e93b64eb1d97600d3e0d8ba7fe9f9548c624e82d582a6413f89a54e23aea3364",
+      "summary": {
+        "long": {
+          "candidates": 61,
+          "models": {
+            "limit_surface_6d/patch_eps=0.0001": {
+              "outcomes": {
+                "accepted": 22,
+                "target_motion_limit": 32,
+                "scene_motion_limit": 3,
+                "place_robustness": 2,
+                "place_robustness_initial_clearance": 2
+              },
+              "nominal_settled": 26,
+              "noisy_trial_outcomes": {
+                "settled": 136,
+                "excursion_limit": 100,
+                "initial_clearance_lift_limit": 8
+              },
+              "unconverged_steps": 5,
+              "sum_step_median_seconds": 8.704054829897359
+            },
+            "limit_surface_6d/patch_eps=1e-05": {
+              "outcomes": {
+                "scene_motion_limit": 33,
+                "target_motion_limit": 28
+              },
+              "nominal_settled": 0,
+              "noisy_trial_outcomes": {
+                "settled": 135,
+                "excursion_limit": 101,
+                "initial_clearance_lift_limit": 8
+              },
+              "unconverged_steps": 120,
+              "sum_step_median_seconds": 8.698442085064016
+            }
+          },
+          "lost_accepted": [
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-25",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": true
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-1",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-4",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-6",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-7",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-8",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-9",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-10",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-17",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-21",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-22",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-24",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-27",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-29",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-32-candidate-32",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-33-candidate-2",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-33-candidate-7",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-33-candidate-10",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-33-candidate-15",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-33-candidate-16",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-33-candidate-20",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            },
+            {
+              "stack": "excavator_plan3.stack",
+              "candidate_id": "step-33-candidate-29",
+              "old_outcome": "accepted",
+              "new_outcome": "scene_motion_limit",
+              "recorded_selected": false
+            }
+          ],
+          "newly_accepted": []
+        }
+      },
+      "measurements": [
+        {
+          "stack": "excavator_plan3.stack",
+          "step": 32,
+          "fidelity": "long",
+          "count": 32,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                4.61530106398277
+              ],
+              "outcomes": [
+                {
+                  "scene_motion_limit": 21,
+                  "target_motion_limit": 11
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                4.369080171920359
+              ],
+              "outcomes": [
+                {
+                  "accepted": 15,
+                  "target_motion_limit": 13,
+                  "scene_motion_limit": 2,
+                  "place_robustness": 2
+                }
+              ]
+            }
+          }
+        },
+        {
+          "stack": "excavator_plan3.stack",
+          "step": 33,
+          "fidelity": "long",
+          "count": 29,
+          "models": {
+            "limit_surface_6d/patch_eps=1e-05": {
+              "seconds": [
+                4.083141021081246
+              ],
+              "outcomes": [
+                {
+                  "target_motion_limit": 17,
+                  "scene_motion_limit": 12
+                }
+              ]
+            },
+            "limit_surface_6d/patch_eps=0.0001": {
+              "seconds": [
+                4.334974657977
+              ],
+              "outcomes": [
+                {
+                  "target_motion_limit": 19,
+                  "accepted": 7,
+                  "scene_motion_limit": 1,
+                  "place_robustness_initial_clearance": 2
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "candidate25": []
+    }
+  ],
+  "candidate25_cpu": [
+    {
+      "model": "limit_surface_6d",
+      "patch_eps": 0.0001,
+      "seconds": 0.044403541018255055,
+      "failed": false,
+      "settled": true,
+      "diagnostics": {
+        "simulation_stage_times": {
+          "short": 0.8300000000000005,
+          "long_extension": 3.4699999999999522,
+          "total": 4.299999999999953
+        },
+        "simulation_elapsed": 4.299999999999953,
+        "simulation_settled": true,
+        "simulation_velocity_integral_threshold": 0.2,
+        "simulation_velocity_integrals": {
+          "15": 0.050413596766610023
+        },
+        "simulation_target_velocity_integral": 0.050413596766610023,
+        "simulation_previous_velocity_integrals": {},
+        "simulation_previous_displacements": {},
+        "simulation_max_previous_displacement": 0.0,
+        "short_gate_used": true,
+        "short_gate_passed": true,
+        "contact_gap_tolerance": 0.02,
+        "support_count": 1,
+        "support_has_ground": true,
+        "support_sources": [
+          "ground"
+        ],
+        "place_plane_min_gap": -1.3877787807814457e-16,
+        "simulation_settling_wall_seconds": 0.003106272080913186,
+        "simulation_structural_wall_seconds": 0.009086678037419915,
+        "simulation_total_wall_seconds": 0.04438811191357672,
+        "simulation_frozen_object_indices": [],
+        "simulation_frozen_object_count": 0,
+        "place_robustness_enabled": true,
+        "place_robustness_trial_displacements": [
+          0.025080726480652033,
+          0.09326969657696339,
+          0.09827814145950935,
+          0.07311988456465501
+        ],
+        "place_robustness_trial_failure_reasons": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "place_robustness_trial_outcomes": [
+          "settled",
+          "settled",
+          "settled",
+          "settled"
+        ],
+        "place_robustness_raw_displacement": 0.09827814145950935,
+        "place_robustness_failed": false,
+        "simulation_robustness_wall_seconds": 0.032079303986392915
+      },
+      "final_pose": [
+        0.2721217370105825,
+        2.558058566806988,
+        0.2510677420378946,
+        -0.7171685865049651,
+        0.5445002721060112,
+        0.3563301053669474,
+        -0.24943441666323915
+      ]
+    },
+    {
+      "model": "limit_surface_6d",
+      "patch_eps": 1e-05,
+      "seconds": 0.043847544002346694,
+      "failed": false,
+      "settled": true,
+      "diagnostics": {
+        "simulation_stage_times": {
+          "short": 1.450000000000001,
+          "long_extension": 2.8499999999999517,
+          "total": 4.299999999999953
+        },
+        "simulation_elapsed": 4.299999999999953,
+        "simulation_settled": true,
+        "simulation_velocity_integral_threshold": 0.2,
+        "simulation_velocity_integrals": {
+          "15": 0.08626732530380812
+        },
+        "simulation_target_velocity_integral": 0.08626732530380812,
+        "simulation_previous_velocity_integrals": {},
+        "simulation_previous_displacements": {},
+        "simulation_max_previous_displacement": 0.0,
+        "short_gate_used": true,
+        "short_gate_passed": true,
+        "contact_gap_tolerance": 0.02,
+        "support_count": 1,
+        "support_has_ground": true,
+        "support_sources": [
+          "ground"
+        ],
+        "place_plane_min_gap": -1.6303625116620424e-13,
+        "simulation_settling_wall_seconds": 0.003048512968234718,
+        "simulation_structural_wall_seconds": 0.009423161973245442,
+        "simulation_total_wall_seconds": 0.04381702595856041,
+        "simulation_frozen_object_indices": [],
+        "simulation_frozen_object_count": 0,
+        "place_robustness_enabled": true,
+        "place_robustness_trial_displacements": [
+          0.025080726480652033,
+          0.09401561010845844,
+          0.09873498867978715,
+          0.07326777040665082
+        ],
+        "place_robustness_trial_failure_reasons": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "place_robustness_trial_outcomes": [
+          "settled",
+          "settled",
+          "settled",
+          "settled"
+        ],
+        "place_robustness_raw_displacement": 0.09873498867978715,
+        "place_robustness_failed": false,
+        "simulation_robustness_wall_seconds": 0.03124898998066783
+      },
+      "final_pose": [
+        0.2719388723819334,
+        2.5579667380146813,
+        0.2510638251264935,
+        -0.7173430942876998,
+        0.5445274639011531,
+        0.35616976214278406,
+        -0.24910204067867336
+      ]
+    }
+  ]
+}

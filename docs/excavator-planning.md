@@ -55,47 +55,66 @@ See the detailed experiments below for measurements and validation limits:
 
 ## Stability and floor-filling settings
 
-The excavator profile rejects a placement if any noisy-placement trial fails
-or its worst trial displacement exceeds `reward.place_stability.fail_displacement`.
-Displacement is translation in metres plus angular distance
-in radians times `rotation_weight` (`0.1` m/rad), measured from the corrected release pose.
-The four trials use the configured XYZ Gaussian scales (currently 2 cm on each
-axis) and 5 degree rotation noise. The common sampler takes the absolute value
-of the Z sample, so translation noise only raises the stone; X/Y remain signed.
-This preserves the seeded X/Y and rotation draws. Rotation can lower a stone's
-corners, so both CPU and CUDA now check the noisy pose against native collision
-geometry before running the trial. Small penetrations are corrected upward while
-keeping X/Y and orientation fixed, then checked again against ground and the
-other stones. The displacement score starts at this corrected release pose.
+Placement robustness now applies **velocity disturbances**, starting from each
+candidate's final nominal structural snapshot after physical validation and
+settling. Poses stay unchanged. Only the new stone receives velocity; all
+structurally dynamic supporting stones remain dynamic. Pose noise and its
+clearance-repair/lift filter have been removed. See
+[the current policy and configuration](excavator-simulation.md#placement-robustness-reward)
+for units, defaults, motion metric, and rejection rules.
 
-Correction is bounded by the perturbation's maximum surface displacement plus
-`validation.contact_gap_tolerance`: translation magnitude plus
-`2 * bounding_radius * sin(rotation_delta / 2)` plus the tolerance. The radius
-comes from the stone's native component bounds. There is no fixed platform-sized
-lift allowance. A non-upward contact, excessive lift, failed geometry query, or
-failure to clear within 12 rounds invalidates the trial without simulating it.
-Numerical penetration tolerance is 10 micrometres; a lift targets 0.1 mm clearance.
+The peak translation-plus-rotation excursion is measured across every dynamic
+body and integration step. Invalid simulations and excessive excursion reject;
+finite unresolved motion follows `reject_failed_trials` (currently true for
+excavator, false for tabletop). CUDA monitors every dynamic body with the ordinary
+phase stopping rule and no cumulative-motion cutoff. Existing memory-bounded
+history downloads are retained. Provisional velocity scales need physical
+calibration; these trials do not test geometric insertion feasibility.
 
-An invalid release rejects the candidate whenever robustness trials are enabled,
-on both platforms, independently of `reject_failed_trials` and
-`fail_displacement`. Those options still control dynamic simulation failures and
-displacement. The operations GUI reports `place_robustness_initial_clearance`
-unless a nominal physical failure already takes precedence. Per-trial reasons
-(`initial_clearance_lateral_contact`, `initial_clearance_lift_limit`,
-`initial_clearance_query_failure`, etc.) remain in action diagnostics.
+### Historical pose-noise policy measurements
 
-This is a conservative filter for the sampled release uncertainty. In particular,
-a lateral overlap can indicate a confined placement among neighbours, but does
-not prove that every robot insertion path is infeasible. Robot/gripper approach
-clearance remains a motion-planning check.
+The measurements below predate velocity disturbances. Their clearance failures,
+noise values, and acceptance counts do not describe current trials.
 
-CUDA batches the checks and caches workspaces by batch size. CPU obtains native
-contacts at the input pose using an isolated simulator query with no gravity or
-penetration correction and one solver iteration; it discards the returned scene.
-Neither path changes the main placement state during clearance correction.
-These trials move the candidate with previous stones fixed; the structural
-simulation separately checks motion of the stack. `max_displacement` clips the
-reward penalty and is not a rejection threshold.
+The [2026-10-12 policy replay](benchmarks/excavator-robustness-motion-policy-20261012.json)
+compared the old stopping policy from `c4827b8` with the then-current pose-noise implementation, using
+identical clearance correction, noise, and saved `excavator_plan3.stack`
+candidates. This benchmark used the earlier strict-trial setting
+(`reject_failed_trials: true`). Median full placement wall times over three measured repeats:
+
+| Saved step | Candidates | Previous policy | Excursion/window policy |
+|---|---:|---:|---:|
+| 1 | 1 | 0.049 s | 0.121 s |
+| 1 | 16 | 0.301 s | 0.764 s |
+| 7 | 1 (candidate 36) | 0.272 s | 0.293 s |
+| 7 | 16 | 0.883 s | 1.541 s |
+
+Acceptance counts were unchanged in these batches; they include three accepted
+candidates in each 16-candidate batch. Candidate 36's fourth trial now qualifies
+as bounded rocking, but its second trial continues rocking through 15 seconds
+and still rejects. Removing cumulative early exits and downloading history costs
+runtime; this is not a full-MCTS speed measurement. An initial 64 MiB history
+budget took 3.22 s for the step-7 batch; larger bounded batches reduced that cost.
+A native per-step excursion/window accumulator would avoid these history copies
+and permit immediate GPU excursion rejection, but is not in the current core API.
+The obsolete policy replay script has been removed with the pose-noise implementation.
+
+The later `excavator_plan4.stack` replay showed why strict noisy-trial settling
+remained too restrictive: at step 1, 55 of 56 trials from the 14 robustness-rejected
+candidates failed on unresolved motion, with one excessive excursion. That profile
+used finite unresolved motion as a reward penalty. This does not add a new
+penalty weight: the existing peak-excursion score and `weights.place_stability`
+remain active. The hard guards above are independent of this switch. Rocking
+tolerances still distinguish `bounded_rocking` from `not_settled` in diagnostics;
+both outcomes can be accepted under the then-current penalty-only dynamic policy.
+Full-placement replays of the saved failures recovered 13/14 at step 1, 20/42 at
+step 3, and 19/41 at step 7. Five previously accepted controls at each step stayed
+accepted. Trial outcomes and excursion scores were identical before and after
+the policy switch; only acceptance changed. Remaining rejections were excessive
+excursion or nominal physical failures. These are candidate replays, not evidence
+of improved full-run completion or real-robot success.
+
+### Nominal validation settings
 
 Both structural phases now require normalized energy below `0.00001` to count
 quiet steps and reject a velocity integral above `0.2`. The contact validation
@@ -353,7 +372,7 @@ Pose generation chunks at `parallel.posegen_capacity.batch` (512 by default);
 increasing the MCTS evaluation batch limit does not change that capacity.
 
 CUDA simulation runs the platform's settling physics (3D single-point contacts) and
-structural physics (4D limit-surface contacts) using `CudaSimulator`. Settling
+structural physics (6D limit-surface contacts) using `CudaSimulator`. Settling
 keeps the background fixed. Its downloaded final contacts select the same
 support-chain/freeze-radius policy before structural evaluation; structurally
 fixed and pose-identified stones remain static. The structural scene starts
@@ -363,19 +382,24 @@ Platform time bounds map to integer step counts with strict greater-than
 stopping; this avoids accumulated-time roundoff but can differ from the CPU
 loop by one timestep at exact decimal boundaries.
 
+The 6D model adds two patch-bounded tipping moments to the sliding/torsion
+model. Excavator structural validation and velocity-disturbance trials use it on both
+CPU and CUDA; global damping remains zero. See the
+[saved-scene 4D/6D comparison](excavator-contact-models.md) for rocking outcomes,
+timing, native build requirements, and the remaining physical validation limits.
+
 The core continuation API now permits raising `min_steps` and supplies an
 optional cumulative `max_total_steps` cap. Reinstall core after updating both
 repositories. Older simulator bindings fail explicitly instead of changing the
 validation schedule. Both short search and authoritative long validation use
 GPU simulation, as does fixed-scene resettling before motion planning.
 
-Noisy-placement robustness trials are batched on GPU too. When core exposes
-`CudaRobustnessStopping`, trials stop on device using the existing score's
-angular-energy convention, near-motion-limit shortcut, and genuine-rest check.
-They return final snapshots and metrics without per-step sample histories.
-Older core installations retain full-horizon simulation and exact Python replay
-as a compatibility fallback. See the host-work and native-stopping measurements
-below; updating stacking-core is required to obtain the native stopping gain.
+Velocity-disturbance trials are batched on GPU and monitor all structurally
+dynamic bodies. The ordinary phase energy stopping rule has its cumulative-motion
+cutoff disabled. Per-step poses are downloaded in bounded batches for peak
+excursion and final-window checks; see
+[stability settings](#stability-and-floor-filling-settings). Historical timings
+below refer to previous pose-noise implementations.
 
 Geometry, numerical, or workspace-capacity failures reject the affected
 placement with `simulation_cuda_<status>`; there is no CPU simulation retry.
@@ -1013,7 +1037,7 @@ match its preceding proposal-budget run (65.43 seconds, 4.26 evaluated nodes/s).
 CUDA and CPU use different root retention/evaluation batches, so their rates are
 profile comparisons, not a hardware-only or equal-decision-quality comparison.
 
-Use `--legacy-robustness` with `tests/benchmark_excavator_cuda_mcts.py` to retain
+The removed `--legacy-robustness` benchmark control previously retained
 full-horizon simulation and Python replay on the new binary. Use
 `--eager-observations` to disable deferred arrays for measurement. Both are
 process-local benchmark controls; production behavior requires no new options.

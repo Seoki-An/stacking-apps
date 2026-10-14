@@ -171,13 +171,15 @@ class RootRetryResult:
 
 @dataclass(frozen=True)
 class FloorFillFallbackResult:
-    """Outcome of the final attempt with relaxed floor filling."""
+    """Outcome of the final sampling fallback (legacy result field name)."""
 
     attempted: bool = False
     pools: int = 0
     generated: int = 0
     accepted: int = 0
     selected: bool = False
+
+    policy: str = "floor_fill"
 
 
 @dataclass(frozen=True)
@@ -586,21 +588,24 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         )
 
     def _run_floor_fill_fallback(self, root, request, counters, deadline):
-        """Try unrestricted-floor root pools within the original deadline.
+        """Retry corner seeds or floor filling within the original deadline.
 
         After the first pool, up to rejected_root_retry_rounds fresh pools run,
         each excluding earlier candidates, until one yields a selection.
         """
-        relax = getattr(self.action_generator, "floor_fill_fallback", None)
+        empty = root.state is not None and not root.state.placed_object_indices
+        corner_relax = getattr(self.action_generator, "corner_seed_fallback", None)
+        policy = "corner_seed" if empty and callable(corner_relax) else "floor_fill"
+        relax = (corner_relax if policy == "corner_seed" else
+                 getattr(self.action_generator, "floor_fill_fallback", None))
         if (not callable(relax) or request.final_validation_fidelity is None
                 or (deadline is not None and time.monotonic() >= deadline)):
             return None, (), FloorFillFallbackResult()
         with relax() as enabled:
             if not enabled:
                 return None, (), FloorFillFallbackResult()
-            request = replace(request, root_sampling_priority=None, deeper_sampling_priority=None)
-            # Reconsider roots whose only obstacle was a missing continuation:
-            # previously excluded poses may work with relaxed descendant floors.
+            # Rebuild the root under the fallback proposal policy. Floor retries
+            # may also recover roots that lacked a strict-floor continuation.
             root.clear_children()
             begin_retry = getattr(self.root_action_generator, "begin_retry", None)
             counters.generation_deadline = deadline
@@ -639,7 +644,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     break
             return selected, ranked, FloorFillFallbackResult(
                 attempted=True, pools=pools, generated=generated, accepted=accepted,
-                selected=selected is not None,
+                selected=selected is not None, policy=policy,
             )
 
     def close(self) -> None:
@@ -1630,6 +1635,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             candidates, request, counters, deadline
         )
         self._repair_descendant_paths(candidates, path_scores, request, counters, deadline)
+        self._repair_floor_continuations(candidates, path_scores, request, counters, deadline)
         scored = []
         for child in candidates:
             score = self._final_root_score(child, path_scores.get(child))
@@ -1644,6 +1650,49 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         scored.sort(key=lambda pair: pair[1], reverse=True)
         ranked_candidates = tuple(child for child, _ in scored)
         return ranked_candidates[0], ranked_candidates
+
+    def _repair_floor_continuations(self, candidates, scores, request, counters, deadline):
+        """Keep validated root placements while relaxing only their continuations.
+
+        Try once per root candidate, within the existing deadline and bounded
+        path-repair budget. Physical failures are never revived. Root generation
+        is not called inside this context, so strict root admission is preserved.
+        """
+        selection = self.config.final_selection
+        fidelity = request.final_validation_fidelity
+        relax = getattr(self.action_generator, "floor_fill_fallback", None)
+        if (not callable(relax) or fidelity is None
+                or not selection.require_validated_descendant
+                or not selection.validate_descendant_path
+                or self._final_selection_weight() <= 0.0
+                or (deadline is not None and time.monotonic() >= deadline)):
+            return
+        missing = [child for child in candidates
+                   if scores.get(child) is None and child.selectable
+                   and self._is_authoritative(child, fidelity)
+                   and not child.info.get("floor_fill_continuation_attempted")
+                   and not child.action.diagnostics.get("floor_fill_fallback")]
+        if not missing:
+            return
+        with relax() as enabled:
+            if not enabled:
+                return
+            for child in missing:
+                child.info["floor_fill_continuation_attempted"] = True
+                # Reopen exhausted generation under the changed admission rule,
+                # retaining existing children, validation, and rejection evidence.
+                pending = [(child, selection.validate_descendant_depth)]
+                while pending:
+                    node, remaining = pending.pop()
+                    if remaining <= 0 or node.terminal or not node.selectable:
+                        continue
+                    node.expansion_attempts = 0
+                    node.expansion_exhausted = False
+                    pending.extend((descendant, remaining - 1)
+                                   for descendant in node.evaluated_children())
+            self._repair_descendant_paths(missing, scores, request, counters, deadline)
+            for child in missing:
+                child.info["floor_fill_continuation_recovered"] = scores.get(child) is not None
 
     def _repair_descendant_paths(self, candidates, scores, request, counters, deadline):
         """Repair missing paths before excluding physically valid root actions.

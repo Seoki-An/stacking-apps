@@ -1,0 +1,2066 @@
+{
+  "native_path": "/home/inrol-excavator/workspace/stacking/stacking-core/build-cuda/python/stacking_core/_native.cpython-312-x86_64-linux-gnu.so",
+  "native_sha256": "fc32af17251d6bc9d03936849abac2415bb0ece986a4264734f366f79b2cf388",
+  "script_sha256": "25f93bfe5eddeb717ee16aa5bfce0053e5f45f63035d4d800408eb07881a6a16",
+  "apps_commit": "c4827b818048745bc558e4aced53ae9c126c19ac",
+  "cuda": {
+    "posegen_solve": true,
+    "posegen_experimental": true,
+    "sceneid_scan": true,
+    "simulation_solve": true,
+    "simulation_constraints_3d": true,
+    "simulation_experimental": true,
+    "simulation_contacts_4d": true,
+    "simulation_contacts_6d": true,
+    "error": null,
+    "compiled": true,
+    "batch_preparation": true,
+    "geometry_queries": true,
+    "force_graph_solve": true,
+    "geometry_precision": "float32",
+    "devices": [
+      {
+        "index": 0,
+        "name": "NVIDIA GeForce RTX 5060 Ti",
+        "major": 12,
+        "minor": 0,
+        "memory_bytes": 16608788480
+      }
+    ]
+  },
+  "simulation_profile": {
+    "gravity": [
+      0.0,
+      0.0,
+      -9.81
+    ],
+    "contact_model": "limit_surface_4d",
+    "detection_margin": 0.01,
+    "solver_tol_abs": 0.0001,
+    "solver_tol_rel": 1e-05,
+    "damping": 0.0,
+    "error_reduction_ratio": 0.2,
+    "solver_constraint_scale_reference": 0.001,
+    "solver_beta_init": 0.1,
+    "solver_beta_update_interval": 50,
+    "solver_max_iters": 2000,
+    "solver_stagnation_window": 0,
+    "placement": {
+      "structural": {
+        "dt": 0.01,
+        "energy_threshold": 1e-05,
+        "velocity_integral_threshold": 0.2,
+        "min_time": 3.0,
+        "max_time": 15.0,
+        "extra_steps": 150,
+        "freeze_radius": null,
+        "final_extra_steps": 300
+      },
+      "settle_dt": 0.01,
+      "settle_steps": 400,
+      "contact_gap_tolerance": 0.02,
+      "minimum_support_count": 1,
+      "short_gate": {
+        "dt": 0.01,
+        "energy_threshold": 1e-05,
+        "velocity_integral_threshold": 0.2,
+        "min_time": 0.5,
+        "max_time": 4.0,
+        "extra_steps": 20,
+        "freeze_radius": 1.5,
+        "final_extra_steps": 40
+      },
+      "ground_z": 0.0,
+      "ground_friction": 5.0,
+      "settle_sample_count": 64,
+      "frame_id": 1,
+      "support_chain_z_tolerance": 0.05
+    },
+    "settling_physics": {
+      "gravity": [
+        0.0,
+        0.0,
+        -9.81
+      ],
+      "contact_model": "single_point",
+      "detection_margin": 0.01,
+      "solver_tol_abs": 0.001,
+      "solver_tol_rel": 0.0001,
+      "damping": 0.0,
+      "error_reduction_ratio": 0.2,
+      "solver_constraint_scale_reference": 0.001,
+      "solver_beta_init": 0.1,
+      "solver_beta_update_interval": 50,
+      "solver_max_iters": 2000,
+      "solver_stagnation_window": 0
+    }
+  },
+  "place_stability": {
+    "enabled": true,
+    "n_noise": 4,
+    "position_std": [
+      0.02,
+      0.02,
+      0.02
+    ],
+    "rotation_std_deg": 5.0,
+    "rotation_weight": 0.1,
+    "fail_displacement": 0.2,
+    "seed": 0,
+    "reject_failed_trials": false,
+    "settling_position_tolerance": 0.002,
+    "settling_rotation_tolerance_deg": 0.5
+  },
+  "batch_size": 32,
+  "repeats": 3,
+  "stacks": [
+    {
+      "path": "/home/inrol-excavator/workspace/stacking/stacking-apps/.stacks/excavator_plan1.stack",
+      "sha256": "24b1f2a93f4b4f633efeab40504928377daa3dbdbdfc9cd6dd321983a2afcc71",
+      "steps": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "path": "/home/inrol-excavator/workspace/stacking/stacking-apps/.stacks/excavator_plan2.stack",
+      "sha256": "6e87ef19389bbe959ae243c3dd970e1a57eda9419385849b6f303b8c01ef268a",
+      "steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    }
+  ],
+  "detailed_report": ".benchmarks/contact-models-20261013.json",
+  "detailed_report_sha256": "f87a6d50a3977b33a3a4d9bde5c6e5e6a692c6178e8df2e10d98f6b4e38aaaf8",
+  "summary": {
+    "short": {
+      "candidates": 655,
+      "models": {
+        "limit_surface_4d": {
+          "outcomes": {
+            "accepted": 185,
+            "simulation_unsettled": 177,
+            "target_motion_limit": 70,
+            "place_robustness": 63,
+            "place_robustness_initial_clearance": 160
+          },
+          "noisy_trial_outcomes": {
+            "not_settled": 1366,
+            "settled": 793,
+            "bounded_rocking": 34,
+            "excursion_limit": 133,
+            "initial_clearance_lift_limit": 294
+          },
+          "unconverged_steps": 0,
+          "nominal_settled": 294,
+          "sum_step_median_seconds": 8.209726748871617
+        },
+        "limit_surface_6d": {
+          "outcomes": {
+            "accepted": 421,
+            "place_robustness": 61,
+            "place_robustness_initial_clearance": 173
+          },
+          "noisy_trial_outcomes": {
+            "settled": 2230,
+            "excursion_limit": 96,
+            "initial_clearance_lift_limit": 294
+          },
+          "unconverged_steps": 0,
+          "nominal_settled": 655,
+          "sum_step_median_seconds": 7.682421575998887
+        }
+      },
+      "transitions": [
+        {
+          "model4d": "accepted",
+          "model6d": "accepted",
+          "count": 185
+        },
+        {
+          "model4d": "simulation_unsettled",
+          "model6d": "accepted",
+          "count": 177
+        },
+        {
+          "model4d": "target_motion_limit",
+          "model6d": "accepted",
+          "count": 46
+        },
+        {
+          "model4d": "place_robustness",
+          "model6d": "place_robustness",
+          "count": 50
+        },
+        {
+          "model4d": "place_robustness",
+          "model6d": "accepted",
+          "count": 13
+        },
+        {
+          "model4d": "place_robustness_initial_clearance",
+          "model6d": "place_robustness_initial_clearance",
+          "count": 160
+        },
+        {
+          "model4d": "target_motion_limit",
+          "model6d": "place_robustness",
+          "count": 11
+        },
+        {
+          "model4d": "target_motion_limit",
+          "model6d": "place_robustness_initial_clearance",
+          "count": 13
+        }
+      ],
+      "lost_accepted_candidates": []
+    },
+    "long": {
+      "candidates": 655,
+      "models": {
+        "limit_surface_4d": {
+          "outcomes": {
+            "accepted": 168,
+            "simulation_unsettled": 106,
+            "target_motion_limit": 223,
+            "place_robustness": 48,
+            "place_robustness_initial_clearance": 110
+          },
+          "noisy_trial_outcomes": {
+            "not_settled": 1347,
+            "settled": 824,
+            "bounded_rocking": 22,
+            "excursion_limit": 133,
+            "initial_clearance_lift_limit": 294
+          },
+          "unconverged_steps": 0,
+          "nominal_settled": 272,
+          "sum_step_median_seconds": 28.38180980598554
+        },
+        "limit_surface_6d": {
+          "outcomes": {
+            "accepted": 421,
+            "place_robustness": 61,
+            "place_robustness_initial_clearance": 173
+          },
+          "noisy_trial_outcomes": {
+            "settled": 2230,
+            "excursion_limit": 96,
+            "initial_clearance_lift_limit": 294
+          },
+          "unconverged_steps": 0,
+          "nominal_settled": 655,
+          "sum_step_median_seconds": 15.722488788189366
+        }
+      },
+      "transitions": [
+        {
+          "model4d": "accepted",
+          "model6d": "accepted",
+          "count": 168
+        },
+        {
+          "model4d": "simulation_unsettled",
+          "model6d": "accepted",
+          "count": 106
+        },
+        {
+          "model4d": "target_motion_limit",
+          "model6d": "accepted",
+          "count": 135
+        },
+        {
+          "model4d": "place_robustness",
+          "model6d": "place_robustness",
+          "count": 36
+        },
+        {
+          "model4d": "place_robustness",
+          "model6d": "accepted",
+          "count": 12
+        },
+        {
+          "model4d": "place_robustness_initial_clearance",
+          "model6d": "place_robustness_initial_clearance",
+          "count": 110
+        },
+        {
+          "model4d": "target_motion_limit",
+          "model6d": "place_robustness",
+          "count": 25
+        },
+        {
+          "model4d": "target_motion_limit",
+          "model6d": "place_robustness_initial_clearance",
+          "count": 63
+        }
+      ],
+      "lost_accepted_candidates": []
+    }
+  },
+  "measurements": [
+    {
+      "stack": "excavator_plan1.stack",
+      "step": 1,
+      "fidelity": "short",
+      "count": 32,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            0.2292378059355542,
+            0.2254685329971835,
+            0.2257480180123821
+          ],
+          "outcomes": [
+            {
+              "accepted": 31,
+              "place_robustness": 1
+            },
+            {
+              "accepted": 31,
+              "place_robustness": 1
+            },
+            {
+              "accepted": 31,
+              "place_robustness": 1
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            0.23660833400208503,
+            0.23496053798589855,
+            0.23485745501238853
+          ],
+          "outcomes": [
+            {
+              "accepted": 15,
+              "simulation_unsettled": 10,
+              "target_motion_limit": 6,
+              "place_robustness": 1
+            },
+            {
+              "accepted": 15,
+              "simulation_unsettled": 10,
+              "target_motion_limit": 6,
+              "place_robustness": 1
+            },
+            {
+              "accepted": 15,
+              "simulation_unsettled": 10,
+              "target_motion_limit": 6,
+              "place_robustness": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan1.stack",
+      "step": 2,
+      "fidelity": "short",
+      "count": 65,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            0.61851206200663,
+            0.6132226450135931,
+            0.6171342660672963
+          ],
+          "outcomes": [
+            {
+              "accepted": 47,
+              "place_robustness_initial_clearance": 14,
+              "place_robustness": 4
+            },
+            {
+              "accepted": 47,
+              "place_robustness_initial_clearance": 14,
+              "place_robustness": 4
+            },
+            {
+              "accepted": 47,
+              "place_robustness_initial_clearance": 14,
+              "place_robustness": 4
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            0.7026680679991841,
+            0.7042951160110533,
+            0.704503949964419
+          ],
+          "outcomes": [
+            {
+              "accepted": 25,
+              "place_robustness": 6,
+              "place_robustness_initial_clearance": 14,
+              "target_motion_limit": 7,
+              "simulation_unsettled": 13
+            },
+            {
+              "accepted": 25,
+              "place_robustness": 6,
+              "place_robustness_initial_clearance": 14,
+              "target_motion_limit": 7,
+              "simulation_unsettled": 13
+            },
+            {
+              "accepted": 25,
+              "place_robustness": 6,
+              "place_robustness_initial_clearance": 14,
+              "target_motion_limit": 7,
+              "simulation_unsettled": 13
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan1.stack",
+      "step": 3,
+      "fidelity": "short",
+      "count": 78,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            0.7806481419829652,
+            0.7798635410144925,
+            0.7835539659718052
+          ],
+          "outcomes": [
+            {
+              "accepted": 23,
+              "place_robustness_initial_clearance": 47,
+              "place_robustness": 8
+            },
+            {
+              "accepted": 23,
+              "place_robustness_initial_clearance": 47,
+              "place_robustness": 8
+            },
+            {
+              "accepted": 23,
+              "place_robustness_initial_clearance": 47,
+              "place_robustness": 8
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            0.9668983289739117,
+            0.9620831530774012,
+            0.9645444209454581
+          ],
+          "outcomes": [
+            {
+              "accepted": 10,
+              "place_robustness_initial_clearance": 43,
+              "place_robustness": 6,
+              "target_motion_limit": 9,
+              "simulation_unsettled": 10
+            },
+            {
+              "accepted": 10,
+              "place_robustness_initial_clearance": 43,
+              "place_robustness": 6,
+              "target_motion_limit": 9,
+              "simulation_unsettled": 10
+            },
+            {
+              "accepted": 10,
+              "place_robustness_initial_clearance": 43,
+              "place_robustness": 6,
+              "target_motion_limit": 9,
+              "simulation_unsettled": 10
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan1.stack",
+      "step": 4,
+      "fidelity": "short",
+      "count": 79,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            0.9774466259405017,
+            0.9668623419711366,
+            0.968788041966036
+          ],
+          "outcomes": [
+            {
+              "accepted": 40,
+              "place_robustness": 7,
+              "place_robustness_initial_clearance": 32
+            },
+            {
+              "accepted": 40,
+              "place_robustness": 7,
+              "place_robustness_initial_clearance": 32
+            },
+            {
+              "accepted": 40,
+              "place_robustness": 7,
+              "place_robustness_initial_clearance": 32
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            1.1268187909154221,
+            1.1296793380752206,
+            1.1291118160588667
+          ],
+          "outcomes": [
+            {
+              "accepted": 20,
+              "simulation_unsettled": 13,
+              "place_robustness": 9,
+              "place_robustness_initial_clearance": 31,
+              "target_motion_limit": 6
+            },
+            {
+              "accepted": 20,
+              "simulation_unsettled": 13,
+              "place_robustness": 9,
+              "place_robustness_initial_clearance": 31,
+              "target_motion_limit": 6
+            },
+            {
+              "accepted": 20,
+              "simulation_unsettled": 13,
+              "place_robustness": 9,
+              "place_robustness_initial_clearance": 31,
+              "target_motion_limit": 6
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan1.stack",
+      "step": 1,
+      "fidelity": "long",
+      "count": 32,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            0.5227758510736749,
+            0.5154159939847887,
+            0.5156117610167712
+          ],
+          "outcomes": [
+            {
+              "accepted": 31,
+              "place_robustness": 1
+            },
+            {
+              "accepted": 31,
+              "place_robustness": 1
+            },
+            {
+              "accepted": 31,
+              "place_robustness": 1
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            0.8840709740761667,
+            0.8868559079710394,
+            0.8863818099489436
+          ],
+          "outcomes": [
+            {
+              "accepted": 13,
+              "simulation_unsettled": 6,
+              "target_motion_limit": 12,
+              "place_robustness": 1
+            },
+            {
+              "accepted": 13,
+              "simulation_unsettled": 6,
+              "target_motion_limit": 12,
+              "place_robustness": 1
+            },
+            {
+              "accepted": 13,
+              "simulation_unsettled": 6,
+              "target_motion_limit": 12,
+              "place_robustness": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan1.stack",
+      "step": 2,
+      "fidelity": "long",
+      "count": 65,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            1.4277851160150021,
+            1.4170514399884269,
+            1.419119409052655
+          ],
+          "outcomes": [
+            {
+              "accepted": 47,
+              "place_robustness_initial_clearance": 14,
+              "place_robustness": 4
+            },
+            {
+              "accepted": 47,
+              "place_robustness_initial_clearance": 14,
+              "place_robustness": 4
+            },
+            {
+              "accepted": 47,
+              "place_robustness_initial_clearance": 14,
+              "place_robustness": 4
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            2.3819917349610478,
+            2.3713444579625502,
+            2.374016033951193
+          ],
+          "outcomes": [
+            {
+              "accepted": 24,
+              "place_robustness": 6,
+              "place_robustness_initial_clearance": 9,
+              "target_motion_limit": 19,
+              "simulation_unsettled": 7
+            },
+            {
+              "accepted": 24,
+              "place_robustness": 6,
+              "place_robustness_initial_clearance": 9,
+              "target_motion_limit": 19,
+              "simulation_unsettled": 7
+            },
+            {
+              "accepted": 24,
+              "place_robustness": 6,
+              "place_robustness_initial_clearance": 9,
+              "target_motion_limit": 19,
+              "simulation_unsettled": 7
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan1.stack",
+      "step": 3,
+      "fidelity": "long",
+      "count": 78,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            1.5482973920879886,
+            1.5396583240944892,
+            1.5383275269996375
+          ],
+          "outcomes": [
+            {
+              "accepted": 23,
+              "place_robustness_initial_clearance": 47,
+              "place_robustness": 8
+            },
+            {
+              "accepted": 23,
+              "place_robustness_initial_clearance": 47,
+              "place_robustness": 8
+            },
+            {
+              "accepted": 23,
+              "place_robustness_initial_clearance": 47,
+              "place_robustness": 8
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            3.0531728820642456,
+            3.04331674403511,
+            3.018545744009316
+          ],
+          "outcomes": [
+            {
+              "accepted": 8,
+              "place_robustness_initial_clearance": 32,
+              "simulation_unsettled": 7,
+              "target_motion_limit": 28,
+              "place_robustness": 3
+            },
+            {
+              "accepted": 8,
+              "place_robustness_initial_clearance": 32,
+              "simulation_unsettled": 7,
+              "target_motion_limit": 28,
+              "place_robustness": 3
+            },
+            {
+              "accepted": 8,
+              "place_robustness_initial_clearance": 32,
+              "simulation_unsettled": 7,
+              "target_motion_limit": 28,
+              "place_robustness": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan1.stack",
+      "step": 4,
+      "fidelity": "long",
+      "count": 79,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            1.9783140270737931,
+            2.0087821109918877,
+            2.018573835026473
+          ],
+          "outcomes": [
+            {
+              "accepted": 40,
+              "place_robustness": 7,
+              "place_robustness_initial_clearance": 32
+            },
+            {
+              "accepted": 40,
+              "place_robustness": 7,
+              "place_robustness_initial_clearance": 32
+            },
+            {
+              "accepted": 40,
+              "place_robustness": 7,
+              "place_robustness_initial_clearance": 32
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            3.6552951189223677,
+            3.732173903961666,
+            3.79630486399401
+          ],
+          "outcomes": [
+            {
+              "accepted": 18,
+              "simulation_unsettled": 9,
+              "target_motion_limit": 28,
+              "place_robustness_initial_clearance": 20,
+              "place_robustness": 4
+            },
+            {
+              "accepted": 18,
+              "simulation_unsettled": 9,
+              "target_motion_limit": 28,
+              "place_robustness_initial_clearance": 20,
+              "place_robustness": 4
+            },
+            {
+              "accepted": 18,
+              "simulation_unsettled": 9,
+              "target_motion_limit": 28,
+              "place_robustness_initial_clearance": 20,
+              "place_robustness": 4
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan2.stack",
+      "step": 1,
+      "fidelity": "short",
+      "count": 32,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            0.24537989706732333,
+            0.23824852798134089,
+            0.2345680108992383
+          ],
+          "outcomes": [
+            {
+              "accepted": 31,
+              "place_robustness": 1
+            },
+            {
+              "accepted": 31,
+              "place_robustness": 1
+            },
+            {
+              "accepted": 31,
+              "place_robustness": 1
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            0.24994985398370773,
+            0.23818128101993352,
+            0.24221490102354437
+          ],
+          "outcomes": [
+            {
+              "simulation_unsettled": 12,
+              "accepted": 15,
+              "target_motion_limit": 4,
+              "place_robustness": 1
+            },
+            {
+              "simulation_unsettled": 12,
+              "accepted": 15,
+              "target_motion_limit": 4,
+              "place_robustness": 1
+            },
+            {
+              "simulation_unsettled": 12,
+              "accepted": 15,
+              "target_motion_limit": 4,
+              "place_robustness": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan2.stack",
+      "step": 2,
+      "fidelity": "short",
+      "count": 76,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            0.8323385139228776,
+            0.8269198649795726,
+            0.8344126249430701
+          ],
+          "outcomes": [
+            {
+              "accepted": 58,
+              "place_robustness": 12,
+              "place_robustness_initial_clearance": 6
+            },
+            {
+              "accepted": 58,
+              "place_robustness": 12,
+              "place_robustness_initial_clearance": 6
+            },
+            {
+              "accepted": 58,
+              "place_robustness": 12,
+              "place_robustness_initial_clearance": 6
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            0.9382867659442127,
+            0.937362800934352,
+            0.9310214690631256
+          ],
+          "outcomes": [
+            {
+              "accepted": 24,
+              "target_motion_limit": 9,
+              "simulation_unsettled": 29,
+              "place_robustness": 10,
+              "place_robustness_initial_clearance": 4
+            },
+            {
+              "accepted": 24,
+              "target_motion_limit": 9,
+              "simulation_unsettled": 29,
+              "place_robustness": 10,
+              "place_robustness_initial_clearance": 4
+            },
+            {
+              "accepted": 24,
+              "target_motion_limit": 9,
+              "simulation_unsettled": 29,
+              "place_robustness": 10,
+              "place_robustness_initial_clearance": 4
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan2.stack",
+      "step": 3,
+      "fidelity": "short",
+      "count": 75,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            1.0876607520040125,
+            1.0832649660296738,
+            1.0864279610104859
+          ],
+          "outcomes": [
+            {
+              "accepted": 46,
+              "place_robustness_initial_clearance": 18,
+              "place_robustness": 11
+            },
+            {
+              "accepted": 46,
+              "place_robustness_initial_clearance": 18,
+              "place_robustness": 11
+            },
+            {
+              "accepted": 46,
+              "place_robustness_initial_clearance": 18,
+              "place_robustness": 11
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            0.9917050390504301,
+            0.9936376210534945,
+            0.9900765040656552
+          ],
+          "outcomes": [
+            {
+              "accepted": 21,
+              "simulation_unsettled": 20,
+              "place_robustness_initial_clearance": 17,
+              "place_robustness": 11,
+              "target_motion_limit": 6
+            },
+            {
+              "accepted": 21,
+              "simulation_unsettled": 20,
+              "place_robustness_initial_clearance": 17,
+              "place_robustness": 11,
+              "target_motion_limit": 6
+            },
+            {
+              "accepted": 21,
+              "simulation_unsettled": 20,
+              "place_robustness_initial_clearance": 17,
+              "place_robustness": 11,
+              "target_motion_limit": 6
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan2.stack",
+      "step": 4,
+      "fidelity": "short",
+      "count": 76,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            1.1030679909745231,
+            1.101918085012585,
+            1.1151386490091681
+          ],
+          "outcomes": [
+            {
+              "accepted": 35,
+              "place_robustness_initial_clearance": 33,
+              "place_robustness": 8
+            },
+            {
+              "accepted": 35,
+              "place_robustness_initial_clearance": 33,
+              "place_robustness": 8
+            },
+            {
+              "accepted": 35,
+              "place_robustness_initial_clearance": 33,
+              "place_robustness": 8
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            1.0317751300754026,
+            1.021808853955008,
+            1.0204097189707682
+          ],
+          "outcomes": [
+            {
+              "accepted": 11,
+              "place_robustness_initial_clearance": 30,
+              "place_robustness": 9,
+              "target_motion_limit": 10,
+              "simulation_unsettled": 16
+            },
+            {
+              "accepted": 11,
+              "place_robustness_initial_clearance": 30,
+              "place_robustness": 9,
+              "target_motion_limit": 10,
+              "simulation_unsettled": 16
+            },
+            {
+              "accepted": 11,
+              "place_robustness_initial_clearance": 30,
+              "place_robustness": 9,
+              "target_motion_limit": 10,
+              "simulation_unsettled": 16
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan2.stack",
+      "step": 5,
+      "fidelity": "short",
+      "count": 72,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            0.9548535370267928,
+            0.9574284190312028,
+            0.9514594729989767
+          ],
+          "outcomes": [
+            {
+              "accepted": 48,
+              "place_robustness_initial_clearance": 16,
+              "place_robustness": 8
+            },
+            {
+              "accepted": 48,
+              "place_robustness_initial_clearance": 16,
+              "place_robustness": 8
+            },
+            {
+              "accepted": 48,
+              "place_robustness_initial_clearance": 16,
+              "place_robustness": 8
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            0.9909728979691863,
+            0.9772819529753178,
+            0.9793175819795579
+          ],
+          "outcomes": [
+            {
+              "accepted": 21,
+              "place_robustness_initial_clearance": 14,
+              "simulation_unsettled": 21,
+              "target_motion_limit": 10,
+              "place_robustness": 6
+            },
+            {
+              "accepted": 21,
+              "place_robustness_initial_clearance": 14,
+              "simulation_unsettled": 21,
+              "target_motion_limit": 10,
+              "place_robustness": 6
+            },
+            {
+              "accepted": 21,
+              "place_robustness_initial_clearance": 14,
+              "simulation_unsettled": 21,
+              "target_motion_limit": 10,
+              "place_robustness": 6
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan2.stack",
+      "step": 6,
+      "fidelity": "short",
+      "count": 70,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            0.8751665770541877,
+            0.8705910519929603,
+            0.8854057100834325
+          ],
+          "outcomes": [
+            {
+              "accepted": 62,
+              "place_robustness": 1,
+              "place_robustness_initial_clearance": 7
+            },
+            {
+              "accepted": 62,
+              "place_robustness": 1,
+              "place_robustness_initial_clearance": 7
+            },
+            {
+              "accepted": 62,
+              "place_robustness": 1,
+              "place_robustness_initial_clearance": 7
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            1.012548197992146,
+            0.9996485690353438,
+            1.004405680927448
+          ],
+          "outcomes": [
+            {
+              "accepted": 23,
+              "simulation_unsettled": 33,
+              "place_robustness": 4,
+              "target_motion_limit": 3,
+              "place_robustness_initial_clearance": 7
+            },
+            {
+              "accepted": 23,
+              "simulation_unsettled": 33,
+              "place_robustness": 4,
+              "target_motion_limit": 3,
+              "place_robustness_initial_clearance": 7
+            },
+            {
+              "accepted": 23,
+              "simulation_unsettled": 33,
+              "place_robustness": 4,
+              "target_motion_limit": 3,
+              "place_robustness_initial_clearance": 7
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan2.stack",
+      "step": 1,
+      "fidelity": "long",
+      "count": 32,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            0.535780060919933,
+            0.5417524649528787,
+            0.5472547439858317
+          ],
+          "outcomes": [
+            {
+              "accepted": 31,
+              "place_robustness": 1
+            },
+            {
+              "accepted": 31,
+              "place_robustness": 1
+            },
+            {
+              "accepted": 31,
+              "place_robustness": 1
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            0.9162719630403444,
+            0.9114408959867433,
+            0.9205083269625902
+          ],
+          "outcomes": [
+            {
+              "target_motion_limit": 10,
+              "simulation_unsettled": 7,
+              "accepted": 14,
+              "place_robustness": 1
+            },
+            {
+              "target_motion_limit": 10,
+              "simulation_unsettled": 7,
+              "accepted": 14,
+              "place_robustness": 1
+            },
+            {
+              "target_motion_limit": 10,
+              "simulation_unsettled": 7,
+              "accepted": 14,
+              "place_robustness": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan2.stack",
+      "step": 2,
+      "fidelity": "long",
+      "count": 76,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            1.7943233579862863,
+            1.7304797469405457,
+            1.7537339970003814
+          ],
+          "outcomes": [
+            {
+              "accepted": 58,
+              "place_robustness": 12,
+              "place_robustness_initial_clearance": 6
+            },
+            {
+              "accepted": 58,
+              "place_robustness": 12,
+              "place_robustness_initial_clearance": 6
+            },
+            {
+              "accepted": 58,
+              "place_robustness": 12,
+              "place_robustness_initial_clearance": 6
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            3.0287103480659425,
+            2.9874262319644913,
+            2.986084292992018
+          ],
+          "outcomes": [
+            {
+              "accepted": 21,
+              "target_motion_limit": 35,
+              "place_robustness": 8,
+              "simulation_unsettled": 11,
+              "place_robustness_initial_clearance": 1
+            },
+            {
+              "accepted": 21,
+              "target_motion_limit": 35,
+              "place_robustness": 8,
+              "simulation_unsettled": 11,
+              "place_robustness_initial_clearance": 1
+            },
+            {
+              "accepted": 21,
+              "target_motion_limit": 35,
+              "place_robustness": 8,
+              "simulation_unsettled": 11,
+              "place_robustness_initial_clearance": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan2.stack",
+      "step": 3,
+      "fidelity": "long",
+      "count": 75,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            2.0378469129791483,
+            2.046566657954827,
+            2.0395157940220088
+          ],
+          "outcomes": [
+            {
+              "accepted": 46,
+              "place_robustness_initial_clearance": 18,
+              "place_robustness": 11
+            },
+            {
+              "accepted": 46,
+              "place_robustness_initial_clearance": 18,
+              "place_robustness": 11
+            },
+            {
+              "accepted": 46,
+              "place_robustness_initial_clearance": 18,
+              "place_robustness": 11
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            3.261922950972803,
+            3.2839481320697814,
+            3.275738190044649
+          ],
+          "outcomes": [
+            {
+              "accepted": 19,
+              "simulation_unsettled": 11,
+              "target_motion_limit": 24,
+              "place_robustness_initial_clearance": 14,
+              "place_robustness": 7
+            },
+            {
+              "accepted": 19,
+              "simulation_unsettled": 11,
+              "target_motion_limit": 24,
+              "place_robustness_initial_clearance": 14,
+              "place_robustness": 7
+            },
+            {
+              "accepted": 19,
+              "simulation_unsettled": 11,
+              "target_motion_limit": 24,
+              "place_robustness_initial_clearance": 14,
+              "place_robustness": 7
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan2.stack",
+      "step": 4,
+      "fidelity": "long",
+      "count": 76,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            2.0781939569860697,
+            2.097209972096607,
+            2.0703438610071316
+          ],
+          "outcomes": [
+            {
+              "accepted": 35,
+              "place_robustness_initial_clearance": 33,
+              "place_robustness": 8
+            },
+            {
+              "accepted": 35,
+              "place_robustness_initial_clearance": 33,
+              "place_robustness": 8
+            },
+            {
+              "accepted": 35,
+              "place_robustness_initial_clearance": 33,
+              "place_robustness": 8
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            3.49920750700403,
+            3.563959146034904,
+            3.5448092609876767
+          ],
+          "outcomes": [
+            {
+              "accepted": 10,
+              "place_robustness_initial_clearance": 19,
+              "place_robustness": 9,
+              "target_motion_limit": 25,
+              "simulation_unsettled": 13
+            },
+            {
+              "accepted": 10,
+              "place_robustness_initial_clearance": 19,
+              "place_robustness": 9,
+              "target_motion_limit": 25,
+              "simulation_unsettled": 13
+            },
+            {
+              "accepted": 10,
+              "place_robustness_initial_clearance": 19,
+              "place_robustness": 9,
+              "target_motion_limit": 25,
+              "simulation_unsettled": 13
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan2.stack",
+      "step": 5,
+      "fidelity": "long",
+      "count": 72,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            1.9380787210538983,
+            1.9271293649217114,
+            1.960087783052586
+          ],
+          "outcomes": [
+            {
+              "accepted": 48,
+              "place_robustness_initial_clearance": 16,
+              "place_robustness": 8
+            },
+            {
+              "accepted": 48,
+              "place_robustness_initial_clearance": 16,
+              "place_robustness": 8
+            },
+            {
+              "accepted": 48,
+              "place_robustness_initial_clearance": 16,
+              "place_robustness": 8
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            3.8086367528885603,
+            3.7945981479715556,
+            3.7986956880195066
+          ],
+          "outcomes": [
+            {
+              "accepted": 20,
+              "target_motion_limit": 23,
+              "simulation_unsettled": 13,
+              "place_robustness_initial_clearance": 11,
+              "place_robustness": 5
+            },
+            {
+              "accepted": 20,
+              "target_motion_limit": 23,
+              "simulation_unsettled": 13,
+              "place_robustness_initial_clearance": 11,
+              "place_robustness": 5
+            },
+            {
+              "accepted": 20,
+              "target_motion_limit": 23,
+              "simulation_unsettled": 13,
+              "place_robustness_initial_clearance": 11,
+              "place_robustness": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stack": "excavator_plan2.stack",
+      "step": 6,
+      "fidelity": "long",
+      "count": 70,
+      "models": {
+        "limit_surface_6d": {
+          "seconds": [
+            1.8961534429108724,
+            1.8880422490183264,
+            1.8813250199891627
+          ],
+          "outcomes": [
+            {
+              "accepted": 62,
+              "place_robustness": 1,
+              "place_robustness_initial_clearance": 7
+            },
+            {
+              "accepted": 62,
+              "place_robustness": 1,
+              "place_robustness_initial_clearance": 7
+            },
+            {
+              "accepted": 62,
+              "place_robustness": 1,
+              "place_robustness_initial_clearance": 7
+            }
+          ]
+        },
+        "limit_surface_4d": {
+          "seconds": [
+            3.819514765054919,
+            3.824623730033636,
+            3.8229799800319597
+          ],
+          "outcomes": [
+            {
+              "accepted": 21,
+              "simulation_unsettled": 22,
+              "place_robustness": 4,
+              "target_motion_limit": 19,
+              "place_robustness_initial_clearance": 4
+            },
+            {
+              "accepted": 21,
+              "simulation_unsettled": 22,
+              "place_robustness": 4,
+              "target_motion_limit": 19,
+              "place_robustness_initial_clearance": 4
+            },
+            {
+              "accepted": 21,
+              "simulation_unsettled": 22,
+              "place_robustness": 4,
+              "target_motion_limit": 19,
+              "place_robustness_initial_clearance": 4
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "candidate25": [
+    {
+      "fidelity": "short",
+      "model": "limit_surface_6d",
+      "candidate_id": "step-1-candidate-25",
+      "recorded_rejection": "target_motion_limit",
+      "recorded_selected": false,
+      "failed": false,
+      "settled": true,
+      "diagnostics": {
+        "simulation_stage_times": {
+          "structural": 0.8300000000000001,
+          "total": 0.8300000000000001
+        },
+        "simulation_elapsed": 0.8300000000000001,
+        "simulation_settled": true,
+        "simulation_velocity_integral_threshold": 0.2,
+        "simulation_velocity_integrals": {
+          "15": 0.05041121691465378
+        },
+        "simulation_target_velocity_integral": 0.05041121691465378,
+        "simulation_previous_velocity_integrals": {},
+        "simulation_previous_displacements": {},
+        "simulation_max_previous_displacement": 0.0,
+        "short_gate_used": false,
+        "short_gate_passed": true,
+        "contact_gap_tolerance": 0.02,
+        "support_count": 1,
+        "support_has_ground": true,
+        "support_sources": [
+          "ground"
+        ],
+        "place_plane_min_gap": -5.513429641723633e-07,
+        "simulation_settling_wall_seconds": 0.0013310444046510383,
+        "simulation_structural_wall_seconds": 0.0012963946246600244,
+        "simulation_total_wall_seconds": 0.007129271438316209,
+        "simulation_frozen_object_indices": [],
+        "simulation_frozen_object_count": 0,
+        "place_robustness_enabled": true,
+        "place_robustness_trial_displacements": [
+          0.025080520216192913,
+          0.09326755720870164,
+          0.09827802078166345,
+          0.07312017677597477
+        ],
+        "place_robustness_trial_failure_reasons": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "place_robustness_trial_outcomes": [
+          "settled",
+          "settled",
+          "settled",
+          "settled"
+        ],
+        "place_robustness_raw_displacement": 0.09827802078166345,
+        "place_robustness_failed": false,
+        "simulation_robustness_wall_seconds": 0.004365596469142474,
+        "simulation_backend": "cuda",
+        "simulation_cuda_status": "quiet",
+        "simulation_cuda_phase_statuses": [
+          "quiet"
+        ],
+        "simulation_cuda_unconverged_steps": 0
+      },
+      "motion": {
+        "status": "quiet",
+        "max_energy": 9.845239901107306e-11,
+        "max_motion_integral": 0.05041121691465378,
+        "quiet_steps": 20,
+        "unconverged_steps": 0,
+        "tail_duration_seconds": 0.8200000000000001,
+        "tail_position_extent_m": 0.028755450152738424,
+        "tail_angle_extent_degrees": 6.515286852810299,
+        "max_target_translation_m": 0.028790359232315224
+      },
+      "final_pose": [
+        0.2721216380596161,
+        2.558058738708496,
+        0.2510673701763153,
+        -0.7171656481446426,
+        0.5445052379312546,
+        0.3563295300837227,
+        -0.24943284662813778
+      ]
+    },
+    {
+      "fidelity": "short",
+      "model": "limit_surface_4d",
+      "candidate_id": "step-1-candidate-25",
+      "recorded_rejection": "target_motion_limit",
+      "recorded_selected": false,
+      "failed": true,
+      "settled": false,
+      "diagnostics": {
+        "simulation_stage_times": {
+          "structural": 1.5,
+          "total": 1.5
+        },
+        "simulation_elapsed": 1.5,
+        "simulation_settled": false,
+        "simulation_velocity_integral_threshold": 0.2,
+        "simulation_velocity_integrals": {
+          "15": 0.20123188197612762
+        },
+        "simulation_target_velocity_integral": 0.20123188197612762,
+        "simulation_previous_velocity_integrals": {},
+        "simulation_previous_displacements": {},
+        "simulation_max_previous_displacement": 0.0,
+        "short_gate_used": false,
+        "short_gate_passed": true,
+        "contact_gap_tolerance": 0.02,
+        "support_count": 1,
+        "support_has_ground": true,
+        "support_sources": [
+          "ground"
+        ],
+        "place_plane_min_gap": -1.8343329429626465e-05,
+        "simulation_settling_wall_seconds": 0.0013322989361768123,
+        "simulation_structural_wall_seconds": 0.0021221949682512786,
+        "simulation_total_wall_seconds": 0.00734814552924945,
+        "simulation_frozen_object_indices": [],
+        "simulation_frozen_object_count": 0,
+        "place_robustness_enabled": true,
+        "place_robustness_trial_displacements": [
+          0.02546812867749055,
+          0.0942937751430335,
+          0.10440918737303036,
+          0.07326824105509556
+        ],
+        "place_robustness_trial_failure_reasons": [
+          "not_settled",
+          "not_settled",
+          "not_settled",
+          "not_settled"
+        ],
+        "place_robustness_trial_outcomes": [
+          "not_settled",
+          "not_settled",
+          "not_settled",
+          "not_settled"
+        ],
+        "place_robustness_raw_displacement": 0.10440918737303036,
+        "place_robustness_failed": false,
+        "simulation_robustness_wall_seconds": 0.0037363391274993774,
+        "rejection_reason": "target_motion_limit",
+        "simulation_backend": "cuda",
+        "simulation_cuda_status": "motion_limit",
+        "simulation_cuda_phase_statuses": [
+          "motion_limit"
+        ],
+        "simulation_cuda_unconverged_steps": 0
+      },
+      "motion": {
+        "status": "motion_limit",
+        "max_energy": 0.02839544042944908,
+        "max_motion_integral": 0.20123188197612762,
+        "quiet_steps": 0,
+        "unconverged_steps": 0,
+        "tail_duration_seconds": 1.0,
+        "tail_position_extent_m": 0.03484544877285049,
+        "tail_angle_extent_degrees": 7.929584086388381,
+        "max_target_translation_m": 0.035904432370531654
+      },
+      "final_pose": [
+        0.28115880489349365,
+        2.5615179538726807,
+        0.2519347369670868,
+        -0.7089219858136395,
+        0.5423614055853456,
+        0.3654042560164006,
+        -0.2641087909302431
+      ]
+    },
+    {
+      "fidelity": "long",
+      "model": "limit_surface_6d",
+      "candidate_id": "step-1-candidate-25",
+      "recorded_rejection": "target_motion_limit",
+      "recorded_selected": false,
+      "failed": false,
+      "settled": true,
+      "diagnostics": {
+        "simulation_stage_times": {
+          "short": 0.8300000000000001,
+          "long_extension": 3.47,
+          "total": 4.300000000000001
+        },
+        "simulation_elapsed": 4.300000000000001,
+        "simulation_settled": true,
+        "simulation_velocity_integral_threshold": 0.2,
+        "simulation_velocity_integrals": {
+          "15": 0.05041730776429176
+        },
+        "simulation_target_velocity_integral": 0.05041730776429176,
+        "simulation_previous_velocity_integrals": {},
+        "simulation_previous_displacements": {},
+        "simulation_max_previous_displacement": 0.0,
+        "short_gate_used": true,
+        "short_gate_passed": true,
+        "contact_gap_tolerance": 0.02,
+        "support_count": 1,
+        "support_has_ground": true,
+        "support_sources": [
+          "ground"
+        ],
+        "place_plane_min_gap": -8.940696716308594e-08,
+        "simulation_settling_wall_seconds": 0.0012685397778113838,
+        "simulation_structural_wall_seconds": 0.0036953838425688446,
+        "simulation_total_wall_seconds": 0.016260262247669743,
+        "simulation_frozen_object_indices": [],
+        "simulation_frozen_object_count": 0,
+        "place_robustness_enabled": true,
+        "place_robustness_trial_displacements": [
+          0.025080520216192913,
+          0.09326755720870164,
+          0.09827802078166345,
+          0.07312017677597477
+        ],
+        "place_robustness_trial_failure_reasons": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "place_robustness_trial_outcomes": [
+          "settled",
+          "settled",
+          "settled",
+          "settled"
+        ],
+        "place_robustness_raw_displacement": 0.09827802078166345,
+        "place_robustness_failed": false,
+        "simulation_robustness_wall_seconds": 0.01110647934183362,
+        "simulation_backend": "cuda",
+        "simulation_cuda_status": "quiet",
+        "simulation_cuda_phase_statuses": [
+          "quiet",
+          "quiet"
+        ],
+        "simulation_cuda_unconverged_steps": 0
+      },
+      "motion": {
+        "status": "quiet",
+        "max_energy": 2.0503273558125645e-12,
+        "max_motion_integral": 0.05041730776429176,
+        "quiet_steps": 150,
+        "unconverged_steps": 0,
+        "tail_duration_seconds": 1.0,
+        "tail_position_extent_m": 0.0,
+        "tail_angle_extent_degrees": 0.0,
+        "max_target_translation_m": 0.028790359232315224
+      },
+      "final_pose": [
+        0.27212199568748474,
+        2.558058738708496,
+        0.2510676980018616,
+        -0.7171657958151985,
+        0.5445043798207817,
+        0.35633109413290437,
+        -0.24943206093601156
+      ]
+    },
+    {
+      "fidelity": "long",
+      "model": "limit_surface_4d",
+      "candidate_id": "step-1-candidate-25",
+      "recorded_rejection": "target_motion_limit",
+      "recorded_selected": false,
+      "failed": true,
+      "settled": false,
+      "diagnostics": {
+        "simulation_stage_times": {
+          "short": 1.5,
+          "long_extension": 0.0,
+          "total": 1.5
+        },
+        "simulation_elapsed": 1.5,
+        "simulation_settled": false,
+        "simulation_velocity_integral_threshold": 0.2,
+        "simulation_velocity_integrals": {
+          "15": 0.20123188197612762
+        },
+        "simulation_target_velocity_integral": 0.20123188197612762,
+        "simulation_previous_velocity_integrals": {},
+        "simulation_previous_displacements": {},
+        "simulation_max_previous_displacement": 0.0,
+        "short_gate_used": true,
+        "short_gate_passed": false,
+        "contact_gap_tolerance": 0.02,
+        "support_count": 1,
+        "support_has_ground": true,
+        "support_sources": [
+          "ground"
+        ],
+        "place_plane_min_gap": -1.8343329429626465e-05,
+        "simulation_settling_wall_seconds": 0.0013176981265132781,
+        "simulation_structural_wall_seconds": 0.007507318845455302,
+        "simulation_total_wall_seconds": 0.02756466103164712,
+        "simulation_frozen_object_indices": [],
+        "simulation_frozen_object_count": 0,
+        "place_robustness_enabled": true,
+        "place_robustness_trial_displacements": [
+          0.02546812867749055,
+          0.0942937751430335,
+          0.10440918737303036,
+          0.07326824105509556
+        ],
+        "place_robustness_trial_failure_reasons": [
+          "not_settled",
+          "not_settled",
+          "not_settled",
+          "not_settled"
+        ],
+        "place_robustness_trial_outcomes": [
+          "not_settled",
+          "not_settled",
+          "not_settled",
+          "not_settled"
+        ],
+        "place_robustness_raw_displacement": 0.10440918737303036,
+        "place_robustness_failed": false,
+        "simulation_robustness_wall_seconds": 0.018506258998968406,
+        "rejection_reason": "target_motion_limit",
+        "simulation_backend": "cuda",
+        "simulation_cuda_status": "motion_limit",
+        "simulation_cuda_phase_statuses": [
+          "motion_limit"
+        ],
+        "simulation_cuda_unconverged_steps": 0
+      },
+      "motion": {
+        "status": "motion_limit",
+        "max_energy": 0.02839544042944908,
+        "max_motion_integral": 0.20123188197612762,
+        "quiet_steps": 0,
+        "unconverged_steps": 0,
+        "tail_duration_seconds": 1.0,
+        "tail_position_extent_m": 0.03484544877285049,
+        "tail_angle_extent_degrees": 7.929584086388381,
+        "max_target_translation_m": 0.035904432370531654
+      },
+      "final_pose": [
+        0.28115880489349365,
+        2.5615179538726807,
+        0.2519347369670868,
+        -0.7089219858136395,
+        0.5423614055853456,
+        0.3654042560164006,
+        -0.2641087909302431
+      ]
+    }
+  ],
+  "candidate25_cpu": [
+    {
+      "model": "limit_surface_4d",
+      "seconds": 0.09400468203239143,
+      "failed": true,
+      "settled": false,
+      "diagnostics": {
+        "simulation_stage_times": {
+          "short": 1.500000000000001,
+          "long_extension": 0.0,
+          "total": 1.500000000000001
+        },
+        "simulation_elapsed": 1.500000000000001,
+        "simulation_settled": false,
+        "simulation_velocity_integral_threshold": 0.2,
+        "simulation_velocity_integrals": {
+          "15": 0.20123236026590716
+        },
+        "simulation_target_velocity_integral": 0.20123236026590716,
+        "simulation_previous_velocity_integrals": {},
+        "simulation_previous_displacements": {},
+        "simulation_max_previous_displacement": 0.0,
+        "short_gate_used": true,
+        "short_gate_passed": false,
+        "contact_gap_tolerance": 0.02,
+        "support_count": 1,
+        "support_has_ground": true,
+        "support_sources": [
+          "ground"
+        ],
+        "place_plane_min_gap": -1.8361669187116902e-05,
+        "simulation_settling_wall_seconds": 0.0031320250127464533,
+        "simulation_structural_wall_seconds": 0.0035354329738765955,
+        "simulation_total_wall_seconds": 0.09398438292555511,
+        "simulation_frozen_object_indices": [],
+        "simulation_frozen_object_count": 0,
+        "place_robustness_enabled": true,
+        "place_robustness_trial_displacements": [
+          0.02546834153025412,
+          0.09429397255376154,
+          0.10440928759967517,
+          0.07326809172010074
+        ],
+        "place_robustness_trial_failure_reasons": [
+          "not_settled",
+          "not_settled",
+          "not_settled",
+          "not_settled"
+        ],
+        "place_robustness_trial_outcomes": [
+          "not_settled",
+          "not_settled",
+          "not_settled",
+          "not_settled"
+        ],
+        "place_robustness_raw_displacement": 0.10440928759967517,
+        "place_robustness_failed": false,
+        "simulation_robustness_wall_seconds": 0.08719658793415874,
+        "rejection_reason": "target_motion_limit"
+      },
+      "final_pose": [
+        0.28115839413343696,
+        2.561518910349994,
+        0.25193471268839085,
+        -0.7089242029621805,
+        0.5423584492843935,
+        0.3654032046691221,
+        -0.2641103651161778
+      ]
+    },
+    {
+      "model": "limit_surface_6d",
+      "seconds": 0.044308690004982054,
+      "failed": false,
+      "settled": true,
+      "diagnostics": {
+        "simulation_stage_times": {
+          "short": 0.8300000000000005,
+          "long_extension": 3.4699999999999522,
+          "total": 4.299999999999953
+        },
+        "simulation_elapsed": 4.299999999999953,
+        "simulation_settled": true,
+        "simulation_velocity_integral_threshold": 0.2,
+        "simulation_velocity_integrals": {
+          "15": 0.050413596766610023
+        },
+        "simulation_target_velocity_integral": 0.050413596766610023,
+        "simulation_previous_velocity_integrals": {},
+        "simulation_previous_displacements": {},
+        "simulation_max_previous_displacement": 0.0,
+        "short_gate_used": true,
+        "short_gate_passed": true,
+        "contact_gap_tolerance": 0.02,
+        "support_count": 1,
+        "support_has_ground": true,
+        "support_sources": [
+          "ground"
+        ],
+        "place_plane_min_gap": -1.3877787807814457e-16,
+        "simulation_settling_wall_seconds": 0.003108610981144011,
+        "simulation_structural_wall_seconds": 0.009090472012758255,
+        "simulation_total_wall_seconds": 0.04427398496773094,
+        "simulation_frozen_object_indices": [],
+        "simulation_frozen_object_count": 0,
+        "place_robustness_enabled": true,
+        "place_robustness_trial_displacements": [
+          0.025080726480652033,
+          0.09326969657696339,
+          0.09827814145950935,
+          0.07311988456465501
+        ],
+        "place_robustness_trial_failure_reasons": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "place_robustness_trial_outcomes": [
+          "settled",
+          "settled",
+          "settled",
+          "settled"
+        ],
+        "place_robustness_raw_displacement": 0.09827814145950935,
+        "place_robustness_failed": false,
+        "simulation_robustness_wall_seconds": 0.03197090595494956
+      },
+      "final_pose": [
+        0.2721217370105825,
+        2.558058566806988,
+        0.2510677420378946,
+        -0.7171685865049651,
+        0.5445002721060112,
+        0.3563301053669474,
+        -0.24943441666323915
+      ]
+    }
+  ],
+  "candidate25_without_motion_cutoff": [
+    {
+      "name": "4d",
+      "dt": 0.01,
+      "erp": 0.2,
+      "damping": 0.0,
+      "model": "limit_surface_4d",
+      "status": "complete",
+      "time": 15.01,
+      "energy": 0.03215969353914261,
+      "integral": 1.8584167957305908,
+      "position_range_m": 0.02843054245564982,
+      "angle_range_deg": 6.469197274904477,
+      "final_ground_gap": -8.207559585571289e-05,
+      "final_z": 0.2511084973812103,
+      "unconverged": 0,
+      "mean_linear_speed": 0.08595315997317263,
+      "mean_angular_speed_xyz": [
+        0.31000683409394697,
+        0.03639268223778345,
+        0.11889904831914463
+      ]
+    },
+    {
+      "name": "6d",
+      "dt": 0.01,
+      "erp": 0.2,
+      "damping": 0.0,
+      "model": "limit_surface_6d",
+      "status": "quiet",
+      "time": 4.5,
+      "energy": 1.9872452208108404e-12,
+      "integral": 0.05041760578751564,
+      "position_range_m": 0.0,
+      "angle_range_deg": 0.0,
+      "final_ground_gap": -8.940696716308594e-08,
+      "final_z": 0.2510676980018616,
+      "unconverged": 0,
+      "mean_linear_speed": 1.283517606160317e-06,
+      "mean_angular_speed_xyz": [
+        7.687600952976936e-07,
+        1.7068953764010075e-06,
+        1.8082281269471424e-06
+      ]
+    }
+  ]
+}

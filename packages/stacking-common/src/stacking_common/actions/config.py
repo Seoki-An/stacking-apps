@@ -17,6 +17,7 @@ class PlacementActionGeneratorConfig:
     banned_object_ids: frozenset[int] = field(default_factory=frozenset)
     require_solver_convergence: bool = field(default=True, metadata={"omit_default_from_context": True})
     reject_equilibrium_at_threshold: bool = field(default=False, metadata={"omit_default_from_context": True})
+    stone_volume_exponent: float = field(default=0.0, metadata={"omit_default_from_context": True})
 
     def __post_init__(self) -> None:
         for name in ("require_solver_convergence", "reject_equilibrium_at_threshold"):
@@ -24,6 +25,8 @@ class PlacementActionGeneratorConfig:
                 raise TypeError(f"{name} must be boolean")
         if self.max_poses_per_object <= 0:
             raise ValueError("max poses per object must be positive")
+        if not np.isfinite(self.stone_volume_exponent) or self.stone_volume_exponent < 0:
+            raise ValueError("stone volume exponent must be finite and non-negative")
         for name, value in (
             ("initial height clearance", self.initial_height_clearance),
             ("initial height XY padding", self.initial_height_xy_padding),

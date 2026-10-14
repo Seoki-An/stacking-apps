@@ -143,6 +143,7 @@ class CorePhysicsProfile:
     solver_tol_rel: float
     damping: float = field(default=0.0, kw_only=True)
     error_reduction_ratio: float | None = field(default=None, kw_only=True)
+    patch_eps: float | None = field(default=None, kw_only=True)
     solver_constraint_scale_reference: float | None = field(default=None, kw_only=True)
     solver_beta_init: float | None = field(default=None, kw_only=True)
     solver_beta_update_interval: int | None = field(default=None, kw_only=True)
@@ -155,7 +156,7 @@ class CorePhysicsProfile:
             raise ValueError("damping must be finite and non-negative")
         if gravity.shape != (3,) or not np.all(np.isfinite(gravity)):
             raise ValueError("simulation gravity must be a finite XYZ vector")
-        if self.contact_model not in {"single_point", "limit_surface_4d"}:
+        if self.contact_model not in {"single_point", "limit_surface_4d", "limit_surface_6d"}:
             raise ValueError("unsupported simulation contact model")
         if (
             not np.isfinite(self.detection_margin)
@@ -167,7 +168,7 @@ class CorePhysicsProfile:
                 raise ValueError(
                     "simulation solver tolerances must be finite and non-negative"
                 )
-        for name in ("error_reduction_ratio", "solver_constraint_scale_reference", "solver_beta_init"):
+        for name in ("error_reduction_ratio", "patch_eps", "solver_constraint_scale_reference", "solver_beta_init"):
             value = getattr(self, name)
             if value is not None and (not np.isfinite(value) or value < 0.0):
                 raise ValueError(f"{name} must be finite and non-negative")
@@ -202,13 +203,17 @@ class CorePhysicsProfile:
         elif self.damping != 0.0:
             raise RuntimeError("rebuild stacking-core to enable physical dynamics damping")
         contact = core.ContactConfig()
-        contact.model = {
-            "single_point": core.ContactModel.SINGLE_POINT,
-            "limit_surface_4d": core.ContactModel.LIMIT_SURFACE_4D,
-        }[self.contact_model]
+        try:
+            contact.model = getattr(core.ContactModel, self.contact_model.upper())
+        except AttributeError as exc:
+            raise RuntimeError(
+                f"rebuild stacking-core to enable {self.contact_model} contacts"
+            ) from exc
         contact.detection_margin = self.detection_margin
         if self.error_reduction_ratio is not None:
             contact.error_reduction_ratio = self.error_reduction_ratio
+        if self.patch_eps is not None:
+            contact.patch_eps = self.patch_eps
         config.contact = contact
         solver = core.SolverConfig()
         solver.tol_abs = self.solver_tol_abs
@@ -324,8 +329,9 @@ def _physics_values(integration, contact, solver):
         solver_tol_abs=float(_profile_value(solver, "tol_abs")),
         solver_tol_rel=float(_profile_value(solver, "tol_rel")),
     )
-    if "error_reduction_ratio" in contact:
-        values["error_reduction_ratio"] = float(contact["error_reduction_ratio"])
+    for name in ("error_reduction_ratio", "patch_eps"):
+        if name in contact:
+            values[name] = float(contact[name])
     for name in ("constraint_scale_reference", "beta_init", "beta_update_interval", "max_iters", "stagnation_window"):
         if name in solver:
             # Preserve integer type validation instead of truncating fractions.
@@ -388,7 +394,6 @@ class CorePlacementBackend:
         self.models = {int(key): value for key, value in models.items()}
         self.config = config
         self.place_stability = place_stability or PlaceStabilityConfig()
-        self._release_clearance = None
         self.simulation_config = simulation_config
         self.settling_simulation_config = settling_simulation_config
         self.object_ids: list[int] = []
@@ -459,12 +464,12 @@ class CorePlacementBackend:
         structural_wall_seconds = time.perf_counter() - structural_started
 
         return self._finish_placement(
-            state, action, settling_scene, structural_result, frozen_indices,
+            state, action, structural_result, frozen_indices,
             settling_wall_seconds, structural_wall_seconds, placement_started,
         )
 
     def _finish_placement(
-        self, state, action, settling_scene, structural_result, frozen_indices,
+        self, state, action, structural_result, frozen_indices,
         settling_wall_seconds, structural_wall_seconds, placement_started,
         robustness=None,
     ):
@@ -508,26 +513,22 @@ class CorePlacementBackend:
             diagnostics,
         )
         robustness_started = time.perf_counter()
-        displacement, trials, trial_failure_reasons = (
-            evaluate_place_stability(
-                self, state, action,
-                np.asarray(settling_scene.body_pose(self.scene_builder.entity_id(action.object_index)), dtype=float),
-            ) if robustness is None else robustness
-        )
+        if robustness is None:
+            robustness = (evaluate_place_stability(self, state, action, snapshot)
+                          if rejection_reason is None and structural_result.settled
+                          else (0., [], []))
+        displacement, trials, trial_failure_reasons = robustness
         robustness_failed = self.place_stability.failed(displacement, trial_failure_reasons)
         if robustness_failed and rejection_reason is None:
-            initial_clearance_failed = any(
-                (reason or '').startswith('initial_clearance_')
-                for reason in trial_failure_reasons
-            )
-            rejection_reason = (
-                'place_robustness_initial_clearance' if initial_clearance_failed
-                else 'place_robustness'
-            )
+            rejection_reason = 'place_robustness'
         diagnostics.update({
             'place_robustness_enabled': self.place_stability.active,
+            'place_robustness_model': 'velocity_disturbance',
+            'place_robustness_evaluated': bool(trials),
             'place_robustness_trial_displacements': trials,
-            'place_robustness_trial_failure_reasons': trial_failure_reasons,
+            'place_robustness_trial_failure_reasons': [
+                None if reason == 'bounded_rocking' else reason for reason in trial_failure_reasons],
+            'place_robustness_trial_outcomes': [reason or 'settled' for reason in trial_failure_reasons],
             'place_robustness_raw_displacement': displacement,
             'place_robustness_failed': robustness_failed,
             'simulation_robustness_wall_seconds': time.perf_counter() - robustness_started,
@@ -599,16 +600,8 @@ class CorePlacementBackend:
         self.settling_simulator.clear_warm_start()
 
     def close(self) -> None:
-        self._release_clearance = None
         self.simulator = None
         self.settling_simulator = None
-
-    def _release_clearance_checker(self):
-        if self._release_clearance is None:
-            from .release_clearance import ReleaseClearance
-            from ._cpu_release_clearance import CpuReleaseQueries
-            self._release_clearance = ReleaseClearance(self, CpuReleaseQueries(self))
-        return self._release_clearance
 
     def _new_settling_simulator(self):
         if self.settling_simulation_config is None:
@@ -981,6 +974,15 @@ class CorePlacementBackend:
             ),
             **support,
         }
+
+    def _robustness_eligible(self, state, action, simulation):
+        if not self.place_stability.active or not simulation.settled:
+            return False
+        finite = all(np.all(np.isfinite(simulation.snapshot.body_pose(
+            self.scene_builder.entity_id(i))))
+            for i in [*state.placed_object_indices, action.object_index])
+        return self._physical_rejection_reason(
+            state, action, simulation, self._contact_points(simulation.contacts), finite, {}) is None
 
     def _physical_rejection_reason(
         self,

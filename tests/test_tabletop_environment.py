@@ -211,6 +211,33 @@ def test_tabletop_profile_loads_and_composes_environment() -> None:
     assert backend.object_ids == [10]
 
 
+@pytest.mark.parametrize("model", ["single_point", "limit_surface_4d", "limit_surface_6d"])
+def test_simulation_contact_model_mapping(model) -> None:
+    profile = load_simulation_profile(
+        ROOT / "apps" / "tabletop" / "config" / "solvers" / "simulation.yml"
+    )
+    profile = replace(profile, contact_model=model)
+    assert profile.native_config().contact.model.name.lower() == model
+    assert profile.settling_native_config().contact.model.name.lower() == "single_point"
+
+
+@pytest.mark.parametrize("fidelity", ["short", "long"])
+def test_simulation_patch_epsilon_is_phase_specific(tmp_path, fidelity):
+    import yaml
+
+    values = yaml.safe_load((ROOT / "apps/tabletop/config/solvers/simulation.yml").read_text())
+    values["physics"]["structural"]["contact"].update(model="limit_surface_6d", patch_eps=1e-5)
+    values["physics"]["settling"]["contact"]["patch_eps"] = 2e-4
+    path = tmp_path / "simulation.yml"
+    path.write_text(yaml.safe_dump(values))
+    profile = load_simulation_profile(path, fidelity=fidelity)
+    assert profile.native_config().contact.patch_eps == 1e-5
+    assert profile.settling_native_config().contact.patch_eps == 2e-4
+    for value in (-1., float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="patch_eps"):
+            replace(profile, patch_eps=value)
+
+
 def test_simulation_profile_builds_native_config_and_backend() -> None:
     profile = load_simulation_profile(
         ROOT / "apps" / "tabletop" / "config" / "solvers" / "simulation.yml"

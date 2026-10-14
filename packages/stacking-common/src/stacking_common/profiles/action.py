@@ -48,11 +48,15 @@ def load_action_generation_profile(
     filtering = _mapping(values, "filtering")
     planar = _mapping(values, "planar")
     orientation = _mapping(values, "orientation")
+    stone_sampling = values.get("stone_sampling", {})
+    if not isinstance(stone_sampling, Mapping):
+        raise TypeError("action-generation profile 'stone_sampling' must be a mapping")
     if "yaw_angles_degrees" in planar:
         raise ValueError("move planar.yaw_angles_degrees to orientation.yaw_angles_degrees")
     return ActionGenerationProfile(
         strict_floor_first=filtering.get("strict_floor_first", False),
         generator=PlacementActionGeneratorConfig(
+            stone_volume_exponent=float(stone_sampling.get("volume_exponent", 0.0)),
             max_poses_per_object=max_poses_per_object,
             banned_object_ids=frozenset(int(value) for value in banned_object_ids),
             require_solver_convergence=filtering.get("require_solver_convergence", True),
