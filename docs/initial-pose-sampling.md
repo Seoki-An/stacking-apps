@@ -1423,6 +1423,38 @@ $r_v=0.03$ m for excavator or $0.003$ m for tabletop. Points belonging to
 multiple components contribute once to the intersection count, while
 overlapping component volumes can contribute more than once to $V_i$.
 
+The MCTS `target_overlap_increment` reward is normalized by the initial
+inventory's mean object volume. Each reward evaluator computes the constant
+once at initialization, using all objects in its inventory:
+
+$$
+\bar V=\frac{1}{N}\sum_{i=1}^{N}V_i,\qquad
+\alpha=\frac{V_T}{\bar V},\qquad
+R_{\mathrm{overlap}}=w_{\mathrm{overlap}}\,\alpha\,\Delta I_T
+=w_{\mathrm{overlap}}\frac{C_iV_i}{\bar V}.
+$$
+
+Here the existing increment $\Delta I_T=C_iV_i/V_T$ measures the new stone's
+contained volume as a fraction of the target. This change rescales that term;
+it does not introduce a union-volume or cavity-filling objective. The mean
+does not change as stones are placed. A fully contained average-sized stone
+has a normalized increment of one; larger stones can exceed one. Enlarging
+the target does not dilute this reward if the contained stone volume stays
+the same.
+
+Both platforms now use `reward.weights.target_overlap_increment: 1.0`
+(previously `20.0`). With `object_containment: 2.0` and containment threshold
+`0.5`, a fully contained average stone receives one reward unit from each
+term. These weight semantics apply to both volume-fill and wall modes.
+Historical weights must be interpreted with the reward version that produced
+their run; the old value `20.0` is not equivalent under this normalization.
+
+`target_IoU`, `target_IoU_delta`, and `target_IoU_increment` remain raw
+target-volume fractions for reporting. Additional diagnostics expose
+`mean_object_volume`, `target_overlap_increment_scale`,
+`target_IoU_increment_normalized`, and the weighted
+`target_overlap_increment_reward`.
+
 The corresponding **volume integral** is
 
 $$

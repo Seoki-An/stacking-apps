@@ -192,7 +192,45 @@ def test_stacking_reward_calculates_object_overlap() -> None:
     assert np.isclose(info["target_IoU"], 0.26)
     assert np.isclose(info["target_IoU_increment"], 0.16)
     assert np.isclose(info["object_IoU_reward"], 0.3)
-    assert np.isclose(value, 3.8)
+    assert info["mean_object_volume"] == pytest.approx(1.5)
+    assert info["target_overlap_increment_scale"] == pytest.approx(10. / 1.5)
+    assert info["target_IoU_increment_normalized"] == pytest.approx(1.6 / 1.5)
+    assert value == pytest.approx(0.6 + 20. * 1.6 / 1.5)
+
+
+@pytest.mark.parametrize("target_volume", [10., 100., 1000.])
+def test_overlap_reward_is_independent_of_target_size_and_placement_order(target_volume):
+    inventory = Inventory()  # Stone volumes 1 and 2; fixed initial mean 1.5.
+    inventory.target.volume = target_volume
+    reward = StackingReward(inventory, inventory.target,
+        RewardConfig(1., .5, RewardWeights(0., 0., 1., 0., 0., 0.)),
+        support_evaluator=lambda *_: (1, True))
+    for sequence in ([0], [1], [0, 1], [1, 0]):
+        index = sequence[-1]
+        action = Action(index, pose(), pose(), object_id=inventory.objects[index].object_id)
+        current = State([10, 20], list(sequence), {}, [], [action])
+        value, info = reward.compute(current)
+        added_volume = .8 * inventory.objects[index].volume
+        assert value == pytest.approx(added_volume / 1.5)
+        assert info["target_overlap_increment_reward"] == pytest.approx(value)
+        assert info["target_IoU_increment"] == pytest.approx(added_volume / target_volume)
+        assert info["mean_object_volume"] == pytest.approx(1.5)
+
+
+def test_average_fully_contained_stone_balances_current_containment_weight():
+    inventory = Inventory()
+    for obj in inventory.objects:
+        obj.volume = 1.5
+    inventory.target.object_containment = lambda *_: 1.
+    reward = StackingReward(inventory, inventory.target,
+        RewardConfig(1., .5, RewardWeights(0., 2., 1., 0., 0., 0.)),
+        support_evaluator=lambda *_: (1, True))
+    action = Action(0, pose(), pose(), object_id=10)
+    value, info = reward.compute(State([10, 20], [0], {}, [], [action]))
+    assert info["target_IoU_increment_normalized"] == pytest.approx(1.)
+    assert info["target_overlap_increment_reward"] == pytest.approx(1.)
+    assert 2. * info["object_IoU_reward"] == pytest.approx(1.)
+    assert value == pytest.approx(2.)
 
 
 class Backend:

@@ -104,6 +104,16 @@ class StackingReward:
         self.overlap_evaluator = overlap_evaluator
         self.config = config
         self.support_evaluator = support_evaluator or _contact_support_summary
+        # Fixed for this inventory, not recomputed from the remaining stones.
+        # One fully contained mean-sized stone contributes one normalized unit.
+        volumes = np.asarray([obj.volume for obj in inventory.objects], dtype=float)
+        if not len(volumes) or np.any(~np.isfinite(volumes)) or np.any(volumes <= 0):
+            raise ValueError("reward normalization requires finite positive inventory volumes")
+        target_volume = float(inventory.target.volume)
+        if not np.isfinite(target_volume) or target_volume <= 0:
+            raise ValueError("reward normalization requires a finite positive target volume")
+        self.mean_object_volume = float(volumes.mean())
+        self.target_overlap_increment_scale = target_volume / self.mean_object_volume
 
     def compute(self, state: State) -> tuple[float, dict[str, object]]:
         if not state.placed_object_indices or not state.action_history:
@@ -161,6 +171,7 @@ class StackingReward:
         target_overlap = previous_overlap + placed_overlap
         overlap_delta = target_overlap - previous_overlap
         overlap_increment = max(overlap_delta, 0.0)
+        normalized_overlap_increment = overlap_increment * self.target_overlap_increment_scale
 
         stability = -min(
             action.c_feq / self.config.posegen_threshold, 1.0
@@ -185,7 +196,7 @@ class StackingReward:
         reward = (
             weights.stability * stability
             + weights.object_containment * containment_reward
-            + weights.target_overlap_increment * overlap_increment
+            + weights.target_overlap_increment * normalized_overlap_increment
             + weights.place_stability * place_stability
             + weights.large_object_lower * large_object_lower
             + weights.inward_orientation * inward_orientation
@@ -196,6 +207,10 @@ class StackingReward:
             "previous_target_IoU": previous_overlap,
             "target_IoU_delta": overlap_delta,
             "target_IoU_increment": overlap_increment,
+            "target_IoU_increment_normalized": normalized_overlap_increment,
+            "target_overlap_increment_scale": self.target_overlap_increment_scale,
+            "mean_object_volume": self.mean_object_volume,
+            "target_overlap_increment_reward": weights.target_overlap_increment * normalized_overlap_increment,
             "object_IoU": containment,
             "object_IoU_reward": containment_reward,
             "target_containment_fraction": containment,
