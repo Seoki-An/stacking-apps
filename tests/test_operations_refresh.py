@@ -12,7 +12,7 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6")
 pytest.importorskip("pyvistaqt")
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QApplication, QMenu, QToolBar, QWidget
 from stacking_common.artifacts import StackRunStore, decode_legacy_mcts_debug
 from stacking_tabletop.gui.operations import window as windows
 
@@ -36,11 +36,24 @@ def test_tabletop_refresh_button_action_and_busy_guards(tmp_path, monkeypatch):
             pass
 
     monkeypatch.setattr(windows, "OperationsSceneView", View)
+    resume = Mock()
+    monkeypatch.setattr(windows.StackingOperationsWindow, "_resume_planning", resume)
     window = windows.StackingOperationsWindow(ROOT)
     errors = Mock()
     monkeypatch.setattr(windows.QMessageBox, "critical", errors)
     path = tmp_path / "planning.stack"
     try:
+        planning = next(toolbar for toolbar in window.findChildren(QToolBar)
+                        if toolbar.windowTitle() == "Planning")
+        assert [action.text() for action in planning.actions()] == [
+            "New planning run…", "Open stacking run…", "Resume planning…",
+            "Refresh run", "Export summary…",
+        ]
+        resume_action = planning.actions()[2]
+        file_menu = next(menu for menu in window.findChildren(QMenu) if menu.title() == "File")
+        assert resume_action in file_menu.actions()
+        planning.widgetForAction(resume_action).click()
+        resume.assert_called_once()
         assert not window.refresh_action.isEnabled()
         assert not window.search_inspector.refresh_button.isEnabled()
         assert window.refresh_action.shortcut().toString() == "Ctrl+R"

@@ -131,7 +131,14 @@ layer checkbox in Search Inspector controls table visibility in Plan and Search.
 Opening a run does not command hardware. The synthetic smoke scene is for
 software checks; physical execution needs a plan matching the actual scene.
 
-Resume offline planning into a new run and export its summary:
+In the Operations Console, open a `.stack` run with a planning checkpoint and
+click **Resume planning…** in the Planning toolbar or File menu. Choose a new
+destination, review the planning settings, and click **Start**.
+The shared toolbar buttons match excavator's order: **New planning run…**,
+**Open stacking run…**, **Resume planning…**, **Refresh run**, **Export summary…**.
+Rendering controls and **Field scan / identify…** sit on a separate toolbar row.
+
+Alternatively, resume offline planning into a new run and export its summary:
 
 ```bash
 python apps/tabletop/scripts/debug/mcts.py \

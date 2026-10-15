@@ -123,37 +123,31 @@ class StackingOperationsWindow(QMainWindow):
         self.setCentralWidget(splitter)
 
         file_menu = self.menuBar().addMenu("File")
-        new_action = QAction("New planning run…", self)
-        new_action.setShortcut("Ctrl+N")
-        new_action.triggered.connect(self._new_planning)
-        file_menu.addAction(new_action)
         planning_toolbar = self.addToolBar("Planning")
-        planning_toolbar.addAction(new_action)
-        field_action = QAction('Field scan / identify…', self)
-        field_action.triggered.connect(self._field_scan)
-        file_menu.addAction(field_action)
-        planning_toolbar.addAction(field_action)
-        open_action = QAction("Open stacking run…", self)
-        open_action.setShortcut("Ctrl+O")
-        open_action.triggered.connect(self._choose_artifact)
-        file_menu.addAction(open_action)
-        self.refresh_action = QAction("Refresh run", self)
-        self.refresh_action.setShortcut("Ctrl+R")
-        self.refresh_action.setEnabled(False)
-        self.refresh_action.triggered.connect(self._reload)
-        file_menu.addAction(self.refresh_action)
-        planning_toolbar.addAction(self.refresh_action)
-        export_action = QAction("Export run summary…", self)
-        export_action.triggered.connect(self._export_summary)
-        file_menu.addAction(export_action)
-        resume_action = QAction("Resume planning into new run…", self)
-        resume_action.triggered.connect(self._resume_planning)
-        file_menu.addAction(resume_action)
+        for label, slot, shortcut in (
+            ("New planning run…", self._new_planning, "Ctrl+N"),
+            ("Open stacking run…", self._choose_artifact, "Ctrl+O"),
+            ("Resume planning…", self._resume_planning, None),
+            ("Refresh run", self._reload, "Ctrl+R"),
+            ("Export summary…", self._export_summary, None),
+        ):
+            action = QAction(label, self)
+            action.triggered.connect(slot)
+            if shortcut:
+                action.setShortcut(shortcut)
+            file_menu.addAction(action)
+            planning_toolbar.addAction(action)
+            if slot == self._reload:
+                self.refresh_action = action
+                action.setEnabled(False)
+            elif slot == self._resume_planning:
+                action.setToolTip("Continue from the loaded run's planning checkpoint into a new run")
         view_menu = self.menuBar().addMenu("View")
         reset_action = QAction("Reset camera", self)
         reset_action.setShortcut("R")
         reset_action.triggered.connect(self._reset_camera)
         view_menu.addAction(reset_action)
+        self.addToolBarBreak()
         rendering = self.addToolBar("Rendering")
         rendering.addWidget(QLabel("Objects: "))
         self.object_geometry_selector = QComboBox()
@@ -169,6 +163,12 @@ class StackingOperationsWindow(QMainWindow):
         self.robot_geometry_selector.currentIndexChanged.connect(plan_selector.setCurrentIndex)
         plan_selector.currentIndexChanged.connect(self.robot_geometry_selector.setCurrentIndex)
         rendering.addWidget(self.robot_geometry_selector)
+        acquisition = self.addToolBar("Acquisition")
+        field_action = QAction("Field scan / identify…", self)
+        field_action.triggered.connect(self._field_scan)
+        file_menu.addSeparator()
+        file_menu.addAction(field_action)
+        acquisition.addAction(field_action)
 
     def _object_geometry_changed(self, _index):
         self.scene_view.set_object_geometry_mode(self.object_geometry_selector.currentData())
