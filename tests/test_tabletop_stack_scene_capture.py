@@ -20,6 +20,15 @@ from test_tabletop_saved_execution import saved, executor_for, ROOT
 from test_tabletop_hand_eye_calibration import profile_path
 
 
+def target_region(minimum=(.44, -.09, .115), maximum=(.66, .09, .23)):
+    return dict(
+        minimum=list(minimum), maximum=list(maximum),
+        target_structure_origin=[.55, 0., .115],
+        target_structure_axes=capture.BASE_LINK_T_UR_BASE[:3, :3].tolist(),
+        view_target=[.55, 0., .19],
+    )
+
+
 @pytest.mark.parametrize('fail', [False, True])
 def test_capture_runs_from_pre_place_before_home_and_next_pickup(saved, fail):
     transport, executor = executor_for(saved)
@@ -74,9 +83,9 @@ def test_stack_scene_route_uses_faster_entry_and_view_motion_limits():
     entry = capture.STACK_SCENE_ENTRY_LIMITS
     views = capture.STACK_SCENE_VIEW_LIMITS
     assert entry.rate_hz == views.rate_hz == SCAN_LIMITS.rate_hz
-    assert entry.max_joint_speed == pytest.approx(4 * SCAN_LIMITS.max_joint_speed)
-    assert entry.max_tcp_speed == pytest.approx(4 * SCAN_LIMITS.max_tcp_speed)
-    assert entry.max_angular_speed == pytest.approx(4 * SCAN_LIMITS.max_angular_speed)
+    assert entry.max_joint_speed == SCAN_LIMITS.max_joint_speed
+    assert entry.max_tcp_speed == SCAN_LIMITS.max_tcp_speed
+    assert entry.max_angular_speed == SCAN_LIMITS.max_angular_speed
     assert views.max_joint_speed == pytest.approx(1.5 * entry.max_joint_speed)
     assert views.max_tcp_speed == pytest.approx(1.5 * entry.max_tcp_speed)
     assert views.max_angular_speed == pytest.approx(1.5 * entry.max_angular_speed)
@@ -222,6 +231,25 @@ def test_scene_observation_uses_correct_frame_and_hash(saved,tmp_path):
     with pytest.raises(ValueError,match='PCD changed'):scene.event(event)
 
 
+def test_stack_region_uses_recorded_target_structure_frame(saved):
+    target = {'origin': [.01, -.02, .03], 'height': .16}
+    context = NS(profiles={'inventory_profile': {'target': target}})
+    source = NS(planning=saved.planning, assets=saved.assets, context=context)
+    plan = saved.plans[0]
+    region = capture.stack_region(source, plan, plan.problem.place_pose)
+    stack_T_target = np.eye(4)
+    stack_T_target[:3, 3] = target['origin']
+    expected = (capture.BASE_LINK_T_UR_BASE
+                @ capture._matrix(saved.planning.world_T_stack.parent_T_child)
+                @ stack_T_target)
+    np.testing.assert_allclose(region['target_structure_origin'], expected[:3, 3])
+    np.testing.assert_allclose(region['target_structure_axes'], expected[:3, :3])
+    np.testing.assert_allclose(
+        region['view_target'], (expected @ [0., 0., target['height']/2., 1.])[:3],
+    )
+    assert region['schema_version'] == 2
+
+
 def test_isolated_stack_processing_reconstructs_then_identifies(tmp_path, monkeypatch):
     capture_directory = tmp_path/'capture'
     (capture_directory/'session').mkdir(parents=True)
@@ -268,7 +296,7 @@ def test_stack_route_aims_at_stack_and_returns_to_execution_anchor(profile_path)
     kin=UR5eKinematics(ROOT/profile.robot.urdf)
     calibration=HandEyeCalibration.load(profile_path)
     anchor=profile.robot.home_positions
-    region=dict(minimum=[.44,-.09,.115],maximum=[.66,.09,.23])
+    region=target_region()
     route=capture.build_stack_route(kin,calibration,anchor,region)
     assert len(route['views'])>=3
     np.testing.assert_array_equal(route['entry_path'][0],anchor)
@@ -277,6 +305,8 @@ def test_stack_route_aims_at_stack_and_returns_to_execution_anchor(profile_path)
     assert len(route['views']) == 3 + 2*len(route['side_stereo_pairs'])
     assert 2*len(route['side_stereo_pairs']) + len(route['omitted_views']) == 4
     assert route['viewpoint_pattern'] == 'stack_paired7'
+    assert route['viewpoint_frame'] == 'target_structure'
+    np.testing.assert_allclose(route['target'], region['view_target'], atol=1e-12)
     assert not route['collision_checked']
     for view in route['views']:
         pose=camera_pose(kin,calibration,view['path'][-1])
@@ -299,11 +329,11 @@ def test_stack_route_uses_angled_center_if_top_down_is_unreachable(profile_path,
             raise ValueError('top-down center outside reach')
         return solve(target, seed, **kwargs)
     monkeypatch.setattr(kin, 'solve', reject_top_down)
-    region = dict(minimum=[.44,-.09,.115],maximum=[.66,.09,.23])
+    region = target_region()
     route = capture.build_stack_route(kin, calibration, profile.robot.home_positions, region)
     assert route['central_tilt_deg'] in (25., 40.)
     assert 'top-down center outside reach' in route['central_view_attempts'][0]
-    np.testing.assert_allclose(route['target'], (np.array(region['minimum'])+region['maximum'])/2, atol=1e-5)
+    np.testing.assert_allclose(route['target'], region['view_target'], atol=1e-5)
     assert len(route['views']) >= 3
 
 
@@ -334,7 +364,7 @@ def test_stack_side_pairs_have_stereo_baseline_and_keep_region_in_frame(profile_
     profile = load_planning_profile(ROOT/'apps/tabletop/config/planning.yml')
     kin = UR5eKinematics(ROOT/profile.robot.urdf)
     calibration = capture.HandEyeCalibration.load(profile_path)
-    region = dict(minimum=[.44,-.15,.115], maximum=[.67,.13,.26])
+    region = target_region((.44, -.15, .115), (.67, .13, .26))
     route = capture.build_stack_route(kin, calibration, profile.robot.home_positions, region)
     assert route['side_stereo_pairs']
     views = route['views']
@@ -382,7 +412,7 @@ def test_incomplete_side_pair_is_omitted_as_a_pair(profile_path, monkeypatch):
         return side_view(*args)
     monkeypatch.setattr(capture, '_stack_side_view', fail_second_mate)
     route = capture.build_stack_route(kin, calibration, profile.robot.home_positions,
-        dict(minimum=[.44,-.09,.115], maximum=[.66,.09,.23]))
+        target_region())
     assert len(route['views']) == 3
     assert not route['side_stereo_pairs']
     assert len(route['omitted_views']) == 4
@@ -399,4 +429,4 @@ def test_stack_route_propagates_cancellation(profile_path):
         raise RuntimeError('cancelled')
     with pytest.raises(RuntimeError, match='cancelled'):
         capture.build_stack_route(kin, calibration, profile.robot.home_positions,
-            dict(minimum=[.44,-.09,.115], maximum=[.66,.09,.23]), check=cancel)
+            target_region(), check=cancel)

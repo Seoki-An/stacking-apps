@@ -128,7 +128,11 @@ def simulate(run, output, *, repository=ROOT, step=None, capture_only=False):
     calibration=HandEyeCalibration.load(repository/'apps/tabletop/config/hand_eye.yml')
     kin=UR5eKinematics(repository/app.planning_profile.robot.urdf)
     objects=[NS(object_id=r['stone_id'],pose=np.array(r['world_pose'])) for r in records]
-    saved=NS(planning=app.planning_profile,assets={f'object/{o.object_id}':repository/
+    target = app.inventory_profile.target
+    saved=NS(planning=app.planning_profile,
+        context=NS(profiles={'inventory_profile': {'target': {
+            'origin': target.origin.tolist(), 'height': target.height}}}),
+        assets={f'object/{o.object_id}':repository/
         app.inventory_profile.model_directory/f'model_{o.object_id}.obj' for o in objects})
     plan_input=NS(problem=NS(place_scene_objects=objects[:-1],action=NS(object_id=objects[-1].object_id)))
     region=stack_region(saved,plan_input,objects[-1].pose)

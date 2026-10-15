@@ -14,7 +14,9 @@ from stacking_tabletop.acquisition.hand_eye_capture import atomic_json, digest
 from stacking_tabletop.acquisition.scene_views import (
     build_capture_route, build_views, camera_pose, kinematic_urdf, validate_views,
 )
-from stacking_tabletop.acquisition.scene_capture import execute_capture, capture_lock, settle_arm
+from stacking_tabletop.acquisition.scene_capture import (
+    SCAN_LIMITS, capture_lock, execute_capture, settle_arm,
+)
 from stacking_tabletop.acquisition.scene_capture_cli import load_reviewed_plan, ensure_ownership, main
 from stacking_tabletop.execution.kinematics import UR5eKinematics
 from stacking_tabletop.execution.runtime import AdapterRuntime
@@ -23,6 +25,13 @@ from test_tabletop_hand_eye_calibration import profile_path
 ROOT = Path(__file__).resolve().parents[1]
 SEED = np.deg2rad([90, -90, 90, -90, -90, 30])
 CAPTURE_INIT = np.deg2rad([90, -80, 60, -70, -90, 0])
+
+
+def test_reviewed_empty_tool_capture_uses_commissioned_motion_limits():
+    assert SCAN_LIMITS.rate_hz == 100.
+    assert SCAN_LIMITS.max_joint_speed == .60
+    assert SCAN_LIMITS.max_tcp_speed == .12
+    assert SCAN_LIMITS.max_angular_speed == 1.20
 
 
 @pytest.fixture
@@ -392,6 +401,20 @@ def test_settling_checks_measured_joints_and_times_out():
     assert now[0] >= .75
     with pytest.raises(RuntimeError, match='did not settle'):
         settle_arm(arm, SEED + .02, timeout=.1)
+
+
+def test_settling_accepts_small_cartesian_tracking_joint_offset_and_reports_failures():
+    now = [0.]
+    runtime = AdapterRuntime(clock=lambda: now[0], sleep=lambda dt: now.__setitem__(0, now[0] + dt))
+    actual = SEED.copy()
+    actual[4] += np.deg2rad(.31)
+    arm = NS(runtime=runtime, _check_motion=lambda: None,
+             feedback=NS(arm_state=lambda: (actual.copy(), np.eye(4))))
+    settle_arm(arm, SEED)
+
+    actual[4] = SEED[4] + np.deg2rad(.51)
+    with pytest.raises(RuntimeError, match=r'wrist_2_joint error=0\.510 deg .*tolerance=0\.500'):
+        settle_arm(arm, SEED, timeout=.1)
 
 
 def test_offline_plan_requires_explicit_robot_model(tmp_path):

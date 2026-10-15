@@ -147,10 +147,26 @@ def stack_region(saved, plan, release_pose):
     corners = np.array(list(product(*zip(low, high))))
     base = corners @ BASE_LINK_T_UR_BASE[:3, :3].T + BASE_LINK_T_UR_BASE[:3, 3]
     minimum, maximum = base.min(axis=0), base.max(axis=0)
-    return dict(schema_version=1, kind='stack_scene_capture_region', frame='base_link',
+    target_values = saved.context.profiles['inventory_profile']['target']
+    target_origin = np.asarray(target_values['origin'], dtype=float)
+    target_height = float(target_values['height'])
+    if (target_origin.shape != (3,) or not np.isfinite(target_origin).all()
+            or not np.isfinite(target_height) or target_height <= 0.):
+        raise ValueError('saved target structure geometry is invalid')
+    stack_T_target = np.eye(4)
+    stack_T_target[:3, 3] = target_origin
+    base_link_T_target = (BASE_LINK_T_UR_BASE
+                          @ _matrix(saved.planning.world_T_stack.parent_T_child)
+                          @ stack_T_target)
+    view_target = base_link_T_target @ np.array([0., 0., target_height/2., 1.])
+    return dict(schema_version=2, kind='stack_scene_capture_region', frame='base_link',
                 minimum=minimum.tolist(), maximum=maximum.tolist(),
                 stone_boxes_xy=[[minimum[:2].tolist(), maximum[:2].tolist()]],
                 support_plane=[0., 0., float(table.maximum[2])],
+                target_structure_origin=base_link_T_target[:3, 3].tolist(),
+                target_structure_axes=base_link_T_target[:3, :3].tolist(),
+                view_target=view_target[:3].tolist(),
+                view_target_offset_in_structure=[0., 0., target_height/2.],
                 source='recorded placement extents plus 60 mm coverage margin',
                 observed_geometry=False)
 
@@ -218,8 +234,15 @@ def build_stack_route(kinematics, calibration, anchor, region, *, check=lambda: 
     low, high = np.array(region['minimum']), np.array(region['maximum'])
     if low.shape != (3,) or high.shape != (3,) or not np.isfinite([low, high]).all() or np.any(high <= low):
         raise ValueError('stack capture region has invalid bounds')
-    target = (low+high)/2
-    reference = camera_pose(kinematics, calibration, anchor)
+    target = np.asarray(region['view_target'], dtype=float)
+    structure_axes = np.asarray(region['target_structure_axes'], dtype=float)
+    if target.shape != (3,) or not np.isfinite(target).all():
+        raise ValueError('stack capture view target is invalid')
+    if (structure_axes.shape != (3, 3) or not np.isfinite(structure_axes).all()
+            or not np.allclose(structure_axes.T@structure_axes, np.eye(3), atol=1e-6)
+            or not np.isclose(np.linalg.det(structure_axes), 1., atol=1e-6)):
+        raise ValueError('target structure axes are not a rigid right-handed frame')
+    reference_x = structure_axes[:, 0]
     inward = np.r_[-target[:2], 0.]
     if np.linalg.norm(inward) < 1e-9:
         inward = np.array([1., 0., 0.])
@@ -233,7 +256,7 @@ def build_stack_route(kinematics, calibration, anchor, region, *, check=lambda: 
         angle = np.deg2rad(tilt_deg)
         outward = np.cos(angle)*np.array([0., 0., 1.]) + np.sin(angle)*inward
         try:
-            pose, distance = _stack_camera_pose(target, corners, reference[:3, 0], outward, calibration)
+            pose, distance = _stack_camera_pose(target, corners, reference_x, outward, calibration)
             tool = BASE_LINK_T_UR_BASE @ pose @ np.linalg.inv(calibration.tool_T_color)
             seed = kinematics.solve(tool, anchor, check=check)
             partial = build_views(kinematics, calibration, seed, distance=distance,
@@ -283,7 +306,9 @@ def build_stack_route(kinematics, calibration, anchor, region, *, check=lambda: 
     plan.update(return_policy='return_after_overview_or_side_pair', central_tilt_deg=tilt_deg,
                 central_view_attempts=failures, maximum_views=7,
                 entry_path=entry.tolist(), return_path=entry[::-1].tolist(),
-                stack_region=region, entry_collision_checked=False)
+                stack_region=region, viewpoint_frame='target_structure',
+                target_structure_origin=region['target_structure_origin'],
+                entry_collision_checked=False)
     return plan
 
 

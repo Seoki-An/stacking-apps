@@ -7,10 +7,13 @@ import tempfile
 
 import numpy as np
 
-from stacking_tabletop.execution.motion import CartesianStreamLimits
+from stacking_tabletop.execution.motion import CartesianStreamLimits, UR_JOINT_NAMES
 from .hand_eye_capture import atomic_json
 
-SCAN_LIMITS = CartesianStreamLimits(100., .15, .03, .30)
+# Empty-tool paths are generated offline and reviewed before execution. Keep the
+# 100 Hz reference stream while avoiding the original commissioning crawl.
+SCAN_LIMITS = CartesianStreamLimits(100., .60, .12, 1.20)
+VIEWPOINT_JOINT_TOLERANCE_RAD = np.deg2rad(.5)
 
 
 @contextmanager
@@ -31,22 +34,31 @@ def capture_lock():
 
 
 def settle_arm(arm, target, *, timeout=15.):
-    """Check actual joints, then let the recorder enforce tighter stationarity."""
+    """Check endpoint proximity, then let the recorder enforce stationarity."""
     runtime = arm.runtime
     deadline = runtime.deadline(timeout)
     since = None
+    error = np.full(6, np.inf)
+    q = np.full(6, np.nan)
     while runtime.clock() < deadline:
         arm._check_motion()
         q = arm.feedback.arm_state()[0]
+        error = np.abs(q - target)
         now = runtime.clock()
-        if np.max(np.abs(q - target)) <= np.deg2rad(.25):
+        if np.max(error) <= VIEWPOINT_JOINT_TOLERANCE_RAD:
             since = now if since is None else since
             if now - since >= .75:
                 return
         else:
             since = None
         runtime.wait(.02, arm._check_motion)
-    raise RuntimeError('scan joints did not settle at the requested viewpoint')
+    index = int(np.argmax(error))
+    raise RuntimeError(
+        'scan joints did not settle at the requested viewpoint: '
+        f'{UR_JOINT_NAMES[index]} error={np.rad2deg(error[index]):.3f} deg '
+        f'(actual={np.rad2deg(q[index]):.3f}, target={np.rad2deg(target[index]):.3f}, '
+        f'tolerance={np.rad2deg(VIEWPOINT_JOINT_TOLERANCE_RAD):.3f})'
+    )
 
 
 def execute_capture(plan, output, arm, femto_capture, wrist_context, assemble, *,

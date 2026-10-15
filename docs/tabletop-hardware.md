@@ -254,6 +254,12 @@ The capture center is fixed by `apps/tabletop/config/scene_capture.yml`:
 q_capture_init_deg: [90.0, -80.0, 60.0, -70.0, -90.0, 0.0]
 ```
 
+The automatic wrist-scene route accepts up to 0.5 degrees of steady joint-space
+tracking offset at a requested viewpoint.  This endpoint envelope accounts for
+the Cartesian controller's small steady-state IK offset; it does not weaken the
+per-exposure stationarity guard, which records timestamp-matched measured robot
+poses and rejects motion during acquisition.
+
 All wrist viewpoints are relative to this configured pose. The sequence is:
 FEMTO before → open wrist camera → move from the recorded start to the capture
 center → capture views, returning to the center between them → close wrist
@@ -264,6 +270,11 @@ interpolation and check joint/cable limits; they are not collision checked.
 Cancellation or failure holds the measured pose rather than initiating a return.
 Previously saved plans retain their original behavior; regenerate plans to use
 the configured capture center.
+
+The reviewed empty-tool route streams references at 100 Hz with limits of
+0.60 rad/s per joint, 0.12 m/s TCP translation, and 1.20 rad/s tool rotation.
+This is 4× the original commissioning speed; settling thresholds, camera
+warmup, and the number of recorded exposures are unchanged.
 
 The plot shows calibrated RGB image footprints on a plane perpendicular to the
 central camera axis at the workflow's assumed 40 cm target distance. It reports
@@ -292,20 +303,23 @@ of the saved retreat. It scans directly from that offset instead of moving home
 and then returning toward the stack:
 
 1. Generate at most seven stack-facing views: center/left/right overview views,
-   plus two low-side stereo pairs. Saved placed-object extents plus a 60-mm
-   margin define the capture region; those models are not substituted for
-   observed points. A central pose is accepted only if its two nearby views are
-   reachable too. Unreachable side pairs are omitted together and listed in the
-   saved plan and review message; the three overview views are required.
+   plus two low-side stereo pairs. Their frame is fixed to the target-structure
+   origin recorded in the planning run; the post-place robot pose is used only
+   as the entry/return endpoint and IK seed. The optical aim point is the center
+   of the configured target height above that origin. Saved placed-object extents
+   plus a 60-mm margin determine the required camera standoff and crop, but no
+   longer move or rotate the viewpoint frame. Those models are not substituted
+   for observed points. A central pose is accepted only if its two nearby views
+   are reachable too. Unreachable side pairs are omitted together and listed in
+   the saved plan and review message; the three overview views are required.
 2. At the new route-review gate, scrub the cyan robot preview, including entry
    and return. Joint limits and endpoint kinematics are checked; these paths
    are not collision checked. **Continue** starts capture.
-   Entry to and return from the reviewed stacked-scene route use free-space
-   limits of 0.60 rad/s per joint, 0.12 m/s TCP translation, and 1.20 rad/s
-   tool rotation (4× the conservative general capture limits). The shorter
-   between-view motions use 0.90 rad/s, 0.18 m/s, and 1.80 rad/s (6× the
-   general capture limits). Capture settling and pick/place motion limits are
-   unchanged.
+   Entry to and return from the reviewed stacked-scene route use the field-scene
+   free-space limits of 0.60 rad/s per joint, 0.12 m/s TCP translation, and
+   1.20 rad/s tool rotation. The shorter between-view motions use 0.90 rad/s,
+   0.18 m/s, and 1.80 rad/s (1.5× the entry limits). Capture settling and
+   pick/place motion limits are unchanged.
 3. Record three timestamped RGB-D frames per viewpoint, return to the pre-place
    offset, and close the camera. The capture is assembled and an isolated,
    lower-priority perception process starts. While that process reconstructs
