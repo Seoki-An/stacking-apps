@@ -34,7 +34,7 @@ from .execution_view import ExecutionView
 from .plan_view import PlanView
 from .scene_view import OperationsSceneView
 from .search_inspector import SearchInspector
-from .environment import planning_scene_boxes
+from .environment import planning_scene_boxes, search_scene_boxes
 
 
 class StackingOperationsWindow(QMainWindow):
@@ -63,6 +63,7 @@ class StackingOperationsWindow(QMainWindow):
         self.setWindowTitle("Tabletop Stacking Operations Console")
         self._default_projector = self.controller.trajectory_projector
         self._recorded_projectors = {}
+        self._search_planning = planning
         self.setMinimumSize(900, 600)
         self.resize(1500, 900)
         self._build_ui()
@@ -88,6 +89,7 @@ class StackingOperationsWindow(QMainWindow):
         visualization = load_visualization_profile(
             self.repository / "apps/tabletop/config/visualization.yml"
         )
+        self._visualization = visualization
         asset_directory = self.repository / inventory.model_directory
         self.scene_view = OperationsSceneView(
             self,
@@ -181,6 +183,12 @@ class StackingOperationsWindow(QMainWindow):
         self.plan_view._stop_playback()
         self.search_inspector._timeline_render_timer.stop()
         try:
+            search_planning = self._default_projector.planning
+            if path.suffix.lower() == ".stack":
+                from stacking_tabletop.execution.saved_plan import recorded_planning_profile
+                contexts = StackRunStore.load_run_contexts(path)
+                if contexts:
+                    search_planning = recorded_planning_profile(contexts[-1])
             if refresh:
                 self.controller.reload(path)
             else:
@@ -194,6 +202,7 @@ class StackingOperationsWindow(QMainWindow):
             return
         self.search_inspector.refresh(str(path))
         self._artifact_path = path
+        self._search_planning = search_planning
         self.refresh_action.setEnabled(path.suffix.lower() == ".stack")
         self.search_inspector.refresh_button.setEnabled(self.refresh_action.isEnabled())
         self.plan_view.refresh()
@@ -217,7 +226,8 @@ class StackingOperationsWindow(QMainWindow):
             QMessageBox.information(self, "Export summary", "Open a .stack run first.")
             return
         filename, selected = QFileDialog.getSaveFileName(self, "Export run summary",
-            str(self._artifact_path.with_suffix(".json")), "JSON (*.json);;CSV (*.csv)")
+            str(self._artifact_path.with_suffix(".json")), "JSON (*.json);;CSV (*.csv)",
+            options=QFileDialog.Option.DontUseNativeDialog)
         if not filename:
             return
         path = Path(filename)
@@ -295,7 +305,7 @@ class StackingOperationsWindow(QMainWindow):
             return
         filename, _ = QFileDialog.getSaveFileName(self, "New planning branch",
             str(self._artifact_path.with_name(self._artifact_path.stem + "-resumed.stack")),
-            "Stacking runs (*.stack)")
+            "Stacking runs (*.stack)", options=QFileDialog.Option.DontUseNativeDialog)
         if not filename:
             return
         destination = Path(filename)
@@ -323,10 +333,7 @@ class StackingOperationsWindow(QMainWindow):
     def _open_planning_run(self, path):
         self.open_artifact(path, refresh=Path(path).resolve() == self._artifact_path)
 
-    def _planning_frame(self):
-        projector = self.controller.trajectory_projector
-        if projector is None:
-            return self.controller.planning_frame()
+    def _projector_for_current_plan(self):
         record = self.controller.current_plan
         digest = record.context_sha256 if record is not None else None
         if digest is not None and self._artifact_path is not None:
@@ -339,6 +346,21 @@ class StackingOperationsWindow(QMainWindow):
             projector = self._recorded_projectors[key]
         else:
             projector = self._default_projector
+        return projector
+
+    def _search_frame(self, *, trajectory_time=None):
+        frame = self.controller.frame(trajectory_time=trajectory_time)
+        planning = self._search_planning
+        record = self.controller.current_plan
+        if record is not None and record.context_sha256 is not None:
+            planning = self._projector_for_current_plan().planning
+        return replace(frame, environment_boxes=search_scene_boxes(planning, self._visualization))
+
+    def _planning_frame(self):
+        if self.controller.trajectory_projector is None:
+            return self.controller.planning_frame()
+        projector = self._projector_for_current_plan()
+        record = self.controller.current_plan
         self.controller.trajectory_projector = projector
         frame = self.controller.planning_frame()
         if record is not None and self.controller.current_plan_segment is None:
@@ -373,7 +395,7 @@ class StackingOperationsWindow(QMainWindow):
             (
                 self._planning_frame()
                 if showing_plan
-                else self.controller.frame()
+                else self._search_frame()
             ),
             reset_camera=self.controller.consume_camera_reset_request(),
             environment_visibility=(
@@ -428,6 +450,7 @@ class StackingOperationsWindow(QMainWindow):
             f"step_{self.controller.current_step.step:02d}_"
             f"rank_{candidate.rank:02d}_object_{candidate.object_id}.mp4",
             "MP4 video (*.mp4)",
+            options=QFileDialog.Option.DontUseNativeDialog,
         )
         if not filename:
             return
@@ -493,7 +516,7 @@ class StackingOperationsWindow(QMainWindow):
                     break
                 if video_times is None:
                     self.controller.set_timeline_frame(frame_index)
-                frame = self.controller.frame(
+                frame = self._search_frame(
                     trajectory_time=None if video_times is None else float(video_times[frame_index])
                 )
                 self.scene_view.render_frame(

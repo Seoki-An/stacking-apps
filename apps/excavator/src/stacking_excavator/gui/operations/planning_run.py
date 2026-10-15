@@ -7,6 +7,7 @@ import sqlite3
 import sys
 
 from PySide6.QtCore import QProcess, QProcessEnvironment, QTimer, Qt, Signal
+from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout, QLineEdit,
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QVBoxLayout, QWidget,
@@ -116,7 +117,8 @@ class PlanningRunDialog(QDialog):
         layout.addWidget(button)
         def choose():
             picker = QFileDialog.getSaveFileName if save else QFileDialog.getOpenFileName
-            filename, _ = picker(self, label, field.text() or str(self.repository), file_filter)
+            options = ({"options": QFileDialog.Option.DontUseNativeDialog} if save else {})
+            filename, _ = picker(self, label, field.text() or str(self.repository), file_filter, **options)
             if filename:
                 field.setText(filename)
         button.clicked.connect(choose)
@@ -199,8 +201,21 @@ class PlanningRunDialog(QDialog):
         self.run_available.emit(path)
 
     def _read_output(self):
-        self.log.insertPlainText(bytes(self.process.readAllStandardOutput()).decode("utf-8", errors="replace"))
-        self.log.verticalScrollBar().setValue(self.log.verticalScrollBar().maximum())
+        text = bytes(self.process.readAllStandardOutput()).decode("utf-8", errors="replace")
+        if not text:
+            return
+        scrollbar = self.log.verticalScrollBar()
+        position = scrollbar.value()
+        selection = self.log.textCursor()
+        follow = not selection.hasSelection() and position == scrollbar.maximum()
+        # Process output must not replace the user's selection (including after
+        # Ctrl+A / Ctrl+C). Keep its endpoint fixed when appending at that point.
+        selection.setKeepPositionOnInsert(True)
+        self.log.setTextCursor(selection)
+        output = QTextCursor(self.log.document())
+        output.movePosition(QTextCursor.MoveOperation.End)
+        output.insertText(text)
+        scrollbar.setValue(scrollbar.maximum() if follow else position)
 
     def _finished(self, code, status):
         self._run_timer.stop()

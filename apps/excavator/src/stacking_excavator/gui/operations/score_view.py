@@ -134,7 +134,8 @@ class InitialPoseScoreDialog(QDialog):
         self.plot.add_mesh(pv.lines_from_points(points), color=color, line_width=2)
 
     def _save(self):
-        path, _ = QFileDialog.getSaveFileName(self, 'Save XY score maps', 'xy-score-maps.png', 'PNG (*.png)')
+        path, _ = QFileDialog.getSaveFileName(self, 'Save XY score maps', 'xy-score-maps.png', 'PNG (*.png)',
+                                           options=QFileDialog.Option.DontUseNativeDialog)
         if path:
             self.plot.screenshot(path)
 

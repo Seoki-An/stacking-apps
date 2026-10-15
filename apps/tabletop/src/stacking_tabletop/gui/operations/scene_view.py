@@ -207,9 +207,14 @@ class OperationsSceneView(QtInteractor):
                 self._add_scene_box(component)
 
     def _add_scene_box(self, component: TabletopSceneBox) -> None:
+        from .environment import TransformedSceneBox
+
         transparent = component.opacity < 1.0
+        mesh = pv.Box(bounds=component.bounds)
+        if isinstance(component, TransformedSceneBox):
+            mesh.transform(_pose_matrix(component.pose), inplace=True)
         self.add_mesh(
-            pv.Box(bounds=component.bounds),
+            mesh,
             name=f"environment/{component.component_id}",
             color=component.color,
             opacity=component.opacity,

@@ -1,6 +1,8 @@
-# Tabletop-owned reference geometry for the Operations Console. The ground
-# matches the stacking-core plane at z=0. These reference boxes are in the
-# search frame; Plan and Execution use the resolved world-frame planning boxes.
+# Tabletop-owned layer defaults and fallback viewport geometry. The search
+# ground matches the stacking-core plane at z=0. The Operations Console derives
+# tables/obstacles from the recorded planning profile (current profile for runs
+# without recorded inputs), transforming world geometry into the stack frame
+# for Search Inspector. Plan and Execution keep that geometry in world space.
 units: si
 
 environment:

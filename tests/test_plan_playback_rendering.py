@@ -52,6 +52,9 @@ class PlaybackWindow(StackingOperationsWindow):
     def __init__(self, controller):
         QMainWindow.__init__(self)
         self._video_exporting = False
+        from stacking_tabletop.config import load_planning_profile, load_visualization_profile
+        self._search_planning = load_planning_profile(ROOT / "apps/tabletop/config/planning.yml")
+        self._visualization = load_visualization_profile(ROOT / "apps/tabletop/config/visualization.yml")
         self.controller = controller
         self.plan_view = PlanView(controller)
         self.tabs = QTabWidget(self)
@@ -312,6 +315,9 @@ def test_plan_tables_use_recorded_world_bounds_and_support_visibility(monkeypatc
         window._artifact_path = tmp_path / "recorded.stack"
         window._default_projector = TabletopRobotTrajectoryProjector(planning, ROOT)
         window._recorded_projectors = {}
+        from stacking_tabletop.config import load_visualization_profile
+        window._visualization = load_visualization_profile(ROOT / "apps/tabletop/config/visualization.yml")
+        window._search_planning = planning
         controller.trajectory_projector = window._default_projector
         load = Mock(return_value=SimpleNamespace(profiles={"planning_profile": _values(recorded)}))
         monkeypatch.setattr(StackRunStore, "load_run_context", load)
@@ -323,6 +329,15 @@ def test_plan_tables_use_recorded_world_bounds_and_support_visibility(monkeypatc
         assert boxes["pick_table"].opacity == boxes["place_table"].opacity == 1.0
         assert boxes["third_view_camera"].layer == "obstacle"
         window._planning_frame()
+        # Search uses the same recorded boxes, but in stack coordinates.
+        search = window._search_frame()
+        from stacking_tabletop.gui.operations.scene_view import _pose_matrix
+        search_boxes = {box.component_id: box for box in search.environment_boxes}
+        pickup = search_boxes["pick_table"]
+        mesh = pv.Box(bounds=pickup.bounds).transform(_pose_matrix(pickup.pose), inplace=False)
+        np.testing.assert_allclose(mesh.bounds,
+            [.05, 1.05, -1., -.4, -.115, .015], atol=1e-7)
+        assert search_boxes["ground"].maximum[2] == 0
         load.assert_called_once_with(window._artifact_path, "a" * 64)
         # Failed attempts still expose robot collision geometry for inspection.
         controller.set_artifact(controller.artifact, planning_records=(replace(

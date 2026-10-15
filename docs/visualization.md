@@ -140,9 +140,14 @@ smoothed vertex normals hide individual reconstruction triangles as in the
 legacy Open3D viewer. A stronger material ambient response softens directional
 contrast. The target is a translucent white volume. A shared dark stylesheet
 keeps the Operations Console and Object Reconstruction Workbench visually
-consistent. Ground, support tables, and exclusion volumes are typed tabletop
-scene boxes loaded from `config/visualization.yml`; the operator can toggle each
-semantic layer without altering the planning result.
+consistent. The tabletop ground and layer defaults come from
+`config/visualization.yml`. Support tables and exclusion volumes use the saved
+planning context, falling back to the current planning profile for runs without
+recorded inputs. Search Inspector (including trajectory export) transforms these
+world-frame boxes using the inverse recorded `world_T_stack`, including rotation;
+its reference ground stays at stack `z=0`. Plan and Execution retain world-frame
+geometry. The operator can toggle each semantic layer without altering the
+planning result.
 
 The viewport preserves its camera pose across step, candidate, render-mode,
 pose-mode, diagnostic-layer, environment-layer, planning-attempt, and tab
@@ -168,6 +173,17 @@ when replacing an existing run. Planning progress is a non-modal window with
 its own minimize/maximize controls: minimizing it leaves the viewer usable and
 planning running. Selecting **New planning run** again restores an active
 minimized progress window instead of launching another planner.
+
+Planning log output is appended independently of the text selection, so
+selecting/copying logs with `Ctrl+A` / `Ctrl+C` does not replace or erase them
+when new output arrives. Auto-scrolling pauses while selecting text or reading
+earlier output. The existing 3,000-line display limit still applies.
+
+Save-path browsers use the Qt widget file chooser in both consoles. Right-click
+a file or directory for **Rename** / **Delete**, or create a **New Folder**.
+Deletion requires confirmation and is permanent, not a move to Ubuntu Trash;
+avoid deleting a run that is still being written. Cancelling the save chooser
+does not undo filesystem changes already confirmed in it.
 
 Scene replacement is render-suppressed until all actors and the preserved
 camera are ready, preventing a blank intermediate frame. Replay slider changes

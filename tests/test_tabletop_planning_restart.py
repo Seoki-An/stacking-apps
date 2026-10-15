@@ -106,7 +106,7 @@ def test_operations_summary_and_resume_controls(monkeypatch, tmp_path):
             self.repository = ROOT
 
     window = Window()
-    monkeypatch.setattr(windows.QFileDialog, "getSaveFileName", lambda *a: (str(output), "JSON (*.json)"))
+    monkeypatch.setattr(windows.QFileDialog, "getSaveFileName", lambda *a, **kw: (str(output), "JSON (*.json)"))
     window._export_summary()
     assert json.loads(output.read_text())["steps"][0]["step"] == 1
     launches = []
@@ -122,7 +122,7 @@ def test_operations_summary_and_resume_controls(monkeypatch, tmp_path):
 
     monkeypatch.setattr(dialogs, "PlanningRunDialog", Dialog)
     destination = tmp_path / "new.stack"
-    monkeypatch.setattr(windows.QFileDialog, "getSaveFileName", lambda *a: (str(destination), "Stacking runs (*.stack)"))
+    monkeypatch.setattr(windows.QFileDialog, "getSaveFileName", lambda *a, **kw: (str(destination), "Stacking runs (*.stack)"))
     window._resume_planning()
     assert launches[0][:3] == (ROOT, source, destination)
     window.close()

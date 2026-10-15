@@ -191,7 +191,8 @@ class ExcavatorOperationsWindow(QMainWindow):
         if self._artifact_path is None:
             return
         filename, selected = QFileDialog.getSaveFileName(self, "Export run summary",
-            str(self._artifact_path.with_suffix(".json")), "JSON (*.json);;CSV (*.csv)")
+            str(self._artifact_path.with_suffix(".json")), "JSON (*.json);;CSV (*.csv)",
+            options=QFileDialog.Option.DontUseNativeDialog)
         if filename:
             path = Path(filename)
             if not path.suffix:
@@ -294,6 +295,7 @@ class ExcavatorOperationsWindow(QMainWindow):
             f"step_{self.controller.current_step.step:02d}_"
             f"rank_{candidate.rank:02d}_object_{candidate.object_id}.mp4",
             "MP4 video (*.mp4)",
+            options=QFileDialog.Option.DontUseNativeDialog,
         )
         if not filename:
             return

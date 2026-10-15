@@ -36,6 +36,10 @@ def test_video_progress_restores_viewer_and_preserves_destination(
         def __init__(self):
             QMainWindow.__init__(self)
             self._video_exporting = False
+            from stacking_tabletop.config import load_planning_profile, load_visualization_profile
+            root = Path(__file__).resolve().parents[1]
+            self._search_planning = load_planning_profile(root / "apps/tabletop/config/planning.yml")
+            self._visualization = load_visualization_profile(root / "apps/tabletop/config/visualization.yml")
             self.controller = OperationsController()
             self.controller.load(fixture)
             if timed:
@@ -78,7 +82,7 @@ def test_video_progress_restores_viewer_and_preserves_destination(
     monkeypatch.setattr(window_module, "QProgressDialog", Progress)
     monkeypatch.setattr(
         window_module.QFileDialog, "getSaveFileName",
-        lambda *args: (str(destination), "MP4 video (*.mp4)"),
+        lambda *args, **kwargs: (str(destination), "MP4 video (*.mp4)"),
     )
     errors = Mock()
     monkeypatch.setattr(window_module.QMessageBox, "critical", errors)

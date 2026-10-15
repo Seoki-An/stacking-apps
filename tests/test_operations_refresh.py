@@ -19,7 +19,8 @@ from stacking_tabletop.gui.operations import window as windows
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_tabletop_refresh_button_action_and_busy_guards(tmp_path, monkeypatch):
+@pytest.mark.parametrize("recorded_environment", [False, True])
+def test_tabletop_refresh_button_action_and_busy_guards(tmp_path, monkeypatch, recorded_environment):
     app = QApplication.instance() or QApplication([])
     artifact = decode_legacy_mcts_debug(json.loads(
         (ROOT / "tests/fixtures/legacy_visualization/mcts_candidate_viewer.json").read_text()))
@@ -30,6 +31,7 @@ def test_tabletop_refresh_button_action_and_busy_guards(tmp_path, monkeypatch):
             self.resets = []
 
         def render_frame(self, frame, **kwargs):
+            self.frame = frame
             self.resets.append(kwargs["reset_camera"])
 
         def show_empty(self):
@@ -39,6 +41,14 @@ def test_tabletop_refresh_button_action_and_busy_guards(tmp_path, monkeypatch):
     resume = Mock()
     monkeypatch.setattr(windows.StackingOperationsWindow, "_resume_planning", resume)
     window = windows.StackingOperationsWindow(ROOT)
+    if recorded_environment:
+        from types import SimpleNamespace
+        from stacking_common.artifacts.planning_context import _values
+        planning = window._default_projector.planning
+        recorded = replace(planning, world_T_stack=replace(
+            planning.world_T_stack, parent_T_child=[.2, .3, .4, 0., 0., 0., 1.]))
+        contexts = Mock(return_value=(SimpleNamespace(profiles={"planning_profile": _values(recorded)}),))
+        monkeypatch.setattr(StackRunStore, "load_run_contexts", contexts)
     errors = Mock()
     monkeypatch.setattr(windows.QMessageBox, "critical", errors)
     path = tmp_path / "planning.stack"
@@ -60,6 +70,12 @@ def test_tabletop_refresh_button_action_and_busy_guards(tmp_path, monkeypatch):
         with StackRunStore.create_mcts(path, replace(artifact, steps=())) as writer:
             writer.append_mcts_step(artifact.steps[0])
             window.open_artifact(path)
+            pickup = next(box for box in window.scene_view.frame.environment_boxes
+                          if box.component_id == "pick_table")
+            if recorded_environment:
+                assert pickup.pose == pytest.approx((-.2, -.3, -.4, 0., 0., 0., 1.))
+            else:
+                assert pickup.pose == pytest.approx((.55, 0., -.115, 0., 0., 0., 1.))
             assert window.refresh_action.isEnabled()
             assert window.search_inspector.refresh_button.isEnabled()
             writer.append_mcts_step(artifact.steps[1])
