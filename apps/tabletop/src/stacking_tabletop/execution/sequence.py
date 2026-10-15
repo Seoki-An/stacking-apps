@@ -62,11 +62,28 @@ class TabletopMotionExecutor:
         self._busy_gripper = False
         self._last_telemetry = float("-inf")
         self._last_progress = float("-inf")
+        self._attachment_source = None
 
     @property
     def active_command_id(self):
         with self._lock:
             return self._active
+
+    @property
+    def held_object_id(self):
+        if not self._attached or self._attachment is None:
+            raise ValueError("there is no held object to identify")
+        return int(self._plan.problem.action.object_id)
+
+    def initial_tool_T_object(self):
+        """Express the current attachment estimate in physical tool0."""
+
+        if not self._attached or self._attachment is None:
+            raise ValueError("there is no held object to identify")
+        joints = self.arm.feedback.arm_state()[0]
+        base_T_tool = self.arm.kinematics.pose(joints)
+        base_T_grasp = self.arm.kinematics.grasp_pose(joints)
+        return np.linalg.solve(base_T_tool, base_T_grasp @ self._attachment)
 
     def approve(self, token):
         with self._lock:
@@ -180,7 +197,46 @@ class TabletopMotionExecutor:
         self.telemetry({"step": self._command.step, "object_id": self._plan.problem.action.object_id,
                         "joints": joints.tolist(), "gripper_raw": gripper.position,
                         "holding": gripper.holding, "phase": self._phase,
+                        "object_pose_source": self._attachment_source,
                         "object_pose": None if pose is None else np.asarray(pose).tolist()})
+
+    def _apply_inhand_identification(self, result):
+        report = result.report()
+        if report["status"] == "failed":
+            self._emit("held", inhand_identification=report)
+            return (
+                f"In-hand identification failed: {report['error']}. The raw scan "
+                "was saved and the planned attachment was retained. Retry the scan, "
+                "Continue with the planned estimate, or Abort."
+            )
+        if result.accepted:
+            joints = self.arm.feedback.arm_state()[0]
+            base_T_tool = self.arm.kinematics.pose(joints)
+            base_T_grasp = self.arm.kinematics.grasp_pose(joints)
+            self._attachment = np.linalg.solve(
+                base_T_grasp,
+                base_T_tool @ result.identified_tool_T_object,
+            )
+            self._attachment_source = "identified"
+            self._send_telemetry(force=True)
+        self._emit("held", inhand_identification=report)
+        correction = (
+            f"{result.correction_translation_m * 1000.0:.1f} mm, "
+            f"{result.correction_rotation_degrees:.2f}°"
+        )
+        if result.accepted:
+            return (
+                f"In-hand identification accepted ({correction}, "
+                f"RMSE {result.rmse_m * 1000.0:.1f} mm). The live stone pose "
+                "uses the identified attachment; the saved carry is not replanned. "
+                "Inspect the held object and expected placement, then Continue or Abort."
+            )
+        reasons = ", ".join(result.reasons) or "quality gate"
+        return (
+            f"In-hand identification rejected ({correction}; {reasons}). The planned "
+            "attachment was retained. Inspect the held object and expected placement, "
+            "then retry the scan, Continue, or Abort."
+        )
 
     def _gate_wait(self, name, message, *, manual=False, prepared=None):
         self._phase = name
@@ -204,11 +260,16 @@ class TabletopMotionExecutor:
                         self._gate = None
                 if scan is not None:
                     self.gate_changed(None)
-                    self.scan_handler(self, scan)
+                    identification = self.scan_handler(self, scan)
                     self._phase = name
                     self._stationary()
+                    message = (
+                        self._apply_inhand_identification(identification)
+                        if identification is not None
+                        else "Scan finished. Inspect the held object and saved placement, then Continue."
+                    )
                     gate = OperatorGate(uuid4().hex, self._command.command_id, self._command.step, name,
-                        'Scan finished. Inspect the held object and saved placement, then Continue.', manual)
+                        message, manual)
                     with self._lock:
                         self._approved.clear()
                         self._gate = gate
@@ -357,6 +418,7 @@ class TabletopMotionExecutor:
         self._attached, self._contact = False, False
         self._stack_processing = None
         self._attachment = self._release_pose = None
+        self._attachment_source = None
         self._reference = self.saved.planning.robot.home_positions.copy()
         old_poll = self.runtime.poll
         try:
@@ -391,6 +453,7 @@ class TabletopMotionExecutor:
             self._attachment = np.linalg.solve(
                 self.arm.kinematics.grasp_pose(self.arm.feedback.arm_state()[0]),
                 _matrix(self._plan.problem.pick_pose))
+            self._attachment_source = "planned_grasp"
             self._profile(False)
             self._move(1, _taper(command.segments[1].positions, pick_offset))
             self._gate_wait("place", "Check the held object and saved placement before carrying it to the stack.")
@@ -463,6 +526,7 @@ class TabletopMotionExecutor:
         self._attached, self._contact = False, False
         self._stack_processing = None
         self._attachment = None
+        self._attachment_source = None
         self._release_pose = np.asarray(release_pose, dtype=float)
         self._reference = self.saved.planning.robot.home_positions.copy()
         old_poll = self.runtime.poll

@@ -101,8 +101,8 @@ This validates offline shared contracts, not physical commissioning.
    pose-graph transforms, mesh statistics, and CoACD partitions.
 2. Commission the integrated UR5e/Dynamixel sequence on the physical tabletop,
    including calibrated FK, contact phases, holds, and operator recovery.
-3. Commission the integrated [FEMTO wrist/pivot scans](tabletop-femto.md), then
-   add console live in-hand registration checks. See the
+3. Commission the integrated [FEMTO wrist/pivot scans](tabletop-femto.md) and
+   console live in-hand registration checks. See the
    [hardware and execution guide](tabletop-hardware.md).
 4. Implement excavator perception, execution and operations using the current
    plan above. Defer recorded-scene grasp success coverage, longer search runs

@@ -196,6 +196,61 @@ def test_scanning_returns_to_fresh_gate_and_keeps_durable_sequence(saved, tmp_pa
         assert executor.runtime.paused_seconds > 65
 
 
+def test_accepted_identification_updates_live_attachment_before_carry(saved, tmp_path):
+    transport, executor, _camera, _gates, _previews = setup_scan(saved, tmp_path)
+    capture = executor.scan_handler
+
+    def scan_and_identify(ex, request):
+        capture(ex, request)
+        initial = ex.initial_tool_T_object()
+        identified = initial.copy()
+        identified[0, 3] += 0.006
+        report = {
+            "status": "accepted",
+            "object_id": ex.held_object_id,
+            "capture_directory": str(tmp_path / "scan"),
+            "report_path": str(tmp_path / "scan" / "inhand_identification.json"),
+            "initial_tool_T_object": initial.tolist(),
+            "identified_tool_T_object": identified.tolist(),
+            "correction_translation_m": 0.006,
+            "correction_rotation_degrees": 0.0,
+            "target_coverage": 0.7,
+            "source_coverage": 0.8,
+            "rmse_m": 0.001,
+            "correspondences": 100,
+            "observation_points": 200,
+            "reasons": [],
+        }
+        return SimpleNamespace(
+            accepted=True,
+            identified_tool_T_object=identified,
+            correction_translation_m=0.006,
+            correction_rotation_degrees=0.0,
+            rmse_m=0.001,
+            reasons=(),
+            report=lambda: report,
+        )
+
+    executor.scan_handler = scan_and_identify
+    results = execute_saved_run(saved, executor)
+
+    assert all(result.status.value == "succeeded" for result in results)
+    events = StackRunStore.load_execution_events(saved.path)
+    identification = next(
+        event.diagnostics["inhand_identification"]
+        for event in events
+        if "inhand_identification" in event.diagnostics
+    )
+    assert identification["status"] == "accepted"
+    release = next(
+        event.diagnostics["release_pose"]
+        for event in events
+        if event.diagnostics.get("release_completed")
+    )
+    expected = np.asarray(saved.plans[0].problem.place_pose)
+    assert release[0] == pytest.approx(expected[0] + 0.006)
+
+
 @pytest.mark.parametrize('mode,failure', [
     ('preflight_failure', 'perception_failed'), ('capture_failure', 'perception_failed'),
     ('wrong_joints', 'perception_failed'), ('cancel_review', 'cancelled'), ('slip', 'gripper_fault'),

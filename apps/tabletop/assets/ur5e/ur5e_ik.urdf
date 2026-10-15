@@ -287,7 +287,8 @@
     <origin xyz="0 0.0996 -2.042830148012698e-11"
             rpy="1.570796326589793 3.141592653589793 3.141592653589793"/>
     <axis xyz="0 0 1"/>
-    <limit lower="-6.283185307179586" upper="6.283185307179586"
+    <!-- Operational cable-routing envelope; the UR5e hardware limit is +/-2*pi. -->
+    <limit lower="-5.235987755982989" upper="5.235987755982989"
            effort="28.0" velocity="3.141592653589793"/>
     <dynamics damping="0" friction="0"/>
   </joint>

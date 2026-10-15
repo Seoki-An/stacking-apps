@@ -100,6 +100,9 @@ python -m stacking_tabletop.acquisition.cli --camera primary --output .data/fiel
 Start the matching Orbbec driver first. Acquisition sends no robot/gripper
 commands. The Operations Console offers automatic wrist/pivot scans at the
 held-object placement review gate, with a motion preview and explicit approval.
+After a completed scan it registers the known stone model in `tool0`, applies
+the configured quality gates, and updates the live carried-stone estimate only
+when registration is accepted.
 
 ## Tabletop MCTS smoke run
 

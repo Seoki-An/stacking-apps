@@ -19,6 +19,7 @@ from stacking_common.domain import Action
 from stacking_common.planning import GraspEvent, MotionPlanSegment, PlacementPlanningProblem, PlacementPlanningResult
 from stacking_tabletop.config import load_planning_profile
 from stacking_tabletop.execution import DynamixelAdapter, UR5eAdapter, UR_JOINT_NAMES
+from stacking_tabletop.execution.motion import WRIST3_SOFT_LIMIT
 from stacking_tabletop.execution.saved_plan import STAGES, MODES, load_execution_run, validate_command
 from stacking_tabletop.execution.sequence import TabletopMotionExecutor, execute_saved_run, _pose
 from stacking_tabletop.execution.recovery import (
@@ -32,6 +33,16 @@ from stacking_tabletop.planning.persistence import _values
 from test_tabletop_hardware_adapters import FakeTransport, Kinematics
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_planning_urdf_uses_execution_wrist3_cable_limit():
+    planning = load_planning_profile(ROOT / 'apps/tabletop/config/planning.yml')
+    root = ET.parse(ROOT / planning.robot.urdf).getroot()
+    joint = next(value for value in root.findall('joint')
+                 if value.attrib['name'] == 'wrist_3_joint')
+    limit = joint.find('limit')
+    assert float(limit.attrib['lower']) == pytest.approx(-WRIST3_SOFT_LIMIT)
+    assert float(limit.attrib['upper']) == pytest.approx(WRIST3_SOFT_LIMIT)
 
 
 @pytest.fixture

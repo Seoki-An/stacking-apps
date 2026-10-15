@@ -5,6 +5,7 @@ import threading
 from PySide6.QtCore import QThread, Signal
 
 from stacking_tabletop.execution import AdapterRuntime, DynamixelAdapter, UR5eAdapter, UR5eKinematics
+from stacking_tabletop.execution.runtime import HardwareError
 from stacking_tabletop.execution.sequence import TabletopMotionExecutor, execute_saved_run
 
 
@@ -42,6 +43,11 @@ class ExecutionWorker(QThread):
     def _scan(self, executor, request):
         from contextlib import ExitStack
         from stacking_tabletop.acquisition.scanning import scan_held_object
+        from stacking_tabletop.composition import TabletopApplication
+        from stacking_tabletop.perception.inhand_execution import (
+            failed_inhand_identification,
+            identify_inhand_capture,
+        )
         with ExitStack() as resources:
             if self.camera_factory is not None:
                 camera = resources.enter_context(self.camera_factory(request[1], self.runtime))
@@ -56,7 +62,32 @@ class ExecutionWorker(QThread):
                 calibration = FemtoCalibration(profile)
                 transport = resources.enter_context(FemtoRosTransport(calibration))
                 camera = FemtoCamera(transport, calibration, cancel_event=self.runtime.cancel_event)
-            scan_held_object(executor, request, camera, prepared=self.scan_prepared.emit)
+            directory = scan_held_object(
+                executor,
+                request,
+                camera,
+                prepared=self.scan_prepared.emit,
+            )
+            object_id = executor.held_object_id
+            executor._phase = "inhand_identification"
+            executor._emit(
+                "running",
+                inhand_identification_started=str(directory),
+                inhand_object_id=object_id,
+            )
+            try:
+                application = TabletopApplication.from_repository(self.repository)
+                return identify_inhand_capture(
+                    application,
+                    directory,
+                    object_id,
+                    executor.initial_tool_T_object(),
+                    check=executor._health,
+                )
+            except HardwareError:
+                raise
+            except Exception as error:
+                return failed_inhand_identification(directory, object_id, error)
 
     def _stack_scene(self, executor):
         from stacking_tabletop.acquisition.stack_scene_capture import collect_stack_scene

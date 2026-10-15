@@ -61,6 +61,11 @@ mock that external serial driver.
 - Paths must contain six finite joints, stay inside the wrist-3 ±300-degree
   cable envelope, and avoid raw wrist branch jumps. These checks do not establish
   collision freedom or validate the complete saved sequence/home return.
+- The planning URDF applies the same ±300-degree wrist-3 cable envelope, while
+  the physical UR5e joint itself remains ±360 degrees. Motion planning also
+  preserves the literal configured home branch on pick and place retreats, so
+  it returns to home wrist 3 = 0 degrees instead of the equivalent -360-degree
+  branch.
 - `attached=True` requires `gripper.require_hold()` throughout lift/carry. The
   calling sequence coordinator must set this from verified attachment semantics.
 - Readiness, connectivity, joint/tool freshness, and gripper faults are checked
@@ -236,8 +241,9 @@ python -m pytest -q tests/test_tabletop_execution_legacy.py \
 
 Physical commissioning of the integrated sequence remains pending. Offline tests
 use fake devices; they do not move the UR5e or operate the gripper. FEMTO
-acquisition and automatic scan trajectories are implemented. Live in-hand
-registration remains next.
+acquisition, automatic scan trajectories, and known-stone in-hand registration
+are implemented. Accepted registration updates the execution viewport's live
+attachment estimate; it does not replan the saved carry trajectory.
 
 ## Previewing the pick-scene capture region
 

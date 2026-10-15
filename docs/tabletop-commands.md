@@ -231,7 +231,14 @@ stacking-tabletop-capture-femto \
 The capture CLI does not move the robot. For **automatic wrist/pivot scanning**,
 use **Prepare held-object scan…** at the console's placement review gate. Select
 the camera and output parent directory, review the motion preview, then Continue.
-The scan returns to a fresh placement review gate after saving its views.
+The completed scan is automatically filtered and registered against the known
+stone model. The fresh placement review gate reports correction, RMSE, and
+acceptance. Accepted registration updates the live attached-stone rendering;
+rejected or failed registration retains the planned grasp estimate. The raw
+scan, merged `inhand_observation_tool0.pcd`, and
+`inhand_identification.json` remain in the selected output directory. The saved
+carry trajectory is not replanned, so inspect the corrected stone overlay and
+abort if its clearance or expected placement is unsafe.
 
 For the secondary camera, stop the primary driver and substitute `secondary`
 in both launch and capture commands. Primary is `CL83C53005L`; secondary is

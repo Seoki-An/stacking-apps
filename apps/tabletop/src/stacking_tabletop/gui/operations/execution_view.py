@@ -468,7 +468,18 @@ class ExecutionView(QWidget):
         joints = ", ".join(f"{q:.1f}" for q in np.rad2deg(value["joints"]))
         gripper = value["gripper_raw"]
         gripper_text = "unavailable" if gripper is None else f"{gripper:.0f} counts"
-        self.telemetry_label.setText(f"Measured joints (°): {joints}\nGripper: {gripper_text}; hold={value['holding']}\nObject pose: kinematic estimate")
+        source = value.get("object_pose_source")
+        estimate = (
+            "unavailable"
+            if value.get("object_pose") is None
+            else "identified attachment"
+            if source == "identified"
+            else "planned grasp attachment"
+        )
+        self.telemetry_label.setText(
+            f"Measured joints (°): {joints}\nGripper: {gripper_text}; "
+            f"hold={value['holding']}\nObject pose: {estimate}"
+        )
         self.scene.telemetry = value
         self.state_changed.emit()
 
@@ -495,6 +506,25 @@ class ExecutionView(QWidget):
                                    f"{event.diagnostics['capture_directory']}")
         if 'scan_completed' in event.diagnostics:
             self.scan_label.setText(f"Scan saved: {event.diagnostics['scan_completed']}")
+        if 'inhand_identification_started' in event.diagnostics:
+            self.scan_label.setText(
+                "Identifying the held stone from the completed scan…\n"
+                f"{event.diagnostics['inhand_identification_started']}"
+            )
+        if 'inhand_identification' in event.diagnostics:
+            result = event.diagnostics['inhand_identification']
+            if result['status'] == 'failed':
+                message = f"In-hand identification failed: {result['error']}"
+            else:
+                correction = (
+                    f"{1000.0 * result['correction_translation_m']:.1f} mm / "
+                    f"{result['correction_rotation_degrees']:.2f}°"
+                )
+                message = (
+                    f"In-hand identification {result['status']}: {correction}; "
+                    f"RMSE {1000.0 * result['rmse_m']:.1f} mm"
+                )
+            self.scan_label.setText(f"{message}\n{result['report_path']}")
         if event.diagnostics.get("operator_decision") == "resume":
             self._paused = False
             self.hold_button.setText("Hold")

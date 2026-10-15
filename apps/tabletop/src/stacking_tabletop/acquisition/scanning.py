@@ -92,6 +92,7 @@ def scan_held_object(executor, request, camera, *, prepared=lambda value: None,
             executor._reference = anchor
             executor._health()
         executor._emit('held', scan_completed=str(output), scan_view_count=view)
+        return output
     except CaptureCancelled as error:
         raise HardwareError(ExecutionFailure.CANCELLED, str(error)) from error
     except CaptureError as error:
