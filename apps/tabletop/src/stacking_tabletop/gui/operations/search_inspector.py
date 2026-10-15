@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSlider,
     QSpinBox,
     QVBoxLayout,
@@ -43,7 +44,16 @@ class SearchInspector(QWidget):
         self._timeline_render_timer.setSingleShot(True)
         self._timeline_render_timer.setInterval(25)
         self._timeline_render_timer.timeout.connect(self.state_changed.emit)
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        content = QWidget()
+        self.scroll_area.setWidget(content)
+        outer.addWidget(self.scroll_area)
+        layout = QVBoxLayout(content)
 
         source = QGroupBox("Stacking run")
         source_layout = QVBoxLayout(source)
@@ -96,6 +106,11 @@ class SearchInspector(QWidget):
         )
         form.addRow("Step", self.step_selector)
         form.addRow("Candidate", self.candidate_selector)
+        self.candidate_failure_reason = QLabel()
+        self.candidate_failure_reason.setWordWrap(True)
+        self.candidate_failure_reason.setTextFormat(Qt.TextFormat.PlainText)
+        self.candidate_failure_reason.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        form.addRow("Failure reason", self.candidate_failure_reason)
         form.addRow("Rendering", self.render_selector)
         form.addRow("Pose", self.pose_selector)
         form.addRow("Replay", self.timeline)
@@ -108,7 +123,7 @@ class SearchInspector(QWidget):
         outcome_layout = QVBoxLayout(outcome)
         self.failure_details = QPlainTextEdit()
         self.failure_details.setReadOnly(True)
-        self.failure_details.setMaximumHeight(220)
+        self.failure_details.setMinimumHeight(220)
         outcome_layout.addWidget(self.failure_details)
         layout.addWidget(outcome)
 
@@ -183,6 +198,10 @@ class SearchInspector(QWidget):
                         f"{candidate.outcome.value}{marker}",
                         candidate.candidate_id,
                     )
+                    self.candidate_selector.setItemData(
+                        self.candidate_selector.count() - 1,
+                        self._candidate_failure_text(candidate), Qt.ItemDataRole.ToolTipRole,
+                    )
                 active_index = self.candidate_selector.findData(
                     self.controller.active_candidate_id
                 )
@@ -198,6 +217,7 @@ class SearchInspector(QWidget):
             self.timeline.setEnabled(frame_count > 0)
             self.video_fps.setEnabled(frame_count > 0)
             active = self.controller.active_candidate
+            self.candidate_failure_reason.setText(self._candidate_failure_text(active))
             timed = (active is not None and bool(active.timeline.tracks)
                      and all(track.times is not None for track in active.timeline.tracks))
             self.video_fps.setToolTip(
@@ -228,6 +248,16 @@ class SearchInspector(QWidget):
             self.failure_details.setPlainText(self.controller.search_diagnostics)
         finally:
             self._updating = False
+
+    @staticmethod
+    def _candidate_failure_text(candidate) -> str:
+        if candidate is None:
+            return "No candidate selected."
+        if candidate.rejection_reason:
+            return candidate.rejection_reason
+        if candidate.outcome.value == "succeeded":
+            return "None — candidate evaluation succeeded."
+        return "Not evaluated yet."
 
     @staticmethod
     def _select_data(selector: QComboBox, value: str) -> None:

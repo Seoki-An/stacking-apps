@@ -76,6 +76,7 @@ def test_recorded_search_statistics_survive_load_reload_and_step_switch(tmp_path
 def test_search_inspector_displays_failure_details(platform):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     pytest.importorskip("PySide6")
+    from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication
     module = importlib.import_module(f"stacking_{platform}.gui.operations.search_inspector")
     app = QApplication.instance() or QApplication([])
@@ -84,12 +85,17 @@ def test_search_inspector_displays_failure_details(platform):
     try:
         widget.candidate_selector.setCurrentIndex(0)
         assert "missing_validated_descendant" in widget.failure_details.toPlainText()
+        assert widget.candidate_failure_reason.text() == "missing_validated_descendant"
+        assert widget.candidate_selector.itemData(0, Qt.ItemDataRole.ToolTipRole) == "missing_validated_descendant"
         widget.candidate_selector.setCurrentIndex(1)
         assert widget.failure_details.toPlainText().splitlines()[-1].endswith("target_motion_limit")
+        assert widget.candidate_failure_reason.text() == "target_motion_limit"
+        assert widget.candidate_selector.itemData(1, Qt.ItemDataRole.ToolTipRole) == "target_motion_limit"
         widget.step_selector.setCurrentIndex(1)
         assert "Step 2: search_exhausted" in widget.failure_details.toPlainText()
         assert "No detailed rejection reasons were recorded" in widget.failure_details.toPlainText()
         assert widget.failure_details.isReadOnly()
+        assert widget.candidate_failure_reason.text() == "No candidate selected."
     finally:
         widget.close()
         app.processEvents()
