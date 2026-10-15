@@ -4,7 +4,13 @@ import numpy as np
 
 from stacking_common.execution import ExecutionFailure
 
-from .motion import CartesianStreamLimits, pose_error, sample_joint_path, validate_joint_path
+from .motion import (
+    CartesianStreamLimits,
+    UR_JOINT_NAMES,
+    pose_error,
+    sample_joint_path,
+    validate_joint_path,
+)
 from .runtime import AdapterRuntime, HardwareError
 
 
@@ -65,19 +71,31 @@ class UR5eAdapter:
         self.runtime.until(ready, self.runtime.deadline(timeout), self._check,
                            "UR5e controller and fresh feedback not ready")
 
-    def validate_start(self, expected):
-        """Match saved joints and planning FK to the live controller feedback."""
+    def start_offset(self, expected):
+        """Return the shortest safe joint offset from live state to ``expected``."""
         expected = validate_joint_path([expected])[0]
         self._check_motion()
         actual, measured_pose = self.feedback.arm_state()
-        delta = actual - np.asarray(expected, dtype=float)
-        error = np.abs((delta + np.pi) % (2 * np.pi) - np.pi)
-        error[5] = abs(delta[5])  # Physical cable branch must match literally.
-        if np.max(error) > np.deg2rad(2.0):
-            raise HardwareError(ExecutionFailure.TRACKING_ERROR, "UR5e start differs from plan by more than 2 degrees")
+        delta = expected - actual
+        delta[:5] = (delta[:5] + np.pi) % (2 * np.pi) - np.pi
+        # Wrist 3 must return to the recorded physical cable branch literally.
+        delta[5] = expected[5] - actual[5]
         translation, rotation = pose_error(measured_pose, self.kinematics.pose(actual))
         if translation > 0.015 or rotation > np.deg2rad(5.0):
             raise HardwareError(ExecutionFailure.TRACKING_ERROR, "UR5e model/controller FK mismatch exceeds 15 mm / 5 degrees")
+        return actual, delta
+
+    def validate_start(self, expected):
+        """Match saved joints and planning FK to the live controller feedback."""
+        _actual, delta = self.start_offset(expected)
+        error = np.abs(delta)
+        if np.max(error) > np.deg2rad(2.0):
+            index = int(np.argmax(error))
+            raise HardwareError(
+                ExecutionFailure.TRACKING_ERROR,
+                "UR5e start differs from plan by more than 2 degrees: "
+                f"{UR_JOINT_NAMES[index]} error={np.rad2deg(error[index]):.1f} degrees",
+            )
 
     def set_rigid_tracking(self):
         self._set_profile(RIGID_ADMITTANCE_GAINS, False, 0.0)

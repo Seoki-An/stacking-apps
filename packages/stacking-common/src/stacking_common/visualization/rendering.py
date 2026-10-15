@@ -7,7 +7,8 @@ def scene_is_translucent(frame, environment_boxes, visibility):
         return True  # The target shell has opacity 0.12.
     if any(value.opacity < 1.0 for value in frame.objects):
         return True
-    if any(part.part_id.startswith("scan_preview/") for part in frame.robot_parts):
+    if any(part.part_id.startswith(("scan_preview/", "motion_preview/"))
+           for part in frame.robot_parts):
         return True
     return any(box.opacity < 1.0 and visibility.get(box.layer, False)
                for box in environment_boxes)

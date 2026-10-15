@@ -3,6 +3,7 @@
 import time
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 pytest.importorskip('PySide6')
@@ -10,7 +11,8 @@ from PySide6.QtWidgets import QApplication, QMainWindow
 from PySide6.QtGui import QCloseEvent
 
 from stacking_common.artifacts import StackRunStore
-from stacking_tabletop.execution import DynamixelAdapter, UR5eAdapter
+from stacking_tabletop.execution import DynamixelAdapter, HardwareFeedback, UR5eAdapter
+from stacking_tabletop.execution.motion import UR_JOINT_NAMES
 from stacking_tabletop.gui.operations.execution_view import ExecutionView
 from stacking_tabletop.gui.operations.execution_worker import ExecutionWorker
 from test_tabletop_hardware_adapters import FakeTransport, Kinematics
@@ -32,6 +34,73 @@ def test_loading_validated_scene_is_passive_and_uses_recorded_assets(saved):
     assert view.scene.projector.planning is saved.planning or view.scene.projector.planning.robot.home_positions[0] == 0
     view.close()
     app.processEvents()
+
+
+def test_execution_tab_shows_read_only_live_robot_state(saved):
+    from stacking_tabletop.execution.sequence import OperatorGate
+
+    app = QApplication.instance() or QApplication([])
+    feedback = HardwareFeedback()
+    feedback.receive_joints(UR_JOINT_NAMES, saved.planning.robot.home_positions)
+    feedback.receive_pose(np.eye(4))
+    feedback.receive_gripper(700)
+
+    class PreviewTransport:
+        def __init__(self):
+            self.feedback = feedback
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    transport = PreviewTransport()
+    view = ExecutionView(ROOT, preview_transport_factory=lambda: transport)
+    view.load(saved.path)
+    view.set_live_preview_enabled(True)
+    try:
+        assert len(view.scene.frame().robot_parts) > 0
+        assert "Measured joints" in view.telemetry_label.text()
+        assert "700 counts" in view.telemetry_label.text()
+        assert transport.closed is False
+        view.worker = SimpleNamespace(isRunning=lambda: True)
+        view.set_gate(OperatorGate(
+            "align", "command", 1, "start_alignment", "Align to saved home"
+        ))
+        np.testing.assert_array_equal(
+            view.scene.scan_preview, saved.planning.robot.home_positions
+        )
+        assert any(part.part_id.startswith("scan_preview/")
+                   for part in view.scene.frame().robot_parts)
+        view.set_gate(OperatorGate(
+            "review", "command", 1, "review", "Review saved motion"
+        ))
+        frame = view.scene.frame()
+        assert frame.motion_path_points.shape[1] == 3
+        assert len(frame.motion_path_points) > 1
+        assert view.motion_review_controls.isEnabled()
+        assert view.motion_slider.maximum() > 0
+        preview = [part for part in frame.robot_parts
+                   if part.part_id.startswith("motion_preview/")]
+        assert preview and all(part.color == "#57e389" for part in preview)
+        view.motion_slider.setValue(1)
+        np.testing.assert_array_equal(
+            view.scene.motion_preview[0], view._motion_samples[1][3]
+        )
+        assert "saved sample 2/" in view.motion_label.text()
+        view.motion_play_button.click()
+        assert view._motion_preview_timer.isActive()
+        view.set_gate(None)
+        assert not view._motion_preview_timer.isActive()
+        assert not view.motion_review_controls.isEnabled()
+        assert view.scene.frame().motion_path_points is None
+        assert not any(part.part_id.startswith("motion_preview/")
+                       for part in view.scene.frame().robot_parts)
+        view.worker = None
+    finally:
+        view.set_live_preview_enabled(False)
+        view.close()
+        app.processEvents()
+    assert transport.closed is True
 
 
 def test_worker_gates_and_abort_leave_durable_recovery_requirement(saved):
@@ -96,7 +165,11 @@ def test_window_refuses_close_and_artifact_switch_until_worker_exits():
         def __init__(self):
             QMainWindow.__init__(self)
             self._video_exporting = False
-            self.execution_view = SimpleNamespace(running=True, abort=lambda: aborted.append(True))
+            self.execution_view = SimpleNamespace(
+                running=True,
+                abort=lambda: aborted.append(True),
+                set_live_preview_enabled=lambda _enabled: None,
+            )
     window = Window()
     event = QCloseEvent()
     window.closeEvent(event)

@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 from scipy.spatial.transform import Rotation
 
 from stacking_common.artifacts import (
@@ -700,6 +701,136 @@ def test_planning_coordinator_uses_evaluated_then_fixed_scene_pose() -> None:
     assert np.allclose(record.problem.place_pose, _pose(0.3, 0.0, 0.14))
     assert record.problem.metadata["fixed_scene_resettle_enabled"]
     assert record.result.diagnostics["motion_planning_attempted"] is True
+
+
+def test_tabletop_fixed_scene_honors_floor_fill_fallback() -> None:
+    application = TabletopApplication.from_repository(ROOT)
+    inventory = application.load_inventory((1,), {1: _pose(0.0, -0.7, 0.2)})
+    action = Action(
+        0,
+        _pose(0.0, 0.0, 0.2),
+        _pose(),
+        object_id=1,
+        diagnostics={
+            "floor_fill_fallback": True,
+            "floor_fill_bypassed_reason": "above_active_layer",
+        },
+    )
+
+    class FixedBackend:
+        def place(self, state, candidate):
+            return SimpleNamespace(
+                failed=False,
+                object_poses={**state.object_poses, 1: candidate.pose.copy()},
+                diagnostics={},
+            )
+
+    calls = []
+    planner = SimpleNamespace(
+        plan=lambda problem: (
+            calls.append(problem)
+            or PlacementPlanningResult(
+                PlanningStatus.INFEASIBLE, reason="motion-planner-reached"
+            )
+        )
+    )
+    coordinator = TabletopPlanningCoordinator(
+        inventory,
+        application.build_placement_planning_problem,
+        planner,
+        placement_backend=FixedBackend(),
+        safety=application.build_floor_policy(inventory),
+    )
+
+    record = coordinator.attempt(_state((1,)), action, step=1, attempt=1)
+
+    assert calls
+    assert record.result.reason == "motion-planner-reached"
+    assert record.result.diagnostics["motion_planning_attempted"]
+    assert record.problem.metadata["floor_fill_fallback"]
+    assert record.problem.metadata["floor_fill_bypassed_reason"] == (
+        "above_active_layer"
+    )
+
+
+@pytest.mark.parametrize("resettle_delta, tolerated", [(0.0005, True), (0.002, False)])
+def test_tabletop_fixed_scene_tolerates_only_tiny_floor_grid_flip(
+    resettle_delta, tolerated
+) -> None:
+    class Inventory:
+        object_ids = (1,)
+
+        def __len__(self):
+            return 1
+
+        def initial_pose(self, object_id):
+            assert object_id == 1
+            return _pose(0.0, -0.7, 0.2)
+
+    class Safety:
+        support_tolerance = 0.02
+        resettle_floor_translation_tolerance = 0.001
+        resettle_floor_rotation_tolerance = np.deg2rad(0.5)
+
+        def active_floor_rejection(self, state, candidate):
+            del state
+            reason = None if candidate.pose[0] <= 0.0 else "disconnected_active_layer"
+            return reason, {"fixed_scene_active_layer_above": False}
+
+    class FixedBackend:
+        def place(self, state, candidate):
+            settled = candidate.pose.copy()
+            settled[0] += resettle_delta
+            return SimpleNamespace(
+                failed=False,
+                object_poses={**state.object_poses, 1: settled},
+                diagnostics={},
+            )
+
+    def build_problem(state, action, *, pick_pose, metadata):
+        del state
+        return PlacementPlanningProblem(
+            "world",
+            action,
+            pick_pose,
+            action.pose,
+            (),
+            metadata,
+        )
+
+    calls = []
+    planner = SimpleNamespace(
+        plan=lambda problem: (
+            calls.append(problem)
+            or PlacementPlanningResult(
+                PlanningStatus.INFEASIBLE, reason="motion-planner-reached"
+            )
+        )
+    )
+    coordinator = TabletopPlanningCoordinator(
+        Inventory(),
+        build_problem,
+        planner,
+        placement_backend=FixedBackend(),
+        safety=Safety(),
+    )
+    action = Action(0, _pose(), _pose(), object_id=1)
+
+    record = coordinator.attempt(_state((1,)), action, step=1, attempt=1)
+
+    assert bool(calls) is tolerated
+    assert record.result.diagnostics["motion_planning_attempted"] is tolerated
+    if tolerated:
+        assert record.problem.metadata["fixed_scene_active_floor_tolerance_applied"]
+        assert record.result.reason == "motion-planner-reached"
+    else:
+        assert record.result.reason == "active_floor_disconnected_active_layer"
+
+
+def test_tabletop_floor_fill_threshold_matches_commissioned_base() -> None:
+    application = TabletopApplication.from_repository(ROOT)
+
+    assert application.floor_settings["fill_ratio"] == pytest.approx(0.65)
 
 
 def test_tabletop_active_floor_rejects_floating_and_disconnected_poses() -> None:

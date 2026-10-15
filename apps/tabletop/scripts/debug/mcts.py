@@ -317,7 +317,12 @@ def main() -> int | None:
     if transition_backend == "kinematic":
         evaluators = [
             StackingEnvironmentEvaluator(
-                _build_environments(application, inventory, transition_backend)
+                _build_environments(application, inventory, transition_backend),
+                settled_floor_policy=(
+                    application.build_floor_policy(inventory)
+                    if application.action_generation_profile.strict_floor_first
+                    else None
+                ),
             )
             for _ in range(worker_count)
         ]

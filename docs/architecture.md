@@ -139,6 +139,14 @@ quota with parent mutations. MCTS reserves a configured portion of its total
 wall budget for final long validation and stops scheduling validation batches
 at the absolute deadline.
 
+The active-floor policy is applied both to generated poses and to poses after
+each simulated transition. A floor-fill fallback is an explicit relaxation of
+that construction-order policy, not a bypass of physical simulation: search and
+the platform planning coordinator preserve its marker while continuing to
+require successful settling, containment, support, and collision checks. The
+tabletop fixed-scene check tolerates only an at-most-1-mm/sub-degree floor-grid
+classification change introduced by repeating an already accepted settle.
+
 Long `CorePlacementBackend` evaluation settles once, runs the configured short
 gate, and continues the same native snapshot, trajectories, velocity
 integrals, elapsed time, and quiet-step count through the long extension. A

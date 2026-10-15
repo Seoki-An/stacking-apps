@@ -266,8 +266,10 @@ floor:
 ```
 
 Tabletop explicitly configures `projected_footprint`, 0.02 m bottom tolerance,
-0.75 fill ratio, and a 16-cell grid. Its search and planning floor checks read the
-same YAML values. Sampling and solved-pose connectivity both require at least
+0.65 fill ratio, and a 16-cell grid. The lower threshold advances the commissioned
+six-stone scene after its valid 67.6%-coverage three-stone base; exhaustive
+sampling found no collision-free fourth base placement. Its search and planning
+floor checks read the same YAML values. Sampling and solved-pose connectivity both require at least
 one neighboring occupied cell; `minimum_contact_cells` is no longer configurable. Sampling connectivity starts whenever
 the active floor contains occupied cells; the configurable `connected_after`
 delay has been removed. An empty active floor allows a seed placement.
@@ -816,7 +818,7 @@ sampling and filtering. Its current settings are:
 |---|---:|---:|
 | Occupancy representation | Projected union of convex-component footprints | Same |
 | Occupancy grid | 16 × 16 cell-center samples | Same |
-| Floor completion fraction | 0.75 | 0.75 |
+| Floor completion fraction | 0.75 | 0.65 |
 | Bottom-height tolerance | 0.20 m | 0.02 m |
 | Connectivity rule (fixed) | At least one neighboring occupied cell | Same |
 | Strict action-build floor filter | Enabled | Enabled |

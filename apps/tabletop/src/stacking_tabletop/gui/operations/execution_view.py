@@ -1,6 +1,6 @@
 """Supervised saved-plan execution with explicit gates and recovery evidence."""
 
-from PySide6.QtCore import Qt, Signal, QUrl
+from PySide6.QtCore import Qt, QTimer, Signal, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
@@ -14,15 +14,32 @@ from stacking_tabletop.execution.recovery import reconcile_saved_run
 from .execution_worker import ExecutionWorker
 
 
+def connect_live_state():
+    """Open a read-only view of the existing controller telemetry."""
+    from stacking_tabletop.ros.hardware import TabletopRosTransport
+    return TabletopRosTransport(node_name="tabletop_execution_preview")
+
+
 class ExecutionView(QWidget):
     state_changed = Signal()
 
-    def __init__(self, repository=None, parent=None, *, worker_factory=ExecutionWorker):
+    def __init__(self, repository=None, parent=None, *, worker_factory=ExecutionWorker,
+                 preview_transport_factory=connect_live_state):
         super().__init__(parent)
         self.repository = repository
         self.worker_factory = worker_factory
+        self.preview_transport_factory = preview_transport_factory
         self.can_start = lambda: True
         self.worker = self.saved = self.gate = self.scene = None
+        self._preview_transport = None
+        self._preview_requested = False
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setInterval(100)
+        self._preview_timer.timeout.connect(self._poll_live_state)
+        self._motion_samples = ()
+        self._motion_preview_timer = QTimer(self)
+        self._motion_preview_timer.setInterval(33)
+        self._motion_preview_timer.timeout.connect(self._advance_motion_preview)
         self.path = None
         self._paused = False
         self._aborting = False
@@ -46,6 +63,18 @@ class ExecutionView(QWidget):
         self.gate_label = QLabel()
         self.gate_label.setWordWrap(True)
         layout.addWidget(self.gate_label)
+        self.motion_review_controls = QWidget()
+        row = QHBoxLayout(self.motion_review_controls)
+        self.motion_play_button = QPushButton("Play saved motion")
+        self.motion_play_button.clicked.connect(self._toggle_motion_preview)
+        self.motion_slider = QSlider(Qt.Orientation.Horizontal)
+        self.motion_slider.valueChanged.connect(self.preview_motion_sample)
+        row.addWidget(self.motion_play_button)
+        row.addWidget(self.motion_slider)
+        layout.addWidget(self.motion_review_controls)
+        self.motion_label = QLabel("Saved-motion review appears at the first execution gate.")
+        self.motion_label.setWordWrap(True)
+        layout.addWidget(self.motion_label)
         self.continue_button = QPushButton("Continue")
         self.continue_button.clicked.connect(self.approve)
         layout.addWidget(self.continue_button)
@@ -104,6 +133,8 @@ class ExecutionView(QWidget):
     def load(self, path):
         if self.running:
             raise ValueError("finish execution before changing the run")
+        self._set_motion_review(False)
+        self._close_live_preview()
         self.path, self.saved, self.scene = path, None, None
         self.gate = None
         self._stack_viewer = None
@@ -131,6 +162,54 @@ class ExecutionView(QWidget):
             self.status.setText(f"Execution unavailable: {error}")
         self._controls()
         self.state_changed.emit()
+        if self._preview_requested:
+            self._open_live_preview()
+
+    def set_live_preview_enabled(self, enabled):
+        """Observe ROS state while this tab is visible without commanding hardware."""
+        self._preview_requested = bool(enabled)
+        if self._preview_requested:
+            self._open_live_preview()
+        else:
+            self._close_live_preview()
+
+    def _open_live_preview(self):
+        if self.saved is None or self.running or self._preview_transport is not None:
+            return
+        try:
+            self._preview_transport = self.preview_transport_factory()
+        except Exception as error:
+            self.telemetry_label.setText(f"Live robot preview unavailable: {error}")
+            return
+        self.telemetry_label.setText("Waiting for live UR5e joint and tool telemetry…")
+        self._preview_timer.start()
+        self._poll_live_state()
+
+    def _close_live_preview(self):
+        self._preview_timer.stop()
+        transport, self._preview_transport = self._preview_transport, None
+        if transport is not None:
+            try:
+                transport.close()
+            except Exception as error:
+                self.telemetry_label.setText(f"Live robot preview cleanup failed: {error}")
+
+    def _poll_live_state(self):
+        transport = self._preview_transport
+        if transport is None or self.scene is None:
+            return
+        try:
+            joints = transport.feedback.joint_positions()
+            hand = transport.feedback.gripper_state()
+        except Exception as error:
+            self.telemetry_label.setText(f"Waiting for live robot telemetry: {error}")
+            return
+        self.receive_telemetry({
+            "joints": joints,
+            "gripper_raw": hand.position,
+            "holding": hand.holding,
+            "object_pose": None,
+        })
 
     def _controls(self):
         ready = self.saved is not None
@@ -144,6 +223,10 @@ class ExecutionView(QWidget):
         self.manual_controls.setEnabled(active and self.gate is not None and self.gate.manual and not self._paused)
         self.scan_controls.setEnabled(active and self.gate is not None and self.gate.name == 'place'
                                       and not self._paused and not self._scan_pending)
+        self.motion_review_controls.setEnabled(
+            active and self.gate is not None and self.gate.name == "review"
+            and bool(self._motion_samples) and not self._paused
+        )
         self.hold_button.setEnabled(active)
         self.abort_button.setEnabled(self.running)
 
@@ -156,6 +239,7 @@ class ExecutionView(QWidget):
             self.status.setText(str(error))
             self.start_button.setEnabled(False)
             return
+        self._close_live_preview()
         self.worker = self.worker_factory(self.saved, self)
         self.worker.repository = self.repository
         self.worker.capture_stack_scene = self.stack_capture.isChecked()
@@ -186,18 +270,89 @@ class ExecutionView(QWidget):
         self.hold_button.setText("Hold")
         self.telemetry_label.setText("Session ended; last received state:\n" + self.telemetry_label.text())
         self._controls()
+        if self._preview_requested:
+            self._open_live_preview()
 
     def set_gate(self, gate):
+        self._set_motion_review(gate is not None and gate.name == "review")
         if gate is None or gate.name not in ('scan_review', 'stack_scan_review'):
             self._scan_positions = None
             self.scan_preview.setEnabled(False)
             if self.scene is not None:
                 self.scene.scan_preview = None
                 self.state_changed.emit()
+        if gate is not None and gate.name == "start_alignment" and self.scene is not None:
+            self.scene.scan_preview = self.saved.planning.robot.home_positions
+            self.state_changed.emit()
         self.gate = gate
         self._scan_pending = False
         self.gate_label.setText("" if gate is None else f"Step {gate.step}: {gate.message}")
         self._controls()
+
+    def _set_motion_review(self, enabled):
+        self._stop_motion_preview()
+        scene = self.scene
+        if not enabled or scene is None:
+            self._motion_samples = ()
+            self.motion_slider.setRange(0, 0)
+            self.motion_label.setText("Saved-motion review appears at the first execution gate.")
+            if scene is not None:
+                scene.show_motion_review = False
+                scene.motion_preview = None
+            self.motion_review_controls.setEnabled(False)
+            self.state_changed.emit()
+            return
+        default_opening = float(self.saved.planning.robot.gripper_opening)
+        samples = []
+        for segment in scene.plan.result.segments:
+            for index, joints in enumerate(segment.positions):
+                opening = (default_opening if segment.openings is None
+                           else float(segment.openings[index]))
+                samples.append((segment.name, index, len(segment.positions), joints, opening))
+        self._motion_samples = tuple(samples)
+        scene.show_motion_review = True
+        self.motion_slider.setRange(0, max(0, len(samples) - 1))
+        self.motion_slider.setValue(0)
+        if samples:
+            self.preview_motion_sample(0)
+        else:
+            scene.motion_preview = None
+            self.motion_label.setText("The selected step contains no saved motion samples.")
+            self.state_changed.emit()
+
+    def preview_motion_sample(self, index):
+        if self.scene is None or not self._motion_samples:
+            return
+        index = min(max(int(index), 0), len(self._motion_samples) - 1)
+        name, local_index, segment_length, joints, opening = self._motion_samples[index]
+        self.scene.motion_preview = (joints, opening)
+        self.motion_label.setText(
+            f"{name}: {local_index + 1}/{segment_length} · saved sample "
+            f"{index + 1}/{len(self._motion_samples)}. Green line is the saved tool path."
+        )
+        self.state_changed.emit()
+
+    def _toggle_motion_preview(self):
+        if self._motion_preview_timer.isActive():
+            self._stop_motion_preview()
+            return
+        if not self._motion_samples:
+            return
+        if self.motion_slider.value() == self.motion_slider.maximum():
+            self.motion_slider.setValue(0)
+        self.motion_play_button.setText("Pause saved motion")
+        self._motion_preview_timer.start()
+
+    def _advance_motion_preview(self):
+        value = self.motion_slider.value()
+        if value >= self.motion_slider.maximum():
+            self._stop_motion_preview()
+            return
+        self.motion_slider.setValue(value + 1)
+
+    def _stop_motion_preview(self):
+        self._motion_preview_timer.stop()
+        self.motion_play_button.setText("Play saved motion")
 
     def approve(self):
         executor = self.worker.executor if self.running else None
@@ -274,7 +429,9 @@ class ExecutionView(QWidget):
     def receive_telemetry(self, value):
         import numpy as np
         joints = ", ".join(f"{q:.1f}" for q in np.rad2deg(value["joints"]))
-        self.telemetry_label.setText(f"Measured joints (°): {joints}\nGripper: {value['gripper_raw']:.0f} counts; hold={value['holding']}\nObject pose: kinematic estimate")
+        gripper = value["gripper_raw"]
+        gripper_text = "unavailable" if gripper is None else f"{gripper:.0f} counts"
+        self.telemetry_label.setText(f"Measured joints (°): {joints}\nGripper: {gripper_text}; hold={value['holding']}\nObject pose: kinematic estimate")
         self.scene.telemetry = value
         self.state_changed.emit()
 
@@ -338,3 +495,8 @@ class ExecutionView(QWidget):
                 self.load(self.path)
             except Exception as error:
                 self.status.setText(str(error))
+
+    def closeEvent(self, event):
+        self._stop_motion_preview()
+        self.set_live_preview_enabled(False)
+        super().closeEvent(event)

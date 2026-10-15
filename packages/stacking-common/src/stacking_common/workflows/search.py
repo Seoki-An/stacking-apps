@@ -133,7 +133,12 @@ class StackingSearchApplication:
             cuda_simulation = profile.parallel.simulation_backend == "cuda"
             if environments is not None or worker_count == 1 or cuda_simulation:
                 transition_evaluator = StackingEnvironmentEvaluator(
-                    environments or self.build_search_environments(inventory)
+                    environments or self.build_search_environments(inventory),
+                    settled_floor_policy=(
+                        self.build_floor_policy(inventory)
+                        if self.action_generation_profile.strict_floor_first
+                        else None
+                    ),
                 )
             else:
                 transition_evaluator = self.build_parallel_transition_evaluator(
@@ -215,7 +220,12 @@ class StackingSearchApplication:
         return ParallelTransitionEvaluator(
             [
                 StackingEnvironmentEvaluator(
-                    self.build_search_environments(inventory)
+                    self.build_search_environments(inventory),
+                    settled_floor_policy=(
+                        self.build_floor_policy(inventory)
+                        if self.action_generation_profile.strict_floor_first
+                        else None
+                    ),
                 )
                 for _ in range(worker_count)
             ],

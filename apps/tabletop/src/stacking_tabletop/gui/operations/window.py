@@ -385,7 +385,11 @@ class StackingOperationsWindow(QMainWindow):
             self.scene_view.render_frame(execution.scene.frame(geometry_mode=self.controller.robot_geometry_mode),
                 reset_camera=self.controller.consume_camera_reset_request(),
                 environment_visibility={"support": True, "obstacle": True})
-            self.statusBar().showMessage("Execution · measured robot · estimated object pose · translucent blue saved placement")
+            review = " · green saved motion" if execution.scene.show_motion_review else ""
+            self.statusBar().showMessage(
+                "Execution · measured robot · estimated object pose · "
+                f"translucent blue saved placement{review}"
+            )
             return
         showing_plan = (
             self.tabs.currentWidget() is self.plan_view
@@ -594,9 +598,17 @@ class StackingOperationsWindow(QMainWindow):
         if self._video_exporting:
             event.ignore()
             return
+        execution = getattr(self, "execution_view", None)
+        if execution is not None:
+            execution.set_live_preview_enabled(False)
         super().closeEvent(event)
 
     def _tab_changed(self, *_args) -> None:
+        execution = getattr(self, "execution_view", None)
+        if execution is not None:
+            execution.set_live_preview_enabled(
+                self.tabs.currentWidget() is execution
+            )
         if self.tabs.currentWidget() is not self.plan_view:
             self.plan_view._stop_playback()
         if self.tabs.currentWidget() is self.search_inspector:

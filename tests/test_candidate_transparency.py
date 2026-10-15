@@ -71,6 +71,8 @@ def test_translucent_layers_select_the_correct_pass():
     frame.objects = ()
     frame.robot_parts = (SimpleNamespace(part_id="scan_preview/1"),)
     assert scene_is_translucent(frame, (), {})
+    frame.robot_parts = (SimpleNamespace(part_id="motion_preview/1"),)
+    assert scene_is_translucent(frame, (), {})
 
 
 def test_actual_depth_peeling_survives_switch_from_ssao():

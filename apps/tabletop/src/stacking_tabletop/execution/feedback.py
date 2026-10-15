@@ -75,14 +75,19 @@ class HardwareFeedback:
             self._pose_stamp = self.clock()
         return True
 
+    def joint_positions(self, maximum_age=1.0):
+        with self._lock:
+            if self._joints is None or self.clock() - self._joint_stamp > maximum_age:
+                raise HardwareError(ExecutionFailure.CONTROLLER_FAULT, "missing or stale /joint_states")
+            return self._joints.copy()
+
     def arm_state(self, maximum_age=1.0):
         with self._lock:
             now = self.clock()
-            if self._joints is None or now - self._joint_stamp > maximum_age:
-                raise HardwareError(ExecutionFailure.CONTROLLER_FAULT, "missing or stale /joint_states")
+            joints = self.joint_positions(maximum_age)
             if self._pose is None or now - self._pose_stamp > maximum_age:
                 raise HardwareError(ExecutionFailure.CONTROLLER_FAULT, "missing or stale /ee_pose_ur5e")
-            return self._joints.copy(), self._pose.copy()
+            return joints, self._pose.copy()
 
     def actual_pose(self, maximum_age=1.0):
         with self._lock:

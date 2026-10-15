@@ -540,6 +540,58 @@ def test_environment_evaluator_rejects_unsettled_simulation() -> None:
     assert result.rejection_reason == "simulation_unsettled"
 
 
+@pytest.mark.parametrize("fallback", [False, True])
+def test_environment_evaluator_rechecks_active_floor_after_settling(fallback) -> None:
+    class SettledTransition(_Transition):
+        def step(self, action):
+            state = super().step(action)
+            state.object_poses[action.object_id] = action.pose.copy()
+            state.object_poses[action.object_id][0] += 0.02
+            self.state = state.copy()
+            return state
+
+    class FloorPolicy:
+        def active_floor_rejection(self, state, action):
+            assert not state.placed_object_indices
+            assert action.pose[0] == pytest.approx(0.02)
+            return "disconnected_active_layer", {"settled_floor_x": action.pose[0]}
+
+    environment = StackingEnvironment(
+        SettledTransition(),
+        _ObservationBuilder(),
+        _RewardEvaluator(),
+    )
+    evaluator = StackingEnvironmentEvaluator(
+        {EvaluationFidelity.LONG: environment},
+        settled_floor_policy=FloorPolicy(),
+    )
+    action = _action(
+        0,
+        diagnostics=(
+            {
+                "floor_fill_fallback": True,
+                "floor_fill_bypassed_reason": "disconnected_active_layer",
+            }
+            if fallback
+            else None
+        ),
+    )
+
+    result = evaluator.evaluate(_state(), action, EvaluationFidelity.LONG)
+
+    assert result.diagnostics["settled_active_floor_checked"]
+    assert result.diagnostics["settled_floor_x"] == pytest.approx(0.02)
+    assert result.failed is (not fallback)
+    assert result.rejection_reason == (
+        None if fallback else "active_floor_disconnected_active_layer"
+    )
+    if fallback:
+        assert result.diagnostics["floor_fill_fallback"]
+        assert result.diagnostics["floor_fill_bypassed_reason"] == (
+            "disconnected_active_layer"
+        )
+
+
 class _BatchEvaluator(_DeterministicEvaluator):
     def __init__(self):
         self.batch_sizes = []

@@ -131,6 +131,10 @@ class OperationsSceneView(QtInteractor):
         if observed is not None:
             self.add_mesh(pv.PolyData(np.asarray(observed)), color='#00d6ce', point_size=3,
                           render_points_as_spheres=False, lighting=False, name='observed/stack_scene')
+        motion_path = getattr(frame, "motion_path_points", None)
+        if motion_path is not None:
+            self.add_lines(np.asarray(motion_path), color="#57e389", width=4,
+                           connected=True, name="execution/motion_path")
         collision_overlay = any(value.geometry_kind == "visual" for value in frame.robot_parts)
         for value in frame.robot_parts:
             self._add_robot_part(value, collision_overlay=collision_overlay)
@@ -279,7 +283,7 @@ class OperationsSceneView(QtInteractor):
     def _add_robot_part(self, value, *, collision_overlay: bool = False) -> None:
         collision = value.geometry_kind == "collision"
         wireframe = collision and collision_overlay
-        preview = value.part_id.startswith('scan_preview/')
+        preview = value.part_id.startswith(('scan_preview/', 'motion_preview/'))
         mesh = self._robot_mesh(value.mesh_path, value.geometry_kind).copy()
         mesh.scale(value.mesh_scale, inplace=True)
         appearance = {"color": "#ffb347" if collision and not preview else value.color}
@@ -321,6 +325,7 @@ def _robot_scene_key(frame, environment_visibility):
         return None
     return (
         id(getattr(frame, "observed_scene_points", None)),
+        id(getattr(frame, "motion_path_points", None)),
         frame.step, frame.active_candidate_id, repr(frame.target), repr(frame.camera),
         tuple(sorted(environment_visibility.items())),
         repr(frame.environment_boxes), repr(frame.object_mesh_paths),

@@ -118,7 +118,10 @@ The **Rendering** toolbar offers the same mesh choices as excavator:
   orange collision wireframes on the visual meshes.
 
 The robot choice is synchronized with the Plan tab and also applies to measured
-Execution poses and cyan scan previews. Changing it preserves playback position.
+Execution poses, the green saved-motion review, and cyan scan previews. At the
+first execution gate, use **Play saved motion** or its slider to inspect the
+translucent green robot and complete green tool path before clicking Continue.
+This preview is read-only. Changing robot geometry preserves playback position.
 Failed planning attempts show the robot at the recorded profile's home pose
 for geometry inspection; this is not a planned motion or measured robot state.
 Motion segment labels include **free** or **attached** when recorded.
@@ -156,26 +159,37 @@ JSON or CSV.
 
 ## UR5e and Dynamixel startup
 
-These commands start hardware controllers from `~/ros2_ws`. Use the installation's
-commissioned calibration and settings; physical commissioning remains pending
-for the migrated application. Start each controller once, in separate terminals.
+Use the integrated tabletop launch wrapper to start the UR driver, admittance
+controller, and the single-owner Dynamixel driver together. It delegates to the
+maintained `ur5e_admittance` arm and gripper launch files, while forwarding the
+commissioned calibration and gripper device.
+
+Starting the gripper driver enables torque and commands OPEN. Clear and support
+the gripper before running this command. Start only one process that owns the
+Dynamixel serial device.
 
 ```bash
-# Terminal 1: UR driver + admittance controller; gripper is separate.
-ros2 launch ur5e_admittance bringup.launch.py \
-  robot_ip:=YOUR_UR5E_IP \
-  kinematics_params_file:=/path/to/ur5e_factory_calibration.yaml
+ros2 launch apps/tabletop/launch/hardware.launch.py
 ```
 
-```bash
-# Terminal 2: single owner of the Dynamixel serial device.
-ros2 launch ur5e_admittance gripper_bringup.launch.py device:=/dev/ttyUSB0
-```
-
-Use the actual serial device path. The arm launch defaults to
+The wrapper defaults to this system's commissioned robot address
+(`192.168.56.101`), factory calibration
+(`/home/inrol-excavator/ros2_ws/ur5e_calibration.yaml`), and gripper device
+(`/dev/ttyUSB0`). Override any of them with launch arguments if the hardware
+assignment changes. This replaces the two-terminal arm/gripper startup. For
+arm-only diagnosis, append `start_gripper:=false`; the separate
+`gripper_bringup.launch.py` command remains available for isolated gripper tests.
+The arm launch defaults to
 `headless_mode:=false`, requiring the robot's External Control program.
-In the Operations Console, select **Execution → Start supervised execution**
-and follow the pickup, close, placement, and release gates. See the
+Keep this launch running, then open the saved plan in another ROS-sourced
+terminal:
+
+```bash
+stacking-tabletop-operations . --run /path/to/planning-run.stack
+```
+
+In the Operations Console, select **Execution → Start supervised execution** and
+follow the pickup, close, placement, and release gates. See the
 [hardware guide](tabletop-hardware.md) for model checks and recovery behavior.
 
 ## FEMTO capture and automatic scanning

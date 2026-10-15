@@ -192,6 +192,46 @@ def test_saved_executor_gates_hold_before_lift_and_durable_success(saved):
     assert len(transport.calls) == count
 
 
+def test_small_start_mismatch_is_automatically_aligned(saved):
+    transport, executor = executor_for(saved)
+    transport.joints[0] = np.deg2rad(3.0)
+    transport.pose = executor.arm.kinematics.pose(transport.joints)
+    transport.refresh()
+    gates = []
+
+    def gate(value):
+        if value is not None:
+            gates.append(value.name)
+            executor.approve(value.token)
+
+    executor.gate_changed = gate
+    results = execute_saved_run(saved, executor)
+    assert all(result.status.value == "succeeded" for result in results)
+    assert gates[0] == "review"
+    assert "start_alignment" not in gates
+    np.testing.assert_allclose(transport.joints, saved.planning.robot.home_positions)
+
+
+def test_large_start_mismatch_requires_approval_before_alignment(saved):
+    transport, executor = executor_for(saved)
+    transport.joints[0] = np.deg2rad(6.0)
+    transport.pose = executor.arm.kinematics.pose(transport.joints)
+    transport.refresh()
+    gates = []
+
+    def gate(value):
+        if value is not None:
+            gates.append(value.name)
+            executor.approve(value.token)
+
+    executor.gate_changed = gate
+    results = execute_saved_run(saved, executor)
+    assert all(result.status.value == "succeeded" for result in results)
+    assert gates[0] == "start_alignment"
+    assert gates.count("start_alignment") == 1
+    np.testing.assert_allclose(transport.joints, saved.planning.robot.home_positions)
+
+
 @pytest.mark.parametrize('mode', ['cancel', 'hold_failure', 'slip'])
 def test_fault_never_releases_or_advances_and_requires_reconciliation(saved, mode):
     transport, executor = executor_for(saved)

@@ -14,9 +14,13 @@ from stacking_common.artifacts.execution import encode_execution_command
 from stacking_common.execution import ExecutionEvent, ExecutionFailure, ExecutionResult, ExecutionStatus
 from stacking_common.execution.values import canonical_json
 
-from .motion import CartesianStreamLimits, pose_error
+from .motion import CartesianStreamLimits, UR_JOINT_NAMES, pose_error
 from .runtime import HardwareError
 from .saved_plan import validate_command
+
+
+AUTOMATIC_START_ALIGNMENT_LIMIT = np.deg2rad(5.0)
+START_ALIGNMENT_MOTION_LIMITS = CartesianStreamLimits(100.0, 0.10, 0.02, 0.20)
 
 
 @dataclass(frozen=True)
@@ -251,6 +255,47 @@ class TabletopMotionExecutor:
         else:
             self.arm.set_rigid_tracking()
 
+    def _align_start(self, expected):
+        """Align small offsets automatically and gate larger corrections."""
+        actual, delta = self.arm.start_offset(expected)
+        self._reference = actual.copy()
+        self._send_telemetry(force=True)
+        maximum = float(np.max(np.abs(delta)))
+        if maximum <= np.deg2rad(2.0):
+            self.arm.validate_start(expected)
+            return
+        index = int(np.argmax(np.abs(delta)))
+        joint = UR_JOINT_NAMES[index]
+        degrees = float(np.rad2deg(abs(delta[index])))
+        approval_required = maximum > AUTOMATIC_START_ALIGNMENT_LIMIT
+        if approval_required:
+            self._gate_wait(
+                "start_alignment",
+                f"Live robot differs from saved home by {degrees:.1f}° at {joint}. "
+                "The cyan robot is the target. Confirm the swept path is clear, then "
+                "Continue to align slowly before executing the plan.",
+            )
+        else:
+            self._phase = "start_alignment"
+        self._emit(
+            "running",
+            start_alignment_started=True,
+            automatic=not approval_required,
+            maximum_joint_error_degrees=degrees,
+        )
+        target = actual + delta
+        self._profile(False)
+        self.arm.execute_path(
+            [actual, target],
+            limits=START_ALIGNMENT_MOTION_LIMITS,
+            progress=lambda _i, _n, q: setattr(self, "_reference", q),
+        )
+        self.arm.validate_start(expected)
+        self._reference = target
+        self._emit("running", start_alignment_completed=True,
+                   automatic=not approval_required,
+                   maximum_joint_error_degrees=degrees)
+
     def _move(self, index, positions=None):
         self._segment = index
         segment = self._command.segments[index]
@@ -308,7 +353,6 @@ class TabletopMotionExecutor:
             self._emit("running")
             self.arm.wait_until_ready()
             self.gripper.wait_until_ready()
-            self.arm.validate_start(command.segments[0].positions[0])
             for event in command.grasp_events:
                 actual = self.arm.kinematics.grasp_pose(command.segments[event.segment_index].positions[event.sample_index])
                 distance, angle = pose_error(actual, _matrix(event.frame_from_grasp))
@@ -318,6 +362,7 @@ class TabletopMotionExecutor:
             if hand.holding or hand.hold_goal is not None:
                 raise ValueError("gripper already holds an object; reconcile before starting")
             self.runtime.poll = self._poll
+            self._align_start(command.segments[0].positions[0])
             self._gate_wait("review", "Review the selected saved motion and confirm the pickup scene is ready. The gripper will open.")
             self._profile(False)
             self._grip(self.gripper.open)

@@ -129,6 +129,20 @@ readiness, measured home joints, model/controller FK, and saved grasp-event FK
 before presenting the first gate. An existing driver hold acknowledgement blocks
 startup until the previous grasp has been reconciled.
 
+While the Execution tab is visible, the console opens a separate read-only ROS
+telemetry monitor and renders the measured UR5e configuration. Leaving the tab
+closes that monitor, and starting execution closes it before the command-owning
+worker connects. The preview does not publish arm, gain, wrench, or gripper
+commands. Missing gripper telemetry does not suppress the measured arm display.
+
+Preflight accepts a measured start within 2 degrees of the saved home directly.
+A 2–5 degree mismatch is corrected automatically with a slow rigid alignment
+move. For a mismatch above 5 degrees, the console displays the saved home as a
+cyan robot and requires explicit approval before making the same slow move. The
+operator must confirm that the swept path is clear because this current-to-home
+segment is not collision replanned. Joint validation remains active, and wrist 3
+uses its literal cable-routing branch rather than a wrapped equivalent.
+
 The executor uses the resolved profile recorded in the run. It verifies the
 context and plan hashes, canonical joint order, finite table bounds, all recorded
 asset bytes and URDF dependencies, home branch, segment continuity and wrist
@@ -175,6 +189,12 @@ from the measured grasp transform; the translucent blue pose is the saved
 placement. The release estimate is retained after retreat and in successful
 journal results. This estimate does not measure object slip or confirm support;
 the operator must inspect the actual grasp and placement.
+
+At the first motion-review gate, the viewport also draws the complete saved tool
+path in green. **Play saved motion** and its slider move a translucent green robot
+through every saved segment while the measured robot remains visible. This is a
+read-only preview: scrubbing or playback never publishes a hardware command, and
+the preview disappears when the review gate closes.
 
 Each command is queued durably before motion. Events and terminal outcomes are
 written on the worker thread. Successful steps are skipped on a later start;

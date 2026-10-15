@@ -151,6 +151,14 @@ class TabletopPlanningCoordinator:
     ) -> tuple[Action, PlacementPlanningResult | None, dict[str, object]]:
         diagnostics: dict[str, object] = {}
         prepared = action.copy()
+        floor_reason_before = None
+        if self.safety is not None:
+            floor_reason_before, _ = self.safety.active_floor_rejection(
+                state, prepared
+            )
+            diagnostics["fixed_scene_active_floor_before_resettle_reason"] = (
+                floor_reason_before
+            )
         if self.placement_backend is not None:
             fixed_state = state.copy()
             fixed_state.pose_identified_object_ids.update(
@@ -180,22 +188,61 @@ class TabletopPlanningCoordinator:
                 return prepared, self._infeasible(
                     f"fixed_scene_resettle_{reason}", diagnostics
                 ), diagnostics
-            settled_pose = placement.object_poses[prepared.object_id]
-            diagnostics["fixed_scene_resettle_position_delta"] = float(
-                np.linalg.norm(settled_pose[:3] - prepared.pose[:3])
+            previous_pose = prepared.pose.copy()
+            settled_pose = np.asarray(
+                placement.object_poses[prepared.object_id], dtype=float
             )
-            prepared.pose = np.asarray(settled_pose, dtype=float).copy()
+            diagnostics["fixed_scene_resettle_position_delta"] = float(
+                np.linalg.norm(settled_pose[:3] - previous_pose[:3])
+            )
+            diagnostics["fixed_scene_resettle_rotation_delta"] = (
+                self._quaternion_distance(
+                    previous_pose[3:], settled_pose[3:]
+                )
+            )
+            prepared.pose = settled_pose.copy()
 
         if self.safety is not None:
             reason, active_floor = self.safety.active_floor_rejection(
                 state, prepared
             )
             diagnostics.update(active_floor)
-            if reason is not None:
+            relaxed = bool(action.diagnostics.get("floor_fill_fallback", False))
+            if relaxed:
+                diagnostics.update(
+                    floor_fill_fallback=True,
+                    floor_fill_bypassed_reason=(
+                        reason
+                        or floor_reason_before
+                        or action.diagnostics.get("floor_fill_bypassed_reason")
+                    ),
+                )
+            classification_tolerated = bool(
+                reason is not None
+                and floor_reason_before is None
+                and diagnostics.get("fixed_scene_resettle_position_delta", 0.0)
+                <= self.safety.resettle_floor_translation_tolerance
+                and diagnostics.get("fixed_scene_resettle_rotation_delta", 0.0)
+                <= self.safety.resettle_floor_rotation_tolerance
+            )
+            if classification_tolerated:
+                diagnostics.update(
+                    fixed_scene_active_floor_tolerance_applied=True,
+                    fixed_scene_active_floor_after_resettle_reason=reason,
+                )
+            if reason is not None and not relaxed and not classification_tolerated:
                 return prepared, self._infeasible(
                     f"active_floor_{reason}", diagnostics
                 ), diagnostics
         return prepared, None, diagnostics
+
+    @staticmethod
+    def _quaternion_distance(left: np.ndarray, right: np.ndarray) -> float:
+        left = np.asarray(left, dtype=float)
+        right = np.asarray(right, dtype=float)
+        denominator = np.linalg.norm(left) * np.linalg.norm(right)
+        cosine = abs(float(np.dot(left, right))) / denominator
+        return float(2.0 * np.arccos(np.clip(cosine, -1.0, 1.0)))
 
     def _validate_released_pose(
         self,
