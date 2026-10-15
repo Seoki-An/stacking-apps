@@ -39,7 +39,7 @@
 # - max_weight: descendant share in mixed mode; number in [0, 1].
 # - validate_descendant_path: long-check the promoted path; true | false.
 # - validate_descendant_depth: checked continuation depth; integer >= 0.
-# - require_validated_descendant: reject roots without a valid path; true | false.
+# - require_validated_descendant: prefer valid paths; fall back to feasible roots only at exhaustion.
 #
 # parallel
 # - enabled: parallel pose generation and simulation; true | false.

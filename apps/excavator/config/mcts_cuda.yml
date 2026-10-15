@@ -38,6 +38,7 @@ final_selection:
   max_weight: 0.5  # Legacy default for mode: max_descendant.
   validate_descendant_path: true
   validate_descendant_depth: 2
+  # Prefer validated paths; at final exhaustion, use the best physically validated root.
   require_validated_descendant: true
 parallel:
   # Per-scene body/geometry minima cover the full inventory plus target.

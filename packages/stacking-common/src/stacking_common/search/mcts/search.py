@@ -351,6 +351,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         self._apply_execution_rejections(root, request, counters)
         completed = 0
         selected, ranked_candidates = None, ()
+        descendant_fallbacks = []
         revalidation = SubtreeRevalidationResult()
         fallback = FloorFillFallbackResult()
         backend_failure = None
@@ -419,7 +420,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     completed += consumed
 
             selected, ranked_candidates = self._final_select(
-                root, request, counters, deadline
+                root, request, counters, deadline, descendant_fallbacks=descendant_fallbacks
             )
             excluded_actions = [
                 child.action
@@ -487,12 +488,19 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     if child.action is not None
                 )
                 selected, ranked_candidates = self._final_select(
-                    root, request, counters, deadline
+                    root, request, counters, deadline, descendant_fallbacks=descendant_fallbacks
                 )
             if selected is None:
                 selected, ranked_candidates, fallback = self._run_floor_fill_fallback(
-                    root, request, counters, deadline
+                    root, request, counters, deadline, descendant_fallbacks=descendant_fallbacks
                 )
+            if selected is None:
+                selected, ranked_candidates = self._select_descendant_fallback(
+                    root, request, descendant_fallbacks
+                )
+                if (selected is not None and fallback.attempted
+                        and selected.action.diagnostics.get(f"{fallback.policy}_fallback")):
+                    fallback = replace(fallback, selected=True)
         except BackendCapacityError as error:
             # Resource exhaustion is independent of sampling retries or floor
             # relaxation. Preserve the partial tree and stop this search now.
@@ -587,7 +595,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             ),
         )
 
-    def _run_floor_fill_fallback(self, root, request, counters, deadline):
+    def _run_floor_fill_fallback(self, root, request, counters, deadline, *, descendant_fallbacks=None):
         """Retry corner seeds or floor filling within the original deadline.
 
         After the first pool, up to rejected_root_retry_rounds fresh pools run,
@@ -639,7 +647,9 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     self._run_root_lookahead_batch(coverage, request, counters)
                 self._extend_retry_paths(root, request, counters, deadline)
                 excluded.extend(child.action for child in root.children if child.action is not None)
-                selected, ranked = self._final_select(root, request, counters, deadline)
+                selected, ranked = self._final_select(
+                    root, request, counters, deadline, descendant_fallbacks=descendant_fallbacks
+                )
                 if selected is not None:
                     break
             return selected, ranked, FloorFillFallbackResult(
@@ -1584,7 +1594,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     child.evaluated and child.selectable
                 )
 
-    def _final_select(self, root, request, counters, deadline=None):
+    def _final_select(self, root, request, counters, deadline=None, *, descendant_fallbacks=None):
         if root.state is None:
             return None, ()
         children = root.evaluated_children()
@@ -1639,6 +1649,10 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         scored = []
         for child in candidates:
             score = self._final_root_score(child, path_scores.get(child))
+            if (descendant_fallbacks is not None
+                    and child.rejection_reason == "missing_validated_descendant"
+                    and child not in descendant_fallbacks):
+                descendant_fallbacks.append(child)
             if math.isfinite(score):
                 child.info["final_selection_mode"] = (
                     self.config.final_selection.mode
@@ -1650,6 +1664,36 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         scored.sort(key=lambda pair: pair[1], reverse=True)
         ranked_candidates = tuple(child for child, _ in scored)
         return ranked_candidates[0], ranked_candidates
+
+    def _select_descendant_fallback(self, root, request, candidates):
+        """Last resort after all search retries: relax only the descendant gate.
+
+        Keep candidates across retired root pools, but require the placement
+        itself to have passed authoritative validation. No new work is started,
+        so this also applies when the search/validation budget has expired.
+        """
+        fidelity = self._authoritative_fidelity(request)
+        ranked = [child for child in candidates
+                  if child.rejection_reason == "missing_validated_descendant"
+                  and self._is_authoritative(child, fidelity)
+                  and not child.state.failed
+                  and child.action is not None
+                  and request.execution_rejections.reason(child.action) is None
+                  and math.isfinite(self._mean_root_score(child))]
+        ranked.sort(key=self._mean_root_score, reverse=True)
+        for child in ranked:
+            child.failed = False
+            child.rejection_reason = None
+            child.info.update(
+                validated_descendant_path_available=False,
+                validated_descendant_fallback=True,
+                final_selection_used_mean_fallback=True,
+                final_selection_mode=self.config.final_selection.mode,
+                final_selection_score=float(self._mean_root_score(child)),
+            )
+            if child.parent is None:
+                root.attach(child)
+        return (ranked[0] if ranked else None), tuple(ranked)
 
     def _repair_floor_continuations(self, candidates, scores, request, counters, deadline):
         """Keep validated root placements while relaxing only their continuations.
@@ -1852,6 +1896,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
 
     def _final_root_score(self, child, path_score) -> float:
         selection = self.config.final_selection
+        child.info.pop("validated_descendant_fallback", None)
         mean_score = self._mean_root_score(child)
         if self._final_selection_weight() <= 0.0:
             return mean_score
@@ -1860,6 +1905,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             path_score is not None and math.isfinite(path_score)
         )
         if path_score is None or not math.isfinite(path_score):
+            child.info.pop("validated_descendant_path_return", None)
             child.info["final_selection_used_mean_fallback"] = True
             if selection.require_validated_descendant:
                 child.reject("missing_validated_descendant", info=child.info)

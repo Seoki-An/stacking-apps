@@ -173,7 +173,14 @@ The current drift metric is maximum translational displacement among objects
 common to both states.
 
 With `require_validated_descendant: true`, a missing path is excluded after
-repair. With it false, an unavailable path falls back to the mean score. In
+repair while root retries and floor/corner relaxation continue. If those attempts
+are exhausted (including the wall-time budget) and no qualifying root remains,
+final selection falls back to the best otherwise-feasible root by `M(a)`.
+Candidates from retired retry pools are retained for this last-resort selection.
+Only roots that passed authoritative placement validation are eligible; physical
+failures, unvalidated roots, and execution exclusions are never revived. A root
+with a validated continuation always takes precedence over this fallback.
+With the requirement false, an unavailable path falls back to the mean score immediately. In
 `mean` mode, descendant-path scoring and repair are bypassed. At depth zero,
 the path score is just the candidate's immediate reward; enabling the path
 validation flag does not create additional lookahead.
@@ -222,6 +229,11 @@ deadline. Saved statistics record its pool, generated, and accepted counts.
 `missing_validated_descendant` means no qualifying continuation was found within
 these limits. It does not prove the immediate placement is physically invalid
 or that no feasible continuation exists.
+When final selection relaxes this requirement, the selected/ranked candidates
+record `validated_descendant_fallback: true`,
+`validated_descendant_path_available: false`, and
+`final_selection_used_mean_fallback: true`. This does not claim that their
+continuations passed validation.
 
 ## Tree reuse across placements
 

@@ -1225,7 +1225,10 @@ def test_retry_builds_required_descendant_path(depth):
 def test_retry_depth_extension_preserves_physical_validation():
     result = _retry_path_search(2, _RetryPathEvaluator(fail_descendants=True))
 
-    assert result.selected is None
+    assert result.selected is not None
+    assert not result.selected.state.failed
+    assert result.selected.info["validated_descendant_fallback"]
+    assert result.selected.action.pose[0] >= 2.0  # The failed roots stay excluded.
     assert result.descendant_validation_failures > 0
 
 
@@ -1237,7 +1240,8 @@ def test_retry_depth_extension_stops_at_deadline(monkeypatch):
     evaluator = _RetryPathEvaluator(clock=clock)
     result = _retry_path_search(2, evaluator)
 
-    assert result.selected is None
+    assert result.selected is not None
+    assert result.selected.info["validated_descendant_fallback"]
     assert result.timed_out
     assert max(d for _, batch in evaluator.batches for d in batch) == 2
 
@@ -1396,8 +1400,10 @@ def test_descendant_validation_skips_children_that_failed_short(long_failures, p
 
     assert evaluator.batches == [1]  # The short-failed child is never long-validated.
     if path_return is None:
-        assert result.selected is None
-        assert child.rejection_reason == "missing_validated_descendant"
+        assert result.selected is child
+        assert child.rejection_reason is None
+        assert child.info["validated_descendant_fallback"]
+        assert not child.info["validated_descendant_path_available"]
     else:
         assert result.selected.info["validated_descendant_path_return"] == path_return
 
@@ -1531,7 +1537,8 @@ def test_floor_root_survives_when_only_its_continuation_needs_relaxation(fail_de
         final_validation_fidelity=EvaluationFidelity.LONG))
     assert not generator.relaxed
     if fail_descendants:
-        assert result.selected is None
+        assert result.selected is not None
+        assert result.selected.info["validated_descendant_fallback"]
         assert result.floor_fill_fallback.attempted
         return
     assert result.selected is not None
@@ -1547,24 +1554,27 @@ def test_floor_root_survives_when_only_its_continuation_needs_relaxation(fail_de
 
 
 @pytest.mark.parametrize('fail_descendants', [False, True])
-def test_floor_fallback_preserves_physics_and_required_continuations(fail_descendants):
+def test_floor_fallback_preserves_physics_but_relaxes_missing_continuations(fail_descendants):
     generator = _FloorFallbackGenerator()
     evaluator = _FloorFallbackEvaluator(fail_relaxed=not fail_descendants,
                                        fail_descendants=fail_descendants)
     result = _floor_fallback_search(generator, evaluator, depth=3 if fail_descendants else 1).search(
         MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
             final_validation_fidelity=EvaluationFidelity.LONG))
-    assert result.selected is None
     assert result.floor_fill_fallback.attempted
-    assert not result.floor_fill_fallback.selected
+    assert result.floor_fill_fallback.selected is fail_descendants
     assert result.floor_fill_fallback.pools == 3  # First pool plus two retry pools.
     assert not generator.relaxed
     if fail_descendants:
+        assert result.selected is not None
+        assert result.selected.info["validated_descendant_fallback"]
+        assert not result.selected.state.failed
         # Relaxed-floor descendants fail at short search fidelity, so none is
         # revalidated long.
         assert (True, EvaluationFidelity.SHORT) in evaluator.calls
         assert result.descendant_validation_failures == 0
     else:
+        assert result.selected is None
         assert result.floor_fill_fallback.accepted == 0
 
 

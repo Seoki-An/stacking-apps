@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from dataclasses import replace
 
 from stacking_common.domain import Action, State
 from stacking_common.search import (
@@ -221,3 +222,73 @@ def test_repair_does_not_change_selection_without_required_validation(mode):
     child(root, 0)
     search._final_select(root, request, _SearchCounters())
     assert not generator.calls
+
+
+@pytest.mark.parametrize("retry_rounds", [0, 2])
+def test_exhausted_search_selects_best_feasible_root_across_retired_pools(retry_rounds):
+    root, generator, _, search, request = setup()
+    generator.generate = lambda *args: ActionGenerationResult((), attempts=0, exhausted=True)
+    search.config = replace(search.config, rejected_root_retry_rounds=retry_rounds)
+    roots = [child(root, index, reward=score) for index, score in enumerate((2., 7., 4.))]
+    for node in roots:
+        node.expansion_exhausted = True
+        node.record_visit(node.reward)
+    root.expansion_exhausted = True
+    result = search.search(root, replace(request, reset_statistics=False))
+    assert result.selected is roots[1]
+    assert result.ranked_candidates == (roots[1], roots[2], roots[0])
+    for node in result.ranked_candidates:
+        assert node.selectable and node.parent is root
+        assert not node.state.failed
+        assert node.info["validated_descendant_fallback"]
+        assert not node.info["validated_descendant_path_available"]
+        assert node.info["final_selection_used_mean_fallback"]
+        assert node.info["final_selection_score"] == node.mean_value
+    assert result.root_retry.rounds == (1 if retry_rounds else 0)
+    # Restored roots remain usable by normal session promotion.
+    from stacking_common.search import MCTSSession
+    session = MCTSSession(search, root)
+    assert session.promote(result.selected).state.placed_object_indices == [1]
+
+
+def test_exhausted_search_prefers_valid_descendant_over_higher_mean_fallback():
+    root, _, _, search, request = setup()
+    root.expansion_exhausted = True
+    missing = child(root, 0, reward=100.)
+    missing.expansion_exhausted = True
+    missing.record_visit(100.)
+    ready = child(root, 1, reward=1.)
+    child(child(ready, 2), 3)
+    result = search.search(root, replace(request, reset_statistics=False))
+    assert result.selected is ready
+    assert not ready.info.get("validated_descendant_fallback", False)
+    assert missing.rejection_reason == "missing_validated_descendant"
+
+
+def test_descendant_fallback_never_revives_physical_or_execution_failures():
+    from stacking_common.search import ExecutionRejections
+    root, _, _, search, request = setup()
+    candidates = [child(root, index) for index in range(5)]
+    for node in candidates:
+        node.reject("missing_validated_descendant")
+    candidates[0].reject("simulation_unsettled")
+    candidates[1].state.failed = True
+    candidates[2].info["authoritative_fidelity"] = "short"
+    candidates[4].info.clear()
+    request = replace(request, execution_rejections=ExecutionRejections(actions=(candidates[3].action,)))
+    selected, ranked = search._select_descendant_fallback(root, request, candidates)
+    assert selected is None and ranked == ()
+    assert all(not node.selectable for node in candidates)
+
+
+def test_descendant_fallback_uses_validated_root_after_deadline_without_new_work(monkeypatch):
+    root, generator, evaluator, search, request = setup()
+    candidate = child(root, 0, reward=3.)
+    candidate.record_visit(3.)
+    ticks = iter([0., 2.])
+    monkeypatch.setattr("stacking_common.search.mcts.search.time.monotonic", lambda: next(ticks, 2.))
+    result = search.search(root, replace(request, max_time_seconds=1., reset_statistics=False))
+    assert result.selected is candidate
+    assert result.timed_out
+    assert candidate.info["validated_descendant_fallback"]
+    assert not generator.calls and not evaluator.calls
