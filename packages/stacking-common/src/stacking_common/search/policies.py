@@ -105,7 +105,11 @@ class PlacementPriorScorer(Generic[ObservationT]):
                 if containment_value is None
                 else containment_value
             )
-            stability = -min(max(action.c_feq, 0.0) / self.posegen_threshold, 1.0)
+            equilibrium = float(action.diagnostics.get(
+                "posegen_equilibrium_residual_normalized",
+                action.c_feq / self.posegen_threshold,
+            ))
+            stability = -min(max(equilibrium, 0.0), 1.0)
             planar = float(candidate.diagnostics.get("planar_score", 0.0))
             score = (
                 self.stability_weight * stability

@@ -159,7 +159,7 @@ the committed scene, action, or nominal trajectories.
 | Field under `reward.place_stability` | Excavator | Tabletop |
 | --- | --- | --- |
 | `enabled` | `true` | `true` |
-| `n_noise` | 4 | 8 |
+| `n_noise` | 4 | 4 |
 | `linear_velocity_std` (world XYZ, m/s) | `[0.05, 0.05, 0.05]` | `[0.02, 0.02, 0.02]` |
 | `angular_velocity_std_deg` (each body axis, deg/s) | 5 | 5 |
 | `rotation_weight` (metres/radian) | 0.1 | 0.01 |
@@ -177,8 +177,35 @@ The score is the largest **peak** excursion across trials and dynamic bodies:
 translation from that body's nominal settled position plus `rotation_weight`
 times its shortest rotation angle in radians. Every integration step is checked;
 a stone cannot hide a large excursion by returning to its initial pose.
-`reward.weights.place_stability` multiplies the negative score. Reward clipping
-via `max_displacement` does not affect rejection checks.
+The dimensionless penalty is `-excursion / reward.displacement_reference`,
+multiplied by `reward.weights.place_stability`. The reference is explicitly
+0.15 m for excavator and 0.015 m for tabletop, matching their current failure
+limits. Thus half the reference excursion contributes -0.5 before weighting on
+either platform. The reference remains independent of the rejection limit so
+soft scoring also works when rejection is disabled. Nonfinite replacement and
+`max_displacement` clipping operate in metres before normalization and do not
+affect rejection checks. Reward diagnostics retain the processed displacement
+in metres and report its reference; the action retains the original excursion.
+Older profiles without the reference use 1 m to preserve their previous scores.
+
+Pose-generation equilibrium scoring is also dimensionless. For each body with
+a native net wrench, let `F` be its residual force, `tau` its residual torque,
+`m` its mass, `g` the configured gravity, and `L = volume^(1/3)`. CPU and CUDA
+adapters report `posegen_equilibrium_residual_normalized` as the maximum of
+`||F||_2 / (m*g) + ||tau||_2 / (m*g*L)` across those bodies. Reward and placement
+prior use its negative value, capped at magnitude one. Per-body normalization
+avoids dependence on unused inventory masses, and Euclidean norms avoid
+dependence on the world-axis orientation. Geometrically similar objects with
+equal relative residuals receive equal penalties; this does not imply their
+physical disturbance responses are identical.
+
+The existing `c_feq` metric and feasibility thresholds remain unchanged and
+still need separate calibration across platforms. Historical actions and
+backends without native wrench diagnostics retain the legacy
+`c_feq / reward.posegen_threshold` scoring; reward info marks this with
+`equilibrium_legacy_scaling: true`. Missing force and torque data cannot be
+reconstructed from the old scalar. Regenerate those samples before mixing
+their equilibrium rewards into a dataset using the new normalization.
 
 Trials use structural physics, twice the structural timestep, and its time and
 quiet-window bounds. Energy must remain below threshold for the quiet window

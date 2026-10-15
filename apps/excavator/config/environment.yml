@@ -10,10 +10,12 @@ observation:
   render_height_map: true
 reward:
   overlap_resolution: 0.03
-  posegen_threshold: 1.0
+  posegen_threshold: 1.0  # Legacy reward fallback; native equilibrium uses body weight/size.
   containment_threshold: 0.5
   nonfinite_displacement: 2.0
   max_displacement: 1.0
+  # Reward unit in metres of combined excursion; matches the current failure limit.
+  displacement_reference: 0.15
   # Velocity disturbances from the nominal settled scene; poses stay unchanged.
   place_stability:
     enabled: true

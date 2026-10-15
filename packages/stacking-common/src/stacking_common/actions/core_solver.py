@@ -204,7 +204,11 @@ class CorePlacementPoseSolver:
             np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]),
             mobility=core_module.Mobility.STATIC,
         )
-        self.generator = core_module.PoseGenerator(profile.native_config(core_module))
+        config = profile.native_config(core_module)
+        self.gravity = float(config.objective.gravity)
+        if not math.isfinite(self.gravity) or self.gravity <= 0.0:
+            raise ValueError("equilibrium normalization requires positive finite gravity")
+        self.generator = core_module.PoseGenerator(config)
 
     def solve(
         self,
@@ -319,6 +323,28 @@ class CorePlacementPoseSolver:
             default=float(result.c_feq),
         )
         mass_scale = max(stack_object.mass for stack_object in self.inventory)
+        if result.net_wrench:
+            # Native entity IDs are inventory indices + 1, not object IDs.
+            # Use each participating body's own weight and volume length scale.
+            residuals = []
+            for entity_id, wrench in result.net_wrench.items():
+                index = int(entity_id) - 1
+                if not 0 <= index < len(self.inventory):
+                    raise ValueError("equilibrium wrench has an unknown body entity ID")
+                body = self.inventory[index]
+                if not (math.isfinite(body.mass) and body.mass > 0.0
+                        and math.isfinite(body.volume) and body.volume > 0.0):
+                    raise ValueError("equilibrium normalization requires positive finite mass and volume")
+                wrench = np.asarray(wrench, dtype=float)
+                if wrench.shape != (6,) or not np.all(np.isfinite(wrench)):
+                    raise ValueError("equilibrium wrench must be a finite six-vector")
+                weight = body.mass * self.gravity
+                length = float(np.cbrt(body.volume))
+                residuals.append(float(np.linalg.norm(wrench[:3]) / weight
+                                       + np.linalg.norm(wrench[3:]) / (weight * length)))
+            diagnostics["posegen_equilibrium_residual_normalized"] = max(residuals)
+        # Preserve the calibrated legacy feasibility metric; only reward/prior
+        # scoring uses the dimensionless residual above.
         return dict(
             pose=np.asarray(result.optimal_pose, dtype=float),
             c_feq=wrench_norm / mass_scale,

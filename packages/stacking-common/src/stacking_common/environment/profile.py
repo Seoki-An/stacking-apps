@@ -71,6 +71,7 @@ class EnvironmentProfile:
                 _required(reward, "nonfinite_displacement")
             ),
             max_displacement=_optional_float(reward, "max_displacement"),
+            displacement_reference=float(reward.get("displacement_reference", 1.0)),
             weights=RewardWeights(
                 surface_flatness=float(weights.get("surface_flatness", 0.0)),
                 stability=float(_required(weights, "stability")),

@@ -21,7 +21,7 @@ def pose(z=.2):
 
 @pytest.mark.parametrize('platform,count,std,weight', [
     ('excavator', 4, [.05, .05, .05], .1),
-    ('tabletop', 8, [.02, .02, .02], .01),
+    ('tabletop', 4, [.02, .02, .02], .01),
 ])
 def test_platform_profiles_reproduce_seeded_velocity_disturbances(platform, count, std, weight):
     config = load_environment_profile(ROOT / f'apps/{platform}/config/environment.yml').place_stability

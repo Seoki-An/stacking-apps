@@ -64,8 +64,11 @@ class RewardConfig:
     weights: RewardWeights
     nonfinite_displacement: float = 2.0
     max_displacement: float | None = None
+    displacement_reference: float = 1.0
 
     def __post_init__(self) -> None:
+        if not np.isfinite(self.displacement_reference) or self.displacement_reference <= 0.0:
+            raise ValueError("displacement reference must be positive and finite")
         if (
             not np.isfinite(self.posegen_threshold)
             or self.posegen_threshold <= 0.0
@@ -179,10 +182,14 @@ class StackingReward:
         overlap_increment = max(overlap_delta, 0.0)
         normalized_overlap_increment = overlap_increment * self.target_overlap_increment_scale
 
-        stability = -min(
-            action.c_feq / self.config.posegen_threshold, 1.0
-        )
-        place_stability = -displacement
+        equilibrium = action.diagnostics.get("posegen_equilibrium_residual_normalized")
+        legacy_equilibrium = equilibrium is None
+        if legacy_equilibrium:
+            # Historical artifacts do not contain separate force/torque residuals.
+            equilibrium = action.c_feq / self.config.posegen_threshold
+        equilibrium = float(equilibrium)
+        stability = -min(max(equilibrium, 0.0), 1.0)
+        place_stability = -displacement / self.config.displacement_reference
         large_object_lower = self._large_object_lower_score(state)
         inward_orientation = self._inward_orientation_score(
             placed_index, placed_pose
@@ -226,6 +233,8 @@ class StackingReward:
             "surface_flatness": flatness,
             "surface_flatness_reward": weights.surface_flatness * flatness,
             "stability": stability,
+            "equilibrium_residual": equilibrium,
+            "equilibrium_legacy_scaling": legacy_equilibrium,
             "target_IoU": target_overlap,
             "previous_target_IoU": previous_overlap,
             "target_IoU_delta": overlap_delta,
@@ -240,6 +249,7 @@ class StackingReward:
             "target_containment_threshold": self.config.containment_threshold,
             "place_stability": place_stability,
             "place_robustness_displacement": displacement,
+            "place_robustness_displacement_reference": self.config.displacement_reference,
             "place_robustness_nonfinite": nonfinite,
             "place_robustness_clipped": clipped,
             "large_object_lower": large_object_lower,
