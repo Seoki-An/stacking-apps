@@ -157,3 +157,21 @@ def test_unresolved_stream_request_reports_pinned_device_and_modes(profile_path)
     api.pipeline = RejectedPipeline
     with pytest.raises(RuntimeError, match=r'pinned D435 camera-A.*1280x720.*848x480.*15 fps'):
         RealSenseCamera(calibration, rs=api)
+
+
+@pytest.mark.parametrize('detected, detail', [
+    ([], 'none (SDK enumerated zero devices)'),
+    (['camera-B'], 'camera-B'),
+    (['camera-A', 'camera-A'], 'matches=2'),
+])
+@pytest.mark.parametrize('operation', [list_profiles, RealSenseCamera])
+def test_enumeration_failure_reports_identity_without_starting_streams(profile_path, detected, detail, operation):
+    calibration = HandEyeCalibration.load(profile_path)
+    api, state = sdk(calibration)
+    devices = [NS(get_info=lambda key, serial=serial: serial) for serial in detected]
+    api.context = lambda: NS(query_devices=lambda: devices)
+    with pytest.raises(ValueError) as error:
+        operation(calibration, rs=api)
+    assert 'pinned D435 camera-A' in str(error.value)
+    assert detail in str(error.value)
+    assert state.starts == 0

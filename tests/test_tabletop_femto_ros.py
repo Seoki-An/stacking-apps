@@ -120,6 +120,20 @@ def test_pairing_uses_each_exposure_once_and_rejects_unsynchronized_or_old_data(
         assert len(transport.buffer.after(0)) == 2
 
 
+def test_stream_diagnostics_distinguish_missing_cloud_and_unsynchronized_pairs(calibration):
+    with FemtoRosTransport(calibration, node=Node(), bindings=bindings()) as transport:
+        assert transport.diagnostics() == dict(depth_messages=0, cloud_messages=0,
+                                             matched_pairs=0, camera_info_received=False)
+        transport._camera_info(info_message())
+        transport._depth(depth_message())
+        assert transport.diagnostics()['cloud_messages'] == 0
+        transport._cloud(NS(header=header(2_000_000_000)))
+        assert transport.diagnostics()['matched_pairs'] == 0
+        transport._cloud(NS(header=header(1_001_000_000)))
+        assert transport.diagnostics() == dict(depth_messages=1, cloud_messages=2,
+                                             matched_pairs=1, camera_info_received=True)
+
+
 def test_callback_frame_error_is_latched_for_command_worker(calibration):
     with FemtoRosTransport(calibration, node=Node(), bindings=bindings()) as transport:
         transport._camera_info(info_message())

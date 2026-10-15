@@ -62,6 +62,7 @@ class FemtoRosTransport:
         self._depths, self._clouds = deque(maxlen=16), deque(maxlen=16)
         self._joints, self._gripper = deque(maxlen=300), deque(maxlen=300)
         self._info = None
+        self._received = {'depth_messages': 0, 'cloud_messages': 0, 'matched_pairs': 0}
         self._error = None
         if node is None:
             self._context = api.Context()
@@ -139,6 +140,11 @@ class FemtoRosTransport:
     def _depth(self, message):
         self._receive(message, self._depths, self._clouds, True)
 
+    def diagnostics(self):
+        """Receipt counts distinguish absent streams from rejected frame pairs."""
+        with self._lock:
+            return {**self._received, 'camera_info_received': self._info is not None}
+
     def _cloud(self, message):
         self._receive(message, self._clouds, self._depths, False)
 
@@ -149,6 +155,7 @@ class FemtoRosTransport:
                 raise CaptureError('FEMTO stream has a zero source timestamp')
             now = self.clock()
             with self._lock:
+                self._received['depth_messages' if is_depth else 'cloud_messages'] += 1
                 # Buffer the delayed stream without reusing an exposure twice.
                 while other and now - other[0][2] > .5:
                     other.popleft()
@@ -157,6 +164,7 @@ class FemtoRosTransport:
                     own.append((stamp, message, now))
                     return
                 other.remove(match)
+                self._received['matched_pairs'] += 1
                 info = self._info
             if info is None:
                 return

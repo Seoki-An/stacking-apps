@@ -166,8 +166,21 @@ def test_capture_warmup_distinct_frames_exact_transform_and_cancellation(calibra
 def test_capture_timeout_never_falls_back_to_latest_or_unmatched_state(calibration, missing):
     transport, adapter = camera(calibration)
     setattr(transport, missing, False)
-    with pytest.raises(CaptureError, match='timed out'):
+    expected = {'frames': 'fresh synchronized depth/cloud frames',
+                'transforms': 'exact transform camera_link',
+                'robot': 'timestamp-matched robot/gripper state'}
+    with pytest.raises(CaptureError, match=expected[missing]) as error:
         adapter.capture(in_hand=True, timeout=5.)
+    assert 'captured=0/7' in str(error.value)
+
+
+def test_capture_timeout_includes_transport_receipt_counts(calibration):
+    transport, adapter = camera(calibration)
+    transport.frames = False
+    transport.diagnostics = lambda: {'depth_messages': 0, 'cloud_messages': 0,
+                                    'camera_info_received': False}
+    with pytest.raises(CaptureError, match='depth_messages=0, cloud_messages=0'):
+        adapter.capture(timeout=1.)
 
 
 def test_wrong_live_camera_and_motion_during_burst_fail(calibration):

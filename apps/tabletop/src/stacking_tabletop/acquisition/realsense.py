@@ -36,17 +36,31 @@ def bindings():
     return rs
 
 
+def _pinned_device(context, rs, serial):
+    devices = list(context.query_devices())
+    serials = [device.get_info(rs.camera_info.serial_number) for device in devices]
+    matches = [device for device, found in zip(devices, serials) if found == serial]
+    if len(matches) != 1:
+        detected = ', '.join(serials) if serials else 'none (SDK enumerated zero devices)'
+        raise ValueError(
+            f'expected exactly one connected device matching pinned D435 {serial}; '
+            f'matches={len(matches)}; SDK-detected serials: {detected}. '
+            'No streams were started. A busy camera driver/viewer can also hide the device from the SDK. '
+            'Check the D435 USB connection and device access, '
+            'then run hand_eye_capture_cli profiles before retrying. '
+            'Keep the calibrated serial unchanged unless replacing and recalibrating the camera.')
+    return matches[0]
+
+
 def list_profiles(calibration, *, rs=None):
     """Enumerate the pinned device without starting streams or setting options."""
     rs = bindings() if rs is None else rs
     context = rs.context()
-    for device in context.query_devices():
-        if device.get_info(rs.camera_info.serial_number) == calibration.profile.serial:
-            return dict(serial=calibration.profile.serial,
-                        profiles=sorted({str(p) for s in device.query_sensors()
-                                         for p in s.get_stream_profiles()}),
-                        simultaneous_stream_combination_verified=False)
-    raise ValueError('pinned D435 serial is not connected')
+    device = _pinned_device(context, rs, calibration.profile.serial)
+    return dict(serial=calibration.profile.serial,
+                profiles=sorted({str(p) for s in device.query_sensors()
+                                 for p in s.get_stream_profiles()}),
+                simultaneous_stream_combination_verified=False)
 
 
 class RealSenseCamera:
@@ -62,11 +76,7 @@ class RealSenseCamera:
         self._restore = []
         self.calibration = calibration
         self.context = rs.context()
-        devices = [d for d in self.context.query_devices()
-                   if d.get_info(rs.camera_info.serial_number) == calibration.profile.serial]
-        if len(devices) != 1:
-            raise ValueError('expected exactly one connected device matching the pinned D435 serial')
-        self.device = devices[0]
+        self.device = _pinned_device(self.context, rs, calibration.profile.serial)
         self.sensors = self.device.query_sensors()
         self.available_profiles = sorted({str(p) for s in self.sensors for p in s.get_stream_profiles()})
         try:

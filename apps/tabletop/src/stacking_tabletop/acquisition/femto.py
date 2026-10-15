@@ -198,23 +198,39 @@ class FemtoCamera:
             seen = 0
             last_stamp = 0
             captured = []
+            waiting_for = 'fresh synchronized depth/cloud frames'
+            stale = 0
             while len(captured) < 7:
                 health()
                 if self.clock() >= deadline:
-                    raise CaptureError('FEMTO capture timed out waiting for fresh synchronized frames and exact transforms')
+                    diagnostics = getattr(self.transport, 'diagnostics', lambda: {})()
+                    details = ', '.join(f'{key}={value}' for key, value in diagnostics.items())
+                    raise CaptureError(
+                        f'FEMTO capture timed out; last wait: {waiting_for}; '
+                        f'fresh_pairs={seen}, stale_pairs={stale}, captured={len(captured)}/7'
+                        + (f'; transport since connection: {details}' if details else ''))
                 for frame in self.transport.buffer.after(cursor):
                     cursor = frame.sequence
                     if self.clock() - frame.received_at > .5:
+                        stale += 1
+                        waiting_for = 'fresh frames (received pairs are stale)'
                         continue
                     seen += 1
-                    if seen <= 10 or frame.cloud_stamp_ns - last_stamp < 200_000_000:
+                    if seen <= 10:
+                        waiting_for = f'warmup frames ({seen}/10)'
+                        continue
+                    if frame.cloud_stamp_ns - last_stamp < 200_000_000:
+                        waiting_for = 'next exposure at least 200 ms after the last capture'
                         continue
                     factory = self.transport.lookup(self.calibration.pose.child_frame, frame.frame_id, frame.cloud_stamp_ns)
                     if factory is None:
+                        waiting_for = (f'exact transform {self.calibration.pose.child_frame}'
+                                       f' <- {frame.frame_id} at the exposure timestamp')
                         continue
                     base = self.calibration.transform(factory)
                     robot = self.transport.robot_at(frame.cloud_stamp_ns, self.calibration.profile.base_frame) if in_hand else None
                     if in_hand and robot is None:
+                        waiting_for = 'timestamp-matched robot/gripper state and tool transform'
                         continue
                     if captured and robot is not None:
                         initial = captured[0].robot
@@ -227,6 +243,7 @@ class FemtoCamera:
                             raise CaptureError('tool transform moved during settled-view depth burst')
                     captured.append(CapturedFrame(frame, base, robot))
                     last_stamp = frame.cloud_stamp_ns
+                    waiting_for = 'next fresh synchronized depth/cloud frame'
                     if progress is not None:
                         progress(len(captured), 7)
                     if len(captured) == 7:
