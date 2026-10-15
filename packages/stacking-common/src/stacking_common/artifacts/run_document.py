@@ -397,6 +397,12 @@ class StackRunStore:
             return tuple(decode_execution_event(item) for item in _read_records(connection, "execution_event"))
 
     @staticmethod
+    def load_execution_reconciliations(path: str | Path) -> tuple[ExecutionReconciliation, ...]:
+        with _open_reader(Path(path)) as connection:
+            return tuple(decode_execution_reconciliation(item)
+                         for item in _read_records(connection, "execution_reconciliation"))
+
+    @staticmethod
     def load_execution_results(path: str | Path) -> tuple[ExecutionResult, ...]:
         return tuple(
             ExecutionResult(event.command_id, event.status, event.failure, event.reason, event.diagnostics)

@@ -171,12 +171,43 @@ def execution_checkpoint(
         if command.command_id in latest
         and latest[command.command_id].status is ExecutionStatus.SUCCEEDED
     }
+    command_index = {command.command_id: index for index, command in enumerate(commands)}
+    events_by_command = {
+        command.command_id: tuple(event for event in events
+                                  if event.command_id == command.command_id)
+        for command in commands
+    }
     reconciled = {item.command_id for item in reconciliations}
-    for command_id in reconciled:
+    for reconciliation in reconciliations:
+        command_id = reconciliation.command_id
         if command_id not in latest or latest[command_id].status not in {
             ExecutionStatus.FAILED, ExecutionStatus.CANCELLED,
         }:
             raise ValueError("reconciliation requires a failed/cancelled command")
+        accept_release = (
+            reconciliation.diagnostics.get("resolution") == "accept_released_placement"
+        )
+        retry_capture = reconciliation.diagnostics.get("retry") == "stack_scene_only"
+        if not accept_release and not retry_capture:
+            continue
+        source_id = reconciliation.diagnostics.get("release_command_id")
+        if source_id not in by_id or by_id[source_id].step != by_id[command_id].step:
+            raise ValueError("released-placement reconciliation has an invalid source command")
+        source_index = command_index[source_id]
+        recovery_index = command_index[command_id]
+        release = next((event for event in reversed(events_by_command[source_id])
+                        if event.diagnostics.get("release_completed") is True
+                        and event.diagnostics.get("release_pose") is not None), None)
+        if source_index > recovery_index or release is None:
+            raise ValueError("released-placement reconciliation lacks durable release evidence")
+        if reconciliation.diagnostics.get("release_pose") != release.diagnostics["release_pose"]:
+            raise ValueError("released-placement reconciliation release pose differs from evidence")
+        later_commands = commands[source_index + 1:recovery_index + 1]
+        if any(event.segment_index == 0 for command in later_commands
+               for event in events_by_command[command.command_id]):
+            raise ValueError("a later execution attempt entered pickup motion")
+        if accept_release:
+            completed.add(by_id[command_id].step)
     unconfirmed = tuple(
         command.command_id for command in commands
         if command.command_id not in reconciled and (

@@ -1,9 +1,13 @@
 """Offline tabletop handoff from reviewed stacked-scene RGB capture to replanning."""
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 
+from stacking_common.artifacts import StackRunStore
+from stacking_common.assets import ObjectAssetLoader
+from stacking_common.domain import DirectionalTaper, TargetGeometry
 from stacking_common.planning import CoreSceneBuilder, SceneMobility, SceneObjectInstance
 from stacking_common.planning.frames import FrameTransform
 from stacking_common.planning.scene_identification import (
@@ -66,6 +70,47 @@ def prepare_tabletop_stack_candidate(application, inventory, state,
         surfaces=surfaces, placed_entity=builder.entity_id(placed[-1]),
         ground_entity=0, ground_geometry=0, config=sceneid_config,
         source_hashes=hashes, cuda_scan=cuda_scan)
+
+
+def prepare_saved_stack_candidate(saved, repository, capture_directory,
+                                  sceneid_config, step, *, scan_voxel_size=.001,
+                                  mesh_voxel_size=.001, cuda_scan=False):
+    """Build live SceneID strictly from a saved run's recorded planning inputs."""
+    checkpoint = StackRunStore.load_planning_checkpoint(saved.path, step)
+    if checkpoint.context_sha256 != saved.context.sha256:
+        raise ValueError('planning checkpoint and execution context differ')
+    inventory_values = saved.context.profiles['inventory_profile']
+    target_values = inventory_values['target']
+    target = TargetGeometry(
+        width=target_values['width'], length=target_values['length'],
+        height=target_values['height'], origin=target_values['origin'],
+        support_overlap=target_values['support_overlap'],
+        taper=DirectionalTaper(**dict(target_values['taper'])),
+    )
+    model_directory = Path(inventory_values['model_directory'])
+    loader = ObjectAssetLoader(
+        Path(repository)/model_directory,
+        density=inventory_values['density'],
+        density_overrides=dict(inventory_values['density_overrides']),
+        target=target,
+    )
+    inventory = loader.load(
+        checkpoint.state.object_ids, checkpoint.pick_scene.object_poses
+    )
+    placement = saved.context.profiles['simulation_profile']['placement']
+    application = SimpleNamespace(
+        repository_root=Path(repository).resolve(), planning_profile=saved.planning,
+        inventory_profile=SimpleNamespace(model_directory=model_directory),
+        simulation_profile=SimpleNamespace(placement=SimpleNamespace(
+            ground_z=placement['ground_z'],
+            ground_friction=placement['ground_friction'],
+        )),
+    )
+    return prepare_tabletop_stack_candidate(
+        application, inventory, checkpoint.state, capture_directory,
+        sceneid_config, scan_voxel_size=scan_voxel_size,
+        mesh_voxel_size=mesh_voxel_size, cuda_scan=cuda_scan,
+    )
 
 
 def accept_tabletop_stack_candidate(application, inventory, state, candidate,

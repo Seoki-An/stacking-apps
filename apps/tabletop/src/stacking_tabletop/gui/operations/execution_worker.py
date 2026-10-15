@@ -70,13 +70,27 @@ class ExecutionWorker(QThread):
             self.saved.verify_assets()
             if self.runtime.cancel_event.is_set():
                 return
-            if self.capture_stack_scene:
+            from stacking_tabletop.execution.recovery import pending_released_stack_capture
+            recovering_capture = any(
+                pending_released_stack_capture(self.saved.path, plan.step) is not None
+                for plan in self.saved.plans
+            )
+            capture_stack_scene = self.capture_stack_scene or recovering_capture
+            if capture_stack_scene:
                 from stacking_tabletop.acquisition.stack_scene_capture import check_stack_capture_runtime
                 check_stack_capture_runtime(self.repository)
             transport, arm, gripper = self.device_factory(self.saved, self.runtime)
+            stack_scene_handler = self._stack_scene if capture_stack_scene else None
+            if recovering_capture and not self.capture_stack_scene:
+                def stack_scene_handler(executor):
+                    try:
+                        return self._stack_scene(executor)
+                    finally:
+                        # The unchecked option suppresses capture on later full steps.
+                        executor.stack_scene_handler = None
             self.executor = TabletopMotionExecutor(self.saved, arm, gripper,
                 gate_changed=self.gate_changed.emit, telemetry=self.telemetry.emit, scan_handler=self._scan,
-                stack_scene_handler=self._stack_scene if self.capture_stack_scene else None)
+                stack_scene_handler=stack_scene_handler)
             results = execute_saved_run(self.saved, self.executor,
                 events=self.event_received.emit, next_step=self.plan_selected.emit)
             self.completed.emit(results)

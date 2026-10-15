@@ -205,6 +205,24 @@ and the gripper/object have been checked. It records evidence only; it sends no
 commands. A retry starts the whole failed step at home, never an inferred sample.
 Journal failures also stop execution and leave durable state for reconciliation.
 
+A post-release acquisition failure is different because restoring the pickup
+scene may be impractical. When the journal contains durable `release_completed`
+evidence and no later attempt entered pickup motion, Execution enables two
+guarded choices.
+
+**Retry stacked-scene capture…** is the preferred recovery after a camera or
+reconstruction failure. The operator confirms that the robot is stopped, the
+stone remains at the saved placement, and the gripper is empty. Execution then
+reconnects at the measured robot pose, shows the cyan capture route for review,
+runs only the stacked-scene capture, returns to the saved home pose, marks the
+released step complete, and continues with the next step. It does not repeat
+pickup, placement, or release.
+
+**Accept already released placement…** skips the missing observation. It marks
+the failed step physically complete and makes the next step pending without
+sending a robot command. The ordinary reconciliation button retains whole-step
+retry behavior and should be used only when the pickup scene has been restored.
+
 Run the offline checks with a Python environment containing pytest, SciPy and
 stacking-core:
 
@@ -269,7 +287,9 @@ uses the existing robot/gripper connection and the installed wrist calibration
 and Fast-FoundationStereo environment. Keep UR bringup running; no separate pick
 capture command or FEMTO capture is needed for the place scene.
 
-After each release and the complete saved retreat:
+After each release, execution first follows only the contact-to-pre-place portion
+of the saved retreat. It scans directly from that offset instead of moving home
+and then returning toward the stack:
 
 1. Generate at most seven stack-facing views: center/left/right overview views,
    plus two low-side stereo pairs. Saved placed-object extents plus a 60-mm
@@ -280,13 +300,25 @@ After each release and the complete saved retreat:
 2. At the new route-review gate, scrub the cyan robot preview, including entry
    and return. Joint limits and endpoint kinematics are checked; these paths
    are not collision checked. **Continue** starts capture.
-3. Record three timestamped RGB-D frames per viewpoint, return to the original
-   execution retreat pose, and close the camera. The RGB images and recorded
-   calibrated robot poses feed Fast-FoundationStereo; RealSense depth is retained
-   as auxiliary evidence and is not used as reconstructed geometry.
-4. Display the resulting scene PCD in cyan in the live viewport. **Open
-   stacked-scene PCD** opens its HTML viewer. Review it and press **Continue**
-   before the next placement starts.
+   Entry to and return from the reviewed stacked-scene route use free-space
+   limits of 0.60 rad/s per joint, 0.12 m/s TCP translation, and 1.20 rad/s
+   tool rotation (4× the conservative general capture limits). The shorter
+   between-view motions use 0.90 rad/s, 0.18 m/s, and 1.80 rad/s (6× the
+   general capture limits). Capture settling and pick/place motion limits are
+   unchanged.
+3. Record three timestamped RGB-D frames per viewpoint, return to the pre-place
+   offset, and close the camera. The capture is assembled and an isolated,
+   lower-priority perception process starts. While that process reconstructs
+   the PCD and then runs SceneID, execution follows the remaining saved retreat
+   to home. SceneID necessarily follows reconstruction because it consumes the
+   reconstructed cloud, but neither stage waits for the home motion. The RGB
+   images and recorded calibrated robot poses feed Fast-FoundationStereo;
+   RealSense depth is retained as auxiliary evidence and is not used as
+   reconstructed geometry.
+4. At home, wait for perception if it has not completed, then display the
+   resulting scene PCD in cyan in the live viewport and show the SceneID result
+   path/status. **Open stacked-scene PCD** opens its HTML viewer. Review it and
+   press **Continue** before the next placement starts.
 
 Outputs are stored beside the run:
 
@@ -298,19 +330,41 @@ Outputs are stored beside the run:
   session/               # Portable, hashed wrist-only inputs
   rgb_dense/refined/rgb_dense_voxel_1mm.pcd
   rgb_dense/rgb_only/overview.html
+  sceneid_result.json, processing.json
 ```
 
-The execution journal records the capture location and PCD hash. Captures use
+The execution journal records the capture location, PCD hash, and SceneID
+result. Captures use
 `base_link`; the viewport converts them to its recorded UR-base world frame.
-The point cloud is a separate observation layer. It does not update catalog
-poses, obstacle geometry, or the saved plan automatically; stacked-scene pose
-identification and online replanning remain separate work.
+The point cloud and SceneID proposal are separate observation layers. They do
+not update catalog poses, obstacle geometry, or the saved plan automatically;
+operator acceptance and online replanning remain separate work. A completed
+but evidence-rejected SceneID solve is saved and shown for review; only a
+technical perception failure stops execution.
 
 Hold/Abort remain active during capture and GPU reconstruction. An interrupted
 view is not accepted. Camera, motion, or reconstruction failure stops before the
-next pickup, retains partial data, and requires the existing physical
-reconciliation flow. It never automatically repeats a placement or initiates a
-return motion after capture failure. Review gates remain active for every scan.
+next pickup and retains partial data. A pre-release failure requires whole-step
+reconciliation. A post-release failure can use the guarded released-placement
+recovery described above. Neither path automatically repeats a placement or
+initiates a return motion after capture failure. Review gates remain active for
+every scan.
+One librealsense `Frame didn't arrive within 1000` gap is treated as transient;
+the recorder retries up to five consecutive one-second waits. Five failures stop
+the stream-start check, closes the pipeline, waits one second, and opens it once
+more before any capture-route motion. The D435 is opened only after route
+approval, so a long operator review cannot leave an unread stream running. A
+second failure stops the step with a D435 power/USB/competing-process diagnostic
+rather than saving an incomplete view. Mid-scan failures are not silently
+restarted because resetting the camera invalidates the frame-counter and
+timestamp continuity guards.
+
+Repeated stream stalls indicate a transport problem, not a reason to add
+unbounded retries. Connect the D435 directly to a USB 3 root port (or a powered
+industrial hub), avoid sharing its downstream hub with another streaming video
+camera, use a short secured USB 3 cable, and disable USB autosuspend for the
+camera during commissioning. Stop RealSense viewers and ROS camera drivers
+before execution.
 
 Offline checks cover placement ordering, portable session assembly, failed
 capture retention, child-process cancellation, and scene-frame conversion. The

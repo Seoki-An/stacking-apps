@@ -132,6 +132,20 @@ def test_interrupted_attempt_requires_reconciliation_before_retry(tmp_path):
         ))
         with pytest.raises(ValueError, match="reconciliation"):
             writer.append_execution_command(retry)
+        with pytest.raises(ValueError, match="durable release evidence"):
+            writer.append_execution_reconciliation(ExecutionReconciliation(
+                first.command_id, 2000, "stone is placed", {
+                    "resolution": "accept_released_placement",
+                    "release_command_id": first.command_id,
+                },
+            ))
+        with pytest.raises(ValueError, match="durable release evidence"):
+            writer.append_execution_reconciliation(ExecutionReconciliation(
+                first.command_id, 2000, "retry capture", {
+                    "retry": "stack_scene_only",
+                    "release_command_id": first.command_id,
+                },
+            ))
         writer.append_execution_reconciliation(ExecutionReconciliation(
             first.command_id, 2000, "robot stopped; pickup scene restored", {"checked_by": "mock"},
         ))

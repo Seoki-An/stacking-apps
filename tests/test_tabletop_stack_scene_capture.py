@@ -10,6 +10,7 @@ import pytest
 
 from stacking_common.artifacts import StackRunStore
 from stacking_tabletop.acquisition import stack_scene_capture as capture
+from stacking_tabletop.acquisition import stack_scene_processing as processing
 from stacking_tabletop.acquisition.hand_eye_capture import atomic_json, digest
 from stacking_tabletop.acquisition.hand_eye_replay import inspect_session
 from stacking_tabletop.acquisition.hand_eye_synthetic import generate_demo
@@ -20,20 +21,36 @@ from test_tabletop_hand_eye_calibration import profile_path
 
 
 @pytest.mark.parametrize('fail', [False, True])
-def test_capture_runs_after_release_and_retreat_before_next_pickup(saved, fail):
+def test_capture_runs_from_pre_place_before_home_and_next_pickup(saved, fail):
     transport, executor = executor_for(saved)
-    calls = []
+    calls, finished = [], []
+    class Processing:
+        def __init__(self, step):
+            self.step = step
+        def finish(self, worker):
+            np.testing.assert_allclose(
+                worker.arm.feedback.arm_state()[0],
+                saved.planning.robot.home_positions, atol=.01,
+            )
+            finished.append(self.step)
+        def abort(self):
+            pass
     def collect(worker):
         assert worker._attached is False
         assert worker._release_pose is not None
         assert not worker.gripper.feedback.gripper_state().holding
-        np.testing.assert_allclose(worker.arm.feedback.arm_state()[0], worker._command.segments[4].positions[-1], atol=.01)
+        np.testing.assert_allclose(
+            worker.arm.feedback.arm_state()[0],
+            worker._command.segments[4].positions[saved.grasp_steps - 1],
+            atol=.01,
+        )
         events = StackRunStore.load_execution_events(saved.path)
         assert any(e.diagnostics.get('release_completed') for e in events)
         assert not any(e.status.value == 'succeeded' and e.diagnostics['step'] == worker._command.step for e in events)
         calls.append(worker._command.step)
         if fail:
             raise RuntimeError('camera failed after placement')
+        return Processing(worker._command.step)
     executor.stack_scene_handler = collect
     results = execute_saved_run(saved, executor)
     if fail:
@@ -42,8 +59,69 @@ def test_capture_runs_after_release_and_retreat_before_next_pickup(saved, fail):
         assert results[0].diagnostics['phase'] == 'stack_scene'
         assert StackRunStore.load_execution_checkpoint(saved.path).requires_reconciliation
     else:
-        assert calls == [1, 2]
+        assert calls == finished == [1, 2]
         assert all(r.status.value == 'succeeded' for r in results)
+        np.testing.assert_allclose(
+            executor.arm.feedback.arm_state()[0],
+            saved.planning.robot.home_positions,
+            atol=.01,
+        )
+
+
+def test_stack_scene_route_uses_faster_entry_and_view_motion_limits():
+    from stacking_tabletop.acquisition.scene_capture import SCAN_LIMITS
+
+    entry = capture.STACK_SCENE_ENTRY_LIMITS
+    views = capture.STACK_SCENE_VIEW_LIMITS
+    assert entry.rate_hz == views.rate_hz == SCAN_LIMITS.rate_hz
+    assert entry.max_joint_speed == pytest.approx(4 * SCAN_LIMITS.max_joint_speed)
+    assert entry.max_tcp_speed == pytest.approx(4 * SCAN_LIMITS.max_tcp_speed)
+    assert entry.max_angular_speed == pytest.approx(4 * SCAN_LIMITS.max_angular_speed)
+    assert views.max_joint_speed == pytest.approx(1.5 * entry.max_joint_speed)
+    assert views.max_tcp_speed == pytest.approx(1.5 * entry.max_tcp_speed)
+    assert views.max_angular_speed == pytest.approx(1.5 * entry.max_angular_speed)
+
+
+def test_live_wrist_reopens_stalled_pipeline_before_motion(monkeypatch):
+    from stacking_tabletop.acquisition import realsense
+    from stacking_tabletop.ros import hand_eye as ros_hand_eye
+
+    cameras, events, waits = [], [], []
+    class Camera:
+        report = {}
+        def __init__(self, *args, **kwargs):
+            self.index = len(cameras)
+            self.closed = False
+            cameras.append(self)
+        def read(self):
+            if self.index == 0:
+                raise RuntimeError("Frame didn't arrive within 1000")
+            return object()
+        def close(self):
+            self.closed = True
+    class Robot:
+        def __init__(self, calibration):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+    monkeypatch.setattr(realsense, 'RealSenseCamera', Camera)
+    monkeypatch.setattr(ros_hand_eye, 'HandEyeRobot', Robot)
+    executor = NS(
+        _health=lambda: None,
+        _emit=lambda status, **values: events.append((status, values)),
+        runtime=NS(
+            paused_seconds=0.,
+            wait=lambda seconds, check: waits.append(seconds) or check(),
+        ),
+    )
+    with capture.live_wrist(executor, NS()) as record:
+        assert callable(record)
+    assert len(cameras) == 2
+    assert all(camera.closed for camera in cameras)
+    assert waits == [1.]
+    assert events[0][1]['stack_scene_camera_reopen'] == 1
 
 
 @pytest.fixture(scope='module')
@@ -72,6 +150,10 @@ def test_session_collection_returns_before_reconstruction_and_retains_failures(t
                 return_path=[seed.tolist(),anchor.tolist()])
     motions, phases, gates = [], [], []
     def move(path, **kw):
+        expected = (capture.STACK_SCENE_ENTRY_LIMITS
+                    if executor._phase.endswith(('entry', 'return_to_execution'))
+                    else capture.STACK_SCENE_VIEW_LIMITS)
+        assert kw['limits'] is expected
         motions.append(np.array(path))
         kw['progress'](0, 1, path[-1])
     urdf = tmp_path/'robot.urdf'; urdf.write_text('<robot/>')
@@ -108,8 +190,12 @@ def test_session_collection_returns_before_reconstruction_and_retains_failures(t
         if failure=='reconstruction':raise RuntimeError('reconstruction failure')
         (output/'refined').mkdir(parents=True)
         write_xyz_pcd(output/'refined/rgb_dense_voxel_1mm.pcd', np.array([[0.,0.,.1]]))
-    def run():return capture.collect_stack_scene(executor,ROOT,wrist_factory=wrist,
-        planner=lambda *a,**kw:plan,reconstruct=reconstruct)
+    def run():
+        processing = capture.collect_stack_scene(
+            executor, ROOT, wrist_factory=wrist,
+            planner=lambda *a, **kw: plan, reconstruct=reconstruct,
+        )
+        return processing.finish(executor)
     if failure:
         with pytest.raises(RuntimeError,match=failure+' failure'):run()
     else:
@@ -134,6 +220,43 @@ def test_scene_observation_uses_correct_frame_and_hash(saved,tmp_path):
     assert not scene.frame().observed_scene_points.flags.writeable
     path.write_text('changed')
     with pytest.raises(ValueError,match='PCD changed'):scene.event(event)
+
+
+def test_isolated_stack_processing_reconstructs_then_identifies(tmp_path, monkeypatch):
+    capture_directory = tmp_path/'capture'
+    (capture_directory/'session').mkdir(parents=True)
+    atomic_json(capture_directory/'capture.json', {
+        'kind': 'stacked_scene_wrist_capture', 'status': 'running',
+        'step': 2, 'context_sha256': 'context', 'output_frame': 'base_link',
+    })
+    saved_run = NS(path=tmp_path/'run.stack', context=NS(sha256='context'))
+    monkeypatch.setattr(
+        'stacking_tabletop.execution.saved_plan.load_execution_run',
+        lambda run, repository: saved_run,
+    )
+    order = []
+    def reconstruct(session, baseline, refinement, output, **kwargs):
+        order.append('reconstruct')
+        (output/'refined').mkdir(parents=True)
+        (output/'rgb_only').mkdir()
+        write_xyz_pcd(
+            output/'refined/rgb_dense_voxel_1mm.pcd',
+            np.array([[0., 0., .1]]),
+        )
+        (output/'rgb_only/overview.html').write_text('<html/>')
+    def identify(saved, repository, directory, step):
+        assert json.loads((directory/'capture.json').read_text())['pcd']
+        order.append('identify')
+        return {'status': 'identified', 'accepted_snapshot': True}
+    report = processing.process_stack_scene(
+        saved_run.path, ROOT, capture_directory, 2,
+        reconstruct=reconstruct, identify=identify,
+    )
+    status = json.loads((capture_directory/'capture.json').read_text())
+    assert order == ['reconstruct', 'identify']
+    assert report['status'] == status['status'] == status['stage'] == 'complete'
+    assert status['scene_identification']['status'] == 'identified'
+    assert Path(status['scene_identification']['path']).is_file()
 
 
 def test_stack_route_aims_at_stack_and_returns_to_execution_anchor(profile_path):

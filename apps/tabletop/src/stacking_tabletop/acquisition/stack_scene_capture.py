@@ -1,21 +1,129 @@
 """Collect stacked-scene wrist RGB evidence inside the execution worker."""
 from contextlib import contextmanager
 from itertools import product
+import json
+import os
 from pathlib import Path
+import signal
+import subprocess
+import sys
 
 import numpy as np
 
 from stacking_common.execution import ExecutionFailure
+from stacking_tabletop.execution.motion import CartesianStreamLimits
 from stacking_tabletop.execution.runtime import HardwareError
 from stacking_tabletop.execution.sequence import _matrix
 from .calibration import BASE_LINK_T_UR_BASE
 from .hand_eye import HandEyeCalibration
-from .hand_eye_capture import atomic_json, capture_view, digest
+from .hand_eye_capture import atomic_json, capture_view, digest, warmup
 from .hand_eye_replay import assemble_session
-from .scene_capture import SCAN_LIMITS, capture_lock
+from .scene_capture import capture_lock
 from .scene_views import build_views, camera_pose, render_preview
 from .scan_paths import joint_leg
 from .scanning import _settle
+
+
+# Stacked-scene paths are reviewed, free-space motions with an empty gripper.
+# Entry remains conservative; shorter viewpoint transitions can run faster.
+STACK_SCENE_ENTRY_LIMITS = CartesianStreamLimits(100., .60, .12, 1.20)
+STACK_SCENE_VIEW_LIMITS = CartesianStreamLimits(100., .90, .18, 1.80)
+
+
+class StackSceneProcessing:
+    """Isolated reconstruction/SceneID work joined after the robot reaches home."""
+
+    def __init__(self, process, output):
+        self.process = process
+        self.output = Path(output)
+
+    @classmethod
+    def start(cls, saved, repository, output, step):
+        command = [
+            sys.executable, '-u', '-m',
+            'stacking_tabletop.acquisition.stack_scene_processing',
+            '--run', str(saved.path), '--repository', str(Path(repository).resolve()),
+            '--capture', str(Path(output).resolve()), '--step', str(step),
+        ]
+        return cls(subprocess.Popen(command, start_new_session=True), output)
+
+    def abort(self):
+        if self.process.poll() is not None:
+            return
+        try:
+            os.killpg(self.process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            self.process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(self.process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            self.process.wait()
+
+    def finish(self, executor):
+        while self.process.poll() is None:
+            executor.runtime.wait(.1, executor._health)
+        report_path = self.output/'processing.json'
+        report = json.loads(report_path.read_text()) if report_path.is_file() else {}
+        if self.process.returncode or report.get('status') != 'complete':
+            reason = report.get('error', f'processing exited with code {self.process.returncode}')
+            raise HardwareError(ExecutionFailure.PERCEPTION_FAILED, reason)
+        return _finish_stack_scene(executor, self.output)
+
+
+class _InlineStackSceneProcessing:
+    """Injected test seam with the same deferred completion contract."""
+
+    def __init__(self, run, output):
+        self.run, self.output = run, Path(output)
+        self.done = False
+
+    def abort(self):
+        return None
+
+    def finish(self, executor):
+        if not self.done:
+            try:
+                self.run()
+            except BaseException as error:
+                status_path = self.output/'capture.json'
+                status = json.loads(status_path.read_text())
+                status.update(
+                    status='failed',
+                    error=f'{type(error).__name__}: {error}',
+                )
+                atomic_json(status_path, status)
+                raise
+            finally:
+                self.done = True
+        return _finish_stack_scene(executor, self.output)
+
+
+def _finish_stack_scene(executor, output):
+    status = json.loads((Path(output)/'capture.json').read_text())
+    if status.get('status') != 'complete':
+        raise HardwareError(
+            ExecutionFailure.PERCEPTION_FAILED,
+            status.get('error', 'stacked-scene processing did not complete'),
+        )
+    status['robot_home'] = True
+    atomic_json(Path(output)/'capture.json', status)
+    executor._phase = 'stack_scene/result'
+    executor._emit(
+        'held', stack_scene_completed=str(output), stack_scene_pcd=status['pcd'],
+        stack_scene_pcd_sha256=status['pcd_sha256'],
+        stack_scene_viewer=status['viewer'],
+        stack_scene_identification=status['scene_identification'],
+    )
+    executor._gate_wait(
+        'stack_scene_result',
+        'The robot is home. Stacked-scene reconstruction and SceneID are complete. '
+        'Inspect the observation and identification result, then Continue.',
+    )
+    return status
 
 
 def stack_region(saved, plan, release_pose):
@@ -184,21 +292,48 @@ def live_wrist(executor, calibration):
     from stacking_tabletop.ros.hand_eye import HandEyeRobot
     from .realsense import RealSenseCamera
 
-    with HandEyeRobot(calibration) as robot, RealSenseCamera(calibration, depth_size=(848, 480), fps=15) as camera:
-        class CheckedCamera:
-            report = camera.report
-            def read(self):
-                executor._health()
-                pair = camera.read()
-                executor._health()
-                return pair
-        checked = CheckedCamera()
+    with HandEyeRobot(calibration) as robot:
+        camera = checked = None
+        for attempt in range(2):
+            try:
+                camera = RealSenseCamera(
+                    calibration, depth_size=(848, 480), fps=15
+                )
+                class CheckedCamera:
+                    report = camera.report
+                    def read(self):
+                        executor._health()
+                        pair = camera.read()
+                        executor._health()
+                        return pair
+                checked = CheckedCamera()
+                # Prove that the newly opened pipeline delivers frames before
+                # any capture-route motion. A D435 can occasionally start but
+                # leave wait_for_frames stalled until the pipeline is reopened.
+                warmup(checked, count=3)
+                break
+            except RuntimeError as error:
+                if camera is not None:
+                    camera.close()
+                    camera = None
+                if attempt or 'frame after' not in str(error):
+                    raise
+                executor._emit(
+                    'running', stack_scene_camera_reopen=attempt + 1,
+                    stack_scene_camera_error=str(error),
+                )
+                executor.runtime.wait(1., executor._health)
+        if camera is None or checked is None:
+            raise RuntimeError('D435 pipeline could not be opened')
         def capture(directory):
             paused = executor.runtime.paused_seconds
             capture_view(directory, calibration, checked, robot, count=3)
             if executor.runtime.paused_seconds != paused:
                 raise RuntimeError('hold interrupted wrist capture; partial scene retained for review')
-        yield capture
+        try:
+            yield capture
+        finally:
+            camera.close()
 
 
 def check_stack_capture_runtime(repository):
@@ -212,16 +347,15 @@ def check_stack_capture_runtime(repository):
 
 
 def collect_stack_scene(executor, repository, *, prepared=lambda value: None,
-                        wrist_factory=live_wrist, planner=build_stack_route, reconstruct=None):
-    """Run only after release/retreat. Failures hold and prevent the next pickup."""
-    from .hand_eye_fast_stereo import reconstruct_with_runtime
+                        wrist_factory=live_wrist, planner=build_stack_route,
+                        reconstruct=None, processing_factory=None):
+    """Capture after release and defer perception so the robot can return home."""
 
     repository = Path(repository).resolve()
     vendor = repository/'.data/vendor/Fast-FoundationStereo'
     checkpoint = vendor/'weights/23-36-37/model_best_bp2_serialize.pth'
-    if reconstruct is None:
+    if reconstruct is None and processing_factory is None:
         check_stack_capture_runtime(repository)
-        reconstruct = reconstruct_with_runtime
     if executor._attached or executor._release_pose is None:
         raise ValueError('stack scene capture requires a released object and empty tool')
     hand = executor.gripper.feedback.gripper_state()
@@ -245,8 +379,9 @@ def collect_stack_scene(executor, repository, *, prepared=lambda value: None,
         status.update(stage=name, **values)
         atomic_json(output/'capture.json', status)
         executor._emit('running', stack_scene_stage=name, stack_scene_directory=str(output))
-    def move(path):
-        executor.arm.execute_path(np.asarray(path), attached=False, limits=SCAN_LIMITS,
+    def move(path, limits):
+        executor.arm.execute_path(np.asarray(path), attached=False,
+            limits=limits,
             progress=lambda _i, _n, q: setattr(executor, '_reference', q))
         _settle(executor, np.asarray(path[-1]))
     try:
@@ -260,52 +395,78 @@ def collect_stack_scene(executor, repository, *, prepared=lambda value: None,
             preview.extend(view['path'])
             preview.extend(view.get('return_path', view['path'][::-1]))
         preview.extend(plan['return_path'])
-        # Keep the camera open for the whole reviewed scan and serialize access.
-        with capture_lock(), wrist_factory(executor, calibration) as capture:
+        # Serialize ownership across review and capture, but open the D435 only
+        # after approval so it is not left streaming without a consumer.
+        with capture_lock():
             executor._gate_wait('stack_scan_review',
-                'The stone is released and the arm has retreated. Review the stacked-scene wrist '
+                'The stone is released and the arm is at its pre-place offset. Review the stacked-scene wrist '
                 'capture entry, viewpoints and return in the cyan preview; paths are not collision checked. '
                 f'{len(plan["views"])} views are reachable; {len(plan.get("omitted_views", []))} were omitted. Continue starts the scan.',
                 prepared=lambda: prepared(dict(kind='stacked scene RGB', positions=preview,
                     capture_count=len(plan['views']), output=str(output))))
             executor._profile(False)
-            stage('entry'); move(plan['entry_path'])
-            views = []
-            for index, view in enumerate(plan['views']):
-                stage('move_'+view['label']); move(view['path'])
-                stage('capture_'+view['label'])
-                directory = output/'wrist'/f'view_{index:03d}_{view["label"]}'
-                capture(directory)
-                views.append(directory)
-                status['completed_views'].append(str(directory.relative_to(output)))
-                return_path = view.get('return_path', view['path'][::-1])
-                if return_path:
-                    stage('return_'+view['label']); move(return_path)
-            stage('return_to_execution'); move(plan['return_path'])
-            status['robot_returned'] = True
+            stage('camera_start')
+            with wrist_factory(executor, calibration) as capture:
+                stage('entry'); move(plan['entry_path'], STACK_SCENE_ENTRY_LIMITS)
+                views = []
+                for index, view in enumerate(plan['views']):
+                    stage('move_'+view['label']); move(view['path'], STACK_SCENE_VIEW_LIMITS)
+                    stage('capture_'+view['label'])
+                    directory = output/'wrist'/f'view_{index:03d}_{view["label"]}'
+                    capture(directory)
+                    views.append(directory)
+                    status['completed_views'].append(str(directory.relative_to(output)))
+                    return_path = view.get('return_path', view['path'][::-1])
+                    if return_path:
+                        stage('return_'+view['label']); move(return_path, STACK_SCENE_VIEW_LIMITS)
+                stage('return_to_execution'); move(plan['return_path'], STACK_SCENE_ENTRY_LIMITS)
+                status['robot_returned'] = True
         executor._reference = anchor
         stage('assembly')
         assemble_session(output/'session', views)
-        stage('reconstruction')
-        reconstruct(output/'session', None, None, output/'rgb_dense', repository=vendor,
-                    checkpoint=checkpoint, region_file=output/'region.json', check=executor._health)
-        pcd = output/'rgb_dense/refined/rgb_dense_voxel_1mm.pcd'
-        if not pcd.is_file():
-            raise ValueError('stack reconstruction produced no PCD')
-        stage('complete', status='complete', pcd=str(pcd), pcd_sha256=digest(pcd),
-              viewer=str(output/'rgb_dense/rgb_only/overview.html'))
-        executor._emit('held', stack_scene_completed=str(output), stack_scene_pcd=str(pcd),
-                       stack_scene_pcd_sha256=digest(pcd), stack_scene_viewer=status['viewer'])
-        executor._gate_wait('stack_scene_result',
-            'Stacked-scene PCD is saved and displayed. Inspect the observation, then Continue. '
-            'The saved placement plan has not been changed by this capture.')
-        return status
+        stage('processing_parallel_with_home')
+        if processing_factory is not None:
+            return processing_factory(executor.saved, repository, output,
+                                      executor._command.step)
+        if reconstruct is None:
+            return StackSceneProcessing.start(
+                executor.saved, repository, output, executor._command.step
+            )
+
+        # Unit tests may inject reconstruction without launching the installed
+        # GPU runtime. Production always uses the isolated process above.
+        def run_inline():
+            reconstruct(
+                output/'session', None, None, output/'rgb_dense',
+                repository=vendor, checkpoint=checkpoint,
+                region_file=output/'region.json', check=executor._health,
+            )
+            pcd = output/'rgb_dense/refined/rgb_dense_voxel_1mm.pcd'
+            if not pcd.is_file():
+                raise ValueError('stack reconstruction produced no PCD')
+            sceneid = output/'sceneid_result.json'
+            atomic_json(sceneid, {
+                'status': 'test_injected', 'accepted_snapshot': True,
+            })
+            status.update(
+                status='complete', stage='complete', pcd=str(pcd),
+                pcd_sha256=digest(pcd),
+                viewer=str(output/'rgb_dense/rgb_only/overview.html'),
+                scene_identification={
+                    'path': str(sceneid), 'sha256': digest(sceneid),
+                    'status': 'test_injected', 'accepted_snapshot': True,
+                },
+            )
+            atomic_json(output/'capture.json', status)
+        return _InlineStackSceneProcessing(run_inline, output)
     except BaseException as error:
         cancelled = isinstance(error, KeyboardInterrupt) or (isinstance(error, HardwareError)
                      and error.failure is ExecutionFailure.CANCELLED)
         status.update(status='cancelled' if cancelled else 'failed', error=f'{type(error).__name__}: {error}')
         atomic_json(output/'capture.json', status)
         if (not cancelled and not isinstance(error, HardwareError)
-                and status.get('stage', '').startswith(('capture_', 'assembly', 'reconstruction'))):
+                and status.get('stage', '').startswith(
+                    ('camera_start', 'capture_', 'assembly', 'processing',
+                     'reconstruction', 'scene_identification'))):
             raise HardwareError(ExecutionFailure.PERCEPTION_FAILED, str(error)) from error
         raise

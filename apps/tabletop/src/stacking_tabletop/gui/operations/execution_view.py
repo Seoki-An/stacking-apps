@@ -9,7 +9,13 @@ from PySide6.QtWidgets import (
 
 from stacking_common.artifacts import StackRunStore
 from stacking_tabletop.execution.saved_plan import load_execution_run
-from stacking_tabletop.execution.recovery import reconcile_saved_run
+from stacking_tabletop.execution.recovery import (
+    accept_released_placement,
+    pending_released_stack_capture,
+    reconcile_saved_run,
+    released_placement_recovery,
+    retry_released_stack_capture,
+)
 
 from .execution_worker import ExecutionWorker
 
@@ -46,6 +52,7 @@ class ExecutionView(QWidget):
         self._scan_pending = False
         self._scan_positions = None
         self._stack_viewer = None
+        self._released_recovery = None
         layout = QVBoxLayout(self)
         self.status = QLabel("Open a .stack run to validate saved execution.")
         self.status.setWordWrap(True)
@@ -124,6 +131,12 @@ class ExecutionView(QWidget):
         self.reconcile_button = QPushButton("Record physical reconciliation…")
         self.reconcile_button.clicked.connect(self.reconcile)
         layout.addWidget(self.reconcile_button)
+        self.retry_stack_capture_button = QPushButton("Retry stacked-scene capture…")
+        self.retry_stack_capture_button.clicked.connect(self.retry_stack_capture)
+        layout.addWidget(self.retry_stack_capture_button)
+        self.accept_placement_button = QPushButton("Accept already released placement…")
+        self.accept_placement_button.clicked.connect(self.accept_placed_step)
+        layout.addWidget(self.accept_placement_button)
         self._controls()
 
     @property
@@ -138,6 +151,7 @@ class ExecutionView(QWidget):
         self.path, self.saved, self.scene = path, None, None
         self.gate = None
         self._stack_viewer = None
+        self._released_recovery = None
         self.stack_viewer_button.setEnabled(False)
         self._scan_pending = False
         self._scan_positions = None
@@ -157,6 +171,21 @@ class ExecutionView(QWidget):
             self.status.setText(f"Validated {len(self.saved.plans)} saved steps; {len(checkpoint.completed_steps)} completed.")
             if checkpoint.requires_reconciliation:
                 self.status.setText("An earlier attempt requires physical reconciliation before retry.")
+                self._released_recovery = released_placement_recovery(path)
+                if self._released_recovery is not None:
+                    self.status.setText(
+                        f"Step {self._released_recovery.step} has a durably recorded release. "
+                        "Retry only the failed stacked-scene capture, or explicitly skip it."
+                    )
+            elif checkpoint.pending_steps:
+                recovery = pending_released_stack_capture(
+                    path, checkpoint.pending_steps[0]
+                )
+                if recovery is not None:
+                    self.status.setText(
+                        f"Step {recovery.step} is ready to resume at stacked-scene "
+                        "capture; pickup, placement, and release will not repeat."
+                    )
         except Exception as error:
             self.saved = self.scene = None
             self.status.setText(f"Execution unavailable: {error}")
@@ -219,6 +248,14 @@ class ExecutionView(QWidget):
         self.start_button.setEnabled(ready and not self.running and self.can_start() and bool(checkpoint.pending_steps)
                                      and not checkpoint.requires_reconciliation)
         self.reconcile_button.setEnabled(ready and not self.running and checkpoint.requires_reconciliation)
+        self.accept_placement_button.setEnabled(
+            ready and not self.running and checkpoint.requires_reconciliation
+            and self._released_recovery is not None
+        )
+        self.retry_stack_capture_button.setEnabled(
+            ready and not self.running and checkpoint.requires_reconciliation
+            and self._released_recovery is not None
+        )
         self.continue_button.setEnabled(active and self.gate is not None and not self._paused and not self._scan_pending)
         self.manual_controls.setEnabled(active and self.gate is not None and self.gate.manual and not self._paused)
         self.scan_controls.setEnabled(active and self.gate is not None and self.gate.name == 'place'
@@ -448,7 +485,11 @@ class ExecutionView(QWidget):
             from pathlib import Path
             self._stack_viewer = Path(event.diagnostics['stack_scene_viewer'])
             self.stack_viewer_button.setEnabled(self._stack_viewer.is_file())
-            self.scan_label.setText(f"Stacked-scene PCD saved: {event.diagnostics['stack_scene_pcd']}")
+            identified = event.diagnostics.get('stack_scene_identification')
+            message = f"Stacked-scene PCD saved: {event.diagnostics['stack_scene_pcd']}"
+            if identified is not None:
+                message += f"\nSceneID: {identified['status']} → {identified['path']}"
+            self.scan_label.setText(message)
         if 'scan_view' in event.diagnostics:
             self.scan_label.setText(f"Captured view {event.diagnostics['scan_view']} / {event.diagnostics['scan_view_count']}\n"
                                    f"{event.diagnostics['capture_directory']}")
@@ -493,6 +534,114 @@ class ExecutionView(QWidget):
                 reconcile_saved_run(self.path, notes.toPlainText(), robot_stopped=checks[0].isChecked(),
                     scene_restored=checks[1].isChecked(), gripper_checked=checks[2].isChecked())
                 self.load(self.path)
+            except Exception as error:
+                self.status.setText(str(error))
+
+    def accept_placed_step(self):
+        recovery = self._released_recovery
+        if self.running or recovery is None or not self.accept_placement_button.isEnabled():
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Accept released placement")
+        layout = QVBoxLayout(dialog)
+        message = QLabel(
+            f"Step {recovery.step} has durable release evidence. This records the "
+            "placement as complete and starts the next execution at step "
+            f"{recovery.step + 1}; it sends no robot command."
+        )
+        message.setWordWrap(True)
+        layout.addWidget(message)
+        checks = [QCheckBox(text) for text in (
+            "Robot is stopped; the previous controller session has ended",
+            "The released stone is physically at the saved placement",
+            "The gripper is empty and the remaining pickup/stack scene is ready for the next step",
+        )]
+        for check in checks:
+            layout.addWidget(check)
+        notes = QPlainTextEdit()
+        notes.setPlaceholderText("Record who verified the released stone and remaining scene.")
+        layout.addWidget(notes)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        save = buttons.button(QDialogButtonBox.StandardButton.Save)
+        save.setEnabled(False)
+
+        def validate():
+            save.setEnabled(all(check.isChecked() for check in checks)
+                            and bool(notes.toPlainText().strip()))
+
+        for check in checks:
+            check.toggled.connect(validate)
+        notes.textChanged.connect(validate)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            try:
+                accept_released_placement(
+                    self.path, notes.toPlainText(),
+                    robot_stopped=checks[0].isChecked(),
+                    placed_scene_confirmed=checks[1].isChecked(),
+                    gripper_empty=checks[2].isChecked(),
+                )
+                self.load(self.path)
+            except Exception as error:
+                self.status.setText(str(error))
+
+    def retry_stack_capture(self):
+        recovery = self._released_recovery
+        if (self.running or recovery is None
+                or not self.retry_stack_capture_button.isEnabled()):
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Retry stacked-scene capture")
+        layout = QVBoxLayout(dialog)
+        message = QLabel(
+            f"Step {recovery.step} has durable release evidence. This will reconnect "
+            "to the current robot pose, show the stacked-scene route for review, capture "
+            "the scene, and return home. It will not repeat pickup, placement, or release."
+        )
+        message.setWordWrap(True)
+        layout.addWidget(message)
+        checks = [QCheckBox(text) for text in (
+            "Robot is stopped; the previous controller session has ended",
+            "The released stone is physically at the saved placement",
+            "The gripper is empty and the remaining scene has not been disturbed",
+        )]
+        for check in checks:
+            layout.addWidget(check)
+        notes = QPlainTextEdit()
+        notes.setPlaceholderText("Record who verified the released stone, gripper, and scene.")
+        layout.addWidget(notes)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        save = buttons.button(QDialogButtonBox.StandardButton.Save)
+        save.setEnabled(False)
+
+        def validate():
+            save.setEnabled(
+                all(check.isChecked() for check in checks)
+                and bool(notes.toPlainText().strip())
+            )
+
+        for check in checks:
+            check.toggled.connect(validate)
+        notes.textChanged.connect(validate)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            try:
+                retry_released_stack_capture(
+                    self.path, notes.toPlainText(),
+                    robot_stopped=checks[0].isChecked(),
+                    placed_scene_confirmed=checks[1].isChecked(),
+                    gripper_empty=checks[2].isChecked(),
+                )
+                self.load(self.path)
+                self.start()
             except Exception as error:
                 self.status.setText(str(error))
 

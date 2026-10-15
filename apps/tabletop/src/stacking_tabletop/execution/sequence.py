@@ -296,11 +296,12 @@ class TabletopMotionExecutor:
                    automatic=not approval_required,
                    maximum_joint_error_degrees=degrees)
 
-    def _move(self, index, positions=None):
+    def _move(self, index, positions=None, *, announce_start=True):
         self._segment = index
         segment = self._command.segments[index]
         self._phase = segment.name
-        self._emit("running", segment_started=True)
+        if announce_start:
+            self._emit("running", segment_started=True)
         path = segment.positions if positions is None else positions
 
         def progress(reference_index, count, joints):
@@ -330,6 +331,21 @@ class TabletopMotionExecutor:
         finally:
             self._busy_gripper = False
 
+    def _finish_stack_processing(self):
+        processing = self._stack_processing
+        if processing is None:
+            return
+        try:
+            processing.finish(self)
+        finally:
+            processing.abort()
+            self._stack_processing = None
+
+    def _abort_stack_processing(self):
+        processing, self._stack_processing = self._stack_processing, None
+        if processing is not None:
+            processing.abort()
+
     def execute(self, command, *, progress):
         with self._lock:
             if self._active is not None:
@@ -339,6 +355,7 @@ class TabletopMotionExecutor:
         self._sequence, self._segment, self._phase = 0, None, "preflight"
         self._journal_failed = False
         self._attached, self._contact = False, False
+        self._stack_processing = None
         self._attachment = self._release_pose = None
         self._reference = self.saved.planning.robot.home_positions.copy()
         old_poll = self.runtime.poll
@@ -388,11 +405,26 @@ class TabletopMotionExecutor:
             self._grip(self.gripper.open)
             self._profile(False)
             self._emit('running', release_completed=True, release_pose=self._release_pose.tolist())
-            self._move(4, _taper(command.segments[4].positions, place_offset))
+            retreat = _taper(command.segments[4].positions, place_offset)
             if self.stack_scene_handler is not None:
+                split = self.saved.grasp_steps
+                if len(retreat) <= split:
+                    raise ValueError(
+                        "stacked-scene capture needs place_retreat to contain "
+                        "both pre-place and home legs"
+                    )
+                # Native place_retreat is contact -> pre-place -> home. Capture
+                # from pre-place so the arm does not make an unnecessary round
+                # trip through home before observing the newly released stone.
+                self._move(4, retreat[:split])
                 self._phase = 'stack_scene'
                 self._stationary()
-                self.stack_scene_handler(self)
+                self._stack_processing = self.stack_scene_handler(self)
+                home_leg = np.vstack((retreat[split - 1], retreat[split:]))
+                self._move(4, home_leg, announce_start=False)
+                self._finish_stack_processing()
+            else:
+                self._move(4, retreat)
             self._send_telemetry(force=True)
             event = self._emit("succeeded", release_pose=self._release_pose.tolist())
         except (Exception, KeyboardInterrupt) as error:
@@ -409,6 +441,7 @@ class TabletopMotionExecutor:
             status = "cancelled" if failure is ExecutionFailure.CANCELLED else "failed"
             event = self._emit(status, failure=failure, reason=str(error) or "execution interrupted", hold_requested=held)
         finally:
+            self._abort_stack_processing()
             self.runtime.poll = old_poll
             with self._lock:
                 self._active = self._gate = None
@@ -417,6 +450,84 @@ class TabletopMotionExecutor:
             self._resume.clear()
             self.gate_changed(None)
         return ExecutionResult(command.command_id, event.status, event.failure, event.reason, event.diagnostics)
+
+    def execute_stack_capture(self, command, release_pose, *, progress):
+        """Resume a released step at stacked-scene capture without replaying motion."""
+        with self._lock:
+            if self._active is not None:
+                raise RuntimeError("an execution command is already active")
+            self._active = command.command_id
+        self._command, self._progress = command, progress
+        self._sequence, self._segment, self._phase = 0, 4, "stack_scene_recovery"
+        self._journal_failed = False
+        self._attached, self._contact = False, False
+        self._stack_processing = None
+        self._attachment = None
+        self._release_pose = np.asarray(release_pose, dtype=float)
+        self._reference = self.saved.planning.robot.home_positions.copy()
+        old_poll = self.runtime.poll
+        try:
+            if self.stack_scene_handler is None:
+                raise ValueError("stacked-scene recovery needs the capture handler")
+            self._plan = next(plan for plan in self.saved.plans if plan.step == command.step)
+            expected = build_execution_command(
+                self._plan, self.saved.context,
+                execution_attempt=command.execution_attempt,
+                command_id=command.command_id,
+            )
+            if canonical_json(encode_execution_command(expected)) != canonical_json(
+                    encode_execution_command(command)):
+                raise ValueError("command differs from the validated saved plan")
+            validate_command(command, self.saved.planning, self.saved.grasp_steps)
+            self.saved.verify_assets()
+            if self._release_pose.shape != (7,) or not np.isfinite(self._release_pose).all():
+                raise ValueError("stacked-scene recovery has an invalid release pose")
+            self._emit("running", stack_scene_recovery=True)
+            self.arm.wait_until_ready()
+            self.gripper.wait_until_ready()
+            hand = self.gripper.feedback.gripper_state()
+            if hand.holding or hand.hold_goal is not None:
+                raise ValueError("stacked-scene recovery requires an empty gripper")
+            self._reference = self.arm.feedback.arm_state()[0].copy()
+            self.runtime.poll = self._poll
+            self._stationary()
+            self._stack_processing = self.stack_scene_handler(self)
+            self._align_start(command.segments[0].positions[0])
+            self._finish_stack_processing()
+            self._send_telemetry(force=True)
+            event = self._emit(
+                "succeeded", stack_scene_recovery=True,
+                release_pose=self._release_pose.tolist(),
+            )
+        except (Exception, KeyboardInterrupt) as error:
+            self.runtime.poll = None
+            held = self.arm.hold_actual_pose()
+            if self._journal_failed:
+                raise
+            failure = (
+                error.failure if isinstance(error, HardwareError) else
+                ExecutionFailure.CANCELLED if isinstance(error, KeyboardInterrupt) else
+                ExecutionFailure.INVALID_PLAN if isinstance(error, (ValueError, KeyError, StopIteration)) else
+                ExecutionFailure.CONTROLLER_FAULT
+            )
+            status = "cancelled" if failure is ExecutionFailure.CANCELLED else "failed"
+            event = self._emit(
+                status, failure=failure,
+                reason=str(error) or "stacked-scene recovery interrupted",
+                hold_requested=held, stack_scene_recovery=True,
+            )
+        finally:
+            self._abort_stack_processing()
+            self.runtime.poll = old_poll
+            with self._lock:
+                self._active = self._gate = None
+                self._scan_request = None
+            self._hold.clear()
+            self._resume.clear()
+            self.gate_changed(None)
+        return ExecutionResult(
+            command.command_id, event.status, event.failure, event.reason, event.diagnostics
+        )
 
 
 def execute_saved_run(saved, executor, *, events=None, next_step=None):
@@ -435,6 +546,8 @@ def execute_saved_run(saved, executor, *, events=None, next_step=None):
                 break
             if next_step is not None:
                 next_step(plan)
+            from .recovery import pending_released_stack_capture
+            recovery = pending_released_stack_capture(saved.path, plan.step)
             attempt = max((item.execution_attempt for item in commands if item.step == plan.step), default=0) + 1
             command = build_execution_command(plan, saved.context, execution_attempt=attempt)
             writer.append_execution_command(command)
@@ -442,7 +555,12 @@ def execute_saved_run(saved, executor, *, events=None, next_step=None):
                 writer.append_execution_event(event)
                 if events is not None:
                     events(event)
-            result = executor.execute(command, progress=record)
+            if recovery is None:
+                result = executor.execute(command, progress=record)
+            else:
+                result = executor.execute_stack_capture(
+                    command, recovery.release_pose, progress=record
+                )
             results.append(result)
             if result.status is not ExecutionStatus.SUCCEEDED:
                 break

@@ -69,17 +69,35 @@ def validate_images(pair, report):
             raise ValueError('native ' + name + ' image shape/encoding mismatch')
 
 
-def warmup(camera):
+def _read_camera(camera, *, attempts=5):
+    """Tolerate a short native-frame gap without hiding persistent failures."""
+    last_error = None
+    for _ in range(attempts):
+        try:
+            return camera.read()
+        except RuntimeError as error:
+            if "Frame didn't arrive within" not in str(error):
+                raise
+            last_error = error
+    raise RuntimeError(
+        f'D435 delivered no frame after {attempts} consecutive 1000 ms waits; '
+        'check camera power, USB 3 connection, and competing camera processes'
+    ) from last_error
+
+
+def warmup(camera, *, count=30):
     # Startup discard only. Exposure convergence must still be measured on hardware.
-    for _ in range(30):
-        camera.read()
+    if count < 1:
+        raise ValueError('warmup count must be positive')
+    for _ in range(count):
+        _read_camera(camera)
 
 
 def read_after_gate(camera, not_before_ns, *, clock=time):
     """Drain exposures already in flight at the gate, with a bounded wait."""
     deadline = clock.monotonic() + 5.
     while clock.monotonic() < deadline:
-        pair = camera.read()
+        pair = _read_camera(camera)
         if all(pair[name]['timestamp_ns'] > not_before_ns for name in ('color', 'depth')):
             return pair
     raise ValueError('no new exposures after source-time capture gate')
@@ -92,7 +110,7 @@ def preflight(camera, *, count=10):
     guard = TimestampGuard(time.time_ns())
     samples = []
     for index in range(count):
-        pair = read_after_gate(camera, guard.not_before_ns) if index == 0 else camera.read()
+        pair = read_after_gate(camera, guard.not_before_ns) if index == 0 else _read_camera(camera)
         guard.check(pair)
         validate_images(pair, camera.report)
         samples.append({key: ({k: v for k, v in value.items() if k != 'image'}
@@ -153,7 +171,8 @@ def capture_view(directory, calibration, camera, robot, *, count=10, clock=None)
         baseline_joints = baseline_pose = None
         previous_stamp = None
         for index in range(count + 1):
-            pair = read_after_gate(camera, guard.not_before_ns, clock=clock) if index <= 1 else camera.read()
+            pair = (read_after_gate(camera, guard.not_before_ns, clock=clock)
+                    if index <= 1 else _read_camera(camera))
             guard.check(pair)
             validate_images(pair, camera.report)
             stamps = {name: pair[name]['timestamp_ns'] for name in ('color', 'depth')}

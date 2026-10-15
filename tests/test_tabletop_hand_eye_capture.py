@@ -158,6 +158,38 @@ def test_duplicate_reset_host_step_and_post_settle_source_gate():
         capture.TimestampGuard(first['color']['timestamp_ns']).check(first)
 
 
+def test_native_frame_timeout_is_retried_but_other_camera_errors_are_not():
+    class Camera:
+        calls = 0
+
+        def read(self):
+            self.calls += 1
+            if self.calls < 3:
+                raise RuntimeError("Frame didn't arrive within 1000")
+            return 'frame'
+
+    camera = Camera()
+    assert capture._read_camera(camera) == 'frame'
+    assert camera.calls == 3
+
+    class FailedCamera:
+        calls = 0
+
+        def read(self):
+            self.calls += 1
+            raise RuntimeError('device disconnected')
+
+    failed = FailedCamera()
+    with pytest.raises(RuntimeError, match='device disconnected'):
+        capture._read_camera(failed)
+    assert failed.calls == 1
+
+    camera = Camera()
+    camera.calls = 0
+    with pytest.raises(RuntimeError, match='2 consecutive 1000 ms waits'):
+        capture._read_camera(camera, attempts=2)
+
+
 def test_stationarity_uses_all_joint_samples_and_both_camera_poses():
     packet = Robot().measure(0, 500_000_000, dict(color=490_000_000, depth=500_000_000))
     baseline = np.asarray(packet['color_base_T_tool'])

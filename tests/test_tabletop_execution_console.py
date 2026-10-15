@@ -16,7 +16,7 @@ from stacking_tabletop.execution.motion import UR_JOINT_NAMES
 from stacking_tabletop.gui.operations.execution_view import ExecutionView
 from stacking_tabletop.gui.operations.execution_worker import ExecutionWorker
 from test_tabletop_hardware_adapters import FakeTransport, Kinematics
-from test_tabletop_saved_execution import ROOT, saved
+from test_tabletop_saved_execution import ROOT, executor_for, saved
 
 
 def test_loading_validated_scene_is_passive_and_uses_recorded_assets(saved):
@@ -146,6 +146,7 @@ def test_worker_gates_and_abort_leave_durable_recovery_requirement(saved):
         assert gates == ['review', 'close', 'place']
         assert closed == [True]
         assert view.reconcile_button.isEnabled()
+        assert not view.accept_placement_button.isEnabled()
         assert not view.start_button.isEnabled()
         assert StackRunStore.load_execution_checkpoint(saved.path).requires_reconciliation
         assert len(view.scene.frame().robot_parts) > 0
@@ -153,6 +154,29 @@ def test_worker_gates_and_abort_leave_durable_recovery_requirement(saved):
         view.abort()
         if view.worker is not None:
             assert view.worker.wait(3000)
+        view.close()
+        app.processEvents()
+
+
+def test_execution_tab_offers_advance_after_durable_release(saved):
+    from stacking_tabletop.execution.sequence import execute_saved_run
+
+    app = QApplication.instance() or QApplication([])
+    _, executor = executor_for(saved)
+
+    def fail_capture(_executor):
+        raise RuntimeError('camera failed after release')
+
+    executor.stack_scene_handler = fail_capture
+    assert execute_saved_run(saved, executor)[0].status.value == 'failed'
+    view = ExecutionView(ROOT)
+    try:
+        view.load(saved.path)
+        assert view.reconcile_button.isEnabled()
+        assert view.accept_placement_button.isEnabled()
+        assert view.retry_stack_capture_button.isEnabled()
+        assert 'durably recorded release' in view.status.text()
+    finally:
         view.close()
         app.processEvents()
 

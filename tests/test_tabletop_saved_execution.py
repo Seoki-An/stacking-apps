@@ -21,7 +21,13 @@ from stacking_tabletop.config import load_planning_profile
 from stacking_tabletop.execution import DynamixelAdapter, UR5eAdapter, UR_JOINT_NAMES
 from stacking_tabletop.execution.saved_plan import STAGES, MODES, load_execution_run, validate_command
 from stacking_tabletop.execution.sequence import TabletopMotionExecutor, execute_saved_run, _pose
-from stacking_tabletop.execution.recovery import reconcile_saved_run
+from stacking_tabletop.execution.recovery import (
+    accept_released_placement,
+    pending_released_stack_capture,
+    reconcile_saved_run,
+    released_placement_recovery,
+    retry_released_stack_capture,
+)
 from stacking_tabletop.planning.persistence import _values
 from test_tabletop_hardware_adapters import FakeTransport, Kinematics
 
@@ -323,6 +329,114 @@ def test_queued_crash_can_only_retry_after_operator_reconciliation(saved):
         robot_stopped=True, scene_restored=True, gripper_checked=True)
     assert StackRunStore.load_execution_results(saved.path)[0].failure.value == 'interrupted'
     assert all(result.status.value == 'succeeded' for result in execute_saved_run(saved, executor))
+
+
+def test_post_release_failure_can_accept_placement_and_continue_at_next_step(saved):
+    _, executor = executor_for(saved)
+
+    def fail_capture(_executor):
+        raise RuntimeError('camera failed after durable release')
+
+    executor.stack_scene_handler = fail_capture
+    result = execute_saved_run(saved, executor)[0]
+    assert result.status.value == 'failed'
+    recovery = released_placement_recovery(saved.path)
+    assert recovery.step == 1
+    assert len(recovery.release_pose) == 7
+
+    accept_released_placement(
+        saved.path, 'operator verified the released stone in its saved placement',
+        robot_stopped=True, placed_scene_confirmed=True, gripper_empty=True,
+    )
+    checkpoint = StackRunStore.load_execution_checkpoint(saved.path)
+    assert checkpoint.completed_steps == (1,)
+    assert checkpoint.pending_steps == (2,)
+    assert not checkpoint.requires_reconciliation
+
+    _, next_executor = executor_for(saved)
+    results = execute_saved_run(saved, next_executor)
+    assert len(results) == 1 and results[0].status.value == 'succeeded'
+    assert StackRunStore.load_execution_commands(saved.path)[-1].step == 2
+
+
+def test_post_release_failure_can_retry_only_stack_capture_then_continue(saved):
+    _, executor = executor_for(saved)
+
+    def fail_capture(_executor):
+        raise RuntimeError('camera failed after durable release')
+
+    executor.stack_scene_handler = fail_capture
+    assert execute_saved_run(saved, executor)[0].status.value == 'failed'
+    recovery = retry_released_stack_capture(
+        saved.path, 'operator verified the released stone and empty gripper',
+        robot_stopped=True, placed_scene_confirmed=True, gripper_empty=True,
+    )
+    assert pending_released_stack_capture(saved.path, 1) == recovery
+
+    transport, retry = executor_for(saved)
+    captured = []
+
+    def capture_only(active):
+        captured.append((active._command.step, active._attached,
+                         active._release_pose.copy(), transport.joints.copy()))
+        # Keep the following ordinary step focused on sequencing in this test.
+        active.stack_scene_handler = None
+
+    retry.stack_scene_handler = capture_only
+    results = execute_saved_run(saved, retry)
+    assert [result.status.value for result in results] == ['succeeded', 'succeeded']
+    assert [result.diagnostics.get('stack_scene_recovery') for result in results] == [True, None]
+    assert len(captured) == 1
+    step, attached, release_pose, joints = captured[0]
+    assert step == 1 and attached is False
+    np.testing.assert_allclose(release_pose, recovery.release_pose)
+    np.testing.assert_allclose(joints, np.zeros(6))
+    commands = StackRunStore.load_execution_commands(saved.path)
+    recovery_events = [event for event in StackRunStore.load_execution_events(saved.path)
+                       if event.command_id == commands[1].command_id]
+    assert not any(event.segment_index == 0 for event in recovery_events)
+    assert StackRunStore.load_execution_checkpoint(saved.path).completed_steps == (1, 2)
+
+
+def test_failed_stack_capture_retry_remains_recoverable(saved):
+    _, executor = executor_for(saved)
+    executor.stack_scene_handler = lambda _executor: (_ for _ in ()).throw(
+        RuntimeError('first camera failure')
+    )
+    assert execute_saved_run(saved, executor)[0].status.value == 'failed'
+    retry_released_stack_capture(
+        saved.path, 'operator verified the released scene', robot_stopped=True,
+        placed_scene_confirmed=True, gripper_empty=True,
+    )
+
+    _, retry = executor_for(saved)
+    retry.stack_scene_handler = lambda _executor: (_ for _ in ()).throw(
+        RuntimeError('second camera failure')
+    )
+    assert execute_saved_run(saved, retry)[0].status.value == 'failed'
+    assert StackRunStore.load_execution_checkpoint(saved.path).requires_reconciliation
+    assert released_placement_recovery(saved.path).step == 1
+
+
+def test_released_placement_recovery_is_unavailable_before_release(saved):
+    _, executor = executor_for(saved)
+
+    def gate(value):
+        if value is None:
+            return
+        if value.name == 'place':
+            executor.cancel(value.command_id)
+        executor.approve(value.token)
+
+    executor.gate_changed = gate
+    result = execute_saved_run(saved, executor)[0]
+    assert result.status.value == 'cancelled'
+    assert released_placement_recovery(saved.path) is None
+    with pytest.raises(ValueError, match='no safely recoverable'):
+        accept_released_placement(
+            saved.path, 'not actually released', robot_stopped=True,
+            placed_scene_confirmed=True, gripper_empty=True,
+        )
 
 
 def test_missing_asset_hash_or_changed_bytes_fail_before_any_device(saved, tmp_path):
