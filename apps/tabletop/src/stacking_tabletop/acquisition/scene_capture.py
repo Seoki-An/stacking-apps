@@ -60,27 +60,35 @@ def execute_capture(plan, output, arm, femto_capture, wrist_context, assemble, *
     output.mkdir(parents=True, exist_ok=False)
     status = dict(schema_version=1, kind='automated_scene_capture', status='running',
                   plan_sha256=plan['approved_sha256'], output_frame='base_link', completed_views=[],
-                  accuracy_1mm_verified=False, scene_stability='not_evaluated')
+                  accuracy_1mm_verified=False, scene_stability='not_evaluated',
+                  sensor_mode='wrist-only' if femto_capture is None else 'wrist-femto')
     def stage(name):
         status['stage'] = name
         atomic_json(output / 'capture.json', status)
         progress(name)
     seed = np.asarray(plan['seed_joints'])
+    fixed_center = plan.get('schema_version') == 5
+    start = np.asarray(plan['start_joints']) if fixed_center else seed
     views = []
     try:
         stage('preflight')
         atomic_json(output / 'executed_plan.json', plan)
         snapshot(output)
-        arm.validate_start(seed)
+        arm.validate_start(start)
         # Hold the measured pose while stationary acquisition starts.
         arm.set_rigid_tracking()
         if not arm.hold_actual_pose():
             raise RuntimeError('could not request initial actual-pose hold')
-        settle(arm, seed)
-        stage('femto_before')
-        femto_capture(output / 'femto_before')
+        settle(arm, start)
+        if femto_capture is not None:
+            stage('femto_before')
+            femto_capture(output / 'femto_before')
         stage('wrist_start')
         with wrist_context() as wrist_capture:
+            if fixed_center:
+                stage('move_capture_init')
+                arm.execute_path(np.asarray(plan['entry_path']), limits=SCAN_LIMITS, attached=False)
+                settle(arm, seed)
             for index, view in enumerate(plan['views']):
                 path = np.asarray(view['path'])
                 stage('move_' + view['label'])
@@ -94,11 +102,17 @@ def execute_capture(plan, output, arm, femto_capture, wrist_context, assemble, *
                 stage('return_' + view['label'])
                 arm.execute_path(path[::-1], limits=SCAN_LIMITS, attached=False)
                 settle(arm, seed)
-        stage('femto_after')
-        femto_capture(output / 'femto_after')
+        if fixed_center:
+            stage('return_to_start')
+            arm.execute_path(np.asarray(plan['return_path']), limits=SCAN_LIMITS, attached=False)
+            settle(arm, start)
+        if femto_capture is not None:
+            stage('femto_after')
+            femto_capture(output / 'femto_after')
         stage('assembly')
-        assemble(output / 'session', views, femto_before=output / 'femto_before',
-                 femto_after=output / 'femto_after')
+        references = (dict(femto_before=output / 'femto_before', femto_after=output / 'femto_after')
+                      if femto_capture is not None else {})
+        assemble(output / 'session', views, **references)
         status['status'] = 'complete'
         stage('complete')
         return status

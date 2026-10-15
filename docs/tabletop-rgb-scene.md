@@ -26,17 +26,57 @@ and absolute 1-mm accuracy remains unverified.
 
 ## Capture
 
-The integrated workflow defaults to thirteen wrist views: center, four near
-translations, four diagonal oblique views and four 30° side orbits. At the
-0.4 m target distance the side cameras travel up to 0.20 m laterally. Operations
-exposes this as **Wrist viewpoints → Wider: 13 views**; choose **Compact: 9**
-(or CLI `--viewpoint-pattern coverage9`) for the previous route. Check clearance
-for the complete robot/tool paths; these routes are not collision checked. Every view looks at a target 0.4 m along the
-central camera axis and returns to the seed. FEMTO is acquired immediately
-before and after the wrist sequence. The workflow derives and validates the
-joint route from the current central view; no separate plan command is needed.
-The generated audit artifacts follow the format described in
-[automated scene capture](tabletop-automated-scene-capture.md).
+The integrated workflow defaults to **Compact: 9** wrist views: center, four
+near translations and four diagonal oblique views. Views are relative to
+`q_capture_init_deg` in `apps/tabletop/config/scene_capture.yml`; a successful
+scan returns to the robot's original starting pose. The wider 13/17-view
+patterns remain selectable, but must pass route IK. The current fixed center
+cannot complete the 13-view `side_up` path on the recorded robot model.
+
+**Preview capture region (no motion)** draws desired camera footprints before
+validating the robot route. An IK failure still opens `coverage.html`, labelled
+as desired coverage only, and saves the error in `planning.json`. It produces no
+executable `plan.json`. Footprints estimate an assumed-depth plane, not measured
+stone visibility or guaranteed stereo coverage.
+
+### Wrist-only capture and identification
+
+In Operations choose **Capture wrist RGB only and identify (no FEMTO)**.
+Keep UR bringup running. The FEMTO selector is disabled and neither FEMTO driver
+startup nor FEMTO calibration loading is required. The D435 recorder still
+preserves auxiliary depth, but reconstruction uses RGB stereo only.
+
+```bash
+python -m stacking_tabletop.acquisition.pick_scene_workflow run \
+  --sensor-mode wrist-only --viewpoint-pattern coverage9 \
+  --output .data/field_pcd/wrist_only_001 --visualize
+```
+
+To use saved wrist views without moving the robot, choose **Identify saved wrist
+RGB only capture**, or run:
+
+```bash
+python -m stacking_tabletop.acquisition.pick_scene_workflow process \
+  .data/field_pcd/wrist_only_001/capture \
+  --sensor-mode wrist-only --output .data/field_pcd/wrist_only_reprocess_001 \
+  --visualize
+```
+
+This mode reconstructs the pickup workspace configured under `segmentation` in
+`apps/tabletop/config/perception.yml`, using Fast-FoundationStereo and recorded
+robot/hand-eye camera poses. It then fits the RGB-observed table, clusters stones,
+asks for model IDs, estimates poses with FoundationPose (or explicit ICP), and
+writes RGB and pose viewers. **Change model IDs** and **Resume failed wrist RGB
+identification** reuse reconstruction. The combined FEMTO mode remains available.
+
+`rgb_workspace.json` records the reconstruction crop; `rgb_geometry/` and
+`rgb_region.json` contain the observed table/stone segmentation. Scale comes from
+robot/hand-eye calibration, and table height is corrected to the configured
+pickup table height. Fit and validation use the same RGB observations: there is
+no independent FEMTO anchor or before/after stability check. Reports preserve
+`sensor_mode: wrist-only`, `scene_stability: not_evaluated_without_femto`, and
+`accuracy_1mm_verified: false`. Table visibility and separated stone clusters are
+required; touching/stacked stones still need the scene solver.
 
 ## Offline processing
 

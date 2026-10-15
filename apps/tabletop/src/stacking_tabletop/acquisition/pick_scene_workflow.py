@@ -195,6 +195,7 @@ def validate_rgb_poses(dense, region_file, identification, models, profile, outp
                       status='complete' if accepted else 'rejected', output_frame='base_link',
                       pose_source=pose_report.get('pose_source', 'femto_identification'),
                       rgb_role='fixed_pose_validation',
+                      sensor_mode=pose_report.get('sensor_mode', 'wrist-femto'),
                       production_pose_accepted=accepted, accuracy_1mm_verified=False,
                       dense_sha256=digest(dense / 'summary.json'), region_sha256=digest(region_file),
                       identification_sha256=digest(pose_report_path),
@@ -207,6 +208,11 @@ def validate_rgb_poses(dense, region_file, identification, models, profile, outp
                       limitations=['RGB validates the accepted poses without further translation or rotation.',
                                    'The field registration thresholds are reused as operational cross-sensor gates.',
                                    'Passing these gates does not verify absolute 1-mm pose accuracy.'])
+        if pose_report.get('sensor_mode') == 'wrist-only':
+            report['limitations'] = [
+                'Fit and validation use the same wrist RGB observations; this is not independent validation.',
+                'Metric scale and position depend on robot/hand-eye calibration and the observed RGB table.',
+                'Scene stability and absolute 1 mm accuracy are not verified.']
         atomic_json(output / 'summary.json', report)
         if visualize and layers:
             from stacking_common.rendering.pointcloud import render_clouds
@@ -289,13 +295,13 @@ def validate_femto_stability(capture, identification, region_file, profile, outp
         raise
 
 
-def _verify_capture(capture):
+def _verify_capture(capture, *, wrist_only=False):
     capture = Path(capture).resolve()
     status = _json(capture / 'capture.json')
     if status.get('status') != 'complete':
         raise ValueError('pick-scene capture is incomplete')
     session = inspect_session(capture / 'session')
-    if session.get('references') != ['femto_before', 'femto_after']:
+    if not wrist_only and session.get('references') != ['femto_before', 'femto_after']:
         raise ValueError('pick-scene capture requires FEMTO before/after references')
     return capture
 
@@ -323,6 +329,9 @@ def _publish_poses(root, identification, validation, *, validation_dir=None):
                 preliminary_femto_identification=(
                     'femto_identification/pose_identification/stone_poses.json'
                     if (root / 'femto_identification/pose_identification/stone_poses.json').is_file() else None),
+                sensor_mode=source.get('sensor_mode', 'wrist-femto'),
+                coarse_rgb_geometry=('rgb_geometry/geometry.json'
+                    if (root / 'rgb_geometry/geometry.json').is_file() else None),
                 coarse_femto_geometry=(
                     'femto_geometry/geometry.json' if (root / 'femto_geometry/geometry.json').is_file() else None),
                 rgb_validation=str(((validation_dir or root / 'rgb_validation') / 'summary.json').relative_to(root)),
@@ -517,7 +526,10 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
     args.perception_config = (args.perception_config or
                               args.repository / 'apps/tabletop/config/perception.yml').resolve()
     profile, catalog = preflight(args)
+    wrist_only = getattr(args, 'sensor_mode', 'wrist-femto') == 'wrist-only'
     backend = getattr(args, 'dense_backend', 'fast-foundation-stereo')
+    if wrist_only and backend != 'fast-foundation-stereo':
+        raise ValueError('wrist-only mode requires --dense-backend fast-foundation-stereo')
     pose_backend = getattr(args, 'pose_backend', 'foundationpose')
     if pose_backend == 'foundationpose' and backend != 'fast-foundation-stereo':
         raise ValueError('FoundationPose requires --dense-backend fast-foundation-stereo; COLMAP supports --pose-backend icp')
@@ -534,10 +546,13 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
             checkpoint=vendor / 'weights/23-36-37/model_best_bp2_serialize.pth')
     root.mkdir(parents=True)
     manifest = root / 'pick_scene_workflow.json'
-    status = dict(schema_version=2, kind='wrist_rgb_femto_pick_workflow', status='running',
+    status = dict(schema_version=2, kind=('wrist_rgb_pick_workflow' if wrist_only else
+                                        'wrist_rgb_femto_pick_workflow'), status='running',
+                  sensor_mode='wrist-only' if wrist_only else 'wrist-femto',
                   mode=args.command, stages=[], production_pose_accepted=False,
                   scene_stability='not_evaluated', accuracy_1mm_verified=False,
-                  pose_sequence='femto_regions_rgb_mvs_joint_catalog_fit', pose_backend=pose_backend)
+                  pose_sequence=('rgb_mvs_regions_catalog_fit' if wrist_only else
+                                 'femto_regions_rgb_mvs_joint_catalog_fit'), pose_backend=pose_backend)
     started = clock()
     current = None
 
@@ -578,25 +593,34 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
             capture = root / 'capture'
             scene_args = argparse.Namespace(plan=plan, approve=approval,
                 femto_config=args.femto_config, camera=args.camera, depth_size=args.depth_size,
-                fps=args.fps, count=args.count, output=capture)
+                fps=args.fps, count=args.count, output=capture,
+                sensor_mode='wrist-only' if wrist_only else 'wrist-femto')
             stage('capture')
             capture_runner(scene_args)
         else:
             capture = Path(args.capture).expanduser().resolve()
         stage('verify_capture')
-        capture = _verify_capture(capture)
+        capture = _verify_capture(capture, wrist_only=wrist_only)
         status['capture_dir'] = str(capture)
         status['data_origin'] = _json(capture / 'session/session.json')['data_origin']
-        geometry_dir = root / 'femto_geometry'
+        geometry_dir = root / ('rgb_geometry' if wrist_only else 'femto_geometry')
         region_file = root / 'rgb_region.json'
-        stage('femto_regions')
-        prepare_femto_regions(capture, profile, geometry_dir, region_file)
-        sparse = root / 'rgb_sparse'
-        stage('rgb_sparse')
-        rgb_experiment(capture / 'session', region_file, sparse)
-        refined = root / 'rgb_refinement'
-        stage('rgb_refinement')
-        refine_rgb_session(capture / 'session', sparse, refined)
+        sparse, refined = None, None
+        if wrist_only:
+            from .wrist_pick_regions import workspace_region, prepare_rgb_regions
+            stage('rgb_workspace')
+            workspace_file = root / 'rgb_workspace.json'
+            workspace_region(profile, workspace_file)
+            status['scene_stability'] = 'not_evaluated_without_femto'
+        else:
+            stage('femto_regions')
+            prepare_femto_regions(capture, profile, geometry_dir, region_file)
+            sparse = root / 'rgb_sparse'
+            stage('rgb_sparse')
+            rgb_experiment(capture / 'session', region_file, sparse)
+            refined = root / 'rgb_refinement'
+            stage('rgb_refinement')
+            refine_rgb_session(capture / 'session', sparse, refined)
         status['dense_backend'] = backend
         status['accepted_dense_backend'] = None
         status['dense_fallback_used'] = False
@@ -604,7 +628,12 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
                                     ('_full', fallback_dense_runner or dense_rgb_full_session)):
             dense = root / ('rgb_dense'+suffix)
             stage('rgb_dense'+suffix)
-            reconstruct(capture / 'session', sparse, refined, dense)
+            if wrist_only:
+                reconstruct(capture / 'session', None, None, dense, region_file=workspace_file)
+                stage('rgb_regions')
+                prepare_rgb_regions(dense, profile, geometry_dir, region_file)
+            else:
+                reconstruct(capture / 'session', sparse, refined, dense)
             identification = root / ('fused_identification'+suffix)
             validation_dir = root / ('rgb_validation'+suffix)
             try:
@@ -619,14 +648,15 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
                     manual_init_rotation_step=args.manual_init_rotation_step,
                     visualize=args.visualize))
                 print(f'Pose-identification viewer: {identification / "comparison/overview.html"}', flush=True)
-                stability_dir = root / ('femto_stability'+suffix)
-                stage('femto_stability'+suffix)
-                stability = validate_selected_femto_stability(
-                    capture, geometry_dir, region_file, identification, profile, stability_dir)
-                if not stability['scene_stable']:
-                    status['scene_stability'] = 'rejected'
-                    raise ValueError('FEMTO brackets changed around selected stones')
-                status['scene_stability'] = 'verified_repeatable'
+                if not wrist_only:
+                    stability_dir = root / ('femto_stability'+suffix)
+                    stage('femto_stability'+suffix)
+                    stability = validate_selected_femto_stability(
+                        capture, geometry_dir, region_file, identification, profile, stability_dir)
+                    if not stability['scene_stable']:
+                        status['scene_stability'] = 'rejected'
+                        raise ValueError('FEMTO brackets changed around selected stones')
+                    status['scene_stability'] = 'verified_repeatable'
                 stage('rgb_pose_validation'+suffix)
                 validation = validate_rgb_poses(dense, region_file, identification,
                     catalog.model_directory, profile, validation_dir, visualize=args.visualize)
@@ -634,7 +664,7 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
                     rejected = [str(item['stone_id']) for item in validation['stones'] if not item['accepted']]
                     raise FusedPoseRejected(f'wrist RGB rejected pickup poses for stones {", ".join(rejected)}')
             except FusedPoseRejected as error:
-                if suffix or pose_backend == 'foundationpose':
+                if wrist_only or suffix or pose_backend == 'foundationpose':
                     raise
                 status.update(dense_fallback_used=True, dense_fallback_reason=str(error))
                 atomic_json(manifest, status)
@@ -649,7 +679,9 @@ def run_rgb_first_workflow(args, *, plan_runner=None, capture_runner=None,
         report = _json(identification / 'pose_identification/stone_poses.json')
         status.update(status='complete', stage='complete', elapsed_s=now-started,
                       pose_data=str(pose), fused_pose_data=str(fused_pose),
-                      femto_geometry_dir=str(geometry_dir), dense_dir=str(dense),
+                      geometry_dir=str(geometry_dir), dense_dir=str(dense),
+                      **({'rgb_geometry_dir': str(geometry_dir)} if wrist_only else
+                         {'femto_geometry_dir': str(geometry_dir)}),
                       pose_viewer=str(identification / 'comparison/overview.html'),
                       validation=str(validation_dir / 'summary.json'),
                       production_pose_accepted=True, pose_warnings=report.get('warnings', []))
@@ -672,19 +704,21 @@ def _prepare_reidentification(args):
     if (previous.get('schema_version') != 2 or previous.get('status') != 'complete'
             or not previous.get('production_pose_accepted')):
         raise ValueError('reidentify requires a completed RGB-first workflow')
+    wrist_only = previous.get('sensor_mode') == 'wrist-only'
+    geometry_name = 'rgb_geometry' if wrist_only else 'femto_geometry'
     dense = Path(previous['dense_dir']).resolve()
     if not dense.is_relative_to(source):
         raise ValueError('RGB reconstruction is outside the source workflow')
     report = _json(source / 'pose_identification/stone_poses.json')
     hashes = report.get('source_sha256', {})
     for label, path in [('dense_summary.json', dense / 'summary.json'),
-                        ('femto_geometry.json', source / 'femto_geometry/geometry.json'),
+                        (geometry_name + '.json', source / geometry_name / 'geometry.json'),
                         ('rgb_region.json', source / 'rgb_region.json')]:
         if hashes.get(label) != digest(path):
             raise ValueError(f'cached input changed since pose identification: {label}')
     if not (dense / 'refined/rgb_dense_voxel_1mm.pcd').is_file():
         raise ValueError('completed RGB point cloud is missing')
-    capture = _verify_capture(previous['capture_dir'])
+    capture = _verify_capture(previous['capture_dir'], wrist_only=wrist_only)
     root = Path(args.output).expanduser().resolve()
     if root == source or root.is_relative_to(source):
         raise ValueError('choose a new output directory outside the source workflow')
@@ -701,9 +735,10 @@ def _prepare_reidentification(args):
     for pattern in ('pair_*.npz', 'pair_*.png'):
         for src in (dense / 'refined').glob(pattern):
             shutil.copy2(src, cached / 'refined' / src.name)
-    shutil.copytree(source / 'femto_geometry', root / 'femto_geometry')
+    shutil.copytree(source / geometry_name, root / geometry_name)
     shutil.copy2(source / 'rgb_region.json', root / 'rgb_region.json')
-    status = dict(schema_version=2, kind='wrist_rgb_femto_pick_workflow',
+    status = dict(schema_version=2, kind=previous.get('kind', 'wrist_rgb_femto_pick_workflow'),
+                  sensor_mode=previous.get('sensor_mode', 'wrist-femto'),
                   mode='reidentify', status='ready', stage='joint_pose_identification', stages=[],
                   capture_dir=str(capture), data_origin=previous.get('data_origin', 'hardware'),
                   production_pose_accepted=False, scene_stability='not_evaluated',
@@ -734,17 +769,18 @@ def resume_joint_workflow(args, *, preflight=load_inputs, clock=time.monotonic):
             raise ValueError('resume requires a failed RGB-first workflow at joint pose identification')
     manifest = root / 'pick_scene_workflow.json'
     failed_stage = status.get('stage', '')
-    capture = _verify_capture(status['capture_dir'])
+    wrist_only = status.get('sensor_mode') == 'wrist-only'
+    capture = _verify_capture(status['capture_dir'], wrist_only=wrist_only)
     dense = Path(status.get('resume_dense_dir') or
                  root / ('rgb_dense_full' if 'full' in failed_stage else 'rgb_dense')).resolve()
     if not dense.is_relative_to(root):
         raise ValueError('cached RGB reconstruction is outside the workflow')
     if not (dense / 'summary.json').is_file():
         raise ValueError('completed RGB MVS output is missing from the failed workflow')
-    geometry_dir = root / 'femto_geometry'
+    geometry_dir = root / ('rgb_geometry' if wrist_only else 'femto_geometry')
     region_file = root / 'rgb_region.json'
     if not (geometry_dir / 'geometry.json').is_file() or not region_file.is_file():
-        raise ValueError('coarse FEMTO geometry is missing from the failed workflow')
+        raise ValueError('segmented scene geometry is missing from the failed workflow')
     args.repository = Path(args.repository).expanduser().resolve()
     args.perception_config = (args.perception_config or
                               args.repository / 'apps/tabletop/config/perception.yml').resolve()
@@ -786,13 +822,16 @@ def resume_joint_workflow(args, *, preflight=load_inputs, clock=time.monotonic):
             visualize=args.visualize,
             suggested_assignments=status.get('suggested_assignments')))
         print(f'Pose-identification viewer: {identification / "comparison/overview.html"}', flush=True)
-        stage('femto_stability_resume')
-        stability = validate_selected_femto_stability(
-            capture, geometry_dir, region_file, identification, profile, stability_dir)
-        if not stability['scene_stable']:
-            status['scene_stability'] = 'rejected'
-            raise ValueError('FEMTO brackets changed around selected stones')
-        status['scene_stability'] = 'verified_repeatable'
+        if wrist_only:
+            status['scene_stability'] = 'not_evaluated_without_femto'
+        else:
+            stage('femto_stability_resume')
+            stability = validate_selected_femto_stability(
+                capture, geometry_dir, region_file, identification, profile, stability_dir)
+            if not stability['scene_stable']:
+                status['scene_stability'] = 'rejected'
+                raise ValueError('FEMTO brackets changed around selected stones')
+            status['scene_stability'] = 'verified_repeatable'
         stage('rgb_pose_validation_resume')
         validation = validate_rgb_poses(dense, region_file, identification,
             catalog.model_directory, profile, validation_dir, visualize=args.visualize)
@@ -806,7 +845,9 @@ def resume_joint_workflow(args, *, preflight=load_inputs, clock=time.monotonic):
         report = _json(identification / 'pose_identification/stone_poses.json')
         status.update(status='complete', stage='complete', elapsed_s=previous_elapsed + now-started,
                       pose_data=str(pose), fused_pose_data=str(fused_pose),
-                      femto_geometry_dir=str(geometry_dir), dense_dir=str(dense),
+                      geometry_dir=str(geometry_dir), dense_dir=str(dense),
+                      **({'rgb_geometry_dir': str(geometry_dir)} if wrist_only else
+                         {'femto_geometry_dir': str(geometry_dir)}),
                       pose_viewer=str(identification / 'comparison/overview.html'),
                       validation=str(validation_dir / 'summary.json'),
                       production_pose_accepted=True, pose_warnings=report.get('warnings', []))
@@ -855,11 +896,13 @@ def build_parser():
                                       else 'identify an existing complete scene capture'))
         add_identification_arguments(command, include_output=False)
         command.add_argument('--output', type=Path, required=True, help='new workflow directory')
+        command.add_argument('--sensor-mode', choices=('wrist-femto', 'wrist-only'),
+                             default='wrist-femto', help='use wrist RGB alone or anchor it with FEMTO')
         command.add_argument('--dense-backend', choices=('colmap', 'fast-foundation-stereo'),
                              default='fast-foundation-stereo', help='Fast-FoundationStereo (default) or COLMAP MVS')
         if name == 'run':
             command.add_argument('--viewpoint-pattern', choices=('coverage9', 'coverage13', 'coverage17'),
-                                 default='coverage13',
+                                 default='coverage9',
                                  help='coverage17 adds 45/60-degree left/right views; coverage13 uses 30-degree sides; coverage9 is compact')
             command.add_argument('--femto-config', type=Path,
                                  default=ROOT / 'apps/tabletop/config/femto.yml')

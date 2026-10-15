@@ -41,8 +41,9 @@ def prepare_assigned(dense, region_file, assignments, output):
     dense, region_file, output = [Path(p).resolve() for p in (dense, region_file, output)]
     summary = read_json(dense/'summary.json')
     region = read_json(region_file)
+    from .wrist_pick_regions import region_matches_dense
     if (summary.get('status') != 'complete' or summary.get('kind') != 'fast_foundation_stereo_experiment'
-            or summary.get('region') != region):
+            or not region_matches_dense(dense, region, summary)):
         raise ValueError('FoundationPose requires matching Fast-FoundationStereo pair data; '
                          'reconstruct with --dense-backend fast-foundation-stereo or select --pose-backend icp')
     if output.is_relative_to(dense) or dense.is_relative_to(output):
@@ -63,9 +64,20 @@ def prepare_assigned(dense, region_file, assignments, output):
                 if stone not in best or count > best[stone]['count']:
                     best[stone] = dict(count=count, depth=depth, mask=mask, matrix=k.copy(),
                                       pose=pose.copy(), source=path, cluster=cluster)
-    if set(best) != set(assignments.values()) or any(v['count'] < 100 for v in best.values()):
-        raise ValueError('a selected stone has fewer than 100 valid stereo mask pixels')
     output.mkdir(parents=True, exist_ok=False)
+    coverage = [dict(stone_id=stone, cluster_index=cluster,
+                     mask_pixels=best.get(stone, {}).get('count', 0))
+                for cluster, stone in sorted(assignments.items())]
+    insufficient = [entry for entry in coverage if entry['mask_pixels'] < 100]
+    atomic_json(output/'mask_coverage.json', dict(required_mask_pixels=100, stones=coverage,
+        status='insufficient_observation' if insufficient else 'complete',
+        selection='maximum valid stereo mask pixels across saved pairs; cluster indices are zero-based'))
+    if insufficient:
+        details = ', '.join(f"stone {entry['stone_id']} (cluster {entry['cluster_index']}): "
+                            f"{entry['mask_pixels']}" for entry in insufficient)
+        raise ValueError('selected stones have fewer than 100 valid stereo mask pixels: '
+                         f'{details}. See {output / "mask_coverage.json"}; '
+                         'inspect the RGB reconstruction and review selected regions before retrying.')
     report = dict(schema_version=1, kind='foundation_pose_inputs', status='complete',
                   dense=str(dense), data_origin=summary['data_origin'],
                   dense_sha256=digest(dense/'summary.json'),

@@ -55,7 +55,10 @@ class UR5eKinematics:
             max_nfev=1000, ftol=1e-12, xtol=1e-12, gtol=1e-12)
         error = residual(result.x)
         if not result.success or np.linalg.norm(error[:3]) > 1e-4 or np.linalg.norm(error[3:]) > 1e-4:
-            raise ValueError('pivot inverse kinematics did not converge on the seeded branch')
+            raise ValueError('tool inverse kinematics did not converge on the seeded branch '
+                f'(position error {np.linalg.norm(error[:3]) * 100:.3f} mm, '
+                f'rotation error {np.rad2deg(np.linalg.norm(error[3:])):.4f} deg, '
+                f'evaluations {result.nfev})')
         return result.x.copy()
 
     def pose(self, positions):

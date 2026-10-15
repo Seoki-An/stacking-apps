@@ -10,12 +10,13 @@ import signal
 import sys
 
 import numpy as np
+import yaml
 
 from stacking_tabletop.execution.kinematics import UR5eKinematics
 from .hand_eye import HandEyeCalibration
 from .hand_eye_capture import atomic_json, capture_view, digest, inspect_capture
 from .scene_capture import capture_lock, execute_capture
-from .scene_views import build_views, kinematic_urdf, render_preview, validate_views
+from .scene_views import build_capture_route, camera_pose, kinematic_urdf, render_preview, validate_views
 
 ROOT = Path(__file__).resolve().parents[5]
 
@@ -50,6 +51,8 @@ def prepare_plan(args):
     if args.seed_view is not None and args.urdf is None:
         raise ValueError('offline --seed-view needs --urdf matching the recorded robot')
     calibration = HandEyeCalibration.load(args.profile)
+    capture_config = yaml.safe_load((ROOT / 'apps/tabletop/config/scene_capture.yml').read_text())
+    capture_init = np.deg2rad(np.asarray(capture_config['q_capture_init_deg'], dtype=float))
     directory.mkdir(parents=True)
     calibration.snapshot(directory / 'calibration')
     if args.seed_view is not None:
@@ -82,14 +85,50 @@ def prepare_plan(args):
     urdf = directory / 'robot.urdf'
     urdf.write_text(description)
     kinematics = UR5eKinematics(urdf)
-    plan = build_views(kinematics, calibration, seed, distance=args.distance,
-                       offset=args.offset, oblique_offset=args.oblique_offset,
-                       pattern=getattr(args, 'viewpoint_pattern', 'coverage9'))
+    request = dict(start_joints=np.asarray(seed).tolist(), seed_joints=capture_init.tolist(),
+                   q_capture_init_deg=capture_config['q_capture_init_deg'], distance_m=args.distance,
+                   offset_m=args.offset, oblique_offset_m=args.oblique_offset,
+                   viewpoint_pattern=getattr(args, 'viewpoint_pattern', 'coverage9'),
+                   source=source, motion_sent=False, status='planning')
+    atomic_json(directory / 'planning.json', request)
+    from .scene_views import camera_view_targets
+    from stacking_common.multiview.coverage import plane_coverage
+    from stacking_common.rendering.capture_coverage import coverage_summary, render_coverage
+    poses, reference, target = camera_view_targets(kinematics, calibration, capture_init,
+        distance=args.distance, offset=args.offset, oblique_offset=args.oblique_offset,
+        pattern=request['viewpoint_pattern'])
+    coverage = plane_coverage(poses, calibration.color_matrix, calibration.color_distortion,
+        (calibration.width, calibration.height), target, reference[:3, :3])
+    coverage.update(distance_m=args.distance, frame='base_link', route_status='not_validated',
+                    camera_pose_source='requested_optical_targets',
+                    reference_plane='perpendicular_to_seed_optical_axis_at_assumed_target_depth')
+    def save_coverage():
+        atomic_json(directory / 'coverage.json', coverage)
+        render_coverage(coverage, directory / 'coverage.html')
+    save_coverage()
+    print(coverage_summary(coverage), flush=True)
+    print(f'Capture region preview: {directory / "coverage.html"}', flush=True)
+    try:
+        plan = build_capture_route(kinematics, calibration, seed, capture_init, distance=args.distance,
+                           offset=args.offset, oblique_offset=args.oblique_offset,
+                           pattern=request['viewpoint_pattern'])
+    except (ValueError, KeyboardInterrupt) as error:
+        request.update(status='cancelled' if isinstance(error, KeyboardInterrupt) else 'failed',
+                       error=str(error))
+        atomic_json(directory / 'planning.json', request)
+        coverage.update(route_status=request['status'], route_error=str(error))
+        save_coverage()
+        raise
+    request['status'] = 'complete'
+    atomic_json(directory / 'planning.json', request)
+    coverage['route_status'] = 'validated'
+    save_coverage()
     plan.update(robot_urdf_sha256=digest(urdf), source=source,
                 hand_eye_profile_sha256=digest(directory / 'calibration/profile.yml'))
     render_preview(plan, kinematics, calibration, directory / 'preview.html')
     atomic_json(directory / 'plan.json', plan)
     return dict(plan=str(directory), preview=str(directory / 'preview.html'),
+                coverage_preview=str(directory / 'coverage.html'),
                 approval_sha256=digest(directory / 'plan.json'), motion_sent=False,
                 collision_checked=False)
 
@@ -122,7 +161,7 @@ def run_scan(args):
 
     args.plan = args.plan.expanduser().resolve()
     args.output = args.output.expanduser().resolve()
-    args.femto_config = args.femto_config.expanduser().resolve()
+    wrist_only = getattr(args, 'sensor_mode', 'wrist-femto') == 'wrist-only'
     if args.output.is_relative_to(args.plan) or args.plan.is_relative_to(args.output):
         raise ValueError('plan and capture output must be separate directories')
     if args.output.exists():
@@ -130,15 +169,17 @@ def run_scan(args):
     if args.count < 1 or args.fps < 1 or min(args.depth_size) < 1:
         raise ValueError('count, fps and depth dimensions must be positive')
     plan, calibration, kinematics = load_reviewed_plan(args.plan, args.approve)
-    femto = FemtoCalibration(load_femto_profile(args.femto_config, args.camera))
-    if femto.profile.base_frame != 'base_link':
+    femto = None
+    if not wrist_only:
+        args.femto_config = args.femto_config.expanduser().resolve()
+        femto = FemtoCalibration(load_femto_profile(args.femto_config, args.camera))
+    if femto is not None and femto.profile.base_frame != 'base_link':
         raise ValueError('combined scene capture requires FEMTO observations in base_link')
     with capture_lock(), connected_arm(kinematics) as (arm, transport):
         live_hash = hashlib.sha256(robot_description(transport).encode()).hexdigest()
         if live_hash != plan['robot_urdf_sha256']:
             raise ValueError('running robot_description differs from the reviewed plan; prepare a new plan')
-        namespace = femto.profile.namespace
-        if transport.node.count_publishers(namespace + '/depth/image_raw'):
+        if femto is not None and transport.node.count_publishers(femto.profile.namespace + '/depth/image_raw'):
             raise ValueError('a FEMTO driver is already running; stop it once so this command can own camera scheduling')
 
         def femto_capture(directory):
@@ -185,7 +226,7 @@ def run_scan(args):
             if copied.report()['artifacts'] != calibration.report()['artifacts']:
                 raise ValueError('reviewed calibration changed before capture')
 
-        return execute_capture(plan, args.output, arm, femto_capture, wrist_context,
+        return execute_capture(plan, args.output, arm, None if wrist_only else femto_capture, wrist_context,
                                assemble_session, snapshot=snapshot)
 
 
@@ -200,13 +241,14 @@ def build_parser():
                       help='radial offset of four diagonal oblique views in metres')
     plan.add_argument('--viewpoint-pattern', choices=('coverage9', 'coverage13', 'coverage17'),
                       default='coverage9', help='coverage13 adds 30-degree side views; coverage17 also adds 45/60-degree left/right views; review path clearance')
-    plan.add_argument('--seed-view', type=Path, help='offline planning from a recorded view instead of live feedback')
+    plan.add_argument('--seed-view', type=Path, help='offline starting/return pose from a recorded view instead of live feedback; capture center comes from scene_capture.yml')
     plan.add_argument('--urdf', type=Path, help='verified URDF for offline --seed-view planning')
     plan.add_argument('--output', type=Path, required=True)
     run = commands.add_parser('run', help='MOVE ROBOT through a reviewed plan and capture both sensors')
     run.add_argument('--plan', type=Path, required=True)
     run.add_argument('--approve', required=True, help='SHA256 of the previewed plan; confirms empty tool and full-path clearance review')
     run.add_argument('--femto-config', type=Path, default=ROOT / 'apps/tabletop/config/femto.yml')
+    run.add_argument('--sensor-mode', choices=('wrist-femto', 'wrist-only'), default='wrist-femto')
     run.add_argument('--camera', choices=('primary', 'secondary'), default='primary')
     run.add_argument('--depth-size', type=int, nargs=2, default=(848, 480))
     run.add_argument('--fps', type=int, default=15)

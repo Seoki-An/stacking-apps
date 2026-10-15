@@ -57,7 +57,7 @@ def test_live_run_materializes_standard_route_and_uses_its_hash(tmp_path):
 
     def plan(values):
         assert values.distance == .4 and values.offset == .04 and values.oblique_offset == .08
-        assert values.viewpoint_pattern == 'coverage13'
+        assert values.viewpoint_pattern == 'coverage9'
         values.output.mkdir()
         (values.output / 'plan.json').write_text('{}')
         return {'approval_sha256': workflow.digest(values.output / 'plan.json')}
@@ -73,7 +73,7 @@ def test_live_run_materializes_standard_route_and_uses_its_hash(tmp_path):
     with pytest.raises(CaptureReached):
         run_workflow(args, plan_runner=plan, capture_runner=capture, preflight=preflight)
     status = json.loads((output / 'pick_scene_workflow.json').read_text())
-    assert status['capture_route'] == 'standard_coverage13'
+    assert status['capture_route'] == 'standard_coverage9'
     assert status['capture_plan_dir'] == str(output / 'capture_plan')
 
 

@@ -12,7 +12,7 @@ import pytest
 from stacking_tabletop.acquisition.hand_eye import HandEyeCalibration
 from stacking_tabletop.acquisition.hand_eye_capture import atomic_json, digest
 from stacking_tabletop.acquisition.scene_views import (
-    build_views, camera_pose, kinematic_urdf, validate_views,
+    build_capture_route, build_views, camera_pose, kinematic_urdf, validate_views,
 )
 from stacking_tabletop.acquisition.scene_capture import execute_capture, capture_lock, settle_arm
 from stacking_tabletop.acquisition.scene_capture_cli import load_reviewed_plan, ensure_ownership, main
@@ -22,6 +22,7 @@ from test_tabletop_hand_eye_calibration import profile_path
 
 ROOT = Path(__file__).resolve().parents[1]
 SEED = np.deg2rad([90, -90, 90, -90, -90, 30])
+CAPTURE_INIT = np.deg2rad([90, -80, 60, -70, -90, 0])
 
 
 @pytest.fixture
@@ -142,6 +143,58 @@ def test_legacy_five_view_plan_remains_reviewable(route):
     validate_views(legacy, kin, calibration)
 
 
+def test_failed_view_reports_label_and_waypoint(route, monkeypatch):
+    _, kin, calibration = route
+    def fail(pose, seed):
+        raise ValueError('unreachable target')
+    monkeypatch.setattr(kin, 'solve', fail)
+    with pytest.raises(ValueError, match=r'left: route waypoint 1/8 .*unreachable target'):
+        build_views(kin, calibration, SEED, distance=.4)
+
+
+@pytest.mark.parametrize('failure', [None, ValueError('unreachable target'), KeyboardInterrupt()])
+def test_planning_saves_coverage_or_failure_and_seed(profile_path, tmp_path, monkeypatch, failure):
+    from stacking_tabletop.acquisition import scene_capture_cli as cli
+    calibration = HandEyeCalibration.load(profile_path)
+    capture = tmp_path/'seed'
+    calibration.snapshot(capture/'calibration')
+    atomic_json(capture/'manifest.json', dict(frames=['frame']))
+    atomic_json(capture/'frame.json', dict(robot=dict(joint_positions=[SEED.tolist()])))
+    monkeypatch.setattr(cli, 'inspect_capture', lambda root: dict(serial=calibration.profile.serial))
+    def fail(*args, **kwargs):
+        raise failure
+    if failure is not None:
+        monkeypatch.setattr(cli, 'build_capture_route', fail)
+    output = tmp_path/'plan'
+    args = NS(output=output, seed_view=capture, profile=profile_path,
+              urdf=ROOT/'apps/tabletop/assets/ur5e/ur5e_ik.urdf', distance=.4,
+              offset=.04, oblique_offset=.08, viewpoint_pattern='coverage9')
+    if failure is None:
+        result = cli.prepare_plan(args)
+        assert Path(result['coverage_preview']).is_file()
+        coverage = json.loads((output/'coverage.json').read_text())
+        assert len(coverage['footprints']) == 9
+        assert coverage['distance_m'] == .4
+        assert (output/'plan.json').is_file()
+    else:
+        with pytest.raises(type(failure)):
+            cli.prepare_plan(args)
+    diagnostic = json.loads((output/'planning.json').read_text())
+    assert diagnostic['status'] == ('complete' if failure is None else
+                                   'cancelled' if isinstance(failure, KeyboardInterrupt) else 'failed')
+    assert diagnostic['motion_sent'] is False
+    assert diagnostic['viewpoint_pattern'] == 'coverage9'
+    np.testing.assert_array_equal(diagnostic['start_joints'], SEED)
+    np.testing.assert_array_equal(diagnostic['seed_joints'], CAPTURE_INIT)
+    assert (output/'robot.urdf').is_file()
+    assert (output/'plan.json').exists() == (failure is None)
+    coverage = json.loads((output/'coverage.json').read_text())
+    assert len(coverage['footprints']) == 9
+    assert coverage['route_status'] == ('validated' if failure is None else
+                                        'cancelled' if isinstance(failure, KeyboardInterrupt) else 'failed')
+    assert (output/'coverage.html').is_file()
+
+
 def test_kinematic_snapshot_preserves_fk_without_external_geometry(route):
     _, stripped, _ = route
     original = UR5eKinematics(ROOT / 'apps/tabletop/assets/ur5e/ur5e_ik.urdf')
@@ -251,6 +304,54 @@ def test_complete_sequence_brackets_wrist_and_keeps_camera_open(route, tmp_path)
     assert not status['accuracy_1mm_verified']
 
 
+def test_fixed_capture_center_is_independent_of_start_and_validates_return(route):
+    _, kin, calibration = route
+    first = build_capture_route(kin, calibration, SEED, CAPTURE_INIT, distance=.4)
+    other = build_capture_route(kin, calibration, SEED+.05, CAPTURE_INIT, distance=.4)
+    assert first['views'] == other['views']
+    assert first['target'] == other['target']
+    assert first['schema_version'] == 5
+    np.testing.assert_array_equal(first['entry_path'][0], SEED)
+    np.testing.assert_array_equal(first['entry_path'][-1], CAPTURE_INIT)
+    np.testing.assert_array_equal(first['return_path'], first['entry_path'][::-1])
+    validate_views(first, kin, calibration)
+    for key in ('entry_path', 'return_path'):
+        changed = copy.deepcopy(first)
+        changed[key][1][0] += .01
+        with pytest.raises(ValueError, match='approach/return'):
+            validate_views(changed, kin, calibration)
+    invalid = SEED.copy(); invalid[0] = kin.upper[0]+.1
+    with pytest.raises(ValueError, match='joint limits'):
+        build_capture_route(kin, calibration, invalid, CAPTURE_INIT, distance=.4)
+
+
+def test_fixed_capture_sequence_returns_to_original_start(route, tmp_path):
+    _, kin, calibration = route
+    plan = build_capture_route(kin, calibration, SEED, CAPTURE_INIT, distance=.4)
+    arm, events, error = run_fake((plan, kin, calibration), tmp_path/'run')
+    assert error is None
+    assert len(arm.paths) == 20
+    np.testing.assert_array_equal(arm.paths[0], plan['entry_path'])
+    np.testing.assert_array_equal(arm.paths[-1], plan['return_path'])
+    np.testing.assert_array_equal(arm.q, SEED)
+    for path in arm.paths[1:-1:2]:
+        np.testing.assert_array_equal(path[0], CAPTURE_INIT)
+    assert events.index('femto_before') < events.index('move')
+    assert events[events.index('wrist_close')+1:events.index('femto_after')] == ['move']
+
+
+@pytest.mark.parametrize('failure,moves', [('femto_before', 0), ('view_001_left', 4), ('femto_after', 20)])
+def test_fixed_capture_failure_does_not_start_an_abort_return(route, tmp_path, failure, moves):
+    _, kin, calibration = route
+    plan = build_capture_route(kin, calibration, SEED, CAPTURE_INIT, distance=.4)
+    arm, events, error = run_fake((plan, kin, calibration), tmp_path/'run', failure)
+    assert error is not None and len(arm.paths) == moves
+    assert events[-1] == 'hold'
+    if failure == 'view_001_left':
+        assert not np.allclose(arm.q, SEED)
+        assert 'femto_after' not in events
+
+
 @pytest.mark.parametrize('failure,moves,status', [('femto_before', 0, 'failed'),
     ('view_001_left', 3, 'cancelled'), ('femto_after', 18, 'failed')])
 def test_failure_holds_without_return_or_further_acquisition(route, tmp_path, failure, moves, status):
@@ -265,7 +366,10 @@ def test_failure_holds_without_return_or_further_acquisition(route, tmp_path, fa
         assert not np.allclose(arm.q, SEED)  # no automatic abort return
 
 
-def test_exclusive_lock_and_external_command_or_hold_rejection():
+def test_exclusive_lock_and_external_command_or_hold_rejection(tmp_path, monkeypatch):
+    # Test mutual exclusion without competing with a live operator capture.
+    monkeypatch.setattr('stacking_tabletop.acquisition.scene_capture.tempfile.gettempdir',
+                        lambda: str(tmp_path))
     with capture_lock():
         with pytest.raises(RuntimeError, match='another automated'):
             with capture_lock():
@@ -345,3 +449,38 @@ def test_simulation_exports_gui_capture_contract(tmp_path):
     np.testing.assert_allclose(frame['robot']['joint_positions'][-1], SEED)
     assert (tmp_path/'captures/femto_before/field_scan.json').is_file()
     assert (tmp_path/'captures/femto_after/field_scan.json').is_file()
+
+
+def test_wrist_only_capture_skips_femto_and_returns_to_original_pose(route, tmp_path):
+    _, kin, calibration = route
+    plan = build_capture_route(kin, calibration, SEED, CAPTURE_INIT, distance=.4)
+    plan['approved_sha256'] = 'reviewed'
+    events = []
+    arm = Arm(events)
+    @contextmanager
+    def wrist():
+        yield lambda directory: events.append(directory.name)
+    def assemble(directory, views, **references):
+        assert references == {}
+        assert len(views) == 9
+        np.testing.assert_array_equal(arm.q, SEED)
+    result = execute_capture(plan, tmp_path/'run', arm, None, wrist, assemble,
+                             settle=lambda arm, q: arm.validate_start(q), progress=events.append)
+    assert result['status'] == 'complete'
+    assert result['sensor_mode'] == 'wrist-only'
+    assert 'femto_before' not in events and 'femto_after' not in events
+    np.testing.assert_array_equal(arm.paths[0], plan['entry_path'])
+    np.testing.assert_array_equal(arm.paths[-1], plan['return_path'])
+
+
+def test_coverage_targets_are_available_without_solving_ik(route, monkeypatch):
+    from stacking_tabletop.acquisition.scene_views import camera_view_targets
+    plan, kin, calibration = route
+    def forbidden(*args, **kwargs):
+        pytest.fail('coverage target preview must not solve IK')
+    monkeypatch.setattr(kin, 'solve', forbidden)
+    poses, reference, target = camera_view_targets(kin, calibration, SEED, distance=.4, pattern='coverage13')
+    assert len(poses) == 13
+    for view in plan['views']:
+        np.testing.assert_allclose(poses[view['label']], view['base_link_T_color'], atol=2e-4)
+    np.testing.assert_allclose(target, plan['target'])

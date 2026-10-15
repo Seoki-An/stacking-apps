@@ -104,12 +104,14 @@ def render_joint_pose_result(identification):
     for item in report['poses']:
         stone = int(item['stone_id'])
         object_poses[f'Stone {stone} pose'] = np.asarray(item['planning_T_model'], dtype=float)
-        layers[f'FEMTO stone {stone}'] = _read_cloud(report_dir / f'stone_{stone}_femto.pcd')
+        if report.get('sensor_mode', 'wrist-femto') != 'wrist-only':
+            layers[f'FEMTO stone {stone}'] = _read_cloud(report_dir / f'stone_{stone}_femto.pcd')
         layers[f'RGB stone {stone}'] = _read_cloud(report_dir / f'stone_{stone}_rgb.pcd')
         layers[f'Fitted model {stone}'] = _read_cloud(report_dir / f'stone_{stone}_aligned.pcd')
     viewer_dir = identification / 'comparison'
     render_clouds(viewer_dir, layers, {},
-                  title='Joint RGB/FEMTO pickup pose: observations and fitted models',
+                  title=('Wrist RGB pickup poses' if report.get('sensor_mode') == 'wrist-only'
+                         else 'Joint RGB/FEMTO pickup poses'),
                   frame='world', object_poses=object_poses)
     return viewer_dir / 'overview.html'
 
@@ -119,7 +121,7 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
                                 manual_init_stones=None, manual_init_translation_step=.005,
                                 manual_init_rotation_step=5., visualize=False, assignments=None,
                                 suggested_assignments=None, pose_backend="foundationpose", repository=None):
-    """Estimate catalog poses and require independent RGB and FEMTO agreement."""
+    """Estimate poses from RGB; include independent FEMTO gates when available."""
     dense, region_file, geometry_dir, output = map(lambda p: Path(p).resolve(),
                                                    (dense, region_file, geometry_dir, output))
     summary = _json(dense / 'summary.json')
@@ -127,7 +129,9 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
     geometry = _json(geometry_dir / 'geometry.json')
     if summary.get('status') != 'complete' or 'refined' not in summary.get('modes', {}):
         raise ValueError('complete RGB MVS is required before catalog identification')
-    if summary.get('region') != region:
+    from .wrist_pick_regions import region_matches_dense
+    wrist_only = geometry.get('kind') == 'wrist_rgb_pick_scene_geometry'
+    if not region_matches_dense(dense, region, summary):
         raise ValueError('RGB MVS was reconstructed with different coarse FEMTO regions')
     if geometry.get('catalog_pose_fitted') is not False:
         raise ValueError('coarse FEMTO input must not contain a catalog pose fit')
@@ -141,6 +145,9 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
         if summary.get('kind') != 'fast_foundation_stereo_experiment':
             raise ValueError('FoundationPose requires saved Fast-FoundationStereo pairs; '
                              'reconstruct with Fast-FoundationStereo or select --pose-backend icp')
+    if wrist_only and (region.get('kind') != 'observed_wrist_rgb_pick_regions'
+                       or geometry.get('source_sha256') != region.get('source_sha256')):
+        raise ValueError('wrist RGB segmentation is not bound to this reconstruction')
     rgb_scene = _read_cloud(dense / 'refined/rgb_dense_voxel_1mm.pcd')
     plane = np.asarray(region['support_plane'], dtype=float)
     planning_T_base = _planning_T_base(geometry)
@@ -153,7 +160,8 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
         selected = rgb_scene[:, 2] > rgb_scene[:, :2] @ plane[:2] + plane[2] + .008
         selected &= np.all((rgb_scene[:, :2] >= low) & (rgb_scene[:, :2] <= high), axis=1)
         rgb_base = rgb_scene[selected]
-        femto = _read_cloud(geometry_dir / f'cluster_{index:02d}.pcd')
+        femto = (np.empty((0, 3)) if wrist_only else
+                 _read_cloud(geometry_dir / f'cluster_{index:02d}.pcd'))
         rgb = _transform(rgb_base, planning_T_base)
         observations[index] = (femto, rgb)
         combined = np.concatenate((femto, rgb))
@@ -187,9 +195,12 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
     output.mkdir(parents=True, exist_ok=False)
     report_dir = output / 'pose_identification'
     report_dir.mkdir()
-    report = dict(version=2, kind='femto_rgb_joint_pose_identification', status='running',
-                  pose_source=('foundationpose_rgb_femto_validated' if pose_backend == 'foundationpose'
-                               else 'rgb_femto_first_joint_icp'),
+    report = dict(version=2, kind=('wrist_rgb_pose_identification' if wrist_only else
+                                 'femto_rgb_joint_pose_identification'), status='running',
+                  sensor_mode='wrist-only' if wrist_only else 'wrist-femto',
+                  pose_source=(('foundationpose_wrist_rgb' if pose_backend == 'foundationpose' else 'wrist_rgb_icp')
+                               if wrist_only else ('foundationpose_rgb_femto_validated' if pose_backend == 'foundationpose'
+                               else 'rgb_femto_first_joint_icp')),
                   pose_backend=pose_backend, icp_refinement_applied=False, frame_id='world',
                   source_frame_id='base_link',
                   planning_T_base_link=geometry['planning_T_base_link'],
@@ -198,7 +209,7 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
                   fitted_table_plane=geometry['fitted_table_plane'],
                   source_sha256={'dense_summary.json': digest(dense / 'summary.json'),
                                  'rgb_region.json': digest(region_file),
-                                 'femto_geometry.json': digest(geometry_dir / 'geometry.json')},
+                                 ('rgb_geometry.json' if wrist_only else 'femto_geometry.json'): digest(geometry_dir / 'geometry.json')},
                   cluster_assignments=assignments, poses=[], rejected=[], warnings=[],
                   accuracy_1mm_verified=False)
     atomic_json(report_dir / 'stone_poses.json', report)
@@ -217,7 +228,14 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
                 report['rejected'].append(dict(stone_id=stone_id, cluster_index=cluster_index,
                                                reasons=['too_few_rgb_points'], rgb_input_points=len(rgb_raw)))
                 continue
-            femto, rgb, combined = _balanced_observation(femto_raw, rgb_raw, voxel, minimum)
+            if wrist_only:
+                from stacking_common.pointcloud.processing import fixed_grid_centroids
+                rgb = fixed_grid_centroids(PointCloudData(rgb_raw), voxel).points
+                femto, combined = femto_raw, rgb
+                if len(rgb) < minimum:
+                    raise FusedPoseRejected('too few wrist RGB points after downsampling')
+            else:
+                femto, rgb, combined = _balanced_observation(femto_raw, rgb_raw, voxel, minimum)
             model = catalog.load(stone_id).points
             if pose_backend == 'foundationpose':
                 final = planning_T_base @ np.asarray(learned[stone_id]['base_link_T_model'])
@@ -230,9 +248,10 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
                 final = candidate.registration.transform
                 initial = candidate.initial_transform
                 combined_result = candidate.registration
-            results = dict(combined=combined_result,
-                           femto=backend.evaluate(PointCloudData(model), PointCloudData(femto), final),
-                           rgb=backend.evaluate(PointCloudData(model), PointCloudData(rgb), final))
+            results = dict(rgb=backend.evaluate(PointCloudData(model), PointCloudData(rgb), final))
+            if not wrist_only:
+                results.update(combined=combined_result,
+                               femto=backend.evaluate(PointCloudData(model), PointCloudData(femto), final))
             reasons = sorted({f'{name}_{reason}' for name, result in results.items()
                               for reason in evaluate_registration(result, initial, quality).reasons})
             if reasons:
@@ -252,7 +271,8 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
             if pose_backend == 'foundationpose':
                 entry['foundationpose'] = learned[stone_id]
             report['poses'].append(entry)
-            write_xyz_pcd(report_dir / f'stone_{stone_id}_femto.pcd', femto)
+            if not wrist_only:
+                write_xyz_pcd(report_dir / f'stone_{stone_id}_femto.pcd', femto)
             write_xyz_pcd(report_dir / f'stone_{stone_id}_rgb.pcd', rgb)
             write_xyz_pcd(report_dir / f'stone_{stone_id}_balanced_observation.pcd', combined)
             write_xyz_pcd(report_dir / f'stone_{stone_id}_aligned.pcd', _transform(model, final))
@@ -265,9 +285,16 @@ def identify_from_rgb_and_femto(dense, region_file, geometry_dir, catalog, profi
             'FEMTO still supplies segmentation, table frame and metric scale.',
             'Passing field gates does not verify absolute 1 mm accuracy.',
         ]
+        if wrist_only:
+            report['limitations'] = [
+                'Poses and validation use the same wrist RGB reconstruction; no independent sensor check.',
+                'Metric scale and frame rely on recorded robot/hand-eye calibration.',
+                'The observed RGB table sets the table-height correction.',
+                'Scene stability and absolute 1 mm accuracy are not verified.']
         atomic_json(report_dir / 'stone_poses.json', report)
         if report['status'] != 'complete':
-            raise FusedPoseRejected('joint RGB/FEMTO identification rejected assigned stones')
+            raise FusedPoseRejected(('wrist RGB' if wrist_only else 'joint RGB/FEMTO') +
+                                    ' identification rejected assigned stones')
         pose_path = output / 'pose_data.pkl'
         with pose_path.open('xb') as stream:
             pickle.dump({item['stone_id']: (np.asarray(item['pose_xyzw'][:3]),

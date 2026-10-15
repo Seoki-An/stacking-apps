@@ -7,6 +7,7 @@ import numpy as np
 
 from stacking_tabletop.execution.motion import UR_JOINT_NAMES, validate_joint_path, validate_pose
 from .calibration import BASE_LINK_T_UR_BASE
+from .scan_paths import joint_leg
 
 
 def kinematic_urdf(description):
@@ -66,6 +67,46 @@ def _view_specs(pattern, offset, oblique_offset):
     return views
 
 
+def _validate_view_geometry(distance, offset, oblique_offset, pattern):
+    if not np.isfinite(distance) or not .1 <= distance <= 1.:
+        raise ValueError('target distance must be between 0.1 and 1 metre')
+    if not np.isfinite(offset) or not 0 < offset <= min(.12, distance / 2):
+        raise ValueError('offset must be positive and at most 0.12 m and half the target distance')
+    if pattern in ('coverage9', 'coverage13', 'coverage17') and (not np.isfinite(oblique_offset)
+            or not offset < oblique_offset <= min(.12, distance / 2)):
+        raise ValueError('oblique offset must exceed the near offset and be at most 0.12 m and half the target distance')
+
+
+def _view_camera_pose(reference, target, xy, distance, side, angle, fraction=1.):
+    pose = reference.copy()
+    if side:
+        theta = fraction * angle
+        pose[:3, 3] = (target - distance * np.cos(theta) * reference[:3, 2]
+                       + distance * np.sin(theta) * (reference[:3, :2] @ xy))
+    else:
+        pose[:3, 3] += reference[:3, :2] @ (fraction * np.asarray(xy))
+    z = target - pose[:3, 3]
+    z /= np.linalg.norm(z)
+    x = reference[:3, 0] - z * (z @ reference[:3, 0])
+    x /= np.linalg.norm(x)
+    pose[:3, :3] = np.column_stack((x, np.cross(z, x), z))
+    return pose
+
+
+def camera_view_targets(kinematics, calibration, seed, *, distance, offset=.04,
+                        oblique_offset=.08, pattern='coverage9'):
+    """Desired optical poses for coverage preview; no IK or reachability claim."""
+    _validate_view_geometry(distance, offset, oblique_offset, pattern)
+    seed = validate_joint_path([seed])[0]
+    reference = camera_pose(kinematics, calibration, seed)
+    target = reference[:3, 3] + distance * reference[:3, 2]
+    poses = {}
+    for label, xy, role in _view_specs(pattern, offset, oblique_offset):
+        angle = np.deg2rad(EXTENDED_SIDE_ANGLES.get(label, SIDE_ANGLE_DEG))
+        poses[label] = _view_camera_pose(reference, target, xy, distance, role == 'side', angle)
+    return poses, reference, target
+
+
 def build_views(kinematics, calibration, seed, *, distance, offset=.04,
                 oblique_offset=.08, pattern='coverage9', check=lambda: None, labels=None):
     """Overlapping views about one seed, with explicit reverse-path returns.
@@ -75,13 +116,7 @@ def build_views(kinematics, calibration, seed, *, distance, offset=.04,
     ``offset`` is the radius of the four near views. ``oblique_offset`` is the
     larger radial translation of four diagonal views that look at the same target.
     """
-    if not np.isfinite(distance) or not .1 <= distance <= 1.:
-        raise ValueError('target distance must be between 0.1 and 1 metre')
-    if not np.isfinite(offset) or not 0 < offset <= min(.12, distance / 2):
-        raise ValueError('offset must be positive and at most 0.12 m and half the target distance')
-    if pattern in ('coverage9', 'coverage13', 'coverage17') and (not np.isfinite(oblique_offset)
-            or not offset < oblique_offset <= min(.12, distance / 2)):
-        raise ValueError('oblique offset must exceed the near offset and be at most 0.12 m and half the target distance')
+    _validate_view_geometry(distance, offset, oblique_offset, pattern)
     seed = validate_joint_path([seed])[0]
     reference = camera_pose(kinematics, calibration, seed)
     target = reference[:3, 3] + distance * reference[:3, 2]
@@ -98,23 +133,17 @@ def build_views(kinematics, calibration, seed, *, distance, offset=.04,
         angle_deg = EXTENDED_SIDE_ANGLES.get(label, SIDE_ANGLE_DEG) if side else 0.
         angle = np.deg2rad(angle_deg)
         steps = max(1, int(np.ceil((distance * angle if side else np.linalg.norm(xy)) / .005)))
-        for fraction in np.linspace(0, 1, steps + 1)[1:]:
+        for step, fraction in enumerate(np.linspace(0, 1, steps + 1)[1:], start=1):
             check()
-            pose = reference.copy()
-            if side:
-                theta = fraction * angle
-                pose[:3, 3] = (target - distance * np.cos(theta) * reference[:3, 2]
-                               + distance * np.sin(theta) * (reference[:3, :2] @ xy))
-            else:
-                pose[:3, 3] += reference[:3, :2] @ (fraction * np.asarray(xy))
-            z = target - pose[:3, 3]
-            z /= np.linalg.norm(z)
-            x = reference[:3, 0] - z * (z @ reference[:3, 0])
-            x /= np.linalg.norm(x)
-            pose[:3, :3] = np.column_stack((x, np.cross(z, x), z))
+            pose = _view_camera_pose(reference, target, xy, distance, side, angle, fraction)
             if label != 'center':
                 base_T_tool = BASE_LINK_T_UR_BASE @ pose @ np.linalg.inv(calibration.tool_T_color)
-                next_q = kinematics.solve(base_T_tool, q)
+                try:
+                    next_q = kinematics.solve(base_T_tool, q)
+                except ValueError as error:
+                    raise ValueError(f'{label}: route waypoint {step}/{steps} '
+                        f'({fraction * 100:.1f}% of view path): {error}. '
+                        'Try Compact 9 (coverage9), or revise the configured capture pose; this route cannot be executed.') from error
                 if np.max(np.abs(next_q - q)) > np.deg2rad(10):
                     raise ValueError(f'{label}: IK changed joint branch or exceeded the local step limit')
                 q = next_q
@@ -140,16 +169,33 @@ def build_views(kinematics, calibration, seed, *, distance, offset=.04,
                 return_policy='reverse_each_leg_to_seed', held_object=False)
 
 
+def build_capture_route(kinematics, calibration, start, capture_init, **view_options):
+    """Capture about a fixed center, with a reversible approach from actual start."""
+    start = validate_joint_path([start])[0]
+    capture_init = validate_joint_path([capture_init])[0]
+    entry = validate_joint_path(joint_leg(start, capture_init))
+    if np.any(entry < kinematics.lower) or np.any(entry > kinematics.upper):
+        raise ValueError('capture entry path exceeds robot joint limits')
+    plan = build_views(kinematics, calibration, capture_init, **view_options)
+    plan.update(schema_version=5, start_joints=start.tolist(),
+                entry_path=entry.tolist(), return_path=entry[::-1].tolist(),
+                return_policy='reverse_each_leg_then_return_to_start')
+    return plan
+
+
 def validate_views(plan, kinematics, calibration):
     """Validate the complete saved route before any hardware command."""
-    if (plan.get('schema_version') not in (1, 2, 3, 4) or plan.get('kind') != 'tabletop_wrist_scene_plan'
+    fixed_center = plan.get('schema_version') == 5
+    return_policy = 'reverse_each_leg_then_return_to_start' if fixed_center else 'reverse_each_leg_to_seed'
+    if (plan.get('schema_version') not in (1, 2, 3, 4, 5) or plan.get('kind') != 'tabletop_wrist_scene_plan'
             or plan.get('output_frame') != 'base_link' or plan.get('held_object') is not False
-            or plan.get('return_policy') != 'reverse_each_leg_to_seed'):
+            or plan.get('return_policy') != return_policy):
         raise ValueError('unsupported scene scan plan')
     seed = validate_joint_path([plan['seed_joints']])[0]
     legacy = plan['schema_version'] == 1
     pattern = 'legacy5' if legacy else plan.get('viewpoint_pattern')
-    if {'legacy5': 1, 'coverage9': 2, 'coverage13': 3, 'coverage17': 4}.get(pattern) != plan['schema_version']:
+    versions = {'legacy5': 1, 'coverage9': 2, 'coverage13': 3, 'coverage17': 4}
+    if pattern not in versions or (not fixed_center and versions[pattern] != plan['schema_version']):
         raise ValueError('scene scan schema and viewpoint pattern disagree')
     expected_count = {'legacy5': 5, 'coverage9': 9, 'coverage13': 13, 'coverage17': 17}[pattern]
     if len(plan['views']) != expected_count:
@@ -157,6 +203,15 @@ def validate_views(plan, kinematics, calibration):
     expected = build_views(kinematics, calibration, seed, distance=plan['distance_m'],
                            offset=plan['offset_m'],
                            oblique_offset=plan.get('oblique_offset_m', .08), pattern=pattern)
+    if fixed_center:
+        start = validate_joint_path([plan['start_joints']])[0]
+        entry = validate_joint_path(joint_leg(start, seed))
+        if np.any(entry < kinematics.lower) or np.any(entry > kinematics.upper):
+            raise ValueError('capture entry path exceeds robot joint limits')
+        for key, original in (('entry_path', entry), ('return_path', entry[::-1])):
+            path = validate_joint_path(plan[key])
+            if path.shape != original.shape or not np.allclose(path, original, atol=1e-9, rtol=0):
+                raise ValueError(f'{key} differs from the generated capture approach/return')
     if pattern in ('coverage13', 'coverage17') and plan.get('side_angle_deg') != SIDE_ANGLE_DEG:
         raise ValueError('saved side angle differs from the generated route')
     if not np.allclose(plan['target'], expected['target'], atol=1e-9, rtol=0):
@@ -202,7 +257,8 @@ def render_preview(plan, kinematics, calibration, output):
                 points.append((BASE_LINK_T_UR_BASE @ kinematics._pose(path[-1], link))[:3, 3])
         if points:
             line(points, view['label'] + ' robot links', opacity=.4)
-    for key, label in (('entry_path', 'Entry from execution retreat'), ('return_path', 'Return to execution retreat')):
+    origin_label = 'original starting pose' if plan.get('schema_version') == 5 else 'execution retreat'
+    for key, label in (('entry_path', f'Entry from {origin_label}'), ('return_path', f'Return to {origin_label}')):
         if key in plan:
             line([camera_pose(kinematics, calibration, q)[:3, 3] for q in plan[key]], label,
                  line=dict(color='#db5151', dash='dash'))

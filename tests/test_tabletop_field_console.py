@@ -13,7 +13,7 @@ pytest.importorskip('PySide6')
 from PySide6.QtCore import QProcess, QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
-from stacking_tabletop.gui.operations.field_scan import FieldScanDialog, inspect_joint_pick_output
+from stacking_tabletop.gui.operations.field_scan import FieldScanDialog, inspect_joint_pick_output, retained_pick_viewers
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -66,7 +66,8 @@ def test_field_dialog_builds_integrated_wrist_rgb_femto_workflows(app, tmp_path)
         assert '--plan' not in args and '--approve' not in args
         assert '--output' in args and '--camera' in args
         assert args[args.index('--dense-backend') + 1] == 'fast-foundation-stereo'
-        assert args[args.index('--viewpoint-pattern') + 1] == 'coverage13'
+        assert args[args.index('--viewpoint-pattern') + 1] == 'coverage9'
+        dialog.viewpoints.setCurrentIndex(dialog.viewpoints.findData('coverage13'))
         assert '0.20 m' in dialog.note.text()
         dialog.viewpoints.setCurrentIndex(1)
         compact = dialog.arguments()
@@ -117,6 +118,72 @@ def test_field_dialog_resumes_failed_joint_fit_without_capture_or_mvs(app, tmp_p
         assert not dialog.output.isEnabled()
         assert '--dense-backend' not in args and not dialog.dense_backend.isEnabled()
         assert 'No camera capture or MVS reconstruction is repeated.' in dialog.note.text()
+    finally:
+        dialog.close()
+
+
+@pytest.mark.parametrize('exit_code', [0, 1])
+def test_capture_region_preview_is_plan_only_and_preserves_capture_output(app, tmp_path, monkeypatch, exit_code):
+    dialog = FieldScanDialog(ROOT)
+    dialog.mode.setCurrentIndex(dialog.mode.findData('pick_capture'))
+    dialog.output.setText(str(tmp_path/'capture'))
+    # Keep the command's generated preview directory within this test.
+    dialog.repository = tmp_path
+    calls, opened = [], []
+    monkeypatch.setattr(dialog.process, 'start', lambda executable, args: calls.append(args))
+    monkeypatch.setattr('stacking_tabletop.gui.operations.field_scan.QDesktopServices.openUrl',
+                        lambda url: opened.append(url.toLocalFile()) or True)
+    try:
+        dialog.preview_coverage()
+        args = calls[0]
+        assert args[2:4] == ['stacking_tabletop.acquisition.scene_capture_cli', 'plan']
+        assert args[args.index('--viewpoint-pattern')+1] == 'coverage9'
+        directory = Path(args[args.index('--output')+1])
+        directory.mkdir(parents=True)
+        (directory/'coverage.html').write_text('fixture')
+        dialog._finished(exit_code, QProcess.ExitStatus.NormalExit)
+        assert opened == [str(directory/'coverage.html')]
+        assert dialog.output.text() == str(tmp_path/'capture')
+        assert not (tmp_path/'capture').exists()
+        assert dialog.start_button.isEnabled() and dialog.inputs.isEnabled()
+        assert dialog._coverage_preview_directory is None
+        assert dialog.pose_path is None
+        assert not (directory/'plan.json').exists()
+        if exit_code:
+            assert 'desired camera coverage only' in dialog.log.toPlainText()
+    finally:
+        dialog.close()
+
+
+@pytest.mark.parametrize('has_pose_viewer', [False, True])
+def test_failed_pick_keeps_diagnostic_viewers_but_disables_planning(app, tmp_path, monkeypatch, has_pose_viewer):
+    root = tmp_path/'failed'
+    dense = root/'rgb_dense'
+    (dense/'rgb_only').mkdir(parents=True)
+    (dense/'summary.json').write_text(json.dumps({'status': 'complete'}))
+    rgb = dense/'rgb_only/overview.html'
+    rgb.write_text('reconstructed RGB')
+    (root/'pick_scene_workflow.json').write_text(json.dumps(
+        {'status': 'failed', 'stage': 'joint_pose_identification'}))
+    pose = root/'fused_identification/comparison/overview.html'
+    if has_pose_viewer:
+        pose.parent.mkdir(parents=True)
+        pose.write_text('rejected pose diagnostics')
+    dialog = FieldScanDialog(ROOT)
+    opened = []
+    monkeypatch.setattr('stacking_tabletop.gui.operations.field_scan.QDesktopServices.openUrl',
+                        lambda url: opened.append(url.toLocalFile()) or True)
+    try:
+        dialog.mode.setCurrentIndex(dialog.mode.findData('pick_capture'))
+        dialog.output.setText(str(root))
+        dialog._finished(1, QProcess.ExitStatus.NormalExit)
+        assert dialog.rgb_button.isEnabled()
+        assert dialog.pose_button.isEnabled() == has_pose_viewer
+        assert dialog.pose_path is None and not dialog.plan_button.isEnabled()
+        assert opened == [str(pose if has_pose_viewer else rgb)]
+        # A linked external folder must not be offered as this run's output.
+        (root/'pick_scene_workflow.json').write_text(json.dumps({'dense_dir': str(tmp_path/'outside')}))
+        assert retained_pick_viewers(root)[0] is None
     finally:
         dialog.close()
 
@@ -355,5 +422,27 @@ def test_reidentification_after_resume_keeps_new_result_directory(app, tmp_path,
         assert dialog._result_directory != previous
         assert dialog._result_directory == Path(args[args.index('--output') + 1])
         assert dialog.mode.currentData() == 'pick_resume'
+    finally:
+        dialog.close()
+
+
+def test_wrist_only_gui_uses_no_femto_and_supports_saved_capture(app, tmp_path):
+    dialog = FieldScanDialog(ROOT)
+    try:
+        dialog.camera.setCurrentIndex(dialog.camera.findData('both'))
+        dialog.mode.setCurrentIndex(dialog.mode.findData('pick_wrist_capture'))
+        dialog.output.setText(str(tmp_path/'new'))
+        args = dialog.arguments()
+        assert args[args.index('--sensor-mode')+1] == 'wrist-only'
+        assert '--camera' not in args
+        assert not dialog.camera.isEnabled()
+        assert dialog.viewpoints.isEnabled() and not dialog.coverage_button.isHidden()
+        assert args[args.index('--dense-backend')+1] == 'fast-foundation-stereo'
+        assert args[args.index('--pose-backend')+1] == 'foundationpose'
+        dialog.mode.setCurrentIndex(dialog.mode.findData('pick_wrist_existing'))
+        dialog.source.setText(str(tmp_path))
+        args = dialog.arguments()
+        assert 'process' in args and str(tmp_path) in args
+        assert '--viewpoint-pattern' not in args
     finally:
         dialog.close()

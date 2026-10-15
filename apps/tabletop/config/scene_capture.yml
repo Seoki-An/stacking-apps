@@ -1,0 +1,3 @@
+# Pick-scene wrist RGB capture center, in canonical UR joint order.
+# The starting robot pose is recorded separately and restored after capture.
+q_capture_init_deg: [90.0, -80.0, 60.0, -70.0, -90.0, 0.0]

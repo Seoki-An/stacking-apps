@@ -201,6 +201,46 @@ use fake devices; they do not move the UR5e or operate the gripper. FEMTO
 acquisition and automatic scan trajectories are implemented. Live in-hand
 registration remains next.
 
+## Previewing the pick-scene capture region
+
+In Operations → Scene capture, select either wrist capture workflow (with FEMTO
+or wrist RGB only), choose the view pattern, then click **Preview capture region
+(no motion)**. Compact 9 is the default.
+Bringup must supply current joint feedback. This only plans and opens an HTML
+footprint plot; it does not move the robot or start either camera. The preview
+uses a separate output folder, so the selected capture destination stays unused.
+**Start** records the then-current robot pose for the approach and final return.
+The capture center is fixed by `apps/tabletop/config/scene_capture.yml`:
+
+```yaml
+q_capture_init_deg: [90.0, -80.0, 60.0, -70.0, -90.0, 0.0]
+```
+
+All wrist viewpoints are relative to this configured pose. The sequence is:
+FEMTO before → open wrist camera → move from the recorded start to the capture
+center → capture views, returning to the center between them → close wrist
+camera → reverse the approach back to the recorded start → FEMTO after.
+In wrist-only mode the FEMTO before/after phases are omitted.
+A valid robot-route preview includes both approach and return. These paths use joint-space
+interpolation and check joint/cable limits; they are not collision checked.
+Cancellation or failure holds the measured pose rather than initiating a return.
+Previously saved plans retain their original behavior; regenerate plans to use
+the configured capture center.
+
+The plot shows calibrated RGB image footprints on a plane perpendicular to the
+central camera axis at the workflow's assumed 40 cm target distance. It reports
+the central footprint width/height and the bounding span of all views. This is
+not a measured table plane, the bounding span may include gaps, and stereo
+overlap, occlusion, texture and reconstruction crops reduce usable PCD coverage.
+Image-border distortion is included. Horizon-crossing views are labelled
+unbounded rather than assigned a misleading finite size.
+
+Normal capture planning also prints these dimensions and saves `coverage.json`
+and `coverage.html` alongside `capture_plan/preview.html`. If route IK fails,
+the footprint viewer still opens as **desired coverage only**, with the error
+shown and no executable plan produced. FEMTO's crop is
+configured separately; this estimate describes the wrist RGB views.
+
 ## Stacked-scene wrist PCD after each placement
 
 In **Execution**, **Collect stacked-scene PCD with wrist RGB after each placement**
