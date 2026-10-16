@@ -10,6 +10,7 @@ import numpy as np
 from stacking_common.execution import ExecutionFailure
 from stacking_tabletop.execution.runtime import HardwareError
 from stacking_tabletop.execution.motion import CartesianStreamLimits
+from stacking_tabletop.execution.sequence import InHandPreparationError
 from .femto import CaptureError, CaptureCancelled
 from .scan_paths import build_scan, joint_leg, Q_SCAN, PIVOT_POINT_TOOL_M
 from .storage import CaptureSession
@@ -57,7 +58,12 @@ def scan_held_object(executor, request, camera, *, prepared=lambda value: None,
     try:
         # Check identity, optical TF and synchronized held state before entry.
         # The preflight burst is discarded; every view gets a fresh burst.
-        _capture(executor, camera, anchor)
+        try:
+            _capture(executor, camera, anchor)
+        except CaptureCancelled:
+            raise
+        except CaptureError as error:
+            raise InHandPreparationError(str(error)) from error
         with session_factory(output, camera.calibration, in_hand=True) as session:
             (output / 'scan_plan.json').write_text(json.dumps(details, indent=2, allow_nan=False) + '\n')
             prepared({'positions': preview_path.tolist(), 'capture_count': capture_count,

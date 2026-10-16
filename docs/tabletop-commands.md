@@ -160,7 +160,8 @@ JSON or CSV.
 ## UR5e and Dynamixel startup
 
 Use the integrated tabletop launch wrapper to start the UR driver, admittance
-controller, and the single-owner Dynamixel driver together. It delegates to the
+controller, Dynamixel, the selected FEMTO driver, and the perception service.
+The service owns the D435 pipeline and keeps it open between captures. It delegates to the
 maintained `ur5e_admittance` arm and gripper launch files, while forwarding the
 commissioned calibration and gripper device.
 
@@ -169,15 +170,15 @@ the gripper before running this command. Start only one process that owns the
 Dynamixel serial device.
 
 ```bash
-ros2 launch apps/tabletop/launch/hardware.launch.py
+direnv exec . python /opt/ros/jazzy/bin/ros2 launch apps/tabletop/launch/hardware.launch.py
 ```
 
 The wrapper defaults to this system's commissioned robot address
 (`192.168.56.101`), factory calibration
 (`/home/inrol-excavator/ros2_ws/ur5e_calibration.yaml`), and gripper device
 (`/dev/ttyUSB0`). Override any of them with launch arguments if the hardware
-assignment changes. This replaces the two-terminal arm/gripper startup. For
-arm-only diagnosis, append `start_gripper:=false`; the separate
+assignment changes. This replaces the two-terminal arm/gripper startup. To
+disable the gripper, append `start_gripper:=false`; the separate
 `gripper_bringup.launch.py` command remains available for isolated gripper tests.
 The arm launch defaults to
 `headless_mode:=false`, requiring the robot's External Control program.
@@ -187,6 +188,51 @@ terminal:
 ```bash
 stacking-tabletop-operations . --run /path/to/planning-run.stack
 ```
+
+Camera/service arguments: `femto_camera:=primary` (or `secondary`),
+`start_femto:=false`, `start_perception:=false`, and `start_wrist_camera:=false`.
+Select the same FEMTO camera in the execution panel. Do not separately launch a
+second FEMTO driver in `/camera`. For arm-only diagnosis disable all three
+camera/service flags as well as the gripper if appropriate.
+
+At the held-object placement review, **Skip identification / continue with
+current estimate** proceeds with the existing attachment. A failed camera
+preflight returns to this review with a fresh token, allowing Prepare/retry or
+skip; it does not fail the whole execution. Once scan motion starts, a capture
+or motion failure still stops execution rather than jumping into the carry path.
+
+The hardware launch owns the persistent perception process independently of GUI
+execution attempts. ICP resources/model clouds are reused, and reconstruction
+and SceneID requests run outside the robot command process. Stack processing
+still overlaps the return home. Fast-FoundationStereo retains its isolated
+Python subprocess and currently reloads its GPU model for each reconstruction.
+
+Field/calibration workflows that directly own the D435 require
+`start_wrist_camera:=false` before using that device. The field FEMTO workflow
+can use its existing `--use-running-camera` option for the selected camera.
+Restart the perception service after changing profiles or model assets.
+
+When stacked-scene capture is enabled and more placements remain, its result
+gate offers **Accept SceneID and refine remaining plan**. Acceptance finishes
+the released step, stops at home, then requests fixed-order refinement in the
+perception service. Each placed stone must differ by at most **5 mm and 3°**
+from the current plan. These limits select the refinement route, not permission
+to skip stability, support, collision, joint-limit or continuity checks.
+
+Refinement preserves remaining stone IDs/order, re-settles each planned target
+against the corrected stack, and regenerates the motions without rerunning
+MCTS. Excessive target drift, a weak/changed observation, or a failed physics or
+motion check stops the job for review; it never silently starts a broader search.
+The resulting `*-refined-after-STEP-*.stack` is loaded after the execution worker
+finishes. Previously placed stones remain completed. **Start supervised
+execution** then presents the usual next-motion review; no new motion starts
+automatically.
+
+The old source remains viewable, but its stale remaining motions are blocked.
+If the service fails or refinement is cancelled, **Retry scene refinement**
+retries computation without reconnecting robot hardware or repeating placement.
+Large scene changes need separately reviewed broader replanning, not repeated
+local retries. The original plan and physical execution history are retained.
 
 In the Operations Console, select **Execution → Start supervised execution** and
 follow the pickup, close, placement, and release gates. See the
@@ -209,7 +255,8 @@ These own their camera drivers; stop existing drivers first, or use
 [field workflow guide](tabletop-femto.md#field-capture-and-identification-in-the-operations-console)
 for ID assignment, manual alignment, capture retries, and output paths.
 
-Start the primary camera driver in its own ROS-sourced terminal:
+If FEMTO was disabled in hardware bringup, start its driver separately in a
+ROS-sourced terminal (otherwise the driver is already running):
 
 ```bash
 python /opt/ros/jazzy/bin/ros2 launch apps/tabletop/launch/femto.launch.py camera:=primary

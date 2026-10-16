@@ -25,6 +25,16 @@ class ExecutionScene:
         self.motion_preview = None
         self.show_motion_review = False
         self.released = {}
+        refinement = StackRunStore.info(saved.path).metadata.get('scene_refinement')
+        self._identified_through_step = 0 if refinement is None else int(refinement['completed_step'])
+        if refinement is not None:
+            observed = StackRunStore.load_planning_checkpoint(saved.path, self._identified_through_step)
+            if observed.context_sha256 != saved.context.sha256:
+                raise ValueError('refined scene checkpoint differs from execution context')
+            for index in observed.state.placed_object_indices:
+                object_id = observed.state.object_ids[index]
+                self.released[object_id] = observed.world_T_stack.child_pose_to_parent(
+                    observed.state.object_poses[object_id])
         self.observed_scene_points = None
         checkpoint = StackRunStore.load_execution_checkpoint(saved.path)
         step = next(iter(checkpoint.pending_steps), saved.plans[-1].step)
@@ -50,7 +60,11 @@ class ExecutionScene:
         pose = event.diagnostics.get("release_pose")
         if (event.status.value == "succeeded" or event.diagnostics.get("release_completed")) and pose is not None:
             plan = next(plan for plan in self.saved.plans if plan.step == event.diagnostics["step"])
-            self.released[plan.problem.action.object_id] = np.asarray(pose)
+            # Historical kinematic release estimates must not overwrite the
+            # accepted observed scene when a refined branch is loaded. Newer
+            # placements still update normally until their next observation.
+            if plan.step > self._identified_through_step:
+                self.released[plan.problem.action.object_id] = np.asarray(pose)
 
         if 'stack_scene_pcd' in event.diagnostics:
             from pathlib import Path

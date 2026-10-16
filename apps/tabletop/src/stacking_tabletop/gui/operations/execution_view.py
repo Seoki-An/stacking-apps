@@ -28,6 +28,7 @@ def connect_live_state():
 
 class ExecutionView(QWidget):
     state_changed = Signal()
+    refined_run_loaded = Signal(str)
 
     def __init__(self, repository=None, parent=None, *, worker_factory=ExecutionWorker,
                  preview_transport_factory=connect_live_state):
@@ -53,6 +54,7 @@ class ExecutionView(QWidget):
         self._scan_positions = None
         self._stack_viewer = None
         self._released_recovery = None
+        self._refined_path = None
         layout = QVBoxLayout(self)
         self.status = QLabel("Open a .stack run to validate saved execution.")
         self.status.setWordWrap(True)
@@ -178,6 +180,14 @@ class ExecutionView(QWidget):
                         "Retry only the failed stacked-scene capture, or explicitly skip it."
                     )
             elif checkpoint.pending_steps:
+                from stacking_tabletop.execution.scene_refinement import pending_scene_refinement
+                pending = pending_scene_refinement(path)
+                if pending is not None:
+                    self.status.setText(
+                        'An accepted stacked-scene observation requires refinement. '
+                        'Retry refinement without robot motion; the old remaining '
+                        'motions cannot execute.'
+                    )
                 recovery = pending_released_stack_capture(
                     path, checkpoint.pending_steps[0]
                 )
@@ -245,6 +255,14 @@ class ExecutionView(QWidget):
         active = self.running and not self._aborting
         self.stack_capture.setEnabled(not self.running)
         checkpoint = StackRunStore.load_execution_checkpoint(self.path) if ready else None
+        from stacking_tabletop.execution.scene_refinement import pending_scene_refinement
+        pending = pending_scene_refinement(self.path) if ready else None
+        scan_retry = (pending is not None
+                      and pending_released_stack_capture(self.path, pending['step']) is not None)
+        refinement_pending = pending is not None and not scan_retry
+        self.start_button.setText('Retry scene refinement (no robot motion)'
+                                  if refinement_pending else 'Retry stacked-scene capture'
+                                  if scan_retry else 'Start supervised execution')
         self.start_button.setEnabled(ready and not self.running and self.can_start() and bool(checkpoint.pending_steps)
                                      and not checkpoint.requires_reconciliation)
         self.reconcile_button.setEnabled(ready and not self.running and checkpoint.requires_reconciliation)
@@ -285,12 +303,15 @@ class ExecutionView(QWidget):
         self.worker.telemetry.connect(self.receive_telemetry)
         self.worker.event_received.connect(self.receive_event)
         self.worker.plan_selected.connect(self.select_plan)
+        self.worker.refined_run_ready.connect(self._refined_run_ready)
+        self.worker.refinement_status.connect(self.status.setText)
         self.worker.failed.connect(self.status.setText)
         self.worker.completed.connect(self._completed)
         self.worker.finished.connect(self._finished)
         self.status.setText("Connecting to the existing UR5e and gripper controllers…")
         self._paused = False
         self._aborting = False
+        self._refined_path = None
         self.worker.start()
         self._controls()
 
@@ -306,9 +327,25 @@ class ExecutionView(QWidget):
         self._paused = False
         self.hold_button.setText("Hold")
         self.telemetry_label.setText("Session ended; last received state:\n" + self.telemetry_label.text())
+        refined, self._refined_path = self._refined_path, None
+        if refined is not None:
+            # A queued ready signal only stores the path. Changing the scene
+            # and saved command source is allowed only after the worker ends.
+            self.load(refined)
+            if self.saved is not None:
+                self.refined_run_loaded.emit(str(refined))
+                self.status.setText(
+                    'Refined plan loaded with completed placements preserved. '
+                    'Start supervised execution to review the next motion; '
+                    'nothing has started automatically.'
+                )
         self._controls()
         if self._preview_requested:
             self._open_live_preview()
+
+    def _refined_run_ready(self, path):
+        from pathlib import Path
+        self._refined_path = Path(path)
 
     def set_gate(self, gate):
         self._set_motion_review(gate is not None and gate.name == "review")
@@ -323,6 +360,13 @@ class ExecutionView(QWidget):
             self.state_changed.emit()
         self.gate = gate
         self._scan_pending = False
+        self.continue_button.setText(
+            'Skip identification / continue with current estimate'
+            if gate is not None and gate.name == 'place' else
+            'Accept SceneID and refine remaining plan'
+            if gate is not None and gate.name == 'stack_scene_result'
+            and any(plan.step > gate.step for plan in self.saved.plans) else 'Continue'
+        )
         self.gate_label.setText("" if gate is None else f"Step {gate.step}: {gate.message}")
         self._controls()
 
@@ -506,6 +550,11 @@ class ExecutionView(QWidget):
                                    f"{event.diagnostics['capture_directory']}")
         if 'scan_completed' in event.diagnostics:
             self.scan_label.setText(f"Scan saved: {event.diagnostics['scan_completed']}")
+        if 'inhand_preparation_failed' in event.diagnostics:
+            self.scan_label.setText(
+                'Scan preparation failed: ' + event.diagnostics['inhand_preparation_failed']
+                + '\nRetry preparation, or skip identification at the placement review.'
+            )
         if 'inhand_identification_started' in event.diagnostics:
             self.scan_label.setText(
                 "Identifying the held stone from the completed scan…\n"

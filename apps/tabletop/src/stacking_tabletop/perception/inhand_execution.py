@@ -17,6 +17,22 @@ from .organized_depth import DepthFilterConfig
 MODEL_NEIGHBORHOOD_M = 0.025
 
 
+def identification_from_report(report):
+    """Decode the server result through the same typed executor boundary."""
+    from stacking_common.pointcloud import validate_rigid_transform
+    values = dict(report)
+    status = values.pop('status')
+    if status not in ('accepted', 'rejected'):
+        raise ValueError('invalid identification status from perception service')
+    values['accepted'] = status == 'accepted'
+    values['reasons'] = tuple(values['reasons'])
+    for name in ('initial_tool_T_object', 'identified_tool_T_object'):
+        values[name] = validate_rigid_transform(np.asarray(values[name], dtype=float))
+    for name in ('capture_directory', 'report_path'):
+        values[name] = Path(values[name])
+    return InHandIdentification(**values)
+
+
 @dataclass(frozen=True)
 class InHandIdentification:
     """Accepted or rejected tool-frame pose refinement and its evidence."""

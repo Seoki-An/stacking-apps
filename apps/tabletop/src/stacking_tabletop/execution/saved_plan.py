@@ -79,8 +79,11 @@ def resolve_execution_assets(context, repository, planning):
 
 def load_execution_run(path, repository):
     path = Path(path).resolve()
-    if StackRunStore.info(path).status == "running":
+    info = StackRunStore.info(path)
+    if info.status == "running":
         raise ValueError("stop/finalize offline planning before executing its run")
+    if 'scene_refinement' in info.metadata and info.status != 'complete':
+        raise ValueError('incomplete scene refinement cannot supply executable motions')
     plans = StackRunStore.load_committed_placement_plans(path)
     if not plans or tuple(plan.step for plan in plans) != tuple(range(1, len(plans) + 1)):
         raise ValueError("execution needs contiguous committed motion plans starting at step 1")

@@ -252,7 +252,7 @@ def test_accepted_identification_updates_live_attachment_before_carry(saved, tmp
 
 
 @pytest.mark.parametrize('mode,failure', [
-    ('preflight_failure', 'perception_failed'), ('capture_failure', 'perception_failed'),
+    ('capture_failure', 'perception_failed'),
     ('wrong_joints', 'perception_failed'), ('cancel_review', 'cancelled'), ('slip', 'gripper_fault'),
     ('cancel_motion', 'cancelled'), ('storage_failure', 'controller_fault'),
 ])
@@ -274,6 +274,20 @@ def test_scan_failure_never_releases_returns_or_advances(saved, tmp_path, mode, 
         assert not Session.instances[0].complete
     else:
         assert mode == 'preflight_failure'
+
+
+def test_preflight_failure_returns_to_review_and_can_skip(saved, tmp_path):
+    transport, executor, camera, gates, previews = setup_scan(saved, tmp_path, mode='preflight_failure')
+    results = execute_saved_run(saved, executor)
+    assert all(result.status.value == 'succeeded' for result in results)
+    reviews = [gate for gate in gates if gate.name == 'place' and gate.step == 1]
+    assert len(reviews) == 2 and reviews[0].token != reviews[1].token
+    assert 'skip identification' in reviews[1].message
+    assert not previews and camera.calls == 1
+    events = StackRunStore.load_execution_events(saved.path)
+    assert any('inhand_preparation_failed' in event.diagnostics for event in events)
+    assert not any(event.diagnostics.get('scan_started') for event in events)
+    assert not StackRunStore.load_execution_checkpoint(saved.path).requires_reconciliation
 
 
 def test_worker_closes_camera_on_scan_failure(saved, monkeypatch):

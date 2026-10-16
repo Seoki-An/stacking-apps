@@ -1,0 +1,388 @@
+"""Bounded, fixed-order scene correction using recorded native planning inputs.
+
+This computes a proposal only: it never writes a run or authorizes robot motion.
+The caller must review and persist the complete result before execution resumes.
+"""
+
+from dataclasses import dataclass, replace
+import hashlib
+import json
+from pathlib import Path
+
+import numpy as np
+
+from stacking_common.artifacts import StackRunStore, build_execution_command
+from stacking_common.assets import ObjectAssetLoader
+from stacking_common.domain import DirectionalTaper, TargetGeometry
+from stacking_common.domain._validation import pose_array
+from stacking_common.environment.core_backend import (
+    CorePhysicsProfile, CorePlacementBackend, CorePlacementConfig,
+    CoreSimulationProfile, SimulationPhaseConfig,
+)
+from stacking_common.environment.robustness import PlaceStabilityConfig
+from stacking_common.planning import PlacementPlanningProblem
+from stacking_common.planning.scene_identification import review_rollout_and_replan
+from stacking_common.profiles.native import NativeSolverProfile
+from stacking_tabletop.execution.saved_plan import validate_command
+
+from .adapter import TabletopMotionPlannerAdapter
+from .coordinator import TabletopPlanningCoordinator
+from .native import TabletopNativePlanningBackend
+from .safety import TabletopPlacementSafety
+from .scene_identification import prepare_saved_stack_candidate
+
+
+MAX_TRANSLATION = .005
+MAX_ROTATION = np.deg2rad(3.)
+ROLLOUT_TRANSLATION = .001
+ROLLOUT_ROTATION = np.deg2rad(.5)
+
+
+class RefinementNeedsReview(ValueError):
+    """The local correction is unsafe or needs a broader planning decision."""
+
+
+@dataclass(frozen=True)
+class SceneRefinement:
+    corrected_state: object
+    records: tuple
+    states: tuple
+    summary: dict
+
+
+def _pose_delta(before, after):
+    before, after = pose_array(before), pose_array(after)
+    cosine = abs(float(before[3:] @ after[3:]))
+    cosine /= np.linalg.norm(before[3:]) * np.linalg.norm(after[3:])
+    return (float(np.linalg.norm(after[:3] - before[:3])),
+            float(2 * np.arccos(np.clip(cosine, 0., 1.))))
+
+
+def _bounded_delta(before, after, description):
+    translation, rotation = _pose_delta(before, after)
+    if translation > MAX_TRANSLATION + 1e-10 or rotation > MAX_ROTATION + 1e-10:
+        raise RefinementNeedsReview(
+            f'{description} changed by {translation * 1000:.2f} mm, '
+            f'{np.rad2deg(rotation):.2f} deg; exceeds local refinement '
+            'limits (5 mm / 3 deg); needs broader review, not automatic MCTS')
+    return {'translation_m': translation, 'rotation_rad': rotation}
+
+
+def _recorded_simulation(values):
+    """The saved context contains resolved dataclasses, not the YAML schema."""
+    values = dict(values)
+    placement = dict(values.pop('placement'))
+    for key in ('structural', 'short_gate'):
+        if placement.get(key) is not None:
+            placement[key] = SimulationPhaseConfig(**dict(placement[key]))
+    values['placement'] = CorePlacementConfig(**placement)
+    if values.get('settling_physics') is not None:
+        values['settling_physics'] = CorePhysicsProfile(**dict(values['settling_physics']))
+    return CoreSimulationProfile(**values)
+
+
+def _inventory(saved, repository, checkpoint):
+    values = saved.context.profiles['inventory_profile']
+    target = dict(values['target'])
+    target['taper'] = DirectionalTaper(**dict(target['taper']))
+    loader = ObjectAssetLoader(
+        Path(repository) / values['model_directory'], density=values['density'],
+        density_overrides=dict(values['density_overrides']),
+        target=TargetGeometry(**target),
+    )
+    return loader.load(checkpoint.state.object_ids, checkpoint.pick_scene.object_poses)
+
+
+def _scene_candidate(saved, repository, capture, step, checkpoint):
+    import stacking_core as core
+    from stacking_common.planning.scene_identification import load_reviewed_stack_capture
+    from stacking_common.reconstruction import load_point_cloud
+
+    # Reload the actual hashed PCD and re-solve rather than treating report JSON
+    # as a trusted native snapshot. SceneID is CPU-capable and never invokes MCTS.
+    load_reviewed_stack_capture(capture, voxel_size=.001)
+    status = json.loads((capture / 'capture.json').read_text())
+    points = load_point_cloud(status['pcd']).points
+    config = core.SceneIdConfig()
+    config.scan_sigma = .005
+    config.outlier_cutoff = .025
+    config.reference_scan_points = max(1., len(points) / len(checkpoint.state.placed_object_indices))
+    capabilities = core.cuda_capabilities() if hasattr(core, 'cuda_capabilities') else {}
+    cuda_scan = bool(capabilities.get('sceneid_scan') and capabilities.get('devices'))
+    return prepare_saved_stack_candidate(
+        saved, repository, capture, config, step,
+        scan_voxel_size=.001, mesh_voxel_size=.001, cuda_scan=cuda_scan,
+    )
+
+
+def _correct_scene(saved, checkpoint, candidate, simulation):
+    if not candidate.ready_for_review or candidate.result.support_warning:
+        raise RefinementNeedsReview('SceneID is unqualified or reports a support warning')
+    if not candidate.result.gap_screen.nonpenetrating:
+        raise RefinementNeedsReview('SceneID reports penetrating stones')
+    if candidate.scene_frame != saved.planning.world_T_stack.parent_frame:
+        raise RefinementNeedsReview('SceneID frame differs from the saved planning world')
+    state = checkpoint.state.copy()
+    expected = {index + 1: state.object_ids[index] for index in state.placed_object_indices}
+    entities = [int(value) for value in candidate.result.entity_ids]
+    poses = list(candidate.result.proposed_poses)
+    evidence = list(candidate.result.evidence)
+    if (set(entities) != set(expected) or len(entities) != len(expected)
+            or len(poses) != len(entities)
+            or {int(value.entity_id) for value in evidence} != set(expected)
+            or len(evidence) != len(expected)):
+        raise RefinementNeedsReview('SceneID does not cover exactly the placed inventory')
+    by_entity = {int(value.entity_id): value for value in evidence}
+    changes = {}
+    for entity, pose in zip(entities, poses):
+        object_id = expected[entity]
+        pose = saved.planning.world_T_stack.parent_pose_to_child(pose_array(pose))
+        delta = _bounded_delta(state.object_poses[object_id], pose, f'Placed stone {object_id}')
+        item = by_entity[entity]
+        if item.prior_carried:
+            if delta['translation_m'] > 1e-8 or delta['rotation_rad'] > 1e-6:
+                raise RefinementNeedsReview(f'Occluded stone {object_id} moved without scan evidence')
+        elif (item.inliers < 3 or not np.isfinite(item.rmse)
+              or not np.isfinite(item.min_information) or item.min_information <= 0):
+            raise RefinementNeedsReview(f'Stone {object_id} has insufficient finite scan evidence')
+        changes[str(object_id)] = delta
+    placement = simulation.placement
+    if placement.settle_steps <= 0:
+        raise RefinementNeedsReview('Recorded simulation disables the required stability rollout')
+    # This callback approves computation on a copy, not operator execution. The
+    # caller still presents the complete proposal for explicit review afterwards.
+    corrected, rollout = review_rollout_and_replan(
+        candidate, review=lambda _: True,
+        simulation_config=simulation.native_config(),
+        dt=placement.settle_dt, steps=placement.settle_steps,
+        max_translation=ROLLOUT_TRANSLATION, max_rotation=ROLLOUT_ROTATION,
+        state=state, entity_to_object_id=expected,
+        world_T_stack=saved.planning.world_T_stack, replan=lambda branch: branch,
+    )
+    corrected.object_poses = {object_id: corrected.object_poses[object_id].copy()
+                              for object_id in expected.values()}
+    corrected.contact_points.clear()
+    corrected.trajectories.clear()
+    return corrected, changes, rollout
+
+
+def _match_reviewed_estimate(capture, metadata, candidate):
+    review = metadata['scene_identification']
+    path = Path(review['path']).resolve()
+    if not path.is_relative_to(capture) or not path.is_file():
+        raise RefinementNeedsReview('Reviewed SceneID report is missing or outside its capture')
+    with path.open('rb') as stream:
+        digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+    if digest != review['sha256']:
+        raise RefinementNeedsReview('Reviewed SceneID report hash changed')
+    report = json.loads(path.read_text())
+    entities, poses = report['entity_ids'], report['proposed_poses']
+    if (report.get('kind') != 'tabletop_stack_scene_identification'
+            or report.get('accepted_snapshot') is not True
+            or report.get('status') != str(candidate.result.status)
+            or len(entities) != len(poses) or len(set(entities)) != len(entities)
+            or set(entities) != set(candidate.result.entity_ids)
+            or report.get('source_hashes') != dict(candidate.source_hashes)):
+        raise RefinementNeedsReview('Re-solved SceneID differs from the reviewed report; review again')
+    reviewed = dict(zip(entities, poses))
+    for entity, pose in zip(candidate.result.entity_ids, candidate.result.proposed_poses):
+        translation, rotation = _pose_delta(reviewed[int(entity)], pose)
+        if translation > 1e-6 or rotation > 1e-6:
+            raise RefinementNeedsReview('Re-solved SceneID poses changed; review the new estimate first')
+
+
+def _coordinator(saved, repository, checkpoint, inventory, progress):
+    profiles = saved.context.profiles
+    solver = NativeSolverProfile(**dict(profiles['native_solver']))
+    simulation = _recorded_simulation(profiles['short_simulation_profile'])
+    robustness = PlaceStabilityConfig(**dict(profiles['environment_profile']['place_stability']))
+    action_profile = profiles['action_generation_profile']
+    safety = None
+    if action_profile['strict_floor_first']:
+        from stacking_common.actions.floor import floor_policy_settings
+        safety = TabletopPlacementSafety(
+            inventory, **floor_policy_settings(action_profile['sampling_settings']['floor']))
+    backend = TabletopNativePlanningBackend(inventory, saved.planning, solver, repository)
+    placement = CorePlacementBackend.from_profile(
+        inventory.models, simulation, place_stability=robustness)
+    placement.reset(inventory.object_ids)
+
+    def problem(state, action, *, pick_pose, metadata):
+        pickup = {object_id: checkpoint.pick_scene.object_poses[object_id]
+                  for index, object_id in enumerate(state.object_ids)
+                  if index not in state.placed_object_indices}
+        return PlacementPlanningProblem.from_search(
+            state, action, pick_pose=pick_pose, world_T_stack=saved.planning.world_T_stack,
+            pick_scene_poses=pickup, metadata={**metadata, 'scene_refinement': True})
+
+    return TabletopPlanningCoordinator(
+        inventory, problem, TabletopMotionPlannerAdapter(backend.solve),
+        placement_backend=placement, safety=safety,
+        world_T_stack=saved.planning.world_T_stack, progress=progress,
+        context_sha256=saved.context.sha256,
+    )
+
+
+def _structural_backend(saved, inventory, simulation):
+    # Use the recorded full structural phase, not the short gate's frozen
+    # neighborhood. This validator is allowed to move every simulated stone.
+    placement = replace(simulation.placement, short_gate=None,
+                        structural=replace(simulation.placement.structural, freeze_radius=None))
+    profile = replace(simulation, placement=placement)
+    backend = CorePlacementBackend.from_profile(
+        inventory.models, profile,
+        place_stability=PlaceStabilityConfig(**dict(
+            saved.context.profiles['environment_profile']['place_stability'])),
+    )
+    backend.reset(inventory.object_ids)
+    return backend
+
+
+def _validate_structure(backend, state, record, world_T_stack):
+    """Validate the corrected supporting stack under the new stone's load."""
+    dynamic = state.copy()
+    dynamic.pose_identified_object_ids.clear()
+    action = record.problem.action.copy()
+    action.pose = world_T_stack.parent_pose_to_child(
+        record.result.diagnostics['achieved_place_pose'])
+    result = backend.place(dynamic, action)
+    if result.failed or not result.settled:
+        reason = result.diagnostics.get('rejection_reason', 'not_settled')
+        raise RefinementNeedsReview(
+            f'Step {record.step} full-stack structural validation failed: {reason}')
+    if result.diagnostics.get('simulation_frozen_object_count', 0):
+        raise RefinementNeedsReview('Full-stack validation unexpectedly froze supporting stones')
+    reference = {**state.object_poses, action.object_id: action.pose}
+    if set(result.object_poses) != set(reference) or set(result.trajectories) != set(reference):
+        raise RefinementNeedsReview('Full-stack validation omitted a stone or its motion history')
+    maximum_translation = maximum_rotation = 0.
+    for object_id, before in reference.items():
+        poses = [*result.trajectories[object_id].poses, result.object_poses[object_id]]
+        for pose in poses:
+            translation, rotation = _pose_delta(before, pose)
+            maximum_translation = max(maximum_translation, translation)
+            maximum_rotation = max(maximum_rotation, rotation)
+            if translation > ROLLOUT_TRANSLATION or rotation > ROLLOUT_ROTATION:
+                raise RefinementNeedsReview(
+                    f'Step {record.step} full-stack validation moved stone {object_id} '
+                    'beyond 1 mm / 0.5 deg; needs broader review')
+    # The simulated drift is only validation evidence; it is never committed as
+    # an observed or refined pose in the execution scene.
+    return {'max_translation_m': maximum_translation, 'max_rotation_rad': maximum_rotation,
+            'all_stones_dynamic': True, 'full_structural_phase': True}
+
+
+def refine_remaining(saved, repository, capture_directory, step, *,
+                     check=lambda: None, progress=None):
+    """Propose bounded target/motion revisions without changing stone order.
+
+    The complete suffix must pass; a failure returns no partial plan. Native
+    operations are bounded by their recorded solver limits; cancellation is
+    checked around each operation rather than interrupting native code.
+    """
+    check()
+    saved.verify_assets()
+    checkpoint = StackRunStore.load_planning_checkpoint(saved.path, step)
+    if checkpoint.context_sha256 != saved.context.sha256 or checkpoint.step != step:
+        raise RefinementNeedsReview('Scene refinement checkpoint/context mismatch')
+    capture = Path(capture_directory).resolve()
+    metadata = json.loads((capture / 'capture.json').read_text())
+    if (metadata.get('kind') != 'stacked_scene_wrist_capture'
+            or metadata.get('status') != 'complete' or metadata.get('step') != step
+            or metadata.get('context_sha256') != saved.context.sha256):
+        raise RefinementNeedsReview('Capture does not match the completed saved step/context')
+    if not checkpoint.state.placed_object_indices:
+        raise RefinementNeedsReview('Scene refinement needs a placed stone')
+    try:
+        simulation = _recorded_simulation(saved.context.profiles['simulation_profile'])
+        inventory = _inventory(saved, repository, checkpoint)
+        check()
+        candidate = _scene_candidate(saved, repository, capture, step, checkpoint)
+        check()
+        _match_reviewed_estimate(capture, metadata, candidate)
+        corrected, changes, rollout = _correct_scene(saved, checkpoint, candidate, simulation)
+        check()
+        future = tuple(record for record in saved.plans if record.step > step)
+        if tuple(record.step for record in future) != tuple(range(step + 1, step + 1 + len(future))):
+            raise RefinementNeedsReview('Remaining saved steps are not contiguous')
+        branch = corrected.copy()
+        records, states, target_changes = [], [], {}
+        coordinator = _coordinator(saved, repository, checkpoint, inventory, progress) if future else None
+        structural = None
+        try:
+            if future:
+                structural = _structural_backend(saved, inventory, simulation)
+            for original in future:
+                check()
+                action = original.problem.action.copy()
+                if action.object_index in branch.placed_object_indices:
+                    raise RefinementNeedsReview(f'Step {original.step} picks an already placed stone')
+                pickup = checkpoint.pick_scene.object_poses[action.object_id]
+                if not np.allclose(pickup, original.problem.pick_pose, atol=1e-9, rtol=0):
+                    raise RefinementNeedsReview('Saved pickup pose differs from its checkpoint')
+                record = coordinator.attempt(
+                    branch, action, step=original.step, attempt=original.attempt + 1,
+                    pick_pose=pickup, candidate_id=original.candidate_id,
+                )
+                check()
+                if not record.result.succeeded:
+                    raise RefinementNeedsReview(
+                        f'Step {original.step} local refinement failed: {record.result.reason}; '
+                        'needs broader review, not automatic MCTS')
+                delta = _bounded_delta(action.pose, record.problem.action.pose,
+                                       f'Step {original.step} target')
+                achieved = record.result.diagnostics.get('achieved_place_pose')
+                if achieved is None:
+                    raise RefinementNeedsReview('Refined motion lacks achieved release-pose validation')
+                _bounded_delta(original.problem.place_pose, achieved,
+                               f'Step {original.step} achieved release')
+                _bounded_delta(record.problem.place_pose, achieved,
+                               f'Step {original.step} release residual')
+                validate_command(build_execution_command(record, saved.context),
+                                 saved.planning, saved.grasp_steps)
+                check()
+                structure = _validate_structure(
+                    structural, branch, record, saved.planning.world_T_stack)
+                check()
+                record = replace(record, result=replace(record.result, diagnostics={
+                    **record.result.diagnostics, 'scene_refinement': True,
+                    'scene_refinement_source_step': step,
+                    'scene_refinement_target_delta': delta,
+                    'scene_refinement_structure': structure,
+                }))
+                refined = record.problem.action.copy()
+                branch.placed_object_indices.append(refined.object_index)
+                branch.object_poses[refined.object_id] = refined.pose.copy()
+                branch.action_history.append(refined)
+                branch.trajectories.append({})
+                branch.contact_points.clear()
+                branch.simulation_settled = True
+                branch.failed = False
+                branch.terminated = len(branch.placed_object_indices) == len(branch.object_ids)
+                records.append(record)
+                states.append(branch.copy())
+                target_changes[str(original.step)] = delta
+        finally:
+            if structural is not None:
+                structural.close()
+            if coordinator is not None:
+                coordinator.placement_backend.close()
+        check()
+        summary = {
+            'kind': 'tabletop_fixed_order_scene_refinement', 'step': step,
+            'max_translation_m': MAX_TRANSLATION, 'max_rotation_rad': float(MAX_ROTATION),
+            'scene_changes': changes, 'target_changes': target_changes,
+            'rollout': rollout, 'source_hashes': dict(candidate.source_hashes),
+            'entity_to_object_id': {
+                str(index + 1): corrected.object_ids[index]
+                for index in corrected.placed_object_indices},
+            'observed_world_poses': {
+                str(corrected.object_ids[int(entity) - 1]): np.asarray(pose).tolist()
+                for entity, pose in zip(candidate.result.entity_ids, candidate.result.proposed_poses)},
+            'remaining_steps': [record.step for record in records],
+            'object_order': [record.problem.action.object_id for record in records],
+            'mcts_used': False,
+        }
+        return SceneRefinement(corrected, tuple(records), tuple(states), summary)
+    except (KeyError, TypeError) as error:
+        raise RefinementNeedsReview(f'Recorded scene-refinement inputs are incomplete: {error}') from error

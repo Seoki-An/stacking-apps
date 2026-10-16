@@ -1,4 +1,62 @@
-# Session context — 2026-10-15
+# Session context — 2026-10-16
+
+## Thread commit: perception service and reviewed scene refinement
+
+This commit records integrated FEMTO/perception startup, optional in-hand
+identification after pre-motion camera failures, and reviewed fixed-order
+SceneID continuation with a 5 mm / 3-degree routing threshold. Completed
+physical placements remain completed in separately reviewed plan revisions.
+The combined 135-test selection passed; no physical execution was performed.
+
+Startup diagnostics confirmed plain ROS CLI uses system Python, which cannot
+import the editable tabletop package. Use the documented direnv Python command.
+Failed launches also left four orphan robot-state publishers alongside the
+current publisher; capture correctly rejected the duplicate model sources.
+The subsequent D435 busy error exposed camera ownership contention. Later
+camera acquisition/ownership edits are outside this thread's commit and remain
+in the working tree; the separate solver tuning commit is already recorded.
+
+## Reviewed small-change SceneID continuation
+
+The execution SceneID review now hands off to fixed-order refinement after the
+released step has durably succeeded. The robot stops at home; the old unexecuted
+suffix is blocked by a hash-bound accepted-observation journal marker. No MCTS
+is rerun. The user selected 5 mm / 3 degrees per placed stone as the local route
+limit. Native SceneID evidence, physics stability, bounded target re-settling,
+support, collision and normal executable-path checks remain mandatory.
+
+The independent service computes all remaining targets/motions and publishes a
+new `.stack` only as a separate revision. Completed plans, commands, events and
+reconciliations are preserved; corrected checkpoints and pending plans are new.
+The GUI loads the revision after the worker exits, with a fresh motion review
+before any next pickup. Large changes or failed refinement stop for operator
+review; retry runs only computation, never prior placement. This is local
+fixed-order continuation, not automatic broad search or a guarantee of physical
+accuracy.
+
+Validation: the combined refinement/SceneID/execution/perception/planning suite
+passed 135 tests. A read-only constructor smoke on `tabletop_plan2_real.stack`
+also passed recorded inventory, profile and native-backend setup. No physical
+execution or end-to-end real-scene refinement was performed.
+
+## Persistent perception and optional in-hand scanning
+
+Hardware bringup now starts one selected FEMTO driver and a local perception
+service by default. The service owns the D435 and caches ICP resources; it
+accepts in-hand identification, wrist-view capture and stacked-scene processing
+requests independently from execution. Stack processing still overlaps home
+return. Fast-FoundationStereo remains an isolated per-request GPU subprocess.
+Camera/service launch flags and ownership requirements are in tabletop-commands.md.
+
+Pre-motion in-hand camera failures return to a fresh placement review with
+retry/skip/abort, preserving the current attachment. Capture failures after
+movement and hardware faults still fail execution. This does not recover old
+already-failed execution journals or automatically reposition a held robot.
+
+Validation of the service/skip changes: 70 fake-device regression tests passed
+(scanning, service protocol/cancellation, in-hand identification, execution
+console, stack-scene capture, and saved execution). The ROS launch description
+was constructed without starting it. No physical camera/robot test was run.
 
 Execution-time in-hand FEMTO scans now run known-object ICP identification.
 Accepted results update the estimated attachment and live stone rendering;

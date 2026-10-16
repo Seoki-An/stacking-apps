@@ -105,6 +105,7 @@ class StackingOperationsWindow(QMainWindow):
         self.execution_view = ExecutionView(self.repository)
         self.execution_view.can_start = lambda: not self.field_running
         self.execution_view.state_changed.connect(self._refresh_scene)
+        self.execution_view.refined_run_loaded.connect(self.open_artifact)
         self.tabs.addTab(self.plan_view, "Plan")
         self.tabs.addTab(self.search_inspector, "Search Inspector")
         self.tabs.addTab(self.execution_view, "Execution")

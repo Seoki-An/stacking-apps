@@ -127,6 +127,25 @@ motion. Legacy files and external ROS packages remain unchanged.
 
 ## Supervised saved-plan execution
 
+Hardware bringup now also owns the selected FEMTO driver and a persistent local
+perception service (`stacking_tabletop.perception.service`). The service owns
+the wrist camera, caches in-hand ICP resources and models, and runs stacked
+scene reconstruction/identification independently from the execution worker.
+It exposes bounded JSON requests over a per-user, repository/ROS-domain-scoped
+Unix socket. It has no robot or gripper command interface. Client disconnects
+cancel cooperative work; late results cannot advance execution.
+
+In-hand scanning is optional at the held-object placement review. A camera
+preparation failure before movement returns to a fresh review, where the
+operator can retry, skip identification using the current attachment estimate,
+or abort. Capture failures after movement, cancellation, and hardware faults
+remain execution failures. No automatic return motion is added on failure.
+
+The service keeps the D435 pipeline open across views/steps. If a frame check
+fails, it closes that pipeline and a subsequent request may reopen it. The
+Fast-FoundationStereo GPU model still uses its separate environment/subprocess
+per reconstruction; persistent GPU weights are not implemented by this change.
+
 Open a newly recorded motion-planning `.stack` run in the Operations Console and
 select **Execution**. Loading is passive. **Start supervised execution** connects
 to the existing controller graph; no drivers are launched. The worker checks
@@ -326,9 +345,9 @@ and then returning toward the stack:
    1.20 rad/s tool rotation. The shorter between-view motions use 0.90 rad/s,
    0.18 m/s, and 1.80 rad/s (1.5× the entry limits). Capture settling and
    pick/place motion limits are unchanged.
-3. Record three timestamped RGB-D frames per viewpoint, return to the pre-place
-   offset, and close the camera. The capture is assembled and an isolated,
-   lower-priority perception process starts. While that process reconstructs
+3. Record three timestamped RGB-D frames per viewpoint and return to the pre-place
+   offset. The hardware-launch-owned service keeps the camera open. The capture
+   is assembled and submitted to that independent, lower-priority service. While it reconstructs
    the PCD and then runs SceneID, execution follows the remaining saved retreat
    to home. SceneID necessarily follows reconstruction because it consumes the
    reconstructed cloud, but neither stage waits for the home motion. The RGB
@@ -337,8 +356,12 @@ and then returning toward the stack:
    reconstructed geometry.
 4. At home, wait for perception if it has not completed, then display the
    resulting scene PCD in cyan in the live viewport and show the SceneID result
-   path/status. **Open stacked-scene PCD** opens its HTML viewer. Review it and
-   press **Continue** before the next placement starts.
+   path/status. **Open stacked-scene PCD** opens its HTML viewer. When placements
+   remain, **Accept SceneID and refine remaining plan** completes the released
+   step and stops the original sequence before another pickup. The service then
+   refines the remaining targets and motions, retaining the planned stone order.
+   A separate revised `.stack` loads only after the worker finishes; start
+   supervised execution again to review its next motion. Nothing auto-executes.
 
 Outputs are stored beside the run:
 
@@ -356,11 +379,21 @@ Outputs are stored beside the run:
 The execution journal records the capture location, PCD hash, and SceneID
 result. Captures use
 `base_link`; the viewport converts them to its recorded UR-base world frame.
-The point cloud and SceneID proposal are separate observation layers. They do
-not update catalog poses, obstacle geometry, or the saved plan automatically;
-operator acceptance and online replanning remain separate work. A completed
-but evidence-rejected SceneID solve is saved and shown for review; only a
-technical perception failure stops execution.
+The point cloud and SceneID proposal are separate observation layers. Local
+refinement requires qualified evidence and corrections of at most 5 mm / 3°
+per placed stone, measured against the current branch checkpoint. It reuses the
+recorded physical/planning profiles, re-settles future targets, bounds target and
+release changes, and repeats support, collision, joint and full-stack dynamic
+checks. The stability rollout additionally limits drift to 1 mm / 0.5°; these
+are conservative software gates, not camera accuracy claims. No MCTS is rerun.
+Rejected evidence, changed support, excessive drift or infeasible motions stop
+for broader review, never an automatic search or fallback to stale motions.
+
+The source file is retained and its accepted-observation marker blocks the old
+remaining motions. A successful revision copies the completed physical history
+and replaces only future plans/checkpoints. Partial/cancelled revision files
+cannot execute. **Retry scene refinement** retries computation without robot
+connection. Original capture files remain required for hash verification.
 
 Hold/Abort remain active during capture and GPU reconstruction. An interrupted
 view is not accepted. Camera, motion, or reconstruction failure stops before the

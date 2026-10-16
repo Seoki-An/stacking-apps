@@ -118,11 +118,27 @@ def _finish_stack_scene(executor, output):
         stack_scene_viewer=status['viewer'],
         stack_scene_identification=status['scene_identification'],
     )
+    remaining = any(plan.step > executor._command.step
+                    for plan in getattr(executor.saved, 'plans', ()))
     executor._gate_wait(
         'stack_scene_result',
         'The robot is home. Stacked-scene reconstruction and SceneID are complete. '
-        'Inspect the observation and identification result, then Continue.',
+        + ('Inspect the observation and identification result. Accept to refine '
+           'the remaining planned poses and motions without changing the stone '
+           'order. Execution will stop before the next pickup; the refined plan '
+           'must be reviewed before restarting. Large changes or failed validation '
+           'will block the old remaining motions.' if remaining else
+           'Inspect the observation and identification result, then Continue.'),
     )
+    if remaining:
+        pending = dict(capture_directory=str(Path(output).resolve()),
+                       step=int(executor._command.step),
+                       sceneid_sha256=status['scene_identification']['sha256'],
+                       pcd_sha256=status['pcd_sha256'])
+        # Record acceptance before leaving the step: a crash or refinement
+        # failure must never allow a retry to execute the now-stale suffix.
+        executor._emit('running', scene_refinement_required=pending)
+        executor.pending_scene_refinement = pending
     return status
 
 

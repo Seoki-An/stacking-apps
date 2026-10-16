@@ -23,6 +23,10 @@ AUTOMATIC_START_ALIGNMENT_LIMIT = np.deg2rad(5.0)
 START_ALIGNMENT_MOTION_LIMITS = CartesianStreamLimits(100.0, 0.10, 0.02, 0.20)
 
 
+class InHandPreparationError(RuntimeError):
+    """Optional perception failed before any scan movement was commanded."""
+
+
 @dataclass(frozen=True)
 class OperatorGate:
     token: str
@@ -49,6 +53,7 @@ class TabletopMotionExecutor:
         self.gate_changed = gate_changed or (lambda value: None)
         self.telemetry = telemetry or (lambda value: None)
         self.stack_scene_handler = stack_scene_handler
+        self.pending_scene_refinement = None
         self.scan_handler = scan_handler
         self._scan_request = None
         self._lock = threading.Lock()
@@ -260,14 +265,28 @@ class TabletopMotionExecutor:
                         self._gate = None
                 if scan is not None:
                     self.gate_changed(None)
-                    identification = self.scan_handler(self, scan)
+                    try:
+                        identification = self.scan_handler(self, scan)
+                    except InHandPreparationError as error:
+                        # Only the pre-motion camera boundary may raise this.
+                        # Recheck hold/feedback before allowing the saved carry.
+                        self._health()
+                        self._stationary()
+                        self._emit('held', inhand_preparation_failed=str(error))
+                        message = (
+                            f'In-hand preparation failed: {error}. No scan motion started. '
+                            'Retry Prepare held-object scan, skip identification and continue '
+                            'with the current attachment estimate, or Abort.'
+                        )
+                        identification = None
+                    else:
+                        message = (
+                            self._apply_inhand_identification(identification)
+                            if identification is not None
+                            else 'Scan finished. Inspect the held object and saved placement, then Continue.'
+                        )
                     self._phase = name
                     self._stationary()
-                    message = (
-                        self._apply_inhand_identification(identification)
-                        if identification is not None
-                        else "Scan finished. Inspect the held object and saved placement, then Continue."
-                    )
                     gate = OperatorGate(uuid4().hex, self._command.command_id, self._command.step, name,
                         message, manual)
                     with self._lock:
@@ -596,10 +615,22 @@ class TabletopMotionExecutor:
 
 def execute_saved_run(saved, executor, *, events=None, next_step=None):
     """Journal from this worker thread; queue durably before each physical step."""
+    from .scene_refinement import pending_scene_refinement
+    from .recovery import pending_released_stack_capture
+
     saved.verify_assets()
     checkpoint = StackRunStore.load_execution_checkpoint(saved.path)
     if checkpoint.requires_reconciliation:
         raise ValueError("previous physical execution requires reconciliation before another attempt")
+    pending = pending_scene_refinement(saved.path)
+    scan_retry = None if pending is None else pending_released_stack_capture(saved.path, pending['step'])
+    if pending is not None and not (
+            scan_retry is not None and checkpoint.pending_steps
+            and checkpoint.pending_steps[0] == pending['step']):
+        raise ValueError(
+            'Accepted SceneID requires remaining-plan refinement before further '
+            'execution; retry refinement in the GUI or open its reviewed branch.'
+        )
     commands = StackRunStore.load_execution_commands(saved.path)
     results = []
     with StackRunStore.open_append(saved.path) as writer:
@@ -610,7 +641,6 @@ def execute_saved_run(saved, executor, *, events=None, next_step=None):
                 break
             if next_step is not None:
                 next_step(plan)
-            from .recovery import pending_released_stack_capture
             recovery = pending_released_stack_capture(saved.path, plan.step)
             attempt = max((item.execution_attempt for item in commands if item.step == plan.step), default=0) + 1
             command = build_execution_command(plan, saved.context, execution_attempt=attempt)
@@ -627,6 +657,10 @@ def execute_saved_run(saved, executor, *, events=None, next_step=None):
                 )
             results.append(result)
             if result.status is not ExecutionStatus.SUCCEEDED:
+                break
+            if executor.pending_scene_refinement is not None:
+                # The completed release is durable. Keep all subsequent steps
+                # unqueued until a new branch has been validated and reviewed.
                 break
     return tuple(results)
 
