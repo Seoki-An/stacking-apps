@@ -94,22 +94,29 @@ class TabletopRosTransport:
         if not np.isfinite(timeout) or timeout <= 0:
             raise ValueError('robot description timeout must be positive')
         api = self.api
-        received = threading.Event()
         messages = []
         def receive(message):
             messages.append(message.data)
-            received.set()
         qos = api.QoSProfile(depth=1, durability=api.DurabilityPolicy.TRANSIENT_LOCAL,
                              reliability=api.ReliabilityPolicy.RELIABLE)
         subscription = self.node.create_subscription(api.String, '/robot_description', receive, qos)
         try:
             deadline = time.monotonic() + timeout
-            while not received.wait(.02) and time.monotonic() < deadline:
+            while True:
                 if not self.ok():
                     raise RuntimeError('ROS stopped while reading robot_description')
-            if not messages or subscription.get_publisher_count() != 1:
-                raise RuntimeError('need one authoritative /robot_description publisher from persistent UR bringup')
-            return messages[-1]
+                publishers = subscription.get_publisher_count()
+                if publishers > 1:
+                    raise RuntimeError('need one authoritative /robot_description publisher from persistent UR bringup; '
+                                       f'found {publishers}; stop duplicate robot-state publishers')
+                if publishers == 1 and messages:
+                    return messages[-1]
+                if time.monotonic() >= deadline:
+                    raise RuntimeError('need one authoritative /robot_description publisher from persistent UR bringup; '
+                                       f'timed out after {timeout:g}s: publishers={publishers}, '
+                                       f'description_received={bool(messages)}. Check bringup and ROS_DOMAIN_ID')
+                # A latched message can arrive before discovery reports its publisher.
+                time.sleep(.02)
         finally:
             self.node.destroy_subscription(subscription)
 

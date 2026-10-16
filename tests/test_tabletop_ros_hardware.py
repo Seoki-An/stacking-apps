@@ -215,3 +215,16 @@ def test_partial_setup_failure_releases_only_created_entities():
         TabletopRosTransport(node=node, bindings=bindings())
     assert len(node.destroyed_entities) == 11
     assert node.context.ok() and not node.destroyed
+
+
+def test_robot_description_waits_for_discovery_after_latched_message():
+    counts = iter([0, 0, 1])
+    class DescriptionNode(Node):
+        def create_subscription(self, kind, topic, callback, qos):
+            entity = super().create_subscription(kind, topic, callback, qos)
+            if topic == '/robot_description':
+                entity.get_publisher_count = lambda: next(counts)
+                callback(NS(data='<robot/>'))
+            return entity
+    with TabletopRosTransport(node=DescriptionNode(), bindings=bindings()) as transport:
+        assert transport.read_robot_description(timeout=1.) == '<robot/>'
