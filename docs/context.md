@@ -35,14 +35,35 @@ The first three searches in `excavator_plan15.stack` took 28.758, 30.915,
 and 34.752 seconds. Both runs recorded 1,024 iterations and depth 4, but
 different scenes and assets make this an observational comparison.
 
-Current tabletop simulation tolerances are 100 times tighter than excavator's,
-structural max_iters is 3,000 versus 2,000, and beta_update_interval is 5,000
-versus 50. Tabletop also uses different constraint scaling, convergence
-thresholds, and pose-generation objectives. These are suspects, not measured
-attributions; do not copy physical settings between scales without validation.
+Both runs used the same CUDA MCTS profile. Re-running the step-3 search
+from checkpoint 2 (seed 0, no motion planning) took 137 s: pose generation
+89 s, simulation 48 s wall. About 93% of posegen requests were discarded;
+stones sampled inside the 0.08 m-wide target were moved off the stack by
+posegen (median containment 99.8% before solve, 5.7% after).
 
-The combined planning-sequence recorder omits detailed search simulation and
-pose-generation timers, although the search result and excavator search-only
-report expose them. A next profiling step should retain these existing timers
-and measure solver iteration/convergence rates on a saved tabletop scene before
-changing physics parameters. No performance parameters were changed here.
+Two scale-unaware settings caused this and were changed:
+
+- `solvers/posegen.yml` trust region: `delta_init` 0.125 → 0.0125 and
+  `delta_max` 1.0 → 0.1 (metres/radians). The shared excavator radius
+  exceeded the tabletop target width in a single step.
+- `solvers/simulation.yml`: `beta_update_interval` 5,000 → 50. It exceeded
+  `max_iters`, so the adaptive ADMM penalty never updated. `tol_rel` is
+  multiplied by each solve's own magnitudes and is scale-free, so it now
+  matches excavator (settling 1e-4, structural 1e-5; the old structural 1e-7
+  was below float32 epsilon on CUDA). `tol_abs` was kept; it dominates for
+  ~0.1 kg stones.
+
+Step 3 from checkpoint 2, three seeds (CUDA profile, 1,024 iterations):
+
+| Profile | Mean search | Tree nodes | Depth | Mean selected reward |
+| --- | ---: | ---: | ---: | ---: |
+| previous | 127.9 s | ~208 | 3 | 1.124 |
+| simulation change only | 88.7 s | ~210 | 3 | 1.145 |
+| both changes | 56.0 s | ~745 | 4 | 1.326 |
+
+With the beta change, `place_robustness` rejections fell from 7–16 per
+search to 0; non-adapting solves likely hit `max_iters` and returned
+unconverged contacts, but this was not verified directly. Hardware stability
+of the resulting plans is untested. The `k_xy` posegen term adds value only
+(no gradient), and narrowing `w_box` worsened plan quality, so neither was
+changed.

@@ -272,7 +272,8 @@ def test_simulation_profile_builds_native_config_and_backend() -> None:
     assert settling.solver.max_iters == 2000
     assert settling.solver.stagnation_window == 0
     assert settling.solver.tol_abs == native.solver.tol_abs == 1e-5
-    assert settling.solver.tol_rel == native.solver.tol_rel == 1e-6
+    assert native.solver.tol_rel == 1e-6
+    assert settling.solver.tol_rel == 1e-4
     assert profile.placement.short_gate is not None
     assert profile.placement.short_gate.max_time == 4.0
     assert profile.placement.structural.max_time == 15.0
@@ -289,7 +290,7 @@ def test_simulation_profile_builds_native_config_and_backend() -> None:
     assert short_native.solver.stagnation_window == 0
     assert short.settling_native_config().solver.stagnation_window == 0
     assert short.settling_native_config().solver.tol_abs == 1e-5
-    assert short.settling_native_config().solver.tol_rel == 1e-6
+    assert short.settling_native_config().solver.tol_rel == 1e-4
     assert short.settling_native_config().contact.model == settling.contact.model
     application = TabletopApplication.from_repository(ROOT)
     backend = application.build_core_backend(inventory())
@@ -298,7 +299,7 @@ def test_simulation_profile_builds_native_config_and_backend() -> None:
     assert backend.simulation_config.solver.tol_abs == application.simulation_profile.solver_tol_abs
     assert backend.simulation_config.solver.tol_rel == application.simulation_profile.solver_tol_rel
     assert backend.settling_simulation_config.solver.tol_abs == 1e-5
-    assert backend.settling_simulation_config.solver.tol_rel == 1e-6
+    assert backend.settling_simulation_config.solver.tol_rel == 1e-4
     assert backend.simulator is not backend.settling_simulator
 
 
