@@ -43,8 +43,9 @@ def copy_capture(source, destination):
 
 
 def view_interval(root):
+    manifest = read_json(root / 'manifest.json')
     stamps = [read_json(root / (stem + '.json'))[name]['timestamp_ns']
-              for stem in read_json(root / 'manifest.json')['frames'] for name in ('color', 'depth')]
+              for stem in manifest['frames'] for name in manifest.get('streams', ('color', 'depth'))]
     if not stamps:
         raise ValueError('wrist view contains no recorded exposures')
     return [min(stamps), max(stamps)]
@@ -67,12 +68,13 @@ def view_identity(root):
     origin = manifest.get('data_origin', 'hardware')
     if origin not in ('synthetic', 'hardware') or device.get('data_origin', 'hardware') != origin:
         raise ValueError('inconsistent wrist data origin')
-    native_depth_rays(device['streams']['depth'])
+    if 'depth' in device['streams']:
+        native_depth_rays(device['streams']['depth'])
     calibration = HandEyeCalibration.load(root / 'calibration/profile.yml')
     return dict(origin=origin, serial=device['device']['serial_number'],
                 calibration={name: getattr(calibration.profile, name).sha256 for name in calibration.artifacts},
-                streams=device['streams'], depth_metres_per_unit=device['depth_metres_per_unit'],
-                color_T_depth=device['color_T_depth'])
+                streams=device['streams'], depth_metres_per_unit=device.get('depth_metres_per_unit'),
+                color_T_depth=device.get('color_T_depth'))
 
 
 def femto_reference(root):
@@ -203,6 +205,8 @@ def replay_session(session, output, *, visualize=True):
     """Export each native exposure and an aggregate with exact pixel provenance."""
     session, output = Path(session).resolve(), Path(output).resolve()
     manifest = inspect_session(session)
+    if 'depth' not in manifest['identity']['streams']:
+        raise ValueError('RGB-only session has no native depth to replay; use RGB stereo reconstruction')
     if output.is_relative_to(session) or session.is_relative_to(output):
         raise ValueError('replay output must be separate from immutable session inputs')
     output.mkdir(parents=True, exist_ok=False)

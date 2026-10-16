@@ -14,7 +14,7 @@ import yaml
 
 from stacking_tabletop.execution.kinematics import UR5eKinematics
 from .hand_eye import HandEyeCalibration
-from .hand_eye_capture import atomic_json, capture_view, digest, inspect_capture
+from .hand_eye_capture import atomic_json, digest, inspect_capture
 from .scene_capture import capture_lock, execute_capture
 from .scene_views import build_capture_route, camera_pose, kinematic_urdf, render_preview, validate_views
 
@@ -155,9 +155,8 @@ def run_scan(args):
     from .field_workflow import camera_driver
     from .storage import CaptureSession
     from .hand_eye_replay import assemble_session
-    from .realsense import RealSenseCamera
+    from stacking_tabletop.perception.service_client import scene_wrist
     from stacking_tabletop.ros.femto import FemtoRosTransport
-    from stacking_tabletop.ros.hand_eye import HandEyeRobot
 
     args.plan = args.plan.expanduser().resolve()
     args.output = args.output.expanduser().resolve()
@@ -202,17 +201,9 @@ def run_scan(args):
 
         @contextmanager
         def wrist_context():
-            with HandEyeRobot(calibration) as robot:
-                with RealSenseCamera(calibration, depth_size=args.depth_size, fps=args.fps) as camera:
-                    class CheckedCamera:
-                        report = camera.report
-                        def read(self):
-                            arm._check_motion()
-                            pair = camera.read()
-                            arm._check_motion()
-                            return pair
-                    checked = CheckedCamera()
-                    yield lambda directory: capture_view(directory, calibration, checked, robot, count=args.count)
+            with scene_wrist(arm, calibration, ROOT, depth_size=args.depth_size,
+                             fps=args.fps, count=args.count) as capture:
+                yield capture
 
         def snapshot(directory):
             # Snapshot before motion, including on failed/incomplete runs.

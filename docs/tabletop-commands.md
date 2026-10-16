@@ -207,7 +207,14 @@ and SceneID requests run outside the robot command process. Stack processing
 still overlaps the return home. Fast-FoundationStereo retains its isolated
 Python subprocess and currently reloads its GPU model for each reconstruction.
 
-Field/calibration workflows that directly own the D435 require
+Pick-scene wrist capture automatically uses the persistent perception camera
+when enabled. Restart hardware bringup once after installing the camera-sharing
+update; an older running service is rejected before scan motion. Pick-scene
+capture uses calibrated RGB at 15 fps with native D435 depth disabled, preserving
+the requested frames per view. Fast-FoundationStereo derives depth from RGB
+images at different robot poses. Both wrist-only and wrist+FEMTO modes use this
+RGB-only wrist recording; the latter still captures FEMTO depth separately.
+Standalone calibration/capture commands that directly own the D435 require
 `start_wrist_camera:=false` before using that device. The field FEMTO workflow
 can use its existing `--use-running-camera` option for the selected camera.
 Restart the perception service after changing profiles or model assets.

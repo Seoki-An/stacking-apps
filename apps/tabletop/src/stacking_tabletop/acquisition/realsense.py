@@ -1,4 +1,4 @@
-"""Native wrist RGB-D transport. SDK import and device ownership are explicit."""
+"""Native wrist RGB or RGB-D transport with explicit SDK/device ownership."""
 
 import importlib.metadata
 import time
@@ -64,16 +64,17 @@ def list_profiles(calibration, *, rs=None):
 
 
 class RealSenseCamera:
-    """One exact native RGB8/Z16 profile; no alignment, filtering or fallback.
+    """Exact native RGB8, optionally with Z16; no alignment/filtering/fallback.
 
     Only global_time_enabled is changed, and restored on close. Existing camera
     drivers must release the device before use. No driver killing/device reset.
     """
 
-    def __init__(self, calibration, *, depth_size=(848, 480), fps=15, rs=None):
+    def __init__(self, calibration, *, depth_size=(848, 480), fps=15, capture_depth=True, rs=None):
         self.rs = rs = bindings() if rs is None else rs
         self.pipeline = None
         self._restore = []
+        self.streams = ('color', 'depth') if capture_depth else ('color',)
         self.calibration = calibration
         self.context = rs.context()
         self.device = _pinned_device(self.context, rs, calibration.profile.serial)
@@ -83,23 +84,28 @@ class RealSenseCamera:
             config = rs.config()
             config.enable_device(calibration.profile.serial)
             config.enable_stream(rs.stream.color, calibration.width, calibration.height, rs.format.rgb8, fps)
-            config.enable_stream(rs.stream.depth, *depth_size, rs.format.z16, fps)
+            if capture_depth:
+                config.enable_stream(rs.stream.depth, *depth_size, rs.format.z16, fps)
             pipeline = rs.pipeline(self.context)
             # Start first, so opening a busy camera fails before changing options.
             try:
                 active = pipeline.start(config)
             except RuntimeError as error:
+                requested = (f' and depth {depth_size[0]}x{depth_size[1]} Z16' if capture_depth else '')
                 raise RuntimeError(
                     f'pinned D435 {calibration.profile.serial} could not start color '
-                    f'{calibration.width}x{calibration.height} RGB8 and depth '
-                    f'{depth_size[0]}x{depth_size[1]} Z16 at {fps} fps: {error}. '
+                    f'{calibration.width}x{calibration.height} RGB8{requested} at {fps} fps: {error}. '
                     'Check camera power, USB connection and external camera drivers; '
                     'then run hand_eye_capture_cli profiles.'
                 ) from error
             self.pipeline = pipeline
             self.device = active.get_device()
             self.sensors = self.device.query_sensors()
-            for sensor in (self.device.first_color_sensor(), self.device.first_depth_sensor()):
+            active_sensors = [self.device.first_color_sensor()]
+            if capture_depth:
+                active_sensors.append(self.device.first_depth_sensor())
+            self.sensors = active_sensors
+            for sensor in active_sensors:
                 option = rs.option.global_time_enabled
                 if not sensor.supports(option):
                     raise ValueError('both sensors must support SDK global timestamps')
@@ -108,20 +114,25 @@ class RealSenseCamera:
                 if sensor.get_option(option) != 1.:
                     raise ValueError('cannot enable global timestamps')
             self.profiles = {name: active.get_stream(getattr(rs.stream, name))
-                             for name in ('color', 'depth')}
+                             for name in self.streams}
             geometry = {name: stream_geometry(profile) for name, profile in self.profiles.items()}
-            color, depth = geometry['color'], geometry['depth']
+            color = geometry['color']
             serial = self.device.get_info(rs.camera_info.serial_number)
             calibration.validate_color_stream(serial=serial, width=color['width'], height=color['height'],
                 factory_matrix=color['K'], factory_distortion=color['distortion'])
-            if (color['fps'] != fps or depth['fps'] != fps
-                    or (depth['width'], depth['height']) != tuple(depth_size)
-                    or color['format'] != str(rs.format.rgb8) or depth['format'] != str(rs.format.z16)):
+            if color['fps'] != fps or color['format'] != str(rs.format.rgb8):
                 raise ValueError('active stream differs from the explicitly requested native profile')
-            scale = float(self.device.first_depth_sensor().get_depth_scale())
-            if not np.isfinite(scale) or scale <= 0:
-                raise ValueError('invalid native depth scale')
-            transform = extrinsic_matrix(self.profiles['depth'].get_extrinsics_to(self.profiles['color']))
+            depth_info = {}
+            if capture_depth:
+                depth = geometry['depth']
+                if (depth['fps'] != fps or (depth['width'], depth['height']) != tuple(depth_size)
+                        or depth['format'] != str(rs.format.z16)):
+                    raise ValueError('active stream differs from the explicitly requested native profile')
+                scale = float(self.device.first_depth_sensor().get_depth_scale())
+                if not np.isfinite(scale) or scale <= 0:
+                    raise ValueError('invalid native depth scale')
+                transform = extrinsic_matrix(self.profiles['depth'].get_extrinsics_to(self.profiles['color']))
+                depth_info = dict(depth_metres_per_unit=scale, color_T_depth=transform.tolist())
             info = {name: self.device.get_info(getattr(rs.camera_info, name))
                     if self.device.supports(getattr(rs.camera_info, name)) else None
                     for name in ('name', 'serial_number', 'firmware_version', 'usb_type_descriptor')}
@@ -130,7 +141,7 @@ class RealSenseCamera:
             except importlib.metadata.PackageNotFoundError:
                 version = getattr(rs, '__version__', 'unknown')
             self.report = dict(schema_version=1, device=info, sdk_version=version,
-                streams=geometry, depth_metres_per_unit=scale, color_T_depth=transform.tolist(),
+                streams=geometry, **depth_info,
                 available_profiles=self.available_profiles, sensor_options=self.options(),
                 timestamp_mapping='SDK global_time to host system clock; uncertainty unmeasured',
                 pose_time_semantics='SDK frame timestamp; not asserted to be exposure midpoint',
@@ -150,7 +161,7 @@ class RealSenseCamera:
         frames = self.pipeline.wait_for_frames(timeout_ms=1000)
         receipt_ns, receipt_monotonic_ns = time.time_ns(), time.monotonic_ns()
         result = dict(receipt_ns=receipt_ns, receipt_monotonic_ns=receipt_monotonic_ns)
-        for name in ('color', 'depth'):
+        for name in self.streams:
             frame = getattr(frames, 'get_' + name + '_frame')()
             if not frame:
                 raise ValueError('missing native ' + name + ' frame')
@@ -169,7 +180,7 @@ class RealSenseCamera:
                 frame_number=int(frame.get_frame_number()),
                 timestamp_ms=timestamp_ms, timestamp_ns=int(round(timestamp_ms * 1_000_000)),
                 timestamp_domain=str(frame.get_frame_timestamp_domain()), metadata=metadata)
-        if self.device.first_depth_sensor().get_depth_scale() != self.report['depth_metres_per_unit']:
+        if 'depth' in self.streams and self.device.first_depth_sensor().get_depth_scale() != self.report['depth_metres_per_unit']:
             raise ValueError('native depth units changed during capture')
         return result
 

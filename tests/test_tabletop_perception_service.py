@@ -84,8 +84,10 @@ def test_wrist_pipeline_reused_and_closed_on_failure(tmp_path, monkeypatch):
     import stacking_tabletop.ros.hand_eye as ros
     cameras = []
     class Camera:
-        report = {}
         def __init__(self, *args, **kwargs):
+            self.report = {'streams': {'color': {}}}
+            if kwargs.get('capture_depth', True):
+                self.report['streams']['depth'] = {}
             self.closed = False
             cameras.append(self)
         def close(self):
@@ -103,12 +105,16 @@ def test_wrist_pipeline_reused_and_closed_on_failure(tmp_path, monkeypatch):
     resources.wrist_ready(lambda: None)
     resources.wrist_ready(lambda: None)
     assert len(cameras) == 1
+    resources.wrist_ready(lambda: None, capture_depth=False)
+    resources.wrist_ready(lambda: None, capture_depth=False)
+    assert len(cameras) == 2 and cameras[0].closed
+    assert set(cameras[1].report['streams']) == {'color'}
     def fail(*_args, **_kwargs):
         raise RuntimeError('no frame')
     monkeypatch.setattr(capture, 'warmup', fail)
     with pytest.raises(RuntimeError, match='no frame'):
-        resources.wrist_ready(lambda: None)
-    assert cameras[0].closed and resources.camera is None
+        resources.wrist_ready(lambda: None, capture_depth=False)
+    assert cameras[1].closed and resources.camera is None
     resources.close()
 
 

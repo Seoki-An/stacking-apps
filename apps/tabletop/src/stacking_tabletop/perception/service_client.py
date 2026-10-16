@@ -54,6 +54,46 @@ def request(repository, operation, *, check=lambda: None, timeout=120., **argume
 
 
 @contextmanager
+def scene_wrist(arm, calibration, repository, *, depth_size, fps, count):
+    """Use the persistent owner when present; otherwise own a local camera."""
+    from stacking_tabletop.acquisition.hand_eye_capture import capture_view, digest
+    if (service_directory(repository) / 'service.sock').exists():
+        status = request(repository, 'ping', check=arm._check_motion, timeout=5.)
+        if status.get('wrist_capture_options_version') != 2:
+            raise RuntimeError('perception service predates RGB-only scene capture; '
+                               'restart hardware.launch.py once to load the updated service')
+        if status['wrist_enabled']:
+            arguments = dict(
+                profile_sha256=digest(Path(repository) / 'apps/tabletop/config/hand_eye.yml'),
+                serial=calibration.profile.serial, calibration_report=calibration.report(),
+                depth_size=list(depth_size), fps=fps, count=count, capture_depth=False)
+            print('wrist_start: using persistent perception camera (RGB only; native depth disabled)', flush=True)
+            request(repository, 'wrist_ready', check=arm._check_motion, **arguments)
+            def capture(directory):
+                before = arm.runtime.paused_seconds
+                request(repository, 'wrist_capture', check=arm._check_motion,
+                        directory=str(Path(directory).resolve()), **arguments)
+                if arm.runtime.paused_seconds != before:
+                    raise RuntimeError('hold interrupted wrist capture; partial scene retained for review')
+            yield capture
+            return
+
+    from stacking_tabletop.acquisition.realsense import RealSenseCamera
+    from stacking_tabletop.ros.hand_eye import HandEyeRobot
+    print('wrist_start: opening local RGB-only camera (native depth disabled)', flush=True)
+    with HandEyeRobot(calibration) as robot:
+        with RealSenseCamera(calibration, depth_size=depth_size, fps=fps, capture_depth=False) as camera:
+            class CheckedCamera:
+                report = camera.report
+                def read(self):
+                    arm._check_motion()
+                    pair = camera.read()
+                    arm._check_motion()
+                    return pair
+            yield lambda directory: capture_view(directory, calibration, CheckedCamera(), robot, count=count)
+
+
+@contextmanager
 def server_wrist(executor, calibration, repository):
     from stacking_tabletop.acquisition.hand_eye_capture import digest
     # Check the persistent camera and the exact calibration before scan motion.

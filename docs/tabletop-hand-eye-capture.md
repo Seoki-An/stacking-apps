@@ -1,5 +1,12 @@
 # Wrist RGB-D preflight and timestamped capture
 
+Automated pick-scene capture now records **RGB only** (native D435 depth disabled)
+because reconstruction uses color images from different wrist poses. Such views
+use manifest schema 2 with `streams: [color]`, color-only NPZ files, and exact-time
+color camera poses. Session assembly and RGB stereo reconstruction accept them.
+Native-depth replay explicitly rejects them. Schema 1 RGB-D recordings and the
+standalone RGB-D commands below remain supported for depth experiments.
+
 The app can now record **one stationary, operator-positioned wrist view** per
 directory and verify its raw recording offline. These are observations for
 field/scene identification. [Offline PCD replay, multi-view session assembly and
@@ -92,6 +99,29 @@ SDK global-time domains, frame ages within 500 ms, future offsets within 20 ms,
 color/depth skew within 100 ms, and no host clock step above 20 ms. These are
 initial acquisition guards. They do not demonstrate millimetre accuracy or
 exposure convergence.
+
+The SDK can include an already delivered stream exposure in another frameset.
+Capture discards a pair when either exposure exactly matches its last accepted
+timestamp and frame number, and waits for both streams to advance (at most ten
+framesets). It records `repeated_pairs_discarded` in the manifest. Backward
+timestamps/counters, inconsistent frame identities, unmapped clocks and future
+timestamps still fail even in a discarded pair. Exact repeats are discarded
+before checking age, the capture gate or pair skew: a reused exposure may have
+aged beyond 500 ms while waiting for the stream to advance. Two new exposures
+must still pass all three checks before acceptance. Ten repeated framesets fail
+with the last frame identities, so a stalled stream cannot wait indefinitely.
+Robot evidence still spans the interval from the previous accepted pair through
+the next one. Saved frames and offline replay remain strictly unique and fresh.
+See the SDK's [frameset semantics](https://github.com/realsenseai/librealsense/blob/master/include/librealsense2/hpp/rs_pipeline.hpp).
+
+The wrist feedback subscriber queues 1,000 joint messages to tolerate short
+callback scheduling stalls at the UR's observed 500 Hz rate. Accepted evidence
+still requires gaps no larger than 50 ms and exact-time TF for both images.
+If initial settling lacks this evidence, capture retries up to twice using a
+fresh 500 ms settling interval. Clock, motion and image failures are not retried;
+neither are evidence gaps after initial settling has succeeded. The manifest
+retains `settling_retries` and, on synchronization failure, `robot_timing_failure`
+with the requested interval, joint bounds/gaps and the TF lookup error.
 
 Both sensors' `global_time_enabled` options are temporarily enabled and restored
 on close. SDK global time maps the camera clock to the host system clock; it is

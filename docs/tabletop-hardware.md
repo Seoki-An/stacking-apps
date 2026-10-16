@@ -143,7 +143,17 @@ remain execution failures. No automatic return motion is added on failure.
 
 The service keeps the D435 pipeline open across views/steps. If a frame check
 fails, it closes that pipeline and a subsequent request may reopen it. The
-Fast-FoundationStereo GPU model still uses its separate environment/subprocess
+pick-scene workflow also uses this owner, validating the reviewed calibration,
+requested stream profile and frame count. Pick-scene requests RGB-only acquisition:
+the D435 depth sensor is disabled and no native depth image is written. RGB
+frames keep exact-time robot poses; learned stereo generates depth downstream.
+The service switches stream modes before scan motion when needed.
+It opens a local camera only when no
+service socket exists or the service explicitly has its wrist camera disabled.
+A failed service request never triggers a competing local camera connection.
+After installing this integration, restart hardware bringup once so the running
+service loads the new capture protocol.
+The Fast-FoundationStereo GPU model still uses its separate environment/subprocess
 per reconstruction; persistent GPU weights are not implemented by this change.
 
 Open a newly recorded motion-planning `.stack` run in the Operations Console and
@@ -286,9 +296,10 @@ per-exposure stationarity guard, which records timestamp-matched measured robot
 poses and rejects motion during acquisition.
 
 All wrist viewpoints are relative to this configured pose. The sequence is:
-FEMTO before → open wrist camera → move from the recorded start to the capture
-center → capture views, returning to the center between them → close wrist
-camera → reverse the approach back to the recorded start → FEMTO after.
+FEMTO before → prepare wrist camera → move from the recorded start to the capture
+center → capture views, returning to the center between them → finish wrist
+capture → reverse the approach back to the recorded start → FEMTO after.
+The persistent service keeps its camera open; a locally owned camera is closed.
 In wrist-only mode the FEMTO before/after phases are omitted.
 A valid robot-route preview includes both approach and return. These paths use joint-space
 interpolation and check joint/cable limits; they are not collision checked.

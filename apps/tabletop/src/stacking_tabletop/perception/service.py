@@ -40,20 +40,23 @@ class PerceptionResources:
             )
         return self.application
 
-    def wrist_ready(self, check):
+    def wrist_ready(self, check, *, capture_depth=True):
         if not self.wrist_enabled:
             raise RuntimeError('wrist camera disabled in perception service')
         from stacking_tabletop.acquisition.hand_eye import HandEyeCalibration
         from stacking_tabletop.acquisition.hand_eye_capture import digest, warmup
         from stacking_tabletop.acquisition.realsense import RealSenseCamera
         from stacking_tabletop.ros.hand_eye import HandEyeRobot
+        if self.camera is not None and ('depth' in self.camera.report['streams']) != capture_depth:
+            self.close_wrist()
         if self.camera is None:
             try:
                 path = self.repository / 'apps/tabletop/config/hand_eye.yml'
                 self.calibration = HandEyeCalibration.load(path)
                 self.calibration_hash = digest(path)
                 self.robot = self.wrist.enter_context(HandEyeRobot(self.calibration))
-                self.camera = RealSenseCamera(self.calibration, depth_size=(848, 480), fps=15)
+                self.camera = RealSenseCamera(self.calibration, depth_size=(848, 480), fps=15,
+                                             capture_depth=capture_depth)
                 self.wrist.callback(self.camera.close)
             except Exception:
                 self.close_wrist()
@@ -98,12 +101,26 @@ class PerceptionResources:
             return result.report()
         if operation in ('wrist_ready', 'wrist_capture'):
             from stacking_tabletop.acquisition.hand_eye_capture import capture_view
-            camera = self.wrist_ready(check)
+            capture_depth = arguments.get('capture_depth', True)
+            if not isinstance(capture_depth, bool):
+                raise ValueError('capture_depth must be a boolean')
+            camera = self.wrist_ready(check, capture_depth=capture_depth)
             if (arguments['profile_sha256'] != self.calibration_hash
                     or arguments['serial'] != self.calibration.profile.serial):
                 raise ValueError('wrist calibration changed; restart the perception service')
+            if 'calibration_report' in arguments and arguments['calibration_report'] != self.calibration.report():
+                raise ValueError('perception wrist calibration differs from the reviewed capture plan')
+            if 'depth_size' in arguments:
+                color = camera.report['streams']['color']
+                depth = camera.report['streams'].get('depth')
+                if (arguments['fps'] != color['fps'] or (capture_depth and
+                        (list(arguments['depth_size']) != [depth['width'], depth['height']]
+                         or arguments['fps'] != depth['fps']))):
+                    raise ValueError('requested wrist stream profile differs from the persistent camera; '
+                                     'use depth 848x480 at 15 fps or launch with start_wrist_camera:=false')
             if operation == 'wrist_capture':
-                capture_view(arguments['directory'], self.calibration, camera, self.robot, count=3)
+                capture_view(arguments['directory'], self.calibration, camera, self.robot,
+                             count=arguments.get('count', 3))
             return {'ready': True}
         if operation == 'stack_scene':
             from stacking_tabletop.acquisition.stack_scene_processing import process_stack_scene
@@ -147,7 +164,9 @@ class RequestHandler(socketserver.StreamRequestHandler):
                 raise ValueError('perception request must be an object')
             message = parsed
             if message['operation'] == 'ping':
-                result = {'ready': True, 'busy': self.server.busy.locked()}
+                result = {'ready': True, 'busy': self.server.busy.locked(),
+                          'wrist_enabled': getattr(self.server.resources, 'wrist_enabled', False),
+                          'wrist_capture_options_version': 2}
             else:
                 if not self.server.busy.acquire(blocking=False):
                     raise RuntimeError('perception service busy; retry after the current job')

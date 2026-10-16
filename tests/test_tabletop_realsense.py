@@ -175,3 +175,21 @@ def test_enumeration_failure_reports_identity_without_starting_streams(profile_p
     assert 'pinned D435 camera-A' in str(error.value)
     assert detail in str(error.value)
     assert state.starts == 0
+
+
+def test_rgb_only_does_not_open_read_or_configure_depth(profile_path):
+    calibration = HandEyeCalibration.load(profile_path)
+    api, state = sdk(calibration)
+    device = api.context().query_devices()[0]
+    def forbidden():
+        pytest.fail('RGB-only capture accessed the depth sensor')
+    device.first_depth_sensor = forbidden
+    with RealSenseCamera(calibration, capture_depth=False, rs=api) as camera:
+        assert state.requested == ['camera-A', ('color', 1280, 720, 'rgb8', 15)]
+        assert set(camera.report['streams']) == {'color'}
+        assert 'depth_metres_per_unit' not in camera.report
+        assert 'color_T_depth' not in camera.report
+        assert set(camera.read()) == {'receipt_ns', 'receipt_monotonic_ns', 'color'}
+        assert state.sensors['depth'].global_time == 0.
+    assert state.stops == 1
+    assert state.sensors['color'].global_time == 0.

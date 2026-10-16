@@ -1,13 +1,14 @@
 """Read-only joint/TF evidence for wrist captures; never publishes commands."""
 
 from collections import deque
+import copy
 import threading
 import time
 from types import SimpleNamespace
 
 import numpy as np
 
-from stacking_tabletop.acquisition.hand_eye_capture import LIMITS
+from stacking_tabletop.acquisition.hand_eye_capture import LIMITS, RobotEvidenceUnavailable
 from stacking_tabletop.execution.motion import canonical_joint_positions
 from .femto import stamp_ns, transform_matrix
 
@@ -46,8 +47,12 @@ class HandEyeRobot:
                 raise ValueError('live camera capture requires ROS system time, not simulated time')
             self.tf = api.Buffer(node=self.node)
             self.listener = api.TransformListener(self.tf, self.node, spin_thread=False)
+            # Sensor-data's default five samples cover only 10 ms at 500 Hz.
+            # Keep enough queued evidence to survive short scheduling stalls.
+            joint_qos = copy.copy(api.sensor_qos)
+            joint_qos.depth = 1000
             self.subscription = self.node.create_subscription(api.JointState, '/joint_states',
-                                                              self._joint, api.sensor_qos)
+                                                              self._joint, joint_qos)
             self.executor = api.SingleThreadedExecutor(context=self.context)
             self.executor.add_node(self.node)
             self.thread = threading.Thread(target=self._spin, daemon=True, name='wrist_capture_state')
@@ -75,13 +80,16 @@ class HandEyeRobot:
 
     def measure(self, start_ns, end_ns, stamps):
         deadline = time.monotonic() + .5
+        diagnostics = dict(interval_start_ns=int(start_ns), interval_end_ns=int(end_ns),
+                           pose_stamps_ns={key: int(value) for key, value in stamps.items()})
         while time.monotonic() < deadline:
             if self._error is not None:
                 raise RuntimeError(f'robot feedback failed: {self._error}')
             if not self.context.ok():
                 raise RuntimeError('robot feedback ROS context stopped')
-            if self.subscription.get_publisher_count() != 1:
-                raise ValueError('expected one authoritative joint-state publisher')
+            publishers = self.subscription.get_publisher_count()
+            if publishers != 1:
+                raise ValueError(f'expected one authoritative joint-state publisher; found {publishers}')
             ros_now = self.node.get_clock().now().nanoseconds
             ros_offset = ros_now - time.time_ns()
             if abs(ros_offset) > LIMITS['max_clock_step_ns']:
@@ -90,6 +98,20 @@ class HandEyeRobot:
                 samples = [(stamp, q.copy()) for stamp, q, received in self._joints
                            if time.monotonic_ns() - received < 2_000_000_000]
             packet = bracketed_joints(samples, start_ns, end_ns)
+            # Retain the exact failing interval and distinguish absent brackets,
+            # gaps inside them, and TF lookup errors. No nearest-time fallback.
+            times = [stamp for stamp, _ in samples]
+            before = [stamp for stamp in times if stamp <= start_ns]
+            after = [stamp for stamp in times if stamp >= end_ns]
+            selected = ([stamp for stamp in times if before[-1] <= stamp <= after[0]]
+                        if before and after else [])
+            diagnostics.update(
+                reason='joint_bracket_missing' if not (before and after) else 'joint_gap',
+                joint_samples=len(times),
+                earliest_joint_ns=times[0] if times else None,
+                latest_joint_ns=times[-1] if times else None,
+                max_interval_joint_gap_ms=max((b - a for a, b in zip(selected, selected[1:])), default=0) / 1e6,
+                interval_end_age_ms=(time.time_ns() - end_ns) / 1e6)
             if packet is not None:
                 try:
                     for name, stamp in stamps.items():
@@ -101,10 +123,11 @@ class HandEyeRobot:
                                   pose_stamps_ns=stamps, pose_source='tf_at_sdk_global_frame_time',
                                   ros_system_offset_ns=ros_offset)
                     return packet
-                except self.api.TransformException:
-                    pass  # Wait for exact-time TF; never substitute latest TF.
+                except self.api.TransformException as error:
+                    diagnostics.update(reason='exact_time_tf_unavailable', tf_error=str(error),
+                                       tf_frame=name, tf_stamp_ns=int(stamp))
             time.sleep(.005)
-        raise ValueError('missing timestamp-bracketed joints or exact-time TF for capture')
+        raise RobotEvidenceUnavailable(diagnostics)
 
     def close(self):
         if self.executor is not None:
