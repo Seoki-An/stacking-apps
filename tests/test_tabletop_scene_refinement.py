@@ -17,7 +17,12 @@ from test_tabletop_saved_execution import ROOT, saved
 
 @pytest.fixture
 def case(saved, monkeypatch, tmp_path):
-    context = replace(saved.context, profiles={**saved.context.profiles, 'simulation_profile': {}})
+    solver = dict(saved.context.profiles['native_solver'])
+    solver['motion'] = {'direct': {'grasp_steps': saved.grasp_steps,
+                                  'target_pos_tol': .02, 'target_rot_tol': np.deg2rad(10)}}
+    context = replace(saved.context, profiles={**saved.context.profiles,
+        'native_solver': solver, 'simulation_profile': {},
+        'environment_profile': {'place_stability': {'fail_displacement': .015, 'rotation_weight': .01}}})
     frame = saved.planning.world_T_stack
     template = saved.plans[0]
     plans = []
@@ -104,8 +109,10 @@ def case(saved, monkeypatch, tmp_path):
         return replace(template, step=kwargs['step'], attempt=kwargs['attempt'],
                        candidate_id=kwargs['candidate_id'], context_sha256=context.sha256,
                        problem=problem, result=result)
-    coordinator = NS(attempt=attempt, placement_backend=NS(close=lambda: closed.append(True)))
+    coordinator = NS(attempt=attempt, inventory=inventory,
+                     placement_backend=NS(close=lambda: closed.append(True)))
     monkeypatch.setattr(refinement, '_coordinator', lambda *args: coordinator)
+    monkeypatch.setattr(refinement, '_check_containment', lambda *args: 1.)
     structural_calls, structural_closed = [], []
 
     def validate_structure(branch, action):
@@ -154,15 +161,10 @@ def test_small_correction_refines_full_suffix_in_order_and_keeps_input_immutable
     json.dumps(result.summary, allow_nan=False)
 
 
-@pytest.mark.parametrize('kind', ['translation', 'rotation', 'support', 'prior', 'evidence', 'coverage'])
-def test_unqualified_or_large_scene_changes_never_start_motion_refinement(case, kind):
+@pytest.mark.parametrize('kind', ['support', 'prior', 'evidence', 'coverage'])
+def test_unqualified_scene_changes_never_start_motion_refinement(case, kind):
     result = case.candidate.result
-    if kind == 'translation':
-        result.proposed_poses[0][2] += .006
-    elif kind == 'rotation':
-        from scipy.spatial.transform import Rotation
-        result.proposed_poses[0][3:] = Rotation.from_euler('z', 10, degrees=True).as_quat()
-    elif kind == 'support':
+    if kind == 'support':
         result.support_warning = True
     elif kind == 'prior':
         result.evidence[0].prior_carried = True
@@ -176,6 +178,26 @@ def test_unqualified_or_large_scene_changes_never_start_motion_refinement(case, 
     assert not case.attempts
 
 
+@pytest.mark.parametrize('kind', ['translation', 'rotation', 'target'])
+def test_large_corrections_update_scene_and_regenerate_motions(case, kind):
+    if kind == 'translation':
+        case.candidate.result.proposed_poses[0][0] += .00639
+    elif kind == 'rotation':
+        from scipy.spatial.transform import Rotation
+        case.candidate.result.proposed_poses[0][3:] = Rotation.from_euler('z', 10, degrees=True).as_quat()
+    else:
+        case.options['drift'] = .006
+    case.write_review()
+    result = case.run()
+    assert result.summary['planning_mode'] == 'motion_regeneration'
+    assert result.summary['validated_through_step'] == 3
+    assert result.summary['unvalidated_steps'] == []
+    assert len(result.records) == 2
+    np.testing.assert_allclose(
+        case.attempts[0][0].object_poses[1],
+        case.saved.planning.world_T_stack.parent_pose_to_child(case.candidate.result.proposed_poses[0]))
+
+
 def test_prior_carried_unchanged_is_allowed(case):
     case.candidate.result.proposed_poses[0] = case.saved.planning.world_T_stack.child_pose_to_parent(
         case.checkpoint.state.object_poses[1])
@@ -185,11 +207,9 @@ def test_prior_carried_unchanged_is_allowed(case):
 
 
 @pytest.mark.parametrize('options,match', [
-    ({'drift': .006}, 'target'),
-    ({'residual': .006}, 'release'),
-    ({'drift': -.004, 'residual': .008}, 'residual'),
+    ({'residual': .021}, 'release'),
+    ({'drift': -.004, 'residual': .025}, 'residual'),
     ({'missing_achieved': True}, 'achieved'),
-    ({'failure_step': 3}, 'collision'),
     ({'unsafe_wrist': True}, 'wrist_3'),
 ])
 def test_bad_future_motion_or_target_returns_no_partial_suffix(case, options, match):
@@ -198,6 +218,15 @@ def test_bad_future_motion_or_target_returns_no_partial_suffix(case, options, ma
         case.run()
     assert case.closed == [True]
     assert case.checkpoint.state.placed_object_indices == [0]
+
+
+def test_release_uses_recorded_motion_tolerance_and_propagates_achieved_pose(case):
+    case.options['residual'] = .01038
+    result = case.run()
+    achieved = case.saved.planning.world_T_stack.parent_pose_to_child(
+        result.records[0].result.diagnostics['achieved_place_pose'])
+    np.testing.assert_allclose(result.states[0].object_poses[2], achieved)
+    np.testing.assert_allclose(case.attempts[1][0].object_poses[2], achieved)
 
 
 def test_pose_recomputed_differently_from_operator_review_is_rejected(case):
@@ -251,13 +280,42 @@ def test_missing_recorded_inputs_fail_clearly(case, monkeypatch):
 
 
 @pytest.mark.parametrize('options', [
-    {'structural_failure': 2}, {'structural_failure': 3}, {'structural_drift': .002},
+    {'structural_failure': 2}, {'structural_drift': .016},
 ])
 def test_support_stack_failure_or_transient_motion_rejects_entire_suffix(case, options):
     case.options.update(options)
     with pytest.raises(refinement.RefinementNeedsReview, match='full-stack'):
         case.run()
     assert case.closed == case.structural_closed == [True]
+    assert case.checkpoint.state.placed_object_indices == [0]
+
+
+@pytest.mark.parametrize('options', [{'failure_step': 3}, {'structural_failure': 3}])
+def test_later_failure_keeps_checked_next_step_available(case, options):
+    case.options.update(options)
+    result = case.run()
+    assert [record.step for record in result.records] == [2]
+    assert result.summary['validated_through_step'] == 2
+    assert result.summary['unvalidated_steps'] == [3]
+    assert result.summary['deferred_failure']['step'] == 3
+    assert result.states[-1].placed_object_indices == [0, 1]
+    assert case.checkpoint.state.placed_object_indices == [0]
+
+
+def test_structure_uses_recorded_displacement_limit(case):
+    case.options['structural_drift'] = .002
+    result = case.run()
+    evidence = result.records[0].result.diagnostics['scene_refinement_structure']
+    assert evidence['max_weighted_displacement_m'] == pytest.approx(.002)
+    assert evidence['displacement_limit_m'] == .015
+
+
+def test_target_containment_failure_cannot_authorize_next_motion(case, monkeypatch):
+    def reject(*args):
+        raise refinement.RefinementNeedsReview('settled target leaves the target structure')
+    monkeypatch.setattr(refinement, '_check_containment', reject)
+    with pytest.raises(refinement.RefinementNeedsReview, match='target structure'):
+        case.run()
     assert case.checkpoint.state.placed_object_indices == [0]
 
 

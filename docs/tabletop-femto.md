@@ -216,7 +216,9 @@ At the **place** review gate, the object is held and pickup retreat has finished
 3. At **scan_review**, scrub the cyan robot preview to inspect entry, scan and
    return poses alongside the measured robot. Review physical object and camera
    clearance as well: this is predefined joint motion without a new collision
-   planning pass. **Continue** starts the scan; **Abort** cancels it.
+   planning pass. **Start scan: move to Q_SCAN and capture** starts the scan;
+   **Abort** cancels it. Q_SCAN is `[82, -73, 95, -182, -86, 0]` degrees,
+   the same pose used by the legacy stone-model PCD collection workflow.
 4. The worker moves, settles within 0.25 degrees for 0.25 seconds, and captures a
    fresh seven-exposure burst at each view. Progress and the output path appear
    in Execution. Arm readiness, fresh feedback and acknowledged grip remain
@@ -249,6 +251,22 @@ driver remains running. Use Prepare Capture and reconstruction for subsequent
 processing; the console does not yet display registered live point clouds.
 
 ## Calibration and synchronization
+
+In-hand preparation records `scan_prepare` and `scan_preflight` progress before
+the preview gate. A missing folder dialog means preparation has not been
+submitted: the button is enabled only at the held-object placement review
+after pickup retreat. Camera preflight sends no motion; approving the preview
+starts the move to Q_SCAN.
+
+The October 16 failure delivered 814 fresh FEMTO depth/cloud pairs but captured
+zero views because no exposure-time robot state could be matched. Passive
+measurement showed about 0.9 s of camera delivery delay, exceeding the former
+0.5 s history (and 300-joint-sample buffer at 500 Hz). The transport now retains
+2 s of robot/gripper history with room for 2,000 samples. It still requires
+state samples within 50 ms of exposure and exact exposure-time tool TF, and
+execution separately requires fresh live feedback. Timeout diagnostics name the
+missing/mismatched state or TF and include nearest sample offsets. This does not
+substitute latest TF/state or authorize motion with missing evidence.
 
 The capture worker verifies the **connected device serial** through
 `/camera/get_device_info`. Matching YAML and NPZ names alone is insufficient.

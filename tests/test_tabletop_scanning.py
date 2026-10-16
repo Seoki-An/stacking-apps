@@ -191,6 +191,11 @@ def test_scanning_returns_to_fresh_gate_and_keeps_durable_sequence(saved, tmp_pa
     assert details['robot_urdf_sha256'] == saved.context.asset_hashes['robot/urdf']
     events = StackRunStore.load_execution_events(saved.path)
     assert any('scan_completed' in e.diagnostics for e in events)
+    preflight = next(e for e in events if e.diagnostics.get('phase') == 'scan_preflight')
+    review = next(e for e in events if e.diagnostics.get('gate') == 'scan_review')
+    started = next(e for e in events if 'scan_started' in e.diagnostics)
+    assert preflight.sequence < review.sequence < started.sequence
+    assert 'stays still' in preflight.diagnostics['scan_preparation_stage']
     assert sum(e.diagnostics.get('operator_decision') == 'approve_place' for e in events) == 2
     if mode == 'pause':
         assert executor.runtime.paused_seconds > 65

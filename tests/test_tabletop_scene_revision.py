@@ -8,11 +8,11 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from stacking_common.artifacts import StackRunStore, PlanningCheckpoint
+from stacking_common.artifacts import StackRunStore, PlanningCheckpoint, build_execution_command
 from stacking_common.domain import State
 from stacking_common.planning import PickSceneSnapshot
 from stacking_tabletop.execution.scene_refinement import pending_scene_refinement, write_refined_branch
-from stacking_tabletop.execution.saved_plan import load_execution_run
+from stacking_tabletop.execution.saved_plan import load_execution_run, validate_command
 from stacking_tabletop.execution.sequence import execute_saved_run
 from test_tabletop_saved_execution import ROOT, saved, executor_for
 
@@ -22,6 +22,7 @@ def observed(saved, tmp_path):
     artifact = StackRunStore.load_mcts(saved.path)
     assets = dict(saved.context.asset_hashes)
     assets['object/2'] = hashlib.sha256((ROOT/'apps/tabletop/assets/objects/model_2.obj').read_bytes()).hexdigest()
+    assets['object/3'] = hashlib.sha256((ROOT/'apps/tabletop/assets/objects/model_3.obj').read_bytes()).hexdigest()
     context = replace(saved.context, asset_hashes=assets)
     plans = []
     states = []
@@ -30,10 +31,11 @@ def observed(saved, tmp_path):
         action.object_id, action.object_index = step, step - 1
         plans.append(replace(old, context_sha256=context.sha256,
                              problem=replace(old.problem, action=action)))
-        states.append(State([1, 2], list(range(step)),
+        states.append(State([1, 2, 3], list(range(step)),
                             {i: action.pose.copy() for i in range(1, step + 1)}, [], []))
     pickup = PickSceneSnapshot('world', {1: plans[0].problem.pick_pose,
-                                        2: plans[1].problem.pick_pose}, 'test')
+                                        2: plans[1].problem.pick_pose,
+                                        3: plans[1].problem.pick_pose}, 'test')
     source = tmp_path/'source.stack'
     with StackRunStore.create_mcts(source, replace(artifact, steps=())) as writer:
         writer.append_run_context(context)
@@ -49,7 +51,12 @@ def observed(saved, tmp_path):
     capture = tmp_path/'capture'
     capture.mkdir()
     report = capture/'sceneid_result.json'
-    report.write_text('{"status": "identified"}')
+    observed_pose = current.planning.world_T_stack.child_pose_to_parent(states[0].object_poses[1])
+    observed_pose[0] += .00639
+    report.write_text(json.dumps(dict(kind='tabletop_stack_scene_identification',
+        status='SceneIdStatus.IDENTIFIED', accepted_snapshot=True, support_warning=False,
+        entity_ids=[1], proposed_poses=[observed_pose.tolist()],
+        diagnostics={'nonpenetrating': True})))
     pcd = capture/'observed.pcd'
     pcd.write_text('fake observation; numerical fitting is covered separately')
     report_hash = hashlib.sha256(report.read_bytes()).hexdigest()
@@ -128,6 +135,53 @@ def test_source_cannot_execute_stale_suffix_after_acceptance(observed):
     with pytest.raises(ValueError, match='refin'):
         execute_saved_run(current, executor)
     assert len(transport.calls) == calls
+
+
+def test_accepted_scene_updates_before_motion_refinement_and_survives_release_replay(observed):
+    from stacking_tabletop.gui.operations.execution_scene import ExecutionScene
+    current, capture, _ = observed
+    scene = ExecutionScene(current, ROOT)
+    for event in StackRunStore.load_execution_events(current.path):
+        scene.event(event)
+    expected = np.asarray(json.loads((capture/'sceneid_result.json').read_text())['proposed_poses'][0])
+    np.testing.assert_allclose(scene.released[1], expected)
+    assert scene._identified_through_step == 1
+
+
+def test_partial_revision_executes_only_checked_prefix(observed, tmp_path):
+    current, capture, refinement = observed
+    artifact = StackRunStore.load_mcts(current.path)
+    original = current.plans[-1]
+    action = original.problem.action.copy()
+    action.object_id, action.object_index = 3, 2
+    plan = replace(original, step=3, problem=replace(original.problem, action=action))
+    selected = replace(artifact.steps[-1].candidates[0], object_id=3, object_index=2)
+    checkpoint = StackRunStore.load_planning_checkpoint(current.path, 2)
+    state = checkpoint.state.copy()
+    state.placed_object_indices.append(2)
+    state.object_poses[3] = action.pose.copy()
+    with StackRunStore.open_append(current.path) as writer:
+        writer.append_placement_plan(plan)
+        writer.append_mcts_step(replace(artifact.steps[-1], step=3, candidates=(selected,)),
+                               checkpoint=replace(checkpoint, step=3, state=state))
+    current = load_execution_run(current.path, ROOT)
+    destination = write_refined_branch(current, ROOT, capture, 1, refinement,
+                                       destination=tmp_path/'next-step-ready.stack')
+    revised = load_execution_run(destination, ROOT)
+    assert StackRunStore.load_execution_checkpoint(destination).pending_steps == (2, 3)
+    blocked = revised.plans[-1]
+    assert blocked.result.diagnostics['motion_requires_replan']
+    assert all(segment.name.startswith('unvalidated/') for segment in blocked.result.segments)
+    with pytest.raises(ValueError, match='five direct-plan segments'):
+        validate_command(build_execution_command(blocked, revised.context),
+                         revised.planning, revised.grasp_steps)
+    _, executor = executor_for(revised)
+    selected_steps = []
+    result = execute_saved_run(revised, executor, next_step=lambda plan: selected_steps.append(plan.step))
+    assert selected_steps == [2] and result[-1].status.value == 'succeeded'
+    assert [c.step for c in StackRunStore.load_execution_commands(destination)] == [1, 2]
+    with pytest.raises(ValueError, match='Next motion needs planning'):
+        execute_saved_run(revised, executor)
 
 
 def test_revision_excludes_uncommitted_failed_search_tail(observed, tmp_path):

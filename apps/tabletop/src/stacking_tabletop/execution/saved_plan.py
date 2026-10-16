@@ -98,11 +98,18 @@ def load_execution_run(path, repository):
         if solver["allow_regrasp"] or isinstance(steps, bool) or not isinstance(steps, int) or steps < 1:
             raise ValueError("execution requires direct planning with positive grasp_steps")
         validate_context(context, planning)
+        limit = info.metadata.get('scene_refinement', {}).get('validated_through_step')
         for plan in plans:
-            command = build_execution_command(plan, context)
-            validate_command(command, planning, steps)
             if f"object/{plan.problem.action.object_id}" not in context.asset_hashes:
                 raise ValueError("execution object has no recorded asset hash")
+            if limit is not None and plan.step > limit:
+                if (not plan.result.diagnostics.get('motion_requires_replan')
+                        or not plan.result.segments
+                        or any(not segment.name.startswith('unvalidated/') for segment in plan.result.segments)):
+                    raise ValueError('unvalidated scene continuation must contain blocked motion seeds')
+                continue
+            command = build_execution_command(plan, context)
+            validate_command(command, planning, steps)
         assets = resolve_execution_assets(context, repository, planning)
     except (KeyError, TypeError) as error:
         raise ValueError(f"saved execution context is incomplete: {error}") from error

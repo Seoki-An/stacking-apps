@@ -1,5 +1,89 @@
 # Session context — 2026-10-16
 
+## Commit handoff and gripper investigation
+
+Pre-commit validation: 148 focused tests passed across scene refinement/revision,
+handoff, saved execution, GUI, stacked capture, scanning, FEMTO transport and
+acquisition, and the perception service. `git diff --check` passed.
+
+This commit records the FEMTO exposure-time history/scan progress fixes and
+accepted-scene continuation above local thresholds, including blocked future
+motion seeds when only a checked prefix can be regenerated. It does not change
+gripper control, reset hardware faults, or commit generated `.stack` documents.
+
+Read-only live checks found UR readiness and fresh joint/tool feedback, but
+repeated preflight timeouts followed the external gripper driver's startup exit.
+Direct register reads on the unoccupied serial port reported Hardware Error
+Status 0x21 (Input Voltage + Overload), torque disabled, and present voltage
+11.8 V within configured 9.5–16.0 V limits. After recovery, another step-2 CLOSE
+attempt developed position-read/write acknowledgement corruption before its
+final goal 91; subsequent reads again showed 0x21, torque off, and 37 C.
+These idle measurements do not establish voltage stability during closing.
+
+The saved step-2 opening is 0.302 rad; the existing 0.40 rad closing margin
+saturates the destination to raw 91. The client continues its ramp while waiting
+for stable contact and accepts telemetry up to 3.5 s old. The contact detector
+is polled by the 10 Hz command loop, so its 25-observation window takes at least
+2.5 s, despite 25 Hz driver telemetry. Revising this closing behavior and
+checking supply/wiring/mechanism under load remain follow-up work. No movement,
+torque, reboot, or reset commands were sent during these diagnostic checks.
+
+## Scene updates above local thresholds and next-step continuation
+
+The user changed the continuation policy: 5 mm / 3 degrees classifies local
+corrections rather than rejecting larger qualified SceneID updates. The pending
+tabletop_plan3_real scene identified stone 4 at 6.39 mm / 0.56 degrees with no
+support warning or penetration; the old hard cutoff caused repeat-only retry.
+Accepted poses now update the live/reopened viewer before motion generation.
+
+Future motions use the saved planner's release tolerances and recorded stability
+displacement criterion, with full-stack dynamic settling, containment, support,
+collision and joint checks. Predicted settled poses feed subsequent future plans.
+The current accepted observation remains separate from these forecasts. A later
+planning failure now permits a validated next-step prefix, preserving completed
+history. Later action seeds carry blocked segment names and a validation bound;
+they cannot execute, including through the old five-segment loader or with scan
+capture disabled. The next accepted scene can regenerate them. No MCTS or robot
+commands are invoked by continuation computation.
+
+Real-capture offline validation produced
+`.stacks/tabletop_plan3_real-refined-after-1-db928b84.stack`: step 1 remains
+completed, motions 2–4 passed, and 5–6 are blocked seeds after step 5 reported
+`place_target_unsupported`. No original file was replaced and no robot commands
+were sent. The accepted stone-4 correction was 6.39 mm / 0.56 degrees; future
+target orientation corrections exceeded 3 degrees and were accepted through
+fresh motion/physics checks. Restart Operations and the perception service to
+load this policy before opening the new revision.
+
+Validation: 116 continuation, saved-execution, GUI, stack-capture, scanning,
+SceneID and perception-service regressions passed. The real-capture revision
+loads with completed_steps=(1,), pending_steps=(2,3,4,5,6), and validation through
+step 4. Steps 5–6 also fail the direct execution validator via blocked segment
+names, so clients cannot silently execute their stale trajectories.
+
+## In-hand preparation timestamp history
+
+Diagnosed tabletop_plan3_real step 1 preparation: 814 fresh FEMTO frame pairs,
+zero captured frames, waiting for timestamp-matched robot/gripper state/TF.
+Passive live sampling showed about 0.9 s exposure-to-delivery latency. The old
+0.5 s evidence filter and 300-entry joint deque (about 0.6 s at 500 Hz) discarded
+the required historical state. History now spans 2 s with 2,000-entry buffers;
+the 50 ms source-time alignment and exposure-time TF checks remain active.
+Timeout diagnostics distinguish missing history, timestamp mismatch and TF.
+
+Preparation now emits named progress before the preview. The preview approval
+button explicitly starts movement to Q_SCAN and capture. Q_SCAN matches legacy
+model collection: [82, -73, 95, -182, -86, 0] degrees. Preparation itself stays
+stationary; scans are available at the held-object placement review after pickup
+retreat. No robot/gripper motion was commanded during this investigation.
+
+Passive live verification after the history change matched 50 exposure-time
+frame/state samples after initial history warmup. Final nearest-state offsets
+were -1.30 ms (joints) and +20.25 ms (gripper), within the unchanged 50 ms gate.
+This verifies the matching failure was addressed, not end-to-end scan execution.
+Validation: 56 focused FEMTO transport/acquisition, scan and execution-console
+tests passed, including delayed exposure matching at 500 Hz and scan gate order.
+
 ## Thread commit: perception service and reviewed scene refinement
 
 This commit records integrated FEMTO/perception startup, optional in-hand

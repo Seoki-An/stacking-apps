@@ -391,20 +391,27 @@ The execution journal records the capture location, PCD hash, and SceneID
 result. Captures use
 `base_link`; the viewport converts them to its recorded UR-base world frame.
 The point cloud and SceneID proposal are separate observation layers. Local
-refinement requires qualified evidence and corrections of at most 5 mm / 3°
-per placed stone, measured against the current branch checkpoint. It reuses the
-recorded physical/planning profiles, re-settles future targets, bounds target and
-release changes, and repeats support, collision, joint and full-stack dynamic
-checks. The stability rollout additionally limits drift to 1 mm / 0.5°; these
-are conservative software gates, not camera accuracy claims. No MCTS is rerun.
-Rejected evidence, changed support, excessive drift or infeasible motions stop
-for broader review, never an automatic search or fallback to stale motions.
+refinement requires qualified evidence. Corrections up to 5 mm / 3° are local;
+larger corrections update the scene and regenerate motions. Recorded native
+release tolerances and the recorded stability displacement criterion govern
+future plans, alongside full-stack settling, target containment, support,
+collision and joint checks. The initial observed-scene rollout remains required.
+Predicted settled poses are used for subsequent future placements, while the
+current observed scene is preserved. No MCTS is rerun.
+
+If a later step fails planning, the checked prefix can still execute. Later
+action seeds remain in the revision with explicitly blocked motion segments;
+the validation boundary prevents their execution, even with scene capture off.
+The next accepted capture can regenerate this tail. Invalid evidence or a failed
+next-motion check cannot authorize an unchecked pickup.
 
 The source file is retained and its accepted-observation marker blocks the old
 remaining motions. A successful revision copies the completed physical history
-and replaces only future plans/checkpoints. Partial/cancelled revision files
-cannot execute. **Retry scene refinement** retries computation without robot
-connection. Original capture files remain required for hash verification.
+and replaces future plans/checkpoints. Incomplete/cancelled revision files
+cannot execute. **Update scene and plan next motion (no robot motion)** retries
+computation without a robot connection. Accepted SceneID poses are applied in
+the viewer before planning succeeds, including after reopening the source run.
+Original capture files remain required for hash verification.
 
 Hold/Abort remain active during capture and GPU reconstruction. An interrupted
 view is not accepted. Camera, motion, or reconstruction failure stops before the

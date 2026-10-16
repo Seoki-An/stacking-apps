@@ -125,8 +125,9 @@ class ExecutionWorker(QThread):
                                         'scene refinement requires an empty gripper')
 
         self.refinement_status.emit(
-            'Refining the remaining planned poses and motions; no new pickup '
-            'will start. Large scene changes require separate replanning.'
+            'Updating the accepted scene and regenerating motions in the planned '
+            'stone order. A checked next step can proceed even if later steps '
+            'need more planning.'
         )
         reply = request(
             self.repository, 'refine_remaining', run=str(self.saved.path),

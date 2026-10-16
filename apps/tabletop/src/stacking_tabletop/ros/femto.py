@@ -12,6 +12,11 @@ from stacking_tabletop.acquisition.femto import FemtoBuffer, CaptureError
 from stacking_tabletop.execution.motion import canonical_joint_positions
 
 
+# Native depth/cloud delivery can lag exposure by about 0.9 s. Keep the
+# exposure-time robot evidence longer than that delay; matching stays at 50 ms.
+ROBOT_HISTORY_SECONDS = 2.
+
+
 def stamp_ns(stamp):
     return int(stamp.sec) * 1_000_000_000 + int(stamp.nanosec)
 
@@ -60,7 +65,8 @@ class FemtoRosTransport:
         self._subscriptions, self._clients = [], []
         self._lock = threading.Lock()
         self._depths, self._clouds = deque(maxlen=16), deque(maxlen=16)
-        self._joints, self._gripper = deque(maxlen=300), deque(maxlen=300)
+        self._joints, self._gripper = deque(maxlen=2000), deque(maxlen=2000)
+        self._robot_match = {}
         self._info = None
         self._received = {'depth_messages': 0, 'cloud_messages': 0, 'matched_pairs': 0}
         self._error = None
@@ -143,7 +149,8 @@ class FemtoRosTransport:
     def diagnostics(self):
         """Receipt counts distinguish absent streams from rejected frame pairs."""
         with self._lock:
-            return {**self._received, 'camera_info_received': self._info is not None}
+            return {**self._received, 'camera_info_received': self._info is not None,
+                    **self._robot_match}
 
     def _cloud(self, message):
         self._receive(message, self._clouds, self._depths, False)
@@ -200,13 +207,19 @@ class FemtoRosTransport:
 
     def robot_at(self, timestamp_ns, base_frame):
         with self._lock:
-            joints = sorted(((stamp, value) for stamp, value, received in self._joints if self.clock() - received <= .5), key=lambda item: item[0])
-            gripper = [(stamp, value) for stamp, value, received in self._gripper if self.clock() - received <= .5]
+            now = self.clock()
+            joints = sorted(((stamp, value) for stamp, value, received in self._joints
+                             if now - received <= ROBOT_HISTORY_SECONDS), key=lambda item: item[0])
+            gripper = [(stamp, value) for stamp, value, received in self._gripper
+                       if now - received <= ROBOT_HISTORY_SECONDS]
         if not joints or not gripper:
+            self._record_robot_match('missing joint history' if not joints else 'missing gripper history')
             return None
         nearest = min(joints, key=lambda pair: abs(pair[0] - timestamp_ns))
         hand = min(gripper, key=lambda pair: abs(pair[0] - timestamp_ns))
         if max(abs(nearest[0] - timestamp_ns), abs(hand[0] - timestamp_ns)) > 50_000_000:
+            self._record_robot_match('state timestamp mismatch', nearest[0] - timestamp_ns,
+                                     hand[0] - timestamp_ns)
             return None
         before = next((pair for pair in reversed(joints) if pair[0] <= timestamp_ns), None)
         after = next((pair for pair in joints if pair[0] >= timestamp_ns), None)
@@ -217,9 +230,19 @@ class FemtoRosTransport:
             mode = 'interpolated'
         tool = self.lookup(base_frame, 'tool0', timestamp_ns)
         if tool is None:
+            self._record_robot_match('missing exposure-time tool TF', nearest[0] - timestamp_ns,
+                                     hand[0] - timestamp_ns)
             return None
+        self._record_robot_match('matched', nearest[0] - timestamp_ns, hand[0] - timestamp_ns)
         return {'joints': q.copy(), 'gripper_position': hand[1], 'base_T_tool': tool,
                 'joint_stamp_ns': nearest[0], 'gripper_stamp_ns': hand[0], 'joint_sample_mode': mode}
+
+    def _record_robot_match(self, reason, joint_delta_ns=None, gripper_delta_ns=None):
+        with self._lock:
+            self._robot_match = {'robot_state_match': reason}
+            if joint_delta_ns is not None:
+                self._robot_match.update(joint_offset_ms=joint_delta_ns / 1e6,
+                                         gripper_offset_ms=gripper_delta_ns / 1e6)
 
     def close(self):
         if self._closed:

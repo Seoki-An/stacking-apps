@@ -86,6 +86,7 @@ def test_last_placement_only_reviews_scene_without_refinement(saved, tmp_path):
     assert 'refine' not in gates[0][1]
     assert executor.pending_scene_refinement is None
     assert not any('scene_refinement_required' in event for event in events)
+    assert any('scene_poses_accepted' in event for event in events)
 
 
 def test_interrupted_acceptance_can_retry_only_capture_without_pickup(saved, tmp_path, monkeypatch):

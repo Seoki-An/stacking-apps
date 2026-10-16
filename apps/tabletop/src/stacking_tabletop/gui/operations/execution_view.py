@@ -112,6 +112,10 @@ class ExecutionView(QWidget):
         self.scan_camera = QComboBox()
         self.scan_camera.addItems(['primary', 'secondary'])
         self.scan_button = QPushButton('Prepare held-object scan…')
+        self.scan_button.setToolTip(
+            'Available at the held-object placement review after pickup retreat. '
+            'Choose a folder, wait for camera checks, then approve the scan preview '
+            'to move to Q_SCAN and capture.')
         self.scan_button.clicked.connect(self.request_scan)
         for widget in (self.scan_kind, self.scan_camera, self.scan_button):
             row.addWidget(widget)
@@ -184,9 +188,9 @@ class ExecutionView(QWidget):
                 pending = pending_scene_refinement(path)
                 if pending is not None:
                     self.status.setText(
-                        'An accepted stacked-scene observation requires refinement. '
-                        'Retry refinement without robot motion; the old remaining '
-                        'motions cannot execute.'
+                        'Scene poses have been accepted. Plan the next motion '
+                        'against the updated stack to continue. Corrections above '
+                        '5 mm / 3° regenerate motions rather than reject the scene.'
                     )
                 recovery = pending_released_stack_capture(
                     path, checkpoint.pending_steps[0]
@@ -260,7 +264,7 @@ class ExecutionView(QWidget):
         scan_retry = (pending is not None
                       and pending_released_stack_capture(self.path, pending['step']) is not None)
         refinement_pending = pending is not None and not scan_retry
-        self.start_button.setText('Retry scene refinement (no robot motion)'
+        self.start_button.setText('Update scene and plan next motion (no robot motion)'
                                   if refinement_pending else 'Retry stacked-scene capture'
                                   if scan_retry else 'Start supervised execution')
         self.start_button.setEnabled(ready and not self.running and self.can_start() and bool(checkpoint.pending_steps)
@@ -334,8 +338,13 @@ class ExecutionView(QWidget):
             self.load(refined)
             if self.saved is not None:
                 self.refined_run_loaded.emit(str(refined))
+                policy = StackRunStore.info(refined).metadata.get('scene_refinement', {})
+                limit = policy.get('validated_through_step')
+                tail = [plan.step for plan in self.saved.plans if limit is not None and plan.step > limit]
+                checked = (f'Motions checked through step {limit}; steps {tail} need later planning. '
+                           if tail else '')
                 self.status.setText(
-                    'Refined plan loaded with completed placements preserved. '
+                    'Refined plan loaded with completed placements preserved. ' + checked +
                     'Start supervised execution to review the next motion; '
                     'nothing has started automatically.'
                 )
@@ -365,7 +374,9 @@ class ExecutionView(QWidget):
             if gate is not None and gate.name == 'place' else
             'Accept SceneID and refine remaining plan'
             if gate is not None and gate.name == 'stack_scene_result'
-            and any(plan.step > gate.step for plan in self.saved.plans) else 'Continue'
+            and any(plan.step > gate.step for plan in self.saved.plans) else
+            'Start scan: move to Q_SCAN and capture'
+            if gate is not None and gate.name == 'scan_review' else 'Continue'
         )
         self.gate_label.setText("" if gate is None else f"Step {gate.step}: {gate.message}")
         self._controls()
@@ -533,6 +544,8 @@ class ExecutionView(QWidget):
 
     def receive_event(self, event):
         self.history.appendPlainText(f"{event.sequence}: {event.status.value} · {event.diagnostics.get('phase', '')} · {event.reason or ''}")
+        if 'scan_preparation_stage' in event.diagnostics:
+            self.scan_label.setText(event.diagnostics['scan_preparation_stage'])
         if 'stack_scene_stage' in event.diagnostics:
             self.scan_label.setText(f"Stacked scene: {event.diagnostics['stack_scene_stage']}\n"
                                    f"{event.diagnostics['stack_scene_directory']}")

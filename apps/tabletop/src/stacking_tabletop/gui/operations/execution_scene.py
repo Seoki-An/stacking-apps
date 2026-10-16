@@ -57,6 +57,14 @@ class ExecutionScene:
         return None if len(points) < 2 else np.vstack(points)
 
     def event(self, event):
+        request = (event.diagnostics.get('scene_poses_accepted')
+                   or event.diagnostics.get('scene_refinement_required'))
+        if request is not None and request['step'] > self._identified_through_step:
+            from stacking_tabletop.execution.scene_refinement import accepted_scene_poses
+            observed = accepted_scene_poses(self.saved, request)
+            if observed:
+                self.released.update(observed)
+                self._identified_through_step = request['step']
         pose = event.diagnostics.get("release_pose")
         if (event.status.value == "succeeded" or event.diagnostics.get("release_completed")) and pose is not None:
             plan = next(plan for plan in self.saved.plans if plan.step == event.diagnostics["step"])
@@ -91,7 +99,8 @@ class ExecutionScene:
                        for key, pose in scene.items())
         state = self.telemetry
         actual = self.released.get(target, problem.pick_pose)
-        if state is not None and state["object_pose"] is not None:
+        if (state is not None and state["object_pose"] is not None
+                and self.plan.step > self._identified_through_step):
             actual = state["object_pose"]
         overlays = (
             RenderObject(f"execution/expected/{target}", target, problem.place_pose,

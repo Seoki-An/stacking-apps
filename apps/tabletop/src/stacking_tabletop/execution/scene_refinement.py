@@ -12,6 +12,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from stacking_common.artifacts import StackRunStore, build_execution_command
+from stacking_common.domain._validation import pose_array
 from stacking_common.visualization import SceneObjectPose, SceneSnapshot, SceneTimeline
 from stacking_tabletop.acquisition.hand_eye_capture import digest
 
@@ -28,6 +29,39 @@ def pending_scene_refinement(path):
         if request is not None and token not in resolved:
             pending = {**dict(request), 'command_id': event.command_id, 'sequence': event.sequence}
     return pending
+
+
+def accepted_scene_poses(saved, request):
+    """Render accepted observed poses even while the next motion needs planning."""
+    capture = Path(request['capture_directory']).resolve()
+    path = capture / 'sceneid_result.json'
+    if digest(path) != request['sceneid_sha256']:
+        raise ValueError('accepted SceneID report has changed')
+    status = json.loads((capture / 'capture.json').read_text())
+    report = json.loads(path.read_text())
+    if (status.get('context_sha256') != saved.context.sha256
+            or status.get('step') != request['step']):
+        raise ValueError('accepted SceneID context/step differs from the run')
+    if (report.get('kind') != 'tabletop_stack_scene_identification'
+            or report.get('status') != 'SceneIdStatus.IDENTIFIED'
+            or report.get('accepted_snapshot') is not True
+            or report.get('support_warning', False)
+            or not report.get('diagnostics', {}).get('nonpenetrating')):
+        return {}
+    checkpoint = StackRunStore.load_planning_checkpoint(saved.path, request['step'])
+    expected = {index + 1: checkpoint.state.object_ids[index]
+                for index in checkpoint.state.placed_object_indices}
+    entities, poses = report['entity_ids'], report['proposed_poses']
+    if (len(entities) != len(expected) or len(poses) != len(entities)
+            or set(entities) != set(expected)):
+        raise ValueError('accepted SceneID does not cover the placed inventory')
+    return {expected[int(entity)]: pose_array(pose) for entity, pose in zip(entities, poses)}
+
+
+def validated_motion_limit(path):
+    """Retained tail plans are seeds until their motions are regenerated."""
+    info = StackRunStore.info(path).metadata.get('scene_refinement', {})
+    return info.get('validated_through_step')
 
 
 def _validate_request(saved, capture, step):
@@ -97,8 +131,8 @@ def write_refined_branch(saved, repository, capture, step, refinement, *,
     saved.verify_assets()
     records, states = tuple(refinement.records), tuple(refinement.states)
     remaining = tuple(plan for plan in saved.plans if plan.step > step)
-    if not remaining or len(records) != len(remaining) or len(states) != len(records):
-        raise ValueError('refinement must cover the complete unexecuted suffix')
+    if not remaining or not records or len(records) > len(remaining) or len(states) != len(records):
+        raise ValueError('refinement must provide a checked next-step prefix')
     for old, record in zip(remaining, records):
         if (record.step != old.step or record.context_sha256 != saved.context.sha256
                 or record.candidate_id != old.candidate_id
@@ -132,7 +166,8 @@ def write_refined_branch(saved, repository, capture, step, refinement, *,
     metadata['scene_refinement'] = {
         'parent': str(saved.path), 'completed_step': step, 'capture': str(capture),
         'sceneid_sha256': request['sceneid_sha256'], 'pcd_sha256': request['pcd_sha256'],
-        'policy': 'fixed_order_local_refinement', 'mcts_rerun': False,
+        'policy': refinement.summary.get('planning_mode', 'local_refinement'),
+        'validated_through_step': records[-1].step, 'mcts_rerun': False,
         'summary': refinement.summary,
     }
     # Collect an immutable prefix before opening the destination. All old physical
@@ -168,7 +203,19 @@ def write_refined_branch(saved, repository, capture, step, refinement, *,
                     writer.append_execution_reconciliation(reconciliation)
         before = refinement.corrected_state
         for original in artifact.steps:
+            if original.step <= step:
+                continue
             if original.step not in revised:
+                old = next((plan for plan in remaining if plan.step == original.step), None)
+                if old is not None:
+                    # Retain action seeds/order. Execution cannot queue this tail
+                    # beyond validated_through_step, even if capture is disabled.
+                    blocked = replace(old, result=replace(old.result,
+                        segments=tuple(replace(segment, name='unvalidated/' + segment.name.removeprefix('unvalidated/'))
+                                       for segment in old.result.segments),
+                        diagnostics={**old.result.diagnostics, 'motion_requires_replan': True}))
+                    writer.append_placement_plan(blocked)
+                    writer.append_mcts_step(original, checkpoint=checkpoints[original.step])
                 continue
             check()
             record, state = revised[original.step]

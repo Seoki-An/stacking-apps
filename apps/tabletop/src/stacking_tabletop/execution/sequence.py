@@ -615,7 +615,7 @@ class TabletopMotionExecutor:
 
 def execute_saved_run(saved, executor, *, events=None, next_step=None):
     """Journal from this worker thread; queue durably before each physical step."""
-    from .scene_refinement import pending_scene_refinement
+    from .scene_refinement import pending_scene_refinement, validated_motion_limit
     from .recovery import pending_released_stack_capture
 
     saved.verify_assets()
@@ -632,11 +632,18 @@ def execute_saved_run(saved, executor, *, events=None, next_step=None):
             'execution; retry refinement in the GUI or open its reviewed branch.'
         )
     commands = StackRunStore.load_execution_commands(saved.path)
+    validated_through = validated_motion_limit(saved.path)
+    if (validated_through is not None and checkpoint.pending_steps
+            and checkpoint.pending_steps[0] > validated_through):
+        raise ValueError('Next motion needs planning against the updated stack; '
+                         'the retained later plans are action seeds only')
     results = []
     with StackRunStore.open_append(saved.path) as writer:
         for plan in saved.plans:
             if plan.step in checkpoint.completed_steps:
                 continue
+            if validated_through is not None and plan.step > validated_through:
+                break
             if executor.runtime.cancel_event.is_set():
                 break
             if next_step is not None:

@@ -1,4 +1,4 @@
-"""Bounded, fixed-order scene correction using recorded native planning inputs.
+"""Accepted scene correction and checked motion continuation in fixed stone order.
 
 This computes a proposal only: it never writes a run or authorizes robot motion.
 The caller must review and persist the complete result before execution resumes.
@@ -58,14 +58,14 @@ def _pose_delta(before, after):
             float(2 * np.arccos(np.clip(cosine, 0., 1.))))
 
 
-def _bounded_delta(before, after, description):
+def _delta(before, after):
     translation, rotation = _pose_delta(before, after)
-    if translation > MAX_TRANSLATION + 1e-10 or rotation > MAX_ROTATION + 1e-10:
-        raise RefinementNeedsReview(
-            f'{description} changed by {translation * 1000:.2f} mm, '
-            f'{np.rad2deg(rotation):.2f} deg; exceeds local refinement '
-            'limits (5 mm / 3 deg); needs broader review, not automatic MCTS')
     return {'translation_m': translation, 'rotation_rad': rotation}
+
+
+def _is_local(delta):
+    return (delta['translation_m'] <= MAX_TRANSLATION + 1e-10
+            and delta['rotation_rad'] <= MAX_ROTATION + 1e-10)
 
 
 def _recorded_simulation(values):
@@ -137,7 +137,7 @@ def _correct_scene(saved, checkpoint, candidate, simulation):
     for entity, pose in zip(entities, poses):
         object_id = expected[entity]
         pose = saved.planning.world_T_stack.parent_pose_to_child(pose_array(pose))
-        delta = _bounded_delta(state.object_poses[object_id], pose, f'Placed stone {object_id}')
+        delta = _delta(state.object_poses[object_id], pose)
         item = by_entity[entity]
         if item.prior_carried:
             if delta['translation_m'] > 1e-8 or delta['rotation_rad'] > 1e-6:
@@ -238,7 +238,7 @@ def _structural_backend(saved, inventory, simulation):
     return backend
 
 
-def _validate_structure(backend, state, record, world_T_stack):
+def _validate_structure(backend, state, record, world_T_stack, stability):
     """Validate the corrected supporting stack under the new stone's load."""
     dynamic = state.copy()
     dynamic.pose_identified_object_ids.clear()
@@ -255,28 +255,92 @@ def _validate_structure(backend, state, record, world_T_stack):
     reference = {**state.object_poses, action.object_id: action.pose}
     if set(result.object_poses) != set(reference) or set(result.trajectories) != set(reference):
         raise RefinementNeedsReview('Full-stack validation omitted a stone or its motion history')
-    maximum_translation = maximum_rotation = 0.
+    maximum_translation = maximum_rotation = maximum_displacement = 0.
+    limit = float(stability['fail_displacement'])
+    rotation_weight = float(stability['rotation_weight'])
+    if not np.isfinite(limit) or limit <= 0 or not np.isfinite(rotation_weight) or rotation_weight < 0:
+        raise RefinementNeedsReview('Recorded structural displacement limits are invalid')
     for object_id, before in reference.items():
         poses = [*result.trajectories[object_id].poses, result.object_poses[object_id]]
         for pose in poses:
             translation, rotation = _pose_delta(before, pose)
             maximum_translation = max(maximum_translation, translation)
             maximum_rotation = max(maximum_rotation, rotation)
-            if translation > ROLLOUT_TRANSLATION or rotation > ROLLOUT_ROTATION:
+            displacement = translation + rotation_weight * rotation
+            maximum_displacement = max(maximum_displacement, displacement)
+            if displacement > limit:
                 raise RefinementNeedsReview(
                     f'Step {record.step} full-stack validation moved stone {object_id} '
-                    'beyond 1 mm / 0.5 deg; needs broader review')
-    # The simulated drift is only validation evidence; it is never committed as
-    # an observed or refined pose in the execution scene.
+                    f'beyond recorded displacement limit {limit:g} m')
+    # These are forecasts after a future placement, not replacements for the
+    # currently accepted observed scene. Subsequent future plans use the forecast.
     return {'max_translation_m': maximum_translation, 'max_rotation_rad': maximum_rotation,
+            'max_weighted_displacement_m': maximum_displacement, 'displacement_limit_m': limit,
+            'settled_poses': {str(key): np.asarray(pose).tolist() for key, pose in result.object_poses.items()},
             'all_stones_dynamic': True, 'full_structural_phase': True}
+
+
+def _check_containment(saved, inventory, record, pose):
+    from stacking_common.environment.overlap import VoxelOverlapEvaluator
+    profile = saved.context.profiles['environment_profile']
+    overlap = VoxelOverlapEvaluator(inventory.target, profile['overlap_resolution'])
+    fraction = overlap.object_containment(inventory[record.problem.action.object_index], pose)
+    if fraction < profile['reward']['containment_threshold']:
+        raise RefinementNeedsReview(f'Step {record.step} settled target leaves the target structure')
+    return fraction
+
+
+def _refine_one(saved, checkpoint, branch, original, coordinator, structural, check, step):
+    action = original.problem.action.copy()
+    if action.object_index in branch.placed_object_indices:
+        raise RefinementNeedsReview(f'Step {original.step} picks an already placed stone')
+    pickup = checkpoint.pick_scene.object_poses[action.object_id]
+    if not np.allclose(pickup, original.problem.pick_pose, atol=1e-9, rtol=0):
+        raise RefinementNeedsReview('Saved pickup pose differs from its checkpoint')
+    record = coordinator.attempt(
+        branch, action, step=original.step, attempt=original.attempt + 1,
+        pick_pose=pickup, candidate_id=original.candidate_id,
+    )
+    check()
+    if not record.result.succeeded:
+        raise RefinementNeedsReview(
+            f'Step {original.step} motion planning failed: {record.result.reason}')
+    # The old target is a planning seed. Its correction is not a reason to
+    # reject an otherwise supported, collision-checked new placement.
+    delta = _delta(action.pose, record.problem.action.pose)
+    achieved = record.result.diagnostics.get('achieved_place_pose')
+    if achieved is None:
+        raise RefinementNeedsReview('Refined motion lacks achieved release-pose validation')
+    residual = _delta(record.problem.place_pose, achieved)
+    limits = saved.context.profiles['native_solver']['motion']['direct']
+    if (residual['translation_m'] > limits['target_pos_tol']
+            or residual['rotation_rad'] > limits['target_rot_tol']):
+        raise RefinementNeedsReview(
+            f'Step {original.step} release residual exceeds recorded motion tolerances')
+    validate_command(build_execution_command(record, saved.context),
+                     saved.planning, saved.grasp_steps)
+    check()
+    structure = _validate_structure(structural, branch, record, saved.planning.world_T_stack,
+                                   saved.context.profiles['environment_profile']['place_stability'])
+    settled = structure['settled_poses'][str(action.object_id)]
+    containment = _check_containment(saved, coordinator.inventory, record, settled)
+    check()
+    record = replace(record, result=replace(record.result, diagnostics={
+        **record.result.diagnostics, 'scene_refinement': True,
+        'scene_refinement_source_step': step, 'scene_refinement_target_delta': delta,
+        'scene_refinement_structure': structure,
+                    'scene_refinement_release_residual': residual,
+        'scene_refinement_target_containment': containment,
+    }))
+    return record, delta
 
 
 def refine_remaining(saved, repository, capture_directory, step, *,
                      check=lambda: None, progress=None):
-    """Propose bounded target/motion revisions without changing stone order.
+    """Update a reviewed scene and plan a checked prefix of remaining motions.
 
-    The complete suffix must pass; a failure returns no partial plan. Native
+    Failure of a later placement does not invalidate a checked next placement;
+    unplanned later steps stay explicitly blocked in the resulting revision. Native
     operations are bounded by their recorded solver limits; cancellation is
     checked around each operation rather than interrupting native code.
     """
@@ -307,6 +371,7 @@ def refine_remaining(saved, repository, capture_directory, step, *,
             raise RefinementNeedsReview('Remaining saved steps are not contiguous')
         branch = corrected.copy()
         records, states, target_changes = [], [], {}
+        deferred = None
         coordinator = _coordinator(saved, repository, checkpoint, inventory, progress) if future else None
         structural = None
         try:
@@ -314,45 +379,19 @@ def refine_remaining(saved, repository, capture_directory, step, *,
                 structural = _structural_backend(saved, inventory, simulation)
             for original in future:
                 check()
-                action = original.problem.action.copy()
-                if action.object_index in branch.placed_object_indices:
-                    raise RefinementNeedsReview(f'Step {original.step} picks an already placed stone')
-                pickup = checkpoint.pick_scene.object_poses[action.object_id]
-                if not np.allclose(pickup, original.problem.pick_pose, atol=1e-9, rtol=0):
-                    raise RefinementNeedsReview('Saved pickup pose differs from its checkpoint')
-                record = coordinator.attempt(
-                    branch, action, step=original.step, attempt=original.attempt + 1,
-                    pick_pose=pickup, candidate_id=original.candidate_id,
-                )
-                check()
-                if not record.result.succeeded:
-                    raise RefinementNeedsReview(
-                        f'Step {original.step} local refinement failed: {record.result.reason}; '
-                        'needs broader review, not automatic MCTS')
-                delta = _bounded_delta(action.pose, record.problem.action.pose,
-                                       f'Step {original.step} target')
-                achieved = record.result.diagnostics.get('achieved_place_pose')
-                if achieved is None:
-                    raise RefinementNeedsReview('Refined motion lacks achieved release-pose validation')
-                _bounded_delta(original.problem.place_pose, achieved,
-                               f'Step {original.step} achieved release')
-                _bounded_delta(record.problem.place_pose, achieved,
-                               f'Step {original.step} release residual')
-                validate_command(build_execution_command(record, saved.context),
-                                 saved.planning, saved.grasp_steps)
-                check()
-                structure = _validate_structure(
-                    structural, branch, record, saved.planning.world_T_stack)
-                check()
-                record = replace(record, result=replace(record.result, diagnostics={
-                    **record.result.diagnostics, 'scene_refinement': True,
-                    'scene_refinement_source_step': step,
-                    'scene_refinement_target_delta': delta,
-                    'scene_refinement_structure': structure,
-                }))
+                try:
+                    record, delta = _refine_one(saved, checkpoint, branch, original,
+                                               coordinator, structural, check, step)
+                except ValueError as error:
+                    if not records:
+                        raise
+                    deferred = {'step': original.step, 'reason': str(error)}
+                    break
                 refined = record.problem.action.copy()
+                forecast = record.result.diagnostics['scene_refinement_structure']['settled_poses']
+                refined.pose = pose_array(forecast[str(refined.object_id)])
                 branch.placed_object_indices.append(refined.object_index)
-                branch.object_poses[refined.object_id] = refined.pose.copy()
+                branch.object_poses.update({int(key): pose_array(pose) for key, pose in forecast.items()})
                 branch.action_history.append(refined)
                 branch.trajectories.append({})
                 branch.contact_points.clear()
@@ -371,6 +410,8 @@ def refine_remaining(saved, repository, capture_directory, step, *,
         summary = {
             'kind': 'tabletop_fixed_order_scene_refinement', 'step': step,
             'max_translation_m': MAX_TRANSLATION, 'max_rotation_rad': float(MAX_ROTATION),
+            'planning_mode': ('local_refinement' if all(_is_local(d) for d in
+                              [*changes.values(), *target_changes.values()]) else 'motion_regeneration'),
             'scene_changes': changes, 'target_changes': target_changes,
             'rollout': rollout, 'source_hashes': dict(candidate.source_hashes),
             'entity_to_object_id': {
@@ -381,6 +422,9 @@ def refine_remaining(saved, repository, capture_directory, step, *,
                 for entity, pose in zip(candidate.result.entity_ids, candidate.result.proposed_poses)},
             'remaining_steps': [record.step for record in records],
             'object_order': [record.problem.action.object_id for record in records],
+            'validated_through_step': records[-1].step if records else step,
+            'unvalidated_steps': [record.step for record in future[len(records):]],
+            'deferred_failure': deferred,
             'mcts_used': False,
         }
         return SceneRefinement(corrected, tuple(records), tuple(states), summary)

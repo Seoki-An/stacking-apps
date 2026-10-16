@@ -222,24 +222,29 @@ Restart the perception service after changing profiles or model assets.
 When stacked-scene capture is enabled and more placements remain, its result
 gate offers **Accept SceneID and refine remaining plan**. Acceptance finishes
 the released step, stops at home, then requests fixed-order refinement in the
-perception service. Each placed stone must differ by at most **5 mm and 3°**
-from the current plan. These limits select the refinement route, not permission
-to skip stability, support, collision, joint-limit or continuity checks.
+perception service. **5 mm and 3°** classify a small local correction;
+larger qualified corrections are accepted and regenerate motions against the
+observed stack. The viewer applies accepted observed poses even while motion
+planning is pending or fails.
 
 Refinement preserves remaining stone IDs/order, re-settles each planned target
 against the corrected stack, and regenerates the motions without rerunning
-MCTS. Excessive target drift, a weak/changed observation, or a failed physics or
-motion check stops the job for review; it never silently starts a broader search.
+MCTS. Release residuals and full-stack dynamics use the recorded motion and
+stability limits. Predicted settled poses feed later planning. Target containment,
+support, collision, evidence and joint checks remain mandatory. If a later step
+fails, a validated next-step prefix remains available; later motion records are
+explicitly blocked until regenerated from another accepted scene.
 The resulting `*-refined-after-STEP-*.stack` is loaded after the execution worker
 finishes. Previously placed stones remain completed. **Start supervised
 execution** then presents the usual next-motion review; no new motion starts
 automatically.
 
 The old source remains viewable, but its stale remaining motions are blocked.
-If the service fails or refinement is cancelled, **Retry scene refinement**
-retries computation without reconnecting robot hardware or repeating placement.
-Large scene changes need separately reviewed broader replanning, not repeated
-local retries. The original plan and physical execution history are retained.
+If the service fails or planning is cancelled, **Update scene and plan next
+motion (no robot motion)** retries computation without reconnecting hardware or
+repeating placement. The original plan and physical execution history are
+retained. After source updates, restart Operations and the perception service to
+load the new policy before opening a revised plan.
 
 In the Operations Console, select **Execution → Start supervised execution** and
 follow the pickup, close, placement, and release gates. See the

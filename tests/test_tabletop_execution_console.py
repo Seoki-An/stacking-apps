@@ -230,6 +230,7 @@ def test_scan_controls_request_review_preview_and_clear(saved, tmp_path, monkeyp
                               'capture_count': 76, 'output': str(requests[0][3])})
     view.set_gate(OperatorGate('scan-token', 'command', 1, 'scan_review', 'Review scan'))
     assert view.continue_button.isEnabled() and not view.scan_controls.isEnabled()
+    assert view.continue_button.text() == 'Start scan: move to Q_SCAN and capture'
     assert view.scan_preview.isEnabled()
     view.scan_preview.setValue(1)
     parts = view.scene.frame().robot_parts

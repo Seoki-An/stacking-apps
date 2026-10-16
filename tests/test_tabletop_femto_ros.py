@@ -5,7 +5,7 @@ from types import SimpleNamespace as NS
 import numpy as np
 import pytest
 
-from stacking_tabletop.ros.femto import FemtoRosTransport, decode_depth
+from stacking_tabletop.ros.femto import FemtoRosTransport, ROBOT_HISTORY_SECONDS, decode_depth
 from stacking_tabletop.acquisition.femto import CaptureError
 from stacking_tabletop.execution.motion import UR_JOINT_NAMES
 from test_tabletop_ros_hardware import Node, Context, Executor
@@ -161,8 +161,32 @@ def test_exact_transform_and_timestamp_matched_joint_gripper_state(calibration):
         transport.tf.fail = True
         assert transport.robot_at(1_000_000_000, 'base_link') is None
         assert all(call[2] != 0 for call in transport.tf.calls)
-        now[0] += 1.
+        now[0] += ROBOT_HISTORY_SECONDS + .1
         assert transport.robot_at(1_000_000_000, 'base_link') is None
+
+
+def test_delayed_camera_exposure_uses_historical_state_at_500_hz(calibration):
+    now = [10.]
+    with FemtoRosTransport(calibration, node=Node(), bindings=bindings(), clock=lambda: now[0]) as transport:
+        for index in range(601):
+            now[0] = 10. + index * .002
+            stamp = 1_000_000_000 + index * 2_000_000
+            transport._joint(NS(header=header(stamp), name=UR_JOINT_NAMES,
+                                position=np.full(6, index * .001)))
+            if index % 10 == 0:
+                transport._hand(NS(header=header(stamp), position=[700. + index]))
+        # Frame is delivered now, but its exposure was 0.9 seconds ago. Neither
+        # latest state nor the former 300-entry / 0.5s history can match it.
+        sample = transport.robot_at(1_300_000_000, 'base_link')
+        assert sample is not None
+        np.testing.assert_allclose(sample['joints'], np.full(6, .15))
+        assert sample['gripper_position'] == 850.  # The exposure-time 50 Hz sample.
+        assert sample['joint_stamp_ns'] == 1_300_000_000
+        assert transport.tf.calls[-1] == ('base_link', 'tool0', 1_300_000_000)
+        assert transport.diagnostics()['robot_state_match'] == 'matched'
+        # Retained history is not permission to substitute a different timestamp.
+        assert transport.robot_at(900_000_000, 'base_link') is None
+        assert transport.diagnostics()['robot_state_match'] == 'state timestamp mismatch'
 
 
 def test_serial_service_checks_actual_device_and_cancels_pending_future(calibration):

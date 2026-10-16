@@ -38,6 +38,8 @@ def scan_held_object(executor, request, camera, *, prepared=lambda value: None,
     executor._health()
     executor.gripper.require_hold()
     executor.saved.verify_assets()
+    executor._phase = 'scan_prepare'
+    executor._emit('running', scan_preparation_stage='Computing entry to Q_SCAN and scan/return poses')
     model = CheckedKinematics(arm.kinematics, executor._health)
     motions = planner(kind, model, anchor, check=executor._health)
     capture_count = sum(m.capture for m in motions)
@@ -58,6 +60,10 @@ def scan_held_object(executor, request, camera, *, prepared=lambda value: None,
     try:
         # Check identity, optical TF and synchronized held state before entry.
         # The preflight burst is discarded; every view gets a fresh burst.
+        executor._phase = 'scan_preflight'
+        executor._emit('running', scan_preparation_stage=(
+            'Checking FEMTO identity, frames and exposure-time robot/gripper state. '
+            'The robot stays still until the scan preview is approved.'))
         try:
             _capture(executor, camera, anchor)
         except CaptureCancelled:
@@ -72,7 +78,7 @@ def scan_held_object(executor, request, camera, *, prepared=lambda value: None,
                 f'Review the {kind} scan, its entry/return motion and clearance in the viewport. '
                 f'{capture_count} views will be saved to {output}. '
                 'Check clearance around the robot and held object; this scan is not collision checked. '
-                'Continue starts motion.')
+                'Start scan moves to Q_SCAN, captures the views and returns here.')
             executor._profile(False)
             executor._emit('running', scan_started=str(output), scan_kind=kind)
             previous = anchor
