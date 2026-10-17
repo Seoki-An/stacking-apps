@@ -19,8 +19,8 @@ scene:
 # Other solver fields: penalty/update interval, iteration cap, tolerances.
 # stagnation_window: 0 disables early exit; max_iters still applies.
 # Structural solves use tighter tolerances to reduce residual contact jitter.
-# tol_rel multiplies the solve's own velocity/momentum magnitudes, so it is
-# scale-free; tol_abs is the absolute floor that dominates for light stones.
+# tol_rel scales with each solve's own velocity/momentum magnitudes. Looser
+# values (1e-4/1e-5) left settling contacts jittering, costing more iterations.
 # beta_update_interval must stay below max_iters for adaptive penalties.
 physics:
   # Only the new stone moves; structural starts at settled poses, at rest.
@@ -36,7 +36,7 @@ physics:
       max_iters: 2000
       stagnation_window: 0
       tol_abs: 0.00001
-      tol_rel: 0.0001
+      tol_rel: 0.000001
 
   # Shared by short and long structural validation.
   structural:
@@ -52,7 +52,7 @@ physics:
       max_iters: 3000
       stagnation_window: 0
       tol_abs: 0.000001
-      tol_rel: 0.00001
+      tol_rel: 0.000001
 
 # settling: timestep/count and stored pose budget.
 # structural: energy/motion limits, min/max simulated seconds, quiet steps.

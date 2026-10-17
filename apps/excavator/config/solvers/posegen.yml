@@ -66,7 +66,7 @@ schedule:
     k_gap_c: {constant: 40.0, ramp: 150.0, gap_feedback: 100000.0}
     k_gap: {sine: 10.0}
     k_target: {anti_ramp: 5.0}
-    k_xy: {anti_ramp: 1.0}
+    k_xy: {anti_ramp: 0.0}
     k_potential: {constant: 0.10, anti_ramp: 0.10}
     k_reg: {anti_ramp: 3.0}
     k_lower: {anti_ramp: 10.0}

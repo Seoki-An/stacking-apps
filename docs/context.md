@@ -189,11 +189,8 @@ Two scale-unaware settings caused this and were changed:
   `delta_max` 1.0 → 0.1 (metres/radians). The shared excavator radius
   exceeded the tabletop target width in a single step.
 - `solvers/simulation.yml`: `beta_update_interval` 5,000 → 50. It exceeded
-  `max_iters`, so the adaptive ADMM penalty never updated. `tol_rel` is
-  multiplied by each solve's own magnitudes and is scale-free, so it now
-  matches excavator (settling 1e-4, structural 1e-5; the old structural 1e-7
-  was below float32 epsilon on CUDA). `tol_abs` was kept; it dominates for
-  ~0.1 kg stones.
+  `max_iters`, so the adaptive ADMM penalty never updated. `tol_rel` was
+  first loosened to excavator's values; see the follow-up below.
 
 Step 3 from checkpoint 2, three seeds (CUDA profile, 1,024 iterations):
 
@@ -209,3 +206,38 @@ unconverged contacts, but this was not verified directly. Hardware stability
 of the resulting plans is untested. The `k_xy` posegen term adds value only
 (no gradient), and narrowing `w_box` worsened plan quality, so neither was
 changed.
+
+### Follow-up on `tabletop_plan3_real` (pick pose data)
+
+`tol_rel` multiplies each solve's own magnitudes, but during settling those
+contact magnitudes are large, so 1e-4 left contacts jittering (late median
+speed 1.5 mm/s versus 0.78 mm/s at 1e-6) and cost more solver iterations.
+Settling and structural `tol_rel` are now both 1e-6 (above float32 epsilon).
+Three seeds from plan3 checkpoints 2 and 3 (CUDA, 1,024 iterations):
+
+| Step | Profile | Mean search | Mean failed evaluations |
+| --- | --- | ---: | ---: |
+| 3 | `tol_rel` 1e-4/1e-5 | 83.2 s | 27.0 |
+| 3 | `tol_rel` 1e-6/1e-6 | 80.5 s | 15.3 |
+| 4 | `tol_rel` 1e-4/1e-5 | 47.4 s | 15.7 |
+| 4 | `tol_rel` 1e-6/1e-6 | 28.8 s | 6.3 |
+
+Selected rewards were equal or better for every seed. Rejected options:
+shorter settling (150 or 200 of 400 steps) or settling `detection_margin`
+0.01 cut settling time but raised failed evaluations 3–6× because stones were
+still moving; fewer posegen iterations (warmup 30, final 50) raised failures
+from 6 to 136. Settling never reaches rest by velocity (residual contact jitter),
+so an early-exit test would need a displacement criterion.
+
+The remaining cost is mostly pose generation (~43 s of 65–93 s in step 3): one
+call costs about 0.25 s + 4 ms per job, and ~95% of jobs are discarded. Of the
+floor-rule rejections, 647 of 649 had connected sampled XY and were moved by the
+solve; drift persists because `k_xy` has no gradient in stacking-core.
+
+stacking-core now gives `k_xy` a gradient and Hessian on CPU and GPU. With
+`k_xy: {anti_ramp: 30}`, posegen yield rose (step 3: 5.5% → 11.6%; step 4:
+7.9% → 30.7%), but most extra candidates then left the target in simulation:
+over three seeds, search time was unchanged (81.2 s versus 80.5 s; 26.5 s versus
+28.8 s), failed evaluations rose 5–10×, and step-4 reward fell (−0.58 versus
+−0.40). Posegen drift was mostly detecting non-resting placements early, so
+tabletop keeps `k_xy` at 0.
