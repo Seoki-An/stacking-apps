@@ -1,11 +1,16 @@
 # Current MCTS strategy
 
 This document describes the shared MCTS implementation and the excavator CPU
-and CUDA profiles as of 2026-10-05, including continuation repair. MCTS searches
+and CUDA profiles as of 2026-10-21, including continuation repair. MCTS searches
 placement sequences, validates the immediate action and required continuations,
 then retains the selected subtree for the next placement. CUDA accelerates
 batched pose generation and simulation; tree selection and backup remain on
 the CPU.
+
+For the manuscript overview, see [MCTS algorithm](mcts-algorithm.md). Detailed
+equations, reward definitions, and the tabletop comparison are in the
+[appendix draft](mcts-algorithm-appendix.md). Physical evaluation stages
+are described in [MCTS simulation](mcts-simulation.md).
 
 The configuration values below are a snapshot. The active YAML profile and any
 runtime overrides determine a run's behavior; saved `.stack` contexts record
@@ -38,7 +43,7 @@ of future placements, not a command to execute the whole sequence.
 | Setting | CPU | CUDA |
 | --- | ---: | ---: |
 | Maximum tree depth | 3 | 4 |
-| Iterations per search | 512 | 1024 |
+| Iterations per search | 1024 | 1024 |
 | Overall search limit | 240 s | 240 s |
 | Time reserved for final validation and repair | 30 s | 60 s |
 | Root child limit | 12 | 32 |
@@ -52,10 +57,13 @@ of future placements, not a command to execute the whole sequence.
 | Final ranking | mixed, weight 0.5 | mixed, weight 0.5 |
 | Required descendant levels beyond a root candidate | 1 | 2 |
 
-Both profiles initially use depth one until eight objects have been placed.
-Consequently, descendant validation is capped to zero levels during these early
-steps. They also share discount `0.9`, exploration constant `2.0`, three root
-retry rounds, and progressive widening with coefficient `3.0` and exponent `0.5`.
+The excavator CPU profile initially uses depth one until eight objects have
+been placed; descendant validation is capped to zero levels during that period.
+CUDA uses its full configured depth from the first placement. Both share
+discount `0.9`, three root retry rounds, and progressive widening with
+coefficient `3.0` and exponent `0.5`. The exploration constant is `2.0` for
+excavator CPU and `1.0` for excavator CUDA. Tabletop CPU and CUDA use depth four
+from the first placement, exploration constant `1.0`, and two descendant levels.
 
 Sources: [CPU profile](../apps/excavator/config/mcts_cpu.yml) and
 [CUDA profile](../apps/excavator/config/mcts_cuda.yml).
@@ -66,7 +74,9 @@ CEM generates and ranks root proposals, then combines mutations of elites with
 fresh proposals. Both profiles use a fresh fraction of `0.5` and retain at most
 two candidates per object. Root and deeper sampling use `lower_floor_first`.
 These proposal scores are priors; physical simulation still decides whether a
-placement is acceptable. CEM settings govern the root pool, not all descendants.
+placement is acceptable. More precisely, the default tree prior logit combines
+equilibrium and containment, while CEM adds the normalized planar score to rank
+its pool. CEM settings govern the root pool, not all descendants.
 
 For a non-root node with completed visits `N`, the selectable-child allowance is:
 
@@ -126,7 +136,8 @@ h = min(bootstrap.horizon, max_depth + 1 - leaf_depth, remaining_objects)
 B = bootstrap.mean_reward * sum(discount^j for j = 0, ..., h - 1)
 ```
 
-Both profiles set the mean reward to 2.5 and horizon to 4. The implementation
+The excavator CPU profile sets mean reward to 2.5; excavator CUDA and both
+tabletop profiles use 1.0. All use horizon 4. The implementation
 preserves its legacy discount convention: initialize backup with `discount * B`,
 then at each node apply `G = reward + discount * G`. Thus the leaf receives
 `reward_leaf + discount^2 * B`. Terminal and failed leaves have no bootstrap.
@@ -205,8 +216,9 @@ repair_rounds = generation.expansion_retry_batches * required_descendant_depth
 evaluations_per_round <= generation.evaluation_batch_size
 ```
 
-That allows up to three rounds of 12 evaluations for the CPU profile and six
-rounds of 256 for CUDA after the depth-one warmup. These are ceilings, not
+That allows up to three rounds of 12 evaluations for excavator CPU after its
+depth-one warmup, and six rounds of 256 for excavator CUDA from the first
+placement. These are ceilings, not
 targets. Existing widening, generation-attempt limits, generator exhaustion,
 and the remaining overall deadline can stop repair earlier. Already validated
 root paths remain available if repair cannot recover other alternatives.
@@ -218,8 +230,14 @@ builds continuations to the required depth before final selection and repair
 run again. Increasing root retry rounds alone does not improve alternatives
 when some root already qualifies.
 
-**The floor-fill fallback runs only if root retries also select nothing.** It
-relaxes `lower_floor_first` for both root and deeper sampling, then repeats root
+Before replacing a physically validated root, the planner can also repair
+its missing continuations with relaxed floor admission, once per root. It
+preserves the root and existing physical validation evidence.
+
+**The sampling fallback runs only if root retries also select nothing.** An
+empty scene relaxes corner seeding to ordinary scored sampling. A nonempty
+scene relaxes floor admission while retaining lower-floor priority, fill-area
+scores, sampling connectivity, and physical validation. It repeats root
 preparation, lookahead, retry depth extension, and final selection on fresh root
 pools. After the first pool, up to `rejected_root_retry_rounds` further pools
 each exclude every earlier candidate. The fallback stops at the first
@@ -272,11 +290,18 @@ evaluated children and can differ when children are still pending.
 | `parallel.workers` | CPU native workers in CPU mode; CPU result workers in the current CUDA composition |
 | Native CUDA chunk sizes | Internal capacities, separate from logical MCTS batching |
 
-Current native defaults are 256 pose-generation jobs, 128 placements per GPU
+Current CUDA profiles configure 512 pose-generation jobs, 128 placements per GPU
 simulation chunk, and 512 native simulation jobs to accommodate robustness
 trials. Reward and observation processing overlaps subsequent CUDA chunks.
 Tree selection and backup remain serial CPU work. A configured batch of 256
 does not guarantee 256 available independent jobs.
+
+The current CUDA robustness history-download chunks use an estimated 1.5 GiB
+sample-storage budget, increased from 512 MiB. Nested action diagnostics are
+shared read-only across copies to reduce host work. These implementation
+changes retain the tree policy and reward definitions. For current reward
+weights, including excavator's disabled orientation term, see the
+[reward appendix](reward-design-appendix.md).
 
 The exploration deadline is the overall deadline minus `validation.time_reserve`:
 approximately 210 seconds for CPU and 180 for CUDA. Final validation, repair,

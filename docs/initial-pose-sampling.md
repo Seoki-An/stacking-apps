@@ -1,7 +1,11 @@
 # Initial placement pose sampling for automated stone stacking
 
-Implementation summary for a conference paper, inspected on **2026-10-06**.
-Tabletop's scored XY sampling was aligned with excavator on **2026-10-07**.
+For the concise manuscript-oriented description, see
+[Initial placement sampling summary](initial-pose-sampling-summary.md).
+
+Implementation summary for a conference paper, updated against the working
+tree on **2026-10-18**. The original inspection was on 2026-10-06; tabletop
+adopted the shared scored XY sampler on 2026-10-07.
 
 This document describes the current working-tree implementation in
 `stacking-apps`, with excavator as the primary platform and tabletop as a
@@ -11,19 +15,34 @@ configuration; its effective settings must be reported separately.
 
 ## Working version and score inspection
 
-The planner uses the pre-region strategy from `824d204`, with consolidated
-floor configuration, renamed planar bias settings, and five score terms.
-Open-area and frontier bonuses have been removed; connectivity is a hard sampling mask. The regional experiment
-is retained in the existing Git stash; files
-that were untracked when stashing are backed up under
-`.backups/region-sampling-20261011/` with their paths and the stash hash.
+Both platforms use `ScoredPlanarPoseSampler` and
+`ScoredPlacementActionGenerator`, with platform-owned geometry, orientations,
+and physical tolerances. The current path is:
 
-The experimental two-sided wall mode has been removed. Both platforms use
-the conventional volume-filling sampler and floor policy. Its implementation,
-including the lower-gap allocation and refinement experiment, is archived
-locally in `.backups/two-sided-wall-20261014-202619/snapshot.tar.gz` (Git-ignored).
-The archive includes a file manifest, patches, and restoration instructions.
-Inventory-volume normalization of the overlap reward remains enabled.
+1. Allocate fresh proposal attempts with probability proportional to stone
+   volume, capped at 32 attempts per stone per request.
+2. Construct discrete orientation banks and score a 32 × 32 XY grid using
+   orientation-dependent support kernels and rectangular footprint bounds.
+3. Enforce target, open-space, and connectivity admission. Score hypotheses
+   with $S=-3H+2Q+2F+1.5B$; planar bias is configured but weighted zero.
+4. In the empty scene, draw from feasible target-corner neighborhoods. After
+   the first stone, spend the budget on the lower contact-height pool first.
+   Each ordinary pool uses 25% elites and Boltzmann draws at temperature 0.3.
+5. Compute Z from overlapping geometry bounds, refine the full pose with four
+   native continuation stages, and apply solved-pose filters.
+6. At the root, combine fresh proposals with fixed-scale Gaussian XY/yaw
+   mutations for three population rounds, then evaluate placements in MCTS.
+
+Open-area and frontier bonuses, regional representative draws, the U-shape
+pocket filter, and the experimental two-sided wall sampler are absent from
+this path. Connectivity is a hard mask. Conditional corner and floor-admission
+retries are described below. Historical sampler equations and measurements
+are retained in Sections 7.3 and 13.1.
+
+This update includes the local changes in `posegen.yml`, `core_solver.py`,
+and `cuda_solver.py`. Dimensionless equilibrium scoring and legacy feasibility
+filtering use different residuals (Sections 9 and 10). Section 15 records the
+inspected source hashes.
 
 In the excavator operations console, select a candidate in **Search Inspector**
 and click **XY score maps…**. The view compares scene height with the restored
@@ -119,10 +138,10 @@ observation domain, not 32 × 32 valid anchors inside the target.
 
 | Quantity | Excavator | Tabletop |
 |---|---:|---:|
-| Target width × length × height | 2 × 4 × 2.5 m | 0.08 × 0.17 × 0.15 m |
+| Target width × length × height | 2 × 6 × 2.5 m | 0.08 × 0.17 × 0.15 m |
 | Height-map margin parameter | 1 m | 0.02 m |
-| Square observation span $L$ | 5 m | 0.19 m |
-| XY proposal spacing $L/31$ | Approximately 0.1613 m | Approximately 0.00613 m |
+| Square observation span $L$ | 7 m | 0.19 m |
+| XY proposal spacing $L/31$ | Approximately 0.2258 m | Approximately 0.00613 m |
 | Target inward taper | 5° on all four sides | 10° on both length sides; 0° on width sides |
 
 ## 3. Excavator orientation hypotheses
@@ -184,7 +203,7 @@ $$
 L + m - s a \;\leq\; (x,y) \;\leq\; U - m - s b.
 $$
 
-The current $s=0.6$ and $m=0$ permit initial overhang. At $s=1$, these bounds
+The current $s=0.9$ and $m=0$ permit initial overhang. At $s=1$, these bounds
 contain the rotated XY bounding box in the nominal target rectangle. Keeping
 both offsets handles geometry whose origin is not at its bounding-box center.
 The target-boundary score uses the same offsets with the target taper evaluated
@@ -206,12 +225,13 @@ The GUI's fixed-orientation view uses these same rules. Historical runs are
 recomputed with the current rotated-footprint policy, so they can differ from
 the former asset-local rectangle approximation.
 
-A local CPU check used the saved `scored_sampling.npz` placed-scene fixture,
+A historical local CPU check used the saved `scored_sampling.npz` placed-scene fixture,
 two excavator stones, eight orientations, and 30 timed recomputations after
 five warmups, retaining the geometry cache but invalidating the scene cache.
 Median map times were 3.87 and 3.92 ms, versus 2.93 and 2.57 ms with commit
 `b4ef8b3`. Candidate counts changed from 576/512 to 640/576 because eligibility
-now follows rotation. These are scorer measurements, not full MCTS timings.
+followed rotation. These are historical scorer measurements, not timings of
+the 2026-10-18 configuration or full MCTS timings.
 
 ### 4.2 Orientation-dependent bottom kernel
 
@@ -310,6 +330,12 @@ $$
 S=w_HH+w_QQ+w_FF+w_BB+w_DD.
 $$
 
+With the checked profiles, this reduces to
+
+$$
+S(a,R)=-3H(a,R)+2Q(a,R)+2F(a,R)+1.5B(a,R).
+$$
+
 | Term | Current definition | Intended geometric bias |
 |---|---|---|
 | $H$ | Mean contact height normalized over scored anchor/orientation candidates before connectivity masking | Lower supporting surfaces |
@@ -321,8 +347,9 @@ $$
 The following equations give the exact geometric definitions used by the
 current scorer. For a fixed object, let $a=(a_x,a_y)$ be an XY anchor,
 $R$ its candidate rotation, $\mathcal K_R$ its sparse bottom-kernel offsets,
-and $\mathcal C$ the retained anchor/orientation pairs with finite support
-scores. Let $\mathbf 1[\cdot]$ denote an indicator and $|\cdot|$ a set's
+and $\mathcal C$ the scored anchor/orientation pairs after target, open-space,
+and finite-support checks, before connectivity masking. Let
+$\mathbf 1[\cdot]$ denote an indicator and $|\cdot|$ a set's
 cardinality. All counts refer to sampled grid cells.
 
 #### Support likelihood $Q$
@@ -469,7 +496,7 @@ $$
 \delta^- = m_t-s q_R^-,\quad \delta^+ = m_t+s q_R^+,
 $$
 
-where the current target-mask margin is $m_t=0$ and inset scale is $s=0.6$. For the scorer, set
+where the current target-mask margin is $m_t=0$ and inset scale is $s=0.9$. For the scorer, set
 $\alpha_d^\pm=\tan(\max(\theta_d^\pm,0))$. Negative taper angles are
 therefore clamped to zero in this heuristic. The bounds are
 
@@ -587,7 +614,8 @@ $$
 
 where $-\mathcal P=\{-u:u\in\mathcal P\}$. Thus sliding-footprint
 averaging is a correlation, or equivalently a convolution with a reflected
-footprint. For the centered rectangular excavator footprint,
+footprint. Retain the reflected kernel when the rotated footprint is not
+centered on the stone origin. Only an origin-centered rectangle satisfies
 $-\mathcal P=\mathcal P$.
 
 #### Support coverage and contact height
@@ -632,16 +660,16 @@ $\chi_s(p)=\mathbf 1[p\in\Omega_s]$ the active-floor occupancy field,
 and
 
 $$
-\rho_i(u)=\mathbf 1[|u_x|\le0.45e_x,\ |u_y|\le0.45e_y].
+\rho_{i,R}(u)=\mathbf 1[fq_R^-\le u\le fq_R^+],\qquad f=0.9.
 $$
 
 The continuous footprint area and unfilled area are
 
 $$
-A_i(a)=\int_{\mathcal T_{xy}}\rho_i(p-a)\,d^2p,
+A_i(a,R)=\int_{\mathcal T_{xy}}\rho_{i,R}(p-a)\,d^2p,
 \qquad
-U_i(a)=\int_{\mathcal T_{xy}}
-\rho_i(p-a)\left[1-\chi_s(p)\right]\,d^2p.
+U_i(a,R)=\int_{\mathcal T_{xy}}
+\rho_{i,R}(p-a)\left[1-\chi_s(p)\right]\,d^2p.
 $$
 
 To retain the implemented eight-neighbor construction, let
@@ -660,28 +688,31 @@ shifted occupancy masks; it excludes the zero shift. Define the neighboring
 footprint area
 
 $$
-L_i(a)=\int_{\mathcal T_{xy}}\rho_i(p-a)\nu_s(p)\,d^2p.
+L_i(a,R)=\int_{\mathcal T_{xy}}\rho_{i,R}(p-a)\nu_s(p)\,d^2p.
 $$
 
 The fill-area score becomes
 
 $$
-F(a)=\frac{U_i(a)}
-{\max\left(\Delta A_f,\max_{a'\in\mathcal A_{\mathrm{open}}}U_i(a')\right)}.
+F(a,R)=\frac{U_i(a,R)}
+{\max\left(\Delta A_f,
+\max_{(a',R')\in\mathcal A_{\mathrm{open}}}U_i(a',R')\right)}.
 $$
 
 Here $\Delta A_f=\Delta_x\Delta_y$ is the floor grid's uniform area weight;
 it expresses the discrete denominator safeguard of one sample in area units.
 An empty normalization set uses $\Delta A_f$. Empty-floor scoring uses $F=0$;
-relaxed scoring retains $F$. Connectivity is a separate mask $L_i(a)\ge\Delta A_f$ when the
+relaxed scoring retains $F$. Connectivity is a separate mask $L_i(a,R)\ge\Delta A_f$ when the
 floor is occupied, including relaxed retries. Its integral includes occupied
 neighboring cells as well as unfilled ones.
 
 For uniform samples, replacing each integral by
 $\Delta A\sum_p$ recovers the count ratios in Section 5.1; the common area
-weight cancels. The grids include endpoints and give every sample equal
-weight; their sums are not trapezoidal integration with reduced boundary
-weights. Finite masks, sparse kernel construction, and grid boundaries still
+weight cancels. The active-floor grid uses equal-area cell centers, so its
+weight is $\Delta A_f=W\ell/16^2$. The proposal/support grid includes
+observation-domain endpoints and gives its samples equal weight. Neither
+path uses trapezoidal integration with reduced boundary weights. Finite masks,
+sparse kernel construction, and grid boundaries still
 determine the numerical approximation. $B$ and $D$ remain pointwise
 geometric expressions. The combined score remains
 $S=w_HH+w_QQ+w_FF+w_BB+w_DD$.
@@ -739,11 +770,30 @@ interval in each axis of a feasible corner. No extra score weight or neighborhoo
 radius is configured. For narrow bounds, each cell belongs to its nearest corner
 only, avoiding duplicate proposals.
 
+In equations, with $s_c=\max(s,1)$, the feasible center bounds for rotation
+$R$ are $l_c=L+m-s_cq_R^-$ and $u_c=U-m-s_cq_R^+$. Let
+$v_{R,j}$ be their four corners and $\Delta=(\Delta_x,\Delta_y)$ the
+proposal-grid spacing. A corner seed must satisfy
+
+$$
+l_c\le a\le u_c,\qquad
+j^*=\arg\min_j\left\|(a-v_{R,j})\oslash\Delta\right\|_2^2,
+\qquad
+\left\|(a-v_{R,j^*})\oslash\Delta\right\|_\infty\le1+10^{-9}.
+$$
+
+These are grid neighborhoods inside the full-footprint center bounds, not
+four exact continuous center coordinates. If an object has no feasible
+corner seed on the grid, its sampler uses ordinary scored proposals.
+
 Shuffle the available corners and draw one seed per corner while budget remains,
 using the existing score selector within each corner. Fill any remaining slots
-with elite/Boltzmann draws from unselected corner seeds. Small requests therefore
-have an opportunity to visit every corner across draws; four-or-more proposals
-cover all available corners. Generator allocation retains that shuffled prefix.
+with elite/Boltzmann draws from unselected corner seeds. Small sampler requests
+can visit different corners across draws; four-or-more proposals cover all
+available corners in that sampler result. The generator asks for up to 32
+proposals per allocated stone and then retains its allocated prefix. The final
+batch can therefore cover fewer corners for a stone assigned fewer than four
+attempts. Generator allocation retains that shuffled prefix.
 Scores themselves remain unchanged, and CEM/pose solving may move proposals away
 from a corner. MCTS uses its normal reward and validation ranking. This is an
 initial-position preference, not a constraint on the final settled pose.
@@ -887,9 +937,9 @@ uniform XY coordinates. Their initial grid proposals differ as follows:
 | Scene-map reduction | Block maxima, with a separate smoothed fallback map | Same |
 | Default orientation bank | Scan-aligned orientation with retained tilt; two yaws, 0°/180° | PCA orientation; two rolls and four yaws, up to eight distinct rotations |
 | Support geometry | Orientation-dependent global convex-hull bottom kernel | Same |
-| Floor-filling geometry | Asset-local axis-aligned rectangular footprint on the active-floor grid | Same |
+| Floor-filling geometry | Axis-aligned bounds of the rotated hull, scaled about the stone origin | Same |
 | Support contact tolerance | 0.02 m | 0.10 m |
-| Active-floor occupancy | Projected component footprints, 16 × 16; advance at 75% | Same |
+| Active-floor occupancy | Projected component footprints, 16 × 16 cell centers; advance at 65% | Same representation; advance at 75% |
 | Weighted score | $-3H+2Q+2F+1.5B$ | Same |
 | Boundary feature | Bounds tapered according to estimated contact height | Same |
 | Selection | Highest-scoring elites followed by seeded Boltzmann draws without replacement | Same |
@@ -943,14 +993,24 @@ defaulting to the search-frame origin when `planar_bias_xy` is null. It does
 not use robot geometry on either platform.
 
 `TabletopPlacementSafety` uses a 16 × 16 projected-footprint floor
-context, 75% completion threshold, and 0.02 m bottom tolerance. Initial scan
+context, 65% completion threshold, and 0.02 m bottom tolerance. Initial scan
 orientation, solved-orientation filtering, target-containment checks, and
 solver acceptance limits remain platform-owned.
 
+Current geometry can make a stone unsampleable with this orientation bank.
+For example, the loaded tabletop stone 2 has a scan-aligned X extent of
+approximately 0.09766 m; after the 0.9 inset scaling, its 0.08789 m span still
+exceeds the 0.08 m target width. Both configured yaws therefore have inverted
+X anchor bounds and produce zero target-valid grid cells. Ordinary corner
+fallback does not recover a stone with an empty underlying candidate bank.
+The six existing tests in `test_tabletop_scored_sampling.py` fail on this case
+in the inspected working tree; shared sampling code alone does not imply
+that all current tabletop assets have feasible initial poses.
+
 Every effective sampler setting is recorded as
 `action_generation_profile.sampling_settings` in tabletop planning contexts.
-Together with the changed minimum-separation value, this makes the existing
-resume validation reject contexts recorded with the previous sampler.
+Together with the shared generator and current profile values, this lets
+resume validation reject incompatible contexts recorded with previous samplers.
 Historical artifacts remain readable; this change does not rewrite them.
 
 ### 7.3 Historical tabletop sampler before 2026-10-07
@@ -1195,6 +1255,55 @@ $t\in\{0,1/3,2/3,1\}$, with platform-specific scheduled objective weights.
 The refined pose can change translation and rotation beyond the discrete
 initial orientation bank.
 
+### 9.1 Continuation schedule
+
+Each stage starts from the preceding stage's optimized pose. Let
+$c_{\mathrm{gap}}^{\mathrm{prev}}$ be its gap residual, initially zero, and
+define the schedule bases
+
+$$
+r(t)=\tfrac12[1-\cos(\pi t)],\qquad
+\bar r(t)=1-r(t),\qquad
+v(t)=\sin(\pi t),\qquad
+g(t)=t\,c_{\mathrm{gap}}^{\mathrm{prev}}.
+$$
+
+The adapter constructs each scheduled coefficient as the configured linear
+combination of these bases and a constant. The inspected profiles give:
+
+| Objective coefficient | Excavator | Tabletop |
+|---|---|---|
+| Wrench matrix $K_w(t)$ | $r(t)\,\operatorname{diag}(1,1,1,10,10,10)$ | $5r(t)\,\operatorname{diag}(1,1,1,10,10,10)$ |
+| Complementarity `k_comp` | $10r(t)$ | $100r(t)$ |
+| Contact-gap `k_gap_c` | $60+150r(t)+10^5g(t)$ | $40+200r(t)+10^5g(t)$ |
+| Gap `k_gap` | $5v(t)$ | $20v(t)$ |
+| Target `k_target` | $5\bar r(t)$ | $30+300v(t)$ |
+| XY `k_xy` | $0$ | $0$ |
+| Potential `k_potential` | $0.10+0.10\bar r(t)$ | $0.10+0.02\bar r(t)$ |
+| Regularization `k_reg` | $3\bar r(t)$ | $0$ |
+| Lower-support `k_lower` | $10\bar r(t)$ | $10\bar r(t)$ |
+
+These scheduled fields override their base `objective` values at every stage,
+including the base `k_wrench` matrix. Unscheduled fields retain their profile
+values. For example, `k_box` is 20.0 for excavator and 0.1 for tabletop, with
+`w_box` 2.0 and 1.0 respectively. These are native refinement weights; they do
+not enter the planar proposal score $S$.
+
+The first three stages allow 50 trust-region iterations each; the final stage
+allows 75. The adapter sets the stage tolerance to
+$10^{-4(t+1)}$, giving $10^{-4}$ initially and $10^{-8}$ finally. The profiles
+set initial/maximum trust radii to 0.125/1.0 for excavator and 0.0125/0.1 for
+tabletop. Actual iteration counts can be lower.
+
+The native problem contains the candidate and placed bodies, with the target
+as a static target body. `placed_as_boundaries` is false on both platforms.
+Excavator additionally marks placed bodies whose center lies more than 0.5 m
+outside the nominal XY target rectangle as boundaries; tabletop has no radius
+override. The canonical search state is not committed to a placement until
+subsequent action evaluation.
+
+### 9.2 Acceptance and equilibrium quantities
+
 Action construction applies the following current checks:
 
 | Check | Excavator | Tabletop |
@@ -1202,16 +1311,64 @@ Action construction applies the following current checks:
 | Invalid native result | Rejected | Rejected |
 | Solver convergence flag | Not required by the generic filter | Not required by the generic filter |
 | Gap residual | $c_{\mathrm{gap}}\le0.005$ | $c_{\mathrm{gap}}\le0.003$ |
-| Normalized equilibrium residual | $c_{\mathrm{feq}}<1$ | $c_{\mathrm{feq}}<1$ |
+| Legacy-form equilibrium metric | $c_{\mathrm{feq}}<1$ | $c_{\mathrm{feq}}<1$ |
 | Target gate | Solved object's XY AABB overlaps nominal target rectangle | Estimated volumetric containment at least 0.5 |
-| Strict floor filter | Enabled, with the conditional search fallback | Disabled |
+| Strict floor filter | Enabled, with the conditional search fallback | Enabled, with the conditional search fallback |
 | Scan-relative orientation filter | Disabled in current PCA mode | Enabled |
 
-The native adapter normalizes the maximum L1 net-wrench norm by the maximum
-object mass in the inventory. The gap value is the native residual, not a
-claim that every geometric gap equals this threshold. Convergence status and
-physical validity are separate checks; CUDA can still reject unusable native
-results even when the generic convergence requirement is disabled.
+Native posegen uses masses normalized by the mean mass $\bar m_{\mathcal B}$
+of the candidate and placed stones, including boundary stones and excluding
+the target. The adapter restores physical force and moment values by
+multiplying native contact forces and net wrenches by this mean. For returned
+body wrenches $\widehat w_b$, let
+
+$$
+w_b=(f_b,\tau_b)=\bar m_{\mathcal B}\widehat w_b,\qquad
+c_{\mathrm{feq}}=
+\frac{\max_b\|w_b\|_1}{\max_{i\in\mathcal I_{\mathrm{inventory}}}m_i}.
+$$
+
+The generic feasibility filter still compares this **legacy-form metric**
+with one. It combines force and moment components without a length scale and
+is not the dimensionless residual used by current prior/reward scoring.
+When no net-wrench map is returned, the adapter instead uses the fallback
+$c_{\mathrm{feq}}=c_{\mathrm{feq}}^{\mathrm{native}}
+\bar m_{\mathcal B}^{\,2}/\max_i m_i$.
+
+For each body with a returned wrench, current scoring additionally computes
+
+$$
+E=\max_b\left[
+\frac{\|f_b\|_2}{m_b g_0}
++\frac{\|\tau_b\|_2}{m_b g_0\,V_b^{1/3}}
+\right],\qquad g_0=9.81\ \mathrm{m\,s^{-2}}.
+$$
+
+Here $V_b$ is the body's component-volume sum, and gravity comes from the
+resolved posegen profile. This dimensionless diagnostic is stored as
+`posegen_equilibrium_residual_normalized`. Prior and reward scoring prefer
+$E$; actions lacking it retain the legacy $c_{\mathrm{feq}}/\tau_e$ path.
+The feasibility threshold above continues to use $c_{\mathrm{feq}}$.
+
+The gap value is the native summed penetration residual, not a maximum
+pointwise separation or a claim that every geometric gap equals the threshold.
+Convergence status and result validity are separate checks.
+
+### 9.3 CUDA continuation and result validity
+
+The current CUDA profiles provide a posegen batch capacity of 512. Requests
+are chunked at that capacity and continue through the same four stages, with
+each request retaining its own pose and previous gap. Body and geometry
+capacities are enlarged if necessary to cover the loaded inventory plus the
+target; other configured resource limits still apply.
+
+CUDA `precision_limit` and `iteration_limit` statuses can supply usable poses
+to the next stage when the result is finite and the inner force solver
+converged. At the final stage such a result remains valid but is marked
+nonconverged. With the current `require_solver_convergence: false`, it can
+pass the remaining filters. Force nonconvergence, missing/nonfinite results,
+and other failure statuses invalidate that request. Capacity overflow raises
+`BackendCapacityError`. There is no automatic CPU pose-solver retry.
 
 The target gate is applied after native refinement, as are these floor and
 orientation filters. Dynamic settling, noisy-placement trials, and final
@@ -1253,13 +1410,14 @@ For the standard composition, the root ranking score is
 
 $$
 J_{\mathrm{root}}=
--w_s\min\left(\frac{\max(c_{\mathrm{feq}},0)}{\tau_e},1\right)
+-w_s\min\left(\max(E,0),1\right)
 +w_c C_i+w_h\widetilde S_i,
 $$
 
-where $C_i$ is estimated object containment, $\tau_e=1$, and
+where $C_i$ is estimated object containment, $E$ is the dimensionless residual
+in Section 9.2 (falling back to $c_{\mathrm{feq}}/\tau_e$ when absent), $\tau_e=1$, and
 $\widetilde S_i$ is the normalized proposal score bonus. The weights
-$(w_s,w_c,w_h)$ are **(2, 2, 1)** for excavator and **(0.5, 2, 1)** for
+$(w_s,w_c,w_h)$ are **(2, 2, 1)** for excavator and **(2, 2, 1)** for
 tabletop. This ranking occurs before simulation and differs from the complete
 transition reward. Both platforms now supply the normalized scored-map value.
 
@@ -1359,15 +1517,15 @@ lookups should be described as approximate guidance.
 | Root parameter | Excavator `mcts_cuda.yml` | Tabletop `mcts_cpu.yml` and `mcts_cuda.yml` |
 |---|---:|---:|
 | Population | 96 | 96 |
-| Elite-list limit | 32 | 24 |
+| Elite-list limit | 32 | 32 |
 | Total rounds, including initial population | 3 | 3 |
-| Final retained-candidate limit | 32 | 12 |
+| Final retained-candidate limit | 32 | 32 |
 | XY mutation standard deviation | 0.20 m | 0.01 m |
 | Yaw mutation standard deviation | 5° | 5° |
-| Fresh fraction in later rounds | 0.50 | 0.30 |
+| Fresh fraction in later rounds | 0.50 | 0.50 |
 | XY duplicate threshold | 0.03 m | 0.003 m |
 | Angular duplicate threshold | 5° | 5° |
-| Per-object cap for elites and final retention | 2 | 8 |
+| Per-object cap for elites and final retention | 2 | 2 |
 | Proposal bonus weight | 1 | 1 |
 | Seed | 0 | 0 |
 
@@ -1377,8 +1535,8 @@ last value `duplicate_yaw_threshold_degrees`, the implementation does not
 compare yaw alone. It also does not compare initial Z.
 
 Three configured rounds mean one initial population plus two mutation/fresh
-rounds. In normal parent-supported rounds, the fresh quota is 48 for excavator
-and 29 for tabletop, with the remainder allocated to mutation. Root retries
+rounds. In normal parent-supported rounds, the fresh quota is 48 on both
+platforms, with the remaining 48 attempts allocated to mutation. Root retries
 increment the mutation seed and exclude earlier root proposals.
 
 ### MCTS surface-flatness reward
@@ -1448,7 +1606,9 @@ native pose-generation and simulation work. It does not define a different
 initial orientation bank or XY proposal distribution. Numerical acceptance,
 runtime, and deadline effects can still alter the resulting search.
 
-The user's open native files refer to separate operations:
+The following native scene-identification description records the original
+2026-10-06 inspection, rather than a new audit of perception or native scene-ID
+in this update. These operations are separate from placement sampling:
 
 - `src/sceneid/evaluation.cpp` evaluates scan agreement and screens DSF gaps
   for supplied poses.
@@ -1478,30 +1638,43 @@ The following passage describes the current excavator implementation. Replace
 the parameter values if the experiments used different effective profiles.
 
 > We generate initial placement hypotheses by combining a finite set of
-> geometry-derived orientations with scene-aware planar anchors. For each
-> available stone, principal-component analysis aligns its longest and shortest
+> geometry-derived orientations with scene-aware planar anchors. Fresh proposal
+> attempts are allocated among available stones in proportion to their geometric
+> volumes, with a cap of 32 attempts per stone per request. For each stone,
+> principal-component analysis aligns its longest and shortest
 > axes with the horizontal X and vertical Z axes, respectively. Two opposite
 > roll variants and four cardinal yaw angles provide up to eight distinct
 > initial orientations. We evaluate these orientations over a regular planar
-> grid restricted by a target-region mask. Orientation-dependent lower-surface
+> 32 × 32 grid restricted by orientation-dependent target bounds. Lower-surface
 > kernels estimate contact coverage against the current stack height map.
-> Candidate scores combine contact height, approximate support coverage,
-> unfilled floor area, target-boundary proximity, and distance from a reference
-> point. A separate footprint-connectivity mask excludes disconnected seeds. Highest-scoring elites and Boltzmann draws select promising hypotheses while
-> retaining stochastic exploration.
+> Candidate scores combine normalized contact height, approximate support
+> coverage, unfilled floor area, and target-boundary proximity as
+> $S=-3H+2Q+2F+1.5B$. Footprint-connectivity masks exclude disconnected seeds.
+> For the first placement, proposals are restricted to feasible grid
+> neighborhoods of the four target corners when such seeds exist. Subsequent
+> placements prioritize candidates with contact height within 0.20 m of the
+> active floor. Within each ordinary pool, the highest-scoring 25% of requested
+> proposals are elites; the remaining proposals are drawn without replacement
+> with Boltzmann temperature 0.3. The active floor advances when projected
+> footprint coverage reaches 75% on a 16 × 16 cell-center grid.
 
 > We initialize vertical translation above the highest placed-object bounding
 > box whose padded planar footprint overlaps the candidate. Each hypothesis is
-> then refined by a native DSF placement optimizer and screened using
+> then refined by a native DSF placement optimizer through four continuation
+> stages and screened using
 > equilibrium, gap, target-overlap, and active-floor checks. At the root of the
 > placement search, an elite-guided population refinement stage adds fixed-scale
 > Gaussian perturbations to initial XY coordinates and yaw while retaining
 > fresh grid proposals. Heights and refined placements are recomputed for every
-> mutation. Per-object caps and pose deduplication preserve diversity across
-> stones. Accepted placements are subsequently evaluated by simulation within
+> mutation. The root population has up to 96 candidates, uses three rounds with
+> 50% fresh attempts in each later round, and retains at most 32 candidates and
+> two candidates per stone. Root ranking combines dimensionless equilibrium
+> residual, volumetric containment, and normalized proposal score. Accepted
+> placements are subsequently evaluated by simulation within
 > MCTS. The excavator policy prioritizes filling the active lower layer and
-> permits a conditional relaxation of floor-fill restrictions when ordinary
-> root selection fails.
+> permits conditional retries with ordinary empty-scene sampling or relaxed
+> floor admission when ordinary root selection fails. Descendant continuation
+> repair can also relax floor admission while preserving physical validation.
 
 ## 13. Reproducibility and interpretation
 
@@ -1524,8 +1697,8 @@ The current geometry and sampling impose the following limits on claims:
    and refinement behavior.
 5. Score normalization, floor-priority pools, and object allocation make sampling
    state dependent. The Boltzmann formula applies within each draw's pool.
-6. Boundary and distance weights currently favor target edges and greater
-   reference distance. Their utility should be supported by the paper's
+6. The boundary weight favors target edges. Reference-distance bias is
+   currently disabled by a zero weight. Their utility should be supported by
    experiments rather than asserted from the term names.
 7. Root refinement uses fixed mutation scales. Describing it as fitting a
    Gaussian distribution to elites would misrepresent the implementation.
@@ -1675,7 +1848,7 @@ The native references assume the sibling `stacking-core` checkout.
 
 | Component | Source and relevant symbol |
 |---|---|
-| Excavator composition | [composition.py](../apps/excavator/src/stacking_excavator/composition.py): `build_orientation_provider`, `build_action_generator`, `build_floor_policy` |
+| Excavator composition | [composition.py](../apps/excavator/src/stacking_excavator/composition.py): `build_orientation_provider`, `build_height_initializer`, `build_floor_policy` |
 | Tabletop composition | [composition.py](../apps/tabletop/src/stacking_tabletop/composition.py): `build_orientation_provider`, `build_floor_policy` |
 | Shared search composition | [search.py](../packages/stacking-common/src/stacking_common/workflows/search.py): `build_mcts`, `_build_state_evaluators`, `build_action_generator` |
 | Orientation bank | [orientation.py](../packages/stacking-common/src/stacking_common/actions/orientation.py): `canonical_principal_axis_rotation`, `PrincipalAxisOrientationProvider`, `ScanAlignedOrientationProvider` |
@@ -1718,7 +1891,62 @@ initialization, root refinement, floor fallback, and batched refinement. They
 are source references; the score diagnostic in Section 13.1 does not execute
 these tests or run native-placement experiments.
 
+For the 2026-10-18 documentation update, a focused run of
+`test_stone_sampling.py`, `test_floor_score_maps.py`,
+`test_tabletop_scored_sampling.py`, `test_physical_reward_normalization.py`,
+and `test_cuda_posegen.py` with `-k 'not native_cuda'` gave **82 passed,
+6 failed, 1 deselected**. All six failures were in
+`test_tabletop_scored_sampling.py`, whose loaded stone 2 has no target-valid
+anchor under the current geometry, inset, and orientation bank (Section 7.2).
+The separate `test_corner_seeding.py` run gave **13 passed**.
+These checks exercise proposal logic and mocked solver behavior; no new native
+GPU, physical stacking, or end-to-end performance claim follows from them.
+
 ## 15. Source snapshot
+
+### 15.1 Current placement-sampling inspection: 2026-10-18
+
+- `stacking-apps` HEAD: `5c59d48b9ff97f9e3434005848bab74eac6098de`.
+- The working tree includes local changes to the excavator posegen profile and
+  both native solver adapters. These hashes include those changes; HEAD alone
+  does not identify the described behavior.
+- The manifest covers the platform defaults and placement sampling/refinement
+  sources checked for this update. The historical native scene-ID narrative and
+  previous benchmark results were not revalidated.
+
+```text
+438750e703ce84a25e321326c7bb24b0b002d04548b18a467c847f1f8fbbcb47  stacking-apps/apps/excavator/config/action_generation.yml
+00e483d71f859fc47ec797475f2ed9665b6cc7b12afe10b67f71488a8d2b300a  stacking-apps/apps/excavator/config/inventory.yml
+1150d3238e4c0e2fa93591a69079963aebcf0d207afa62f1a2fc8fec294431e0  stacking-apps/apps/excavator/config/environment.yml
+21faef284b5e73aec699b6b78c2f35885a59978521b1223d2792252e43483457  stacking-apps/apps/excavator/config/mcts_cpu.yml
+5a1f7def60d28c51962c140e58bec6eb93db4f6f7b9ad0dd6e2ed56537399dd4  stacking-apps/apps/excavator/config/mcts_cuda.yml
+926abbd6f0e3138101de362f5c1197cf0442b5ab187b3782a16e4b344f2cb102  stacking-apps/apps/excavator/config/solvers/posegen.yml
+4487dfc2fc8f64698a92105e7bf0003de50dd35261145337759dc366fc098af1  stacking-apps/apps/tabletop/config/action_generation.yml
+e2ccec0219b790e9422835ed650e0122dac2ada7c39747c9cf293bd0f4a0015e  stacking-apps/apps/tabletop/config/inventory.yml
+6412d9d0f8c759ed232094419f1735573439867fa55918e69657cc30a9aca36d  stacking-apps/apps/tabletop/config/environment.yml
+7442cdc9fe1b9a053bed0f03e98ce704e6a6b1666715d7e919fec3696e6e9d92  stacking-apps/apps/tabletop/config/mcts_cpu.yml
+2433affa59ac38c3d3a92e39449bcee65df96971254d54a2967d0494e1734296  stacking-apps/apps/tabletop/config/mcts_cuda.yml
+b54ab364ef0605e6dcdda8eab02746403a862179d87e4514f530c0af6833903b  stacking-apps/apps/tabletop/config/solvers/posegen.yml
+9f365940c952ff99b89226dac185f6725fd407cb6bf393a179217ffae22cb069  stacking-apps/packages/stacking-common/src/stacking_common/actions/scored.py
+b7b9d9e2551c0cfb8bd1cdd4dfcb2323c212d77fdc35832468c95e0122652656  stacking-apps/packages/stacking-common/src/stacking_common/actions/_scored_floor.py
+7261f73b1aaa563c7cfe85c8cac985a560ce1658fc0baf92d80e3eb785d2e566  stacking-apps/packages/stacking-common/src/stacking_common/actions/_support_maps.py
+51a4d4012b4b96da31ef69787c0af11253e70f93659602c1f7c39e4e5d88c3a6  stacking-apps/packages/stacking-common/src/stacking_common/actions/orientation.py
+ff2b9c2f2838464ab9307263ba008df3631e4551d9e0d264e099b1f3da4ba376  stacking-apps/packages/stacking-common/src/stacking_common/actions/initialization.py
+c541358b3b63a591af4d8c5b7563178079fd0f68e6ce2ecbbb5fa6103be5af58  stacking-apps/packages/stacking-common/src/stacking_common/actions/ply_height.py
+c2f7f9727921163669e5cd09ce06b84fd1d6e76a5ea37257277280a3cd594a46  stacking-apps/packages/stacking-common/src/stacking_common/actions/generator.py
+7a7f7e02005fe2b5dad5b341dcaf6bc713a2a35e4873c0d4ed8e65448dfbc9ad  stacking-apps/packages/stacking-common/src/stacking_common/actions/floor.py
+483a995679d35d7f67bb8858617c006b4fa5bbc968cb9de46c0e84a407292970  stacking-apps/packages/stacking-common/src/stacking_common/actions/filtering.py
+01c4d933714fa1f947b9351926af9f6357a136324218b3e3d18916f85e3adbf6  stacking-apps/packages/stacking-common/src/stacking_common/actions/cem.py
+924726435ff1a67e3926b3fa8fafad0cf51bb97ab6a6fe2bbbc7c8d100b6bad4  stacking-apps/packages/stacking-common/src/stacking_common/actions/core_solver.py
+4e7840d5570ee42f3e66a5efdc0d97c9c635dea487c1027bc10723f01eb07221  stacking-apps/packages/stacking-common/src/stacking_common/actions/cuda_solver.py
+07c0446ff28355084814548b5a03bb2a10c0d9de97eae314e0f6bd216a1cb93f  stacking-apps/packages/stacking-common/src/stacking_common/search/policies.py
+2d07aa343f772e0030eb681d6f18736a7d3f918c38ed874257a957544f174258  stacking-apps/packages/stacking-common/src/stacking_common/workflows/search.py
+10ae97fefb7e3099edf6cfed7b5a7b53ef9f3268f9fc316c63356dcef9c13ea2  stacking-apps/packages/stacking-common/src/stacking_common/profiles/action.py
+c976cd7c9259ee05013dbb3585425312a3bec7986b2fe07e4ddba17f85704fa5  stacking-apps/apps/excavator/src/stacking_excavator/composition.py
+0cb050ea228d114caf76f70098b71e91d29e5dc637d45c7849e262aa579c02be  stacking-apps/apps/tabletop/src/stacking_tabletop/composition.py
+```
+
+### 15.2 Original inspection: 2026-10-06
 
 The HEADs and working-tree description below record the **original inspection
 snapshot**. They are historical provenance, not the live checkout state.
