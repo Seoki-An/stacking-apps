@@ -1,3 +1,7 @@
+import copy
+import json
+import pickle
+
 import numpy as np
 import pytest
 
@@ -39,11 +43,34 @@ def test_action_copy_owns_mutable_values() -> None:
     copied = action.copy()
     copied.pose[0] = 3.0
     copied.solved_pose[0] = 4.0
-    copied.diagnostics["source"]["name"] = "copy"
+    copied.diagnostics["source"] = {"name": "copy"}
 
     assert action.pose[0] == 1.0
     assert action.solved_pose[0] == 1.0
     assert action.diagnostics == {"source": {"name": "posegen"}}
+
+
+def test_action_copy_shares_read_only_nested_diagnostics() -> None:
+    action = Action(0, pose(1.0), pose(2.0), diagnostics={
+        "source": {"name": "posegen"}, "values": [1.0, [2.0]], "array": np.ones(2)})
+    copied = action.copy()
+
+    assert copied.diagnostics["source"] is action.diagnostics["source"]
+    assert copied.diagnostics["values"] == [1.0, [2.0]]
+    for change in (
+        lambda d: d["source"].update(name="copy"),
+        lambda d: d["source"].__setitem__("name", "copy"),
+        lambda d: d["values"].append(3.0),
+        lambda d: d["values"][1].__setitem__(0, 3.0),
+    ):
+        with pytest.raises(TypeError, match="read-only|in place"):
+            change(copied.diagnostics)
+    with pytest.raises(ValueError, match="read-only"):
+        copied.diagnostics["array"][0] = 3.0
+    restored = pickle.loads(pickle.dumps(copied)).diagnostics
+    assert restored["source"] == {"name": "posegen"} and restored["values"] == [1.0, [2.0]]
+    assert copy.deepcopy(copied).diagnostics["values"] == [1.0, [2.0]]
+    assert json.loads(json.dumps(copied.diagnostics["values"])) == [1.0, [2.0]]
 
 
 def test_action_validates_and_owns_input_poses() -> None:

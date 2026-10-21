@@ -54,7 +54,9 @@ def test_batch_outputs_own_histories_and_leave_inputs_and_snapshot_independent(c
 
     first.trajectories[0][10].poses[0][0] = 9.
     first.trajectories[0][10].times[0] = 2.
-    first.action_history[0].diagnostics['values'][0] = 3.
+    with pytest.raises(TypeError, match='in place'):
+        first.action_history[0].diagnostics['values'][0] = 3.
+    first.action_history[0].diagnostics['values'] = [3.]
     first.object_poses[10][0] = 4.
     for untouched in (source, second, transition.snapshot()):
         assert untouched.trajectories[0][10].poses[0][0] == 0.

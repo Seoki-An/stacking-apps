@@ -299,9 +299,12 @@ class CudaPlacementBackend(CorePlacementBackend):
                 problems.append(self._problem(len(problems), scene, self.simulation_config, [phase]))
                 trials.append((i, number, initial, phase_config))
         # Bound downloads of every integration step across all scene bodies.
+        # 320 bytes per body slot is conservative: Python keeps only real scene
+        # bodies, so 1.5 GiB (176 long-fidelity trials) added about 70 MiB of
+        # peak memory and needs fewer, cheaper native calls than 512 MiB.
         steps = max((p.phases[0].steps + 1 for p in problems), default=1)
         chunk_size = max(1, min(self.batch_size,
-            (512 * 1024**2) // (steps * self._sample_body_capacity * 320)))
+            (1536 * 1024**2) // (steps * self._sample_body_capacity * 320)))
         for start in range(0, len(problems), chunk_size):
             outputs = self._run(problems[start:start + chunk_size])
             for context, out in zip(trials[start:start + chunk_size], outputs, strict=True):

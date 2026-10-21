@@ -1687,6 +1687,38 @@ hash and selected candidate. Measurements are in the
 [simulation solver benchmark](benchmarks/excavator-cuda-simulation-solver.json).
 
 
+### Shared diagnostics and larger robustness chunks (2026-10-21)
+
+A py-spy and Nsight profile of the 15-stone state found the GPU busy for only
+38.5 of 80.0 search seconds. The coordinator spent 9.7 seconds deep-copying
+action diagnostics: every state copy duplicated each history action's nested
+per-contact posegen lists (1.6 of 2.58 ms per state copy).
+
+- `Action.copy` now gives each copy its own top-level diagnostics dict but
+  shares nested values. They become read-only on first copy: dicts and lists
+  raise `TypeError` on in-place changes, and arrays become non-writeable.
+  Assign a new top-level entry to change a diagnostic. Saved values, pickles
+  and JSON encoding are unchanged.
+- Final-validation robustness ran 751-step trials in 44-trial native calls,
+  limited by a 512 MiB sample-download budget that assumes 320 bytes for each
+  of 50 body slots; scenes hold at most 18 bodies. Replaying one captured round
+  of 512 trials took 5.13 s in 44-trial calls, 3.67 s in 176-trial calls and
+  3.37 s in one call, with identical outputs. The budget is now 1.5 GiB
+  (176-trial long chunks); peak process memory rose from 2.25 to 2.32 GiB.
+
+| Seed | Before (s) | After (s) | Evaluated nodes/s |
+| ---: | ---: | ---: | ---: |
+| 0 | 80.26 | 69.01 | 17.16 → 19.96 |
+| 1 | 77.10 | 66.05 | 17.79 → 20.77 |
+| 2 | 75.24 | 64.47 | 18.13 → 21.16 |
+
+Each seed kept its ordered tree hash, evaluation count and selected candidate.
+Remaining costs are native pose generation (about 13 s, where each call runs
+until its slowest job reaches the 50/75 iteration limit), Python sampling and
+scoring (about 8 s) and waits on reward workers. See the
+[benchmark data](benchmarks/excavator-mcts-shared-diagnostics-20261021.json).
+
+
 ### Floor-fill fallback after search exhaustion
 
 Excavator search first uses the configured floor-fill threshold and ordinary

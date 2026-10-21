@@ -1,0 +1,110 @@
+{
+  "date": "2026-10-21",
+  "method": "Frozen 15-stone state (.benchmarks/excavator-profiles-20261007/states/15.pkl), 49-stone inventory, mcts_cuda.yml, 1024 iterations, one BLAS/OpenMP thread, sequential fresh processes, search-only timing, RTX 5060 Ti / Ryzen 9 9900X. Working tree also contained uncommitted posegen/reward configuration changes, identical in before and after runs.",
+  "changes": [
+    "Action.copy shares read-only nested diagnostics instead of deep-copying them; in-place changes raise TypeError.",
+    "CUDA robustness sample-download budget raised from 512 MiB to 1.5 GiB (long-fidelity chunks 44 -> 176 trials)."
+  ],
+  "profile_before": {
+    "main_thread_deepcopy_seconds": 9.7,
+    "state_copy_ms": 2.58,
+    "diagnostics_deepcopy_ms_per_state_copy": 1.6,
+    "gpu_busy_seconds": 38.47,
+    "search_seconds": 80.04,
+    "note": "py-spy (50 Hz, all threads) and Nsight Systems on seed 0 before the changes."
+  },
+  "long_robustness_replay": {
+    "trials": 512,
+    "steps": 751,
+    "sample_body_capacity": 50,
+    "max_scene_bodies": 18,
+    "seconds_by_chunk": {
+      "44": 5.131,
+      "88": 4.284,
+      "132": 3.915,
+      "176": 3.671,
+      "264": 3.534,
+      "512": 3.365
+    },
+    "note": "Replayed one captured final-validation round; output digests identical for every chunk size."
+  },
+  "peak_rss_gib": {
+    "shared_diagnostics": 2.25,
+    "shared_diagnostics_and_1_5_gib_budget": 2.32
+  },
+  "runs": {
+    "0": {
+      "before": {
+        "seconds": 80.26,
+        "evaluated_per_second": 17.157,
+        "evaluated": 1377,
+        "tree_sha256": "4e7a7a97cea180110150d40caa50a3612ce8b7911e85dd260e86c0df038d09c2",
+        "selected_object": 13,
+        "selected_reward": -2.1831934843791663,
+        "long_batch_wall_seconds": 25.01,
+        "short_batch_wall_seconds": 29.52,
+        "core_native_sha256": "e788acc598dcb6c7f285dc761cc878fdd2dda3f8dad62def21110bfd4035780c"
+      },
+      "after": {
+        "seconds": 69.01,
+        "evaluated_per_second": 19.955,
+        "evaluated": 1377,
+        "tree_sha256": "4e7a7a97cea180110150d40caa50a3612ce8b7911e85dd260e86c0df038d09c2",
+        "selected_object": 13,
+        "selected_reward": -2.1831934843791663,
+        "long_batch_wall_seconds": 21.26,
+        "short_batch_wall_seconds": 22.84,
+        "core_native_sha256": "e788acc598dcb6c7f285dc761cc878fdd2dda3f8dad62def21110bfd4035780c"
+      }
+    },
+    "1": {
+      "before": {
+        "seconds": 77.1,
+        "evaluated_per_second": 17.794,
+        "evaluated": 1372,
+        "tree_sha256": "0790260206d0b01da106aae1789d37be3575770ef3580af818ed62555ba0d1ef",
+        "selected_object": 13,
+        "selected_reward": -2.1831934843791663,
+        "long_batch_wall_seconds": 24.14,
+        "short_batch_wall_seconds": 27.64,
+        "core_native_sha256": "e788acc598dcb6c7f285dc761cc878fdd2dda3f8dad62def21110bfd4035780c"
+      },
+      "after": {
+        "seconds": 66.05,
+        "evaluated_per_second": 20.773,
+        "evaluated": 1372,
+        "tree_sha256": "0790260206d0b01da106aae1789d37be3575770ef3580af818ed62555ba0d1ef",
+        "selected_object": 13,
+        "selected_reward": -2.1831934843791663,
+        "long_batch_wall_seconds": 20.7,
+        "short_batch_wall_seconds": 20.89,
+        "core_native_sha256": "e788acc598dcb6c7f285dc761cc878fdd2dda3f8dad62def21110bfd4035780c"
+      }
+    },
+    "2": {
+      "before": {
+        "seconds": 75.24,
+        "evaluated_per_second": 18.129,
+        "evaluated": 1364,
+        "tree_sha256": "8566f6be4e8bd367ff6687dad37db4c9ee4db8d69ce10fa2dbca57f89000d309",
+        "selected_object": 47,
+        "selected_reward": -2.0076014522998484,
+        "long_batch_wall_seconds": 24.12,
+        "short_batch_wall_seconds": 26.36,
+        "core_native_sha256": "e788acc598dcb6c7f285dc761cc878fdd2dda3f8dad62def21110bfd4035780c"
+      },
+      "after": {
+        "seconds": 64.47,
+        "evaluated_per_second": 21.158,
+        "evaluated": 1364,
+        "tree_sha256": "8566f6be4e8bd367ff6687dad37db4c9ee4db8d69ce10fa2dbca57f89000d309",
+        "selected_object": 47,
+        "selected_reward": -2.0076014522998484,
+        "long_batch_wall_seconds": 20.56,
+        "short_batch_wall_seconds": 19.97,
+        "core_native_sha256": "e788acc598dcb6c7f285dc761cc878fdd2dda3f8dad62def21110bfd4035780c"
+      }
+    }
+  },
+  "validation": "Full suite: same 30 failed/19 errors before and after (pre-existing; one GUI test exits the process and was deselected in both runs); updated tests pass."
+}
