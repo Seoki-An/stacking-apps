@@ -120,14 +120,15 @@ class CudaPlacementPoseSolver(CorePlacementPoseSolver):
                 gaps[index] = float(native.c_gap)
                 if step == len(times) - 1:
                     results[index] = self._placement_result(
-                        native, stages[index], status if limited else None)
+                        native, self._native_mass_scale(*requests[index][:2]),
+                        stages[index], status if limited else None)
                 else:
                     next_active.append(index)
             active = next_active
         return results
 
-    def _placement_result(self, result, stages, limited=None):
-        values = self._placement_values(result)
+    def _placement_result(self, result, native_mass_scale, stages, limited=None):
+        values = self._placement_values(result, native_mass_scale)
         if limited is not None:
             values.update(converged=False, rejection_reason=f"posegen_{limited}")
         values["diagnostics"].update(self._diagnostics(stages, None, True))

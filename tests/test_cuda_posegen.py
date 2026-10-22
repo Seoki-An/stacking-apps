@@ -44,7 +44,8 @@ def adapter(monkeypatch, failure=None, force_converged=True, failure_stage=2):
         return state, index, p.copy()
     solver._problem = problem
     solver._scheduled_config = lambda t, gap, final: (t, gap, final)
-    solver._placement_values = lambda r: dict(
+    solver._native_mass_scale = lambda state, index: 1.0
+    solver._placement_values = lambda r, native_mass_scale: dict(
         pose=r.optimal_pose, c_feq=0., c_gap=r.c_gap, converged=r.solver.converged,
         rejection_reason=None if r.solver.converged else 'posegen_nonconvergence',
         diagnostics={'posegen_pose_converged': r.solver.converged},
@@ -280,9 +281,9 @@ def test_cuda_final_diagnostics_own_arrays_without_reconstruction(monkeypatch):
     points = np.array([[1., 2., 3.]])
     native = SimpleNamespace(optimal_pose=pose(), c_gap=0., solver=SimpleNamespace(converged=True))
     original = solver._placement_values
-    solver._placement_values = lambda result: {**original(result), 'diagnostics': {'points': points}}
+    solver._placement_values = lambda result, scale: {**original(result, scale), 'diagnostics': {'points': points}}
     stages = ['converged', 'precision_limit']
-    result = solver._placement_result(native, stages, 'precision_limit')
+    result = solver._placement_result(native, 1.0, stages, 'precision_limit')
     points[:] = 9.
     native.optimal_pose[:] = 9.
     stages.clear()

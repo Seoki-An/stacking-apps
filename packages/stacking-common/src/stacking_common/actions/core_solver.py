@@ -231,7 +231,7 @@ class CorePlacementPoseSolver:
             c_gap = float(result.c_gap)
         if result is None:
             raise RuntimeError("posegen schedule did not execute")
-        return self._placement_result(result)
+        return self._placement_result(result, self._native_mass_scale(state, object_index))
 
     def _validate_request(self, inventory, state, object_index):
         if inventory is not self.inventory:
@@ -292,10 +292,23 @@ class CorePlacementPoseSolver:
             scene, candidate, targets=[self.profile.target_entity_id], boundaries=boundaries,
         )
 
-    def _placement_result(self, result):
-        return PlacementSolveResult(**self._placement_values(result))
+    def _native_mass_scale(self, state, object_index):
+        """Return the mean mass native posegen divides every body mass by.
 
-    def _placement_values(self, result):
+        The native force solve runs on masses divided by the mean mass of the
+        candidate and all placed bodies (fixed boundaries included, targets
+        excluded), so its wrenches and contact forces are newtons per this many
+        kilograms.
+        """
+        masses = [self.inventory[index].mass
+                  for index in (*state.placed_object_indices, object_index)]
+        masses = [mass for mass in masses if math.isfinite(mass) and mass > 0.0]
+        return sum(masses) / len(masses) if masses else 1.0
+
+    def _placement_result(self, result, native_mass_scale):
+        return PlacementSolveResult(**self._placement_values(result, native_mass_scale))
+
+    def _placement_values(self, result, native_mass_scale):
         stats = result.solver
         diagnostics = {
             "posegen_iterations": int(stats.iters),
@@ -312,17 +325,21 @@ class CorePlacementPoseSolver:
             "posegen_c_comp": float(result.c_comp),
             "posegen_contact_points": dict(result.contact_point),
             "posegen_contact_normals": dict(result.contact_normal),
-            "posegen_contact_forces": dict(result.contact_force),
+            "posegen_contact_forces": {
+                entity_id: [np.asarray(force, dtype=float) * native_mass_scale for force in forces]
+                for entity_id, forces in result.contact_force.items()
+            },
         }
         converged = bool(stats.converged and stats.force_solver.converged)
+        # Restore newtons; the native c_feq fallback is quadratic in the wrench.
         wrench_norm = max(
             (
-                float(np.linalg.norm(np.asarray(wrench, dtype=float), ord=1))
+                float(np.linalg.norm(np.asarray(wrench, dtype=float), ord=1)) * native_mass_scale
                 for wrench in result.net_wrench.values()
             ),
-            default=float(result.c_feq),
+            default=float(result.c_feq) * native_mass_scale**2,
         )
-        mass_scale = max(stack_object.mass for stack_object in self.inventory)
+        max_mass = max(stack_object.mass for stack_object in self.inventory)
         if result.net_wrench:
             # Native entity IDs are inventory indices + 1, not object IDs.
             # Use each participating body's own weight and volume length scale.
@@ -338,16 +355,17 @@ class CorePlacementPoseSolver:
                 wrench = np.asarray(wrench, dtype=float)
                 if wrench.shape != (6,) or not np.all(np.isfinite(wrench)):
                     raise ValueError("equilibrium wrench must be a finite six-vector")
+                wrench = wrench * native_mass_scale
                 weight = body.mass * self.gravity
                 length = float(np.cbrt(body.volume))
                 residuals.append(float(np.linalg.norm(wrench[:3]) / weight
                                        + np.linalg.norm(wrench[3:]) / (weight * length)))
             diagnostics["posegen_equilibrium_residual_normalized"] = max(residuals)
-        # Preserve the calibrated legacy feasibility metric; only reward/prior
-        # scoring uses the dimensionless residual above.
+        # Feasibility filters use this legacy-form metric (N per kg of the
+        # heaviest object); only reward/prior scoring uses the residual above.
         return dict(
             pose=np.asarray(result.optimal_pose, dtype=float),
-            c_feq=wrench_norm / mass_scale,
+            c_feq=wrench_norm / max_mass,
             c_gap=float(result.c_gap),
             converged=converged,
             rejection_reason=None if converged else "posegen_nonconvergence",

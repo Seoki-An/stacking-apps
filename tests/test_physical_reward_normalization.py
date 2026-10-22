@@ -46,7 +46,9 @@ def inventory(scale=1., density=1.):
     return objects
 
 
-def placement_values(objects, wrenches, solver_type=CorePlacementPoseSolver, gravity=9.81):
+def placement_values(objects, wrenches, solver_type=CorePlacementPoseSolver, gravity=9.81,
+                     native_mass_scale=3.7, contact_force=None):
+    """Return adapter values for physical wrenches, as native posegen reports them."""
     solver = solver_type.__new__(solver_type)
     solver.inventory = objects
     solver.gravity = gravity
@@ -54,10 +56,13 @@ def placement_values(objects, wrenches, solver_type=CorePlacementPoseSolver, gra
         solver=NS(iters=1, objective_evals=1, grad_norm=0., converged=True,
                   force_solver=NS(converged=True), scene_graph_rebuilds=1,
                   scene_graph_reuses=0),
-        c_comp=0., contact_point={}, contact_normal={}, contact_force={},
-        net_wrench=wrenches, c_feq=.4, c_gap=0., optimal_pose=POSE,
+        c_comp=0., contact_point={}, contact_normal={},
+        contact_force={key: [np.asarray(force) / native_mass_scale for force in forces]
+                       for key, forces in (contact_force or {}).items()},
+        net_wrench={key: np.asarray(wrench) / native_mass_scale for key, wrench in wrenches.items()},
+        c_feq=.4, c_gap=0., optimal_pose=POSE,
     )
-    return solver._placement_values(result)
+    return solver._placement_values(result, native_mass_scale)
 
 
 @pytest.mark.parametrize("solver_type", [CorePlacementPoseSolver, CudaPlacementPoseSolver])
@@ -80,6 +85,25 @@ def test_equilibrium_is_invariant_to_scale_density_and_world_rotation(solver_typ
         max(np.linalg.norm(w, ord=1) for w in wrenches.values()) / max(o.mass for o in objects))
     objects.append(NS(object_id=123, mass=1e12, volume=1e6))
     assert placement_values(objects, wrenches, solver_type, gravity)["diagnostics"][KEY] == pytest.approx(.4)
+
+
+def test_native_mass_normalization_is_removed_from_wrenches_and_forces():
+    objects = inventory()
+    wrenches = {1: np.array([0., 0., -2., 0., .5, 0.])}
+    force = np.array([1., 0., 9.])
+    values = placement_values(objects, wrenches, native_mass_scale=40., contact_force={1: [force]})
+    np.testing.assert_allclose(values["diagnostics"]["posegen_contact_forces"][1], [force])
+    assert values["c_feq"] == pytest.approx(2.5 / max(o.mass for o in objects))
+    assert values["diagnostics"][KEY] == pytest.approx(2. / (objects[0].mass * 9.81)
+                                                       + .5 / (objects[0].mass * 9.81))
+
+
+def test_native_mass_scale_is_mean_mass_of_candidate_and_placed_bodies():
+    solver = CorePlacementPoseSolver.__new__(CorePlacementPoseSolver)
+    solver.inventory = Inventory([NS(mass=2.), NS(mass=4.), NS(mass=9.)])
+    state = NS(placed_object_indices=[0, 2])
+    assert solver._native_mass_scale(state, 1) == pytest.approx(5.)
+    assert solver._native_mass_scale(NS(placed_object_indices=[]), 1) == pytest.approx(4.)
 
 
 def score(config, displacement, diagnostics=None, c_feq=.5):
