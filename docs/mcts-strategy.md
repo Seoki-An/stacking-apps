@@ -78,7 +78,7 @@ placement is acceptable. More precisely, the default tree prior logit combines
 equilibrium and containment, while CEM adds the normalized planar score to rank
 its pool. CEM settings govern the root pool, not all descendants.
 
-For a non-root node with completed visits `N`, the selectable-child allowance is:
+For a non-root node with stored visits `N` (including reset pseudocounts), the selectable-child allowance is:
 
 ```text
 K(N) = min(max_children, ceil(coefficient * max(N, 1)^exponent))
@@ -101,12 +101,13 @@ visits. For an evaluated child:
 
 ```text
 score = W_child / (N_child + V_child)
-      + c * P_child * sqrt(max(N_parent + V_parent, 1))
+      + c * P_child * sqrt(N_parent + V_parent)
           / (1 + N_child + V_child)
 ```
 
-`W` is accumulated return, `N` completed visits, `V` reservations in the current
-batch, and `P` the softmax prior. A zero denominator gives a zero mean. Pending
+`W` is accumulated return, `N` stored visits including reset pseudocounts, `V` reservations in the current
+batch, and `P` the softmax prior. PUCT requires `N_parent + V_parent > 0`.
+A zero denominator gives a zero mean. Pending
 actions are selected before evaluated children. Reservations diversify a batch
 without changing persistent statistics; they are zero-return virtual visits,
 not a fixed negative virtual-loss penalty. Actual results are backed up after
@@ -266,9 +267,13 @@ generation rejection counts and external-seed attempt offset. A fresh root CEM
 pool starts at offset zero; a former descendant's generation cursor cannot skip
 it. Descendant generation bookkeeping and the preserved tree remain intact.
 
-Current runtime requests use `reset_statistics: true`: visits and accumulated
-returns are reset recursively before the next search, while the tree structure
-and evaluation results remain. This provides candidate and simulation reuse,
+Current runtime requests use `reset_statistics: true`: evaluated nodes reset
+recursively to `N = 1, W = 0`, while pending nodes reset to `N = 0, W = 0`.
+The initial zero-return visit guarantees positive counts for reused parents;
+after `n` actual backups, a reset node has mean `W / (1 + n)`. Authoritative
+root validation still adds its reward backup after reset. Requests without
+reset must retain positive parent counts before PUCT comparison. The tree
+structure and evaluation results remain. This provides candidate and simulation reuse,
 but not uninterrupted statistical accumulation across placement steps.
 
 Both platform planning logs report `tree_nodes` and `leaves` after each search

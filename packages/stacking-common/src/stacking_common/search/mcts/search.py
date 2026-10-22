@@ -378,6 +378,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     request,
                     counters,
                     iteration_deadline,
+                    reseed=request.reset_statistics,
                 )
             for child in root.evaluated_children():
                 if not child.children:
@@ -735,6 +736,8 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         request,
         counters,
         deadline,
+        *,
+        reseed=False,
     ) -> None:
         """Generate, long-validate, and seed every available root candidate."""
 
@@ -765,7 +768,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             deadline,
         )
         for child in root.evaluated_children():
-            if child.visits == 0:
+            if reseed or child.visits == 0:
                 self._back_up(child)
                 child.info["root_validation_seeded"] = True
 

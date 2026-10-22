@@ -142,7 +142,7 @@ def test_coordinator_runs_complete_deterministic_search_cycles() -> None:
 
     assert result.root is root
     assert result.completed_iterations == 6
-    assert root.visits == 6
+    assert root.visits == 7  # One reset pseudocount plus six completed iterations.
     assert len(root.children) == 2
     assert all(child.evaluated for child in root.children)
     assert result.selected is root.children[0]
@@ -263,7 +263,8 @@ def test_coordinator_matches_legacy_depth_bounded_bootstrap_discount() -> None:
     child = result.root.children[0]
     assert estimator.remaining_depths == [2]
     assert child.mean_value == pytest.approx(6.0)
-    assert result.root.mean_value == pytest.approx(3.0)
+    assert result.root.value_sum == pytest.approx(3.0)
+    assert result.root.mean_value == pytest.approx(1.5)
 
 
 class _OffsetGenerator:
@@ -890,6 +891,31 @@ def test_root_gate_long_validates_before_descendant_search() -> None:
     assert result.final_validation_attempts == 0
     assert result.selected is not None
     assert result.selected.action.object_index == 1
+
+
+def test_reset_reseeds_retained_authoritative_roots_with_their_rewards() -> None:
+    search = MonteCarloTreeSearch(
+        _root_policy_config(max_depth=1),
+        _RemainingObjectGenerator(),
+        _ObjectPriorityScorer(),
+        _RootGateEvaluator(),
+        _ZeroEstimator(),
+    )
+    root = MCTSNode(state=_state(), observation=())
+    request = MCTSSearchRequest(iterations=1)
+    search.search(root, request)
+    retained = tuple(root.evaluated_children())
+    assert retained
+
+    # Repeat the reset to ensure existing seed markers do not suppress backup.
+    for _ in range(2):
+        search.search(root, request)
+        assert tuple(root.evaluated_children()) == retained
+        for child in retained:
+            assert child.visits >= 2  # Reset pseudocount and reward backup.
+            assert child.value_sum == pytest.approx((child.visits - 1) * child.reward)
+        assert sum(child.visits for child in retained) == 2 * len(retained) + 1
+        assert root.visits == 1 + len(retained) + 1
 
 
 def test_root_lookahead_covers_every_authoritative_root_first() -> None:

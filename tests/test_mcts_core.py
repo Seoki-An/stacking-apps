@@ -16,6 +16,7 @@ from stacking_common.search.mcts import (
     child_limit,
     expansion_room,
     select_child,
+    selection_score,
 )
 
 
@@ -192,6 +193,20 @@ def test_puct_balances_backed_up_value_and_softmax_prior() -> None:
     assert select_child(root, _config(exploration_constant=4.0)) is high_value
 
 
+def test_puct_requires_positive_real_or_virtual_parent_visits() -> None:
+    root = _evaluated_root()
+    child = root.add_candidate(_action(0))
+    child.set_result(_state(), "child", 0.0)
+
+    with pytest.raises(ValueError, match="positive parent visits"):
+        selection_score(root, child, 1.0, _config())
+
+    assert selection_score(
+        root, child, 1.0, _config(), virtual_visits={root: 1, child: 1}
+    ) == pytest.approx(1.0)
+    assert root.visits == child.visits == 0
+
+
 def test_backpropagation_matches_legacy_discounted_reward_order() -> None:
     root = _evaluated_root()
     child = root.add_candidate(_action(0))
@@ -232,6 +247,7 @@ def test_preserved_subtree_detaches_and_resets_search_statistics() -> None:
     child.set_result(_state(), "child", 1.0)
     leaf = child.add_candidate(_action(1))
     leaf.set_result(_state(), "leaf", 2.0)
+    pending = leaf.add_candidate(_action(2))
     backpropagate(leaf, _config(discount=1.0))
 
     child.detach().reset_statistics()
@@ -240,8 +256,15 @@ def test_preserved_subtree_detaches_and_resets_search_statistics() -> None:
     assert child.depth == 0
     assert leaf.depth == 1
     assert root.children == []
-    assert child.visits == leaf.visits == 0
+    assert child.visits == leaf.visits == 1
     assert child.value_sum == leaf.value_sum == 0.0
+    assert pending.visits == 0
+    assert select_child(child, _config()) is leaf
+
+    backpropagate(leaf, _config(discount=1.0))
+    assert leaf.visits == child.visits == 2
+    assert leaf.mean_value == pytest.approx(1.0)
+    assert child.mean_value == pytest.approx(1.5)
 
 
 def test_best_child_ignores_pending_and_failed_candidates() -> None:

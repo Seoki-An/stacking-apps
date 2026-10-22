@@ -233,6 +233,7 @@ def test_exhausted_search_selects_best_feasible_root_across_retired_pools(retry_
     for node in roots:
         node.expansion_exhausted = True
         node.record_visit(node.reward)
+        root.record_visit(node.reward)
     root.expansion_exhausted = True
     result = search.search(root, replace(request, reset_statistics=False))
     assert result.selected is roots[1]
@@ -257,6 +258,7 @@ def test_exhausted_search_prefers_valid_descendant_over_higher_mean_fallback():
     missing = child(root, 0, reward=100.)
     missing.expansion_exhausted = True
     missing.record_visit(100.)
+    root.record_visit(100.)
     ready = child(root, 1, reward=1.)
     child(child(ready, 2), 3)
     result = search.search(root, replace(request, reset_statistics=False))

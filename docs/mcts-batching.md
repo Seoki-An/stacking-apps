@@ -29,16 +29,22 @@ After root preparation and any configured initial `root_lookahead` coverage:
    visits until selected. An empty expansion contributes at most one dead-end
    backup in that batch; unfilled proposal slots do not create extra visits.
 
-Let `N` be completed visits, `W` accumulated return, `V` this batch's virtual
+Let `N` be stored visits (including reset pseudocounts), `W` accumulated return, `V` this batch's virtual
 visits, and `P` the existing softmax prior. For an evaluated child, selection uses:
 
 ```text
 W_child / (N_child + V_child)
-  + c * P_child * sqrt(max(N_parent + V_parent, 1))
+  + c * P_child * sqrt(N_parent + V_parent)
       / (1 + N_child + V_child)
 ```
 
-The mean is zero when its denominator is zero. This uses PMBS's zero-return
+Selection requires `N_parent + V_parent > 0`. Reset sets evaluated nodes to
+`N = 1, W = 0`; pending candidates remain at `N = 0, W = 0`. The initial
+zero-return pseudocount makes a reset node's mean `W / (1 + n)` after `n`
+actual backups. Root validation still adds its reward backup after reset.
+Without reset, callers retaining a tree must preserve positive parent counts
+before PUCT comparison. The mean is zero when its denominator is zero.
+This uses PMBS's zero-return
 virtual-count convention with our PUCT exploration term. Zero-return visits
 dilute positive means; they can raise negative means toward zero. They are not
 a scale-independent negative-reward penalty. Failed actions remain unselectable.

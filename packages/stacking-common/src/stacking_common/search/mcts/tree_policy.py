@@ -74,10 +74,12 @@ def selection_score(
     if virtual_visits is not None:
         parent_visits += virtual_visits.get(parent, 0)
         child_visits += virtual_visits.get(child, 0)
+    if parent_visits <= 0:
+        raise ValueError("PUCT selection requires positive parent visits")
     exploration = (
         config.exploration_constant
         * float(prior_probability)
-        * math.sqrt(max(parent_visits, 1))
+        * math.sqrt(parent_visits)
         / (child_visits + 1.0)
     )
     mean = child.value_sum / child_visits if child_visits else 0.0

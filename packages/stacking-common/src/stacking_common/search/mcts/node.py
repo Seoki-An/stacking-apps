@@ -220,9 +220,13 @@ class MCTSNode(Generic[ObservationT]):
         return actions
 
     def reset_statistics(self, *, recursive: bool = True) -> None:
-        """Discard search evidence while retaining evaluated tree structure."""
+        """Reset evaluated nodes to one zero-return visit, retaining the tree.
 
-        self.visits = 0
+        The initial visit keeps reused parents positive during selection.
+        Pending candidates have no resulting state and retain zero visits.
+        """
+
+        self.visits = 1 if self.evaluated else 0
         self.value_sum = 0.0
         if recursive:
             for child in self.children:

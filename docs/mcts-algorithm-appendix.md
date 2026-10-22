@@ -91,11 +91,12 @@ $$
 $$
 U_j=
 \frac{W_j}{N_j+V_j}
-+cP_j\frac{\sqrt{\max(N_p+V_p,1)}}{1+N_j+V_j}.
++cP_j\frac{\sqrt{N_p+V_p}}{1+N_j+V_j}.
 $$
 
 여기서 $p$는 parent, $V$는 현재 batch에서만 쓰는 virtual visit이고 분모가 0인
-평균은 0으로 둔다. CUDA 기본 탐색 상수는 $c=1$. Pending action이 있으면
+평균은 0으로 둔다. PUCT 비교 시 $N_p+V_p>0$을 요구한다. 여기서 $N$에는
+reset 시 부여한 pseudocount도 포함한다. CUDA 기본 탐색 상수는 $c=1$. Pending action이 있으면
 평가된 child의 PUCT 비교보다 먼저 prior가 높은 pending action을 선택한다.
 
 한 batch를 구성하는 동안 선택한 경로에 임시 방문을 예약해 동일 action의 중복
@@ -279,8 +280,12 @@ child를 재검증하고, 검증 전후 공통 물체의 최대 위치 변화가
 translation 기준이다.
 
 Promotion은 새 root의 generation attempt/cursor를 초기화한다. 기본 request의
-`reset_statistics: true`는 방문 수와 누적 return도 재귀적으로 초기화하므로,
-재사용되는 것은 주로 tree 구조와 후보·평가 결과다. 완화된 floor 정책으로 만든
+`reset_statistics: true`는 평가된 node를 재귀적으로 $N=1,W=0$으로 초기화하고,
+pending node는 $N=0,W=0$으로 둔다. 초기의 zero-return pseudocount 때문에
+실제 backup $n$회 이후 평균은 $W/(1+n)$이다. Root LONG 검증의 reward backup은
+이 초기 방문과 별도로 추가한다. Reset 없이 재사용할 때도 PUCT 비교 전에
+parent의 유효 방문 수가 양수여야 한다. 재사용되는 것은 주로 tree 구조와
+후보·평가 결과다. 완화된 floor 정책으로 만든
 즉시 continuation은 다음 배치에서 strict 정책으로 재구성한다.
 
 Motion/execution에서 거절된 action 또는 object는 session에 기록하고 이후 생성·선택에서
