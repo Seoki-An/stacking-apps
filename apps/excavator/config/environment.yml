@@ -41,4 +41,4 @@ reward:
     surface_flatness: 2.0
     place_stability: 2.0
     large_object_lower: 0.0
-    inward_orientation: 2.0
+    inward_orientation: 0.0

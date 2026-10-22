@@ -63,8 +63,8 @@ schedule:
   objective_weights:
     k_wrench: {ramp: 1.0}
     k_comp: {ramp: 10.0}
-    k_gap_c: {constant: 40.0, ramp: 150.0, gap_feedback: 100000.0}
-    k_gap: {sine: 10.0}
+    k_gap_c: {constant: 60.0, ramp: 150.0, gap_feedback: 100000.0}
+    k_gap: {sine: 5.0}
     k_target: {anti_ramp: 5.0}
     k_xy: {anti_ramp: 0.0}
     k_potential: {constant: 0.10, anti_ramp: 0.10}
