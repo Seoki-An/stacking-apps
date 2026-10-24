@@ -16,7 +16,7 @@ environment:
       layer: ground
       minimum: [-1.0, -1.0, -0.002]
       maximum: [1.0, 1.0, 0.0]
-      color: [0.38, 0.50, 0.32]
+      color: [0.353, 0.314, 0.275]  # Brown (#5a5046), matching the paper figures.
       opacity: 1.0
 
     - id: pick_table

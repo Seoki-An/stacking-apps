@@ -29,6 +29,153 @@ the designed action pose in the legacy debug record, not a guarantee that it is
 the first pose of structural simulation. New contracts should use explicit
 `action_pose`, `simulation_start_pose`, and `final_pose` names.
 
+## Standalone pose-optimization paper figures
+
+The offline experiment in `tests/posegen_paper_figures.py` exports paired,
+matched-camera figures from a recorded excavator planning step:
+
+```bash
+MPLCONFIGDIR=/tmp/stacking-paper-mpl \
+  python tests/posegen_paper_figures.py \
+  --run .stacks/excavator_plan21.stack --step 20 \
+  --output .analysis/posegen-paper
+```
+
+Use an unused output directory. `--candidate` optionally selects a recorded
+candidate ID; the selected candidate is the default. This requires a run with
+a planning checkpoint at the chosen step and its recorded object models.
+Rendering is offscreen; on X-only VTK builds, prefix Python with `xvfb-run -a`.
+Add `--stone-mesh ply` to display reconstructed `model_<id>_mesh.ply` stone
+meshes; `--stone-mesh dsf` (the default) displays the solver's DSF surfaces.
+This option changes display geometry only; optimization and force estimates
+still use DSF models. The chosen mesh mode, paths and hashes are saved in the
+numerical JSON record. Missing requested surfaces raise an error, and surface
+hashes are checked against the run when recorded.
+The script checks participating model hashes and restores the run's posegen,
+target and density profiles. It uses CPU posegen even for a CUDA-recorded run;
+the replayed optimum can differ from the recorded CUDA optimum.
+
+The trajectory panel follows the reference paper style: opaque gray
+scene stones, a yellow initial candidate, a green final candidate, and faint
+gray ghost poses on a solid brown ground plane. Ghosts are sampled **accepted
+native trust-region updates**, with original rotations. Native profiling identifies
+accepted trials; deterministic prefix replays recover their poses while
+preserving all preceding continuation stages. It does not interpolate poses
+or restart the optimizer after each iteration. Spatially spaced ghost meshes
+avoid obscuring the final pose with nearly identical samples. Already placed
+stones retain their input poses. Original display meshes are rendered with
+smooth shading and no edge outlines or mesh simplification. Colors and
+transparency are preserved, and mesh cell counts are recorded.
+
+Both Operations Consoles also use the paper figures' brown ground color
+(`#5a5046`), including the excavator's world-frame planning replay ground.
+
+The force panel uses that same replay's final pose and whole-scene posegen force
+output, restored to newtons by the standard adapter's mean-mass scaling. Arrows
+point in the direction of force **on each stone**; stone/stone contacts retain
+both incidences. Stones are transparent gray, and arrows are red with fixed
+shaft and arrowhead widths. To keep forces of different orders of magnitude
+visible together, their lengths use the compressed mapping
+`L = 0.16 + 0.39 * sqrt(F / F_max)` in meters, rather than linear scaling.
+Thus positive-force arrow lengths range from 0.16 to 0.55 m, while zero forces
+are omitted. Small white markers locate arrow origins. The mapping and glyph
+dimensions are recorded in the rendering JSON for the
+paper caption; labels, center lines and color bars are omitted to match the references.
+Only native returned contacts are drawn, subject to the recorded profile's
+contact tolerance and boundary roles. These are posegen force estimates at the
+optimized configuration, before physical simulation.
+
+Outputs are two 2400×1800 PNGs at 300 dpi, corresponding PDFs containing raster
+renderings, and JSON files retaining poses, stage/iteration indices, forces,
+solver convergence, recorded profiles, source/model/native hashes, camera and
+rendering settings. Large titles and panel letters are left to the paper.
+No search or native-core implementation changes are required.
+
+## Standalone height and placement-score paper figures
+
+`tests/height_score_paper_figures.py` exports a six-panel overview and individual
+PNG/PDF maps for scene height, total placement score, support score, filling
+score, target boundary score and height score:
+
+```bash
+MPLCONFIGDIR=/tmp/stacking-paper-mpl \
+  python tests/height_score_paper_figures.py \
+  --run .stacks/excavator_plan21.stack --step 20 \
+  --output .analysis/height-score-paper
+```
+
+Use an unused output directory. `--candidate` optionally selects a recorded
+candidate ID; otherwise the selected candidate is used. The scene is the
+pre-search scene, before adding that stone. The script loads the recorded
+profiles and checks participating model hashes using the pose-figure loader,
+then calls `initial_pose_score_view`, the same diagnostic used by the excavator
+Operations Console. It does not solve poses or run simulation.
+
+Scores depend on the stone's footprint and orientation, not just the scene.
+These maps hold the recorded initial orientation fixed, apply normal floor
+gates and normalize height over that orientation's eligible cells. They do
+not reconstruct multi-orientation normalization or retry relaxation during the
+original search. Unsupported historical scoring settings are rejected.
+
+The four score panels display signed **weighted contributions**, so higher is
+better, including for the negatively weighted height term. The total includes
+every recorded term, including planar bias if its weight is nonzero; it is
+checked against the weighted sum before export. Each panel has its own color
+scale. Score colors show computed values under the original eligibility mask.
+Unscored or excluded regions inside the physical target base are neutral gray
+(`#808080`); outside the target is black. Scores are clipped to the exact
+target rectangle, and no extrapolation is rendered.
+
+Individual `*_masked.png/.pdf` files retain black masked regions for comparison.
+The numerical `raw_*` and `weighted_*` arrays and eligibility mask are unchanged.
+Older exports may also contain `display_*` and `boundary_display_*` diagnostic
+continuation arrays; these are retained in their archives but are not rendered.
+
+Boundary proximity is measured relative to the candidate's allowed anchor
+rectangle, not directly to the yellow target-base outline. An asymmetric
+rotated footprint shifts that rectangle; scene-dependent support heights and
+taper change its size at each cell. Sampling admission uses base-height anchor
+bounds, while the boundary score uses height-dependent bounds and returns zero
+outside them. Consequently an admitted cell can have a zero boundary score
+near a tapered wall. Longer footprints along Y also require wider top/bottom
+anchor margins than left/right margins. Recorded target profiles, rather than
+the current YAML, determine these figures.
+The physical height map remains in meters and includes the whole target area.
+Figures follow the Operations Console's **XY score maps** conventions with a
+white background and dark text: X is horizontal and Y is vertical, every panel
+uses the full scene's bounds. The overview retains titles and horizontal color
+bars with three tick labels; individual PNG/PDF maps omit titles and color bars
+for composition in the paper, while retaining coordinate axes and overlays.
+Solid yellow outlines show the target base, and a magenta point marks the
+candidate's initial XY position. Its original reconstructed PLY mesh is
+overlaid as a 50%-opaque grayscale bottom-height map, with lower points white
+and higher points black. The overlay uses the scene height-map resolution and
+the candidate's full initial pose. It samples the minimum triangle-surface Z
+at each XY location, preserving concavities and masking empty space; no convex
+component outlines or whole-stone convex hull are drawn. This display overlay
+is independent of the scorer's hull-based support kernels. Viridis
+colors match the console. Heatmaps show actual cells without smoothing.
+
+`height_score_maps.npz` preserves raw and weighted terms, all grid coordinates,
+the eligibility mask, scene heights and candidate bottom heights in meters
+(world Z, with NaN outside the mesh). The JSON sidecar
+retains source/context/model hashes, recorded settings, poses, weights and
+coordinate conventions, and the PLY source hash and bottom-map color limits.
+PNGs use 300 dpi; PDF labels and target outlines remain vector.
+
+The separate `candidate_bottom_height.png/.pdf` shows the candidate's contact-side
+height map, cropped to its sampled footprint on a white background. It uses the
+same original PLY lower surface and initial orientation as the translucent
+overlay, with opaque viridis colors. XY coordinates are relative to the candidate's
+initial XY origin and keep the scene's axis directions, without mirroring.
+Heights are in meters above the lowest sampled underside point, following the
+separate object elevation-map convention in [From Rocks to Walls, Section 3.1
+and Figure 2(c)](https://vislab.isr.tecnico.ulisboa.pt/wp-content/uploads/paper_pdfs/2021_amenezes_from_ocks.pdf).
+The clean figure has no title or color bar; `candidate_bottom_height_annotated`
+adds both for inspecting the height scale. NPZ exports retain the cropped
+`candidate_bottom_x`, `candidate_bottom_y`, `candidate_bottom_relative_height`,
+and absolute `candidate_bottom_minimum_z`, while the JSON records these conventions.
+
 ## Source behavior
 
 The characterization comes from these read-only legacy references:

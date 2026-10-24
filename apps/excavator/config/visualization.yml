@@ -10,5 +10,5 @@ environment:
       layer: ground
       minimum: [-3.0, -3.0, -0.03]
       maximum: [3.0, 3.0, 0.0]
-      color: [0.28, 0.33, 0.25]
+      color: [0.353, 0.314, 0.275]  # Brown (#5a5046), matching the paper figures.
       opacity: 1.0

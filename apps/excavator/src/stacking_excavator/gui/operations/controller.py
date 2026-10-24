@@ -182,7 +182,7 @@ class OperationsController(CommonOperationsController):
             if item.kind == "plane" and item.name == f"{ground_phase}_ground":
                 height = item.pose[2]
                 boxes.append(SceneBox(item.name, "ground", [-10., -9., height-.03],
-                                      [6., 8., height], (.28, .33, .25), 1.))
+                                      [6., 8., height], (.353, .314, .275), 1.))
             elif item.kind == "box":
                 half = np.asarray(item.size) / 2
                 boxes.append(SceneBox(item.name, "obstacle", item.pose[:3]-half,
