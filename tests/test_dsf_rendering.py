@@ -102,6 +102,10 @@ def test_console_surface_controls_match_and_keep_camera(platform, monkeypatch):
         def __init__(self, parent, *args):
             super().__init__(parent)
             self.modes, self.resets = [], []
+            self.transparency = []
+
+        def set_transparent_stones(self, enabled):
+            self.transparency.append(enabled)
 
         def set_object_geometry_mode(self, mode):
             self.modes.append(mode)
@@ -126,6 +130,11 @@ def test_console_surface_controls_match_and_keep_camera(platform, monkeypatch):
         selector.setCurrentIndex(1)
         selector.setCurrentIndex(0)
         assert window.scene_view.modes == ["ply", "dsf"]
+        assert window.scene_view.resets[-2:] == [False, False]
+        assert not window.transparent_stones_action.isChecked()
+        window.transparent_stones_action.trigger()
+        window.transparent_stones_action.trigger()
+        assert window.scene_view.transparency == [True, False]
         assert window.scene_view.resets[-2:] == [False, False]
         robots = window.plan_view.robot_geometry_selector
         assert [robots.itemText(i) for i in range(robots.count())] == [

@@ -11,7 +11,7 @@ from stacking_common.profiles.visualization import SceneBox, VisualizationProfil
 from stacking_common.visualization.dsf import object_surface_path
 from stacking_common.rendering.pyvista import open_target_shell, read_dsf_surface
 from stacking_common.visualization.rendering import (
-    configure_scene_passes, object_surface_culling, scene_is_translucent,
+    configure_scene_passes, object_surface_culling, scene_is_translucent, stone_opacity,
 )
 
 from .controller import OperationsFrame, RenderObject
@@ -66,6 +66,7 @@ class OperationsSceneView(QtInteractor):
         self.visualization = visualization
         self._mesh_cache: dict[tuple[Path, str], pv.DataSet] = {}
         self._object_geometry_mode = "dsf"
+        self._transparent_stones = False
         self._robot_mesh_cache: dict[tuple[Path, str], pv.DataSet] = {}
         self.show_empty()
 
@@ -165,7 +166,8 @@ class OperationsSceneView(QtInteractor):
         """Replace all actors while intermediate renders remain suppressed."""
 
         boxes = self.visualization.boxes if frame.environment_boxes is None else frame.environment_boxes
-        self._prepare_scene(translucent=scene_is_translucent(frame, boxes, environment_visibility))
+        self._prepare_scene(translucent=scene_is_translucent(
+            frame, boxes, environment_visibility, transparent_stones=self._transparent_stones))
         if frame.environment_boxes is None:
             self._add_environment(environment_visibility)
         else:
@@ -283,6 +285,7 @@ class OperationsSceneView(QtInteractor):
         )
 
     def _add_object(self, value: RenderObject, mesh_paths=None) -> None:
+        opacity = stone_opacity(value.opacity, self._transparent_stones)
         mesh = self._object_mesh(value.object_id) if mesh_paths is None else self._recorded_object_mesh(mesh_paths[value.object_id])
         color = value.color or _COLORS[value.object_id % len(_COLORS)]
         if value.layer in {"placed", "trajectory"}:
@@ -291,13 +294,18 @@ class OperationsSceneView(QtInteractor):
             mesh,
             name=value.instance_id,
             color=color,
-            opacity=value.opacity,
-            culling=object_surface_culling(value.opacity),
+            opacity=opacity,
+            culling=object_surface_culling(opacity),
             show_edges=False,
             **_ROUGH_MESH_MATERIAL,
             smooth_shading=True,
         )
         actor.user_matrix = _pose_matrix(value.pose)
+
+    def set_transparent_stones(self, enabled: bool) -> None:
+        self._transparent_stones = bool(enabled)
+        self._last_robot_scene_key = None
+        self._perception_key = None
 
     def set_object_geometry_mode(self, mode: str) -> None:
         if mode not in {"dsf", "ply"}:

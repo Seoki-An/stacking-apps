@@ -1,11 +1,16 @@
 """Shared rendering policy for opaque and translucent operations scenes."""
 
 
-def scene_is_translucent(frame, environment_boxes, visibility):
+def stone_opacity(opacity, transparent_stones=False):
+    """Cap all stones' opacity without making existing ghost overlays more opaque."""
+    return min(opacity, 0.35) if transparent_stones else opacity
+
+
+def scene_is_translucent(frame, environment_boxes, visibility, *, transparent_stones=False):
     """Account for every translucent layer drawn by the operations viewers."""
     if frame.target is not None and visibility.get("target", True):
         return True  # The target shell has opacity 0.12.
-    if any(value.opacity < 1.0 for value in frame.objects):
+    if any(stone_opacity(value.opacity, transparent_stones) < 1.0 for value in frame.objects):
         return True
     if any(part.part_id.startswith(("scan_preview/", "motion_preview/"))
            for part in frame.robot_parts):

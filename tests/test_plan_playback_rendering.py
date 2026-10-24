@@ -483,6 +483,7 @@ def test_stone_actor_keeps_mesh_in_local_coordinates():
     controller.set_pose_mode(CandidatePoseMode.TRAJECTORY)
     value = controller.frame().overlays[0]
     view = Mock()
+    view._transparent_stones = False
     mesh = pv.Sphere()
     points = mesh.points.copy()
     view._object_mesh.return_value = mesh

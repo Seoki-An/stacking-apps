@@ -218,6 +218,13 @@ Candidate pose modes are explicitly named `initial`, `solved`, `action`,
 and render-mode ordering preserves the legacy selected-last behavior for the
 transparent all-candidate view.
 
+Both operations consoles provide **Transparent stones** in the **Rendering**
+toolbar. It caps every stone mesh at 35% opacity, including placed stones,
+candidates, and moving replay stones; overlays already more transparent keep
+their original opacity. Ground, target, robot, and obstacle materials are
+unchanged. The option preserves the camera, applies to trajectory video exports,
+and does not modify the saved run. Turn it off to restore normal stone opacities.
+
 ## Native `.stack` run document
 
 In both Operations Consoles, select a step in **Search Inspector** and read

@@ -93,6 +93,12 @@ class ExcavatorOperationsWindow(QMainWindow):
         self.object_geometry_selector.addItem("PLY mesh", "ply")
         self.object_geometry_selector.currentIndexChanged.connect(self._object_geometry_changed)
         rendering.addWidget(self.object_geometry_selector)
+        self.transparent_stones_action = QAction("Transparent stones", self)
+        self.transparent_stones_action.setCheckable(True)
+        self.transparent_stones_action.setToolTip(
+            "Show all stone meshes at up to 35% opacity; leave the environment unchanged.")
+        self.transparent_stones_action.toggled.connect(self._stone_transparency_changed)
+        rendering.addAction(self.transparent_stones_action)
         self.statusBar().showMessage("Open a recorded run or start offline planning")
         if artifact_path:
             self.open_artifact(artifact_path)
@@ -108,6 +114,10 @@ class ExcavatorOperationsWindow(QMainWindow):
                 self.controller.request_camera_reset()
                 self._session_camera_key = key
             self._refresh_scene()
+
+    def _stone_transparency_changed(self, enabled):
+        self.scene_view.set_transparent_stones(enabled)
+        self._refresh_scene()
 
     def _object_geometry_changed(self, _index):
         self.scene_view.set_object_geometry_mode(self.object_geometry_selector.currentData())

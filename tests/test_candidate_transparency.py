@@ -39,19 +39,24 @@ def test_dsf_normals_and_winding_point_out_of_each_convex_component(platform):
 
 
 @pytest.mark.parametrize("platform", ["tabletop", "excavator"])
-@pytest.mark.parametrize("opacity", [.4, 1.])
-def test_stone_material_culls_only_translucent_backfaces(platform, opacity):
+@pytest.mark.parametrize("opacity", [.2, .4, 1.])
+@pytest.mark.parametrize("transparent", [False, True])
+@pytest.mark.parametrize("layer", ["placed", "trajectory", "candidate"])
+def test_stone_material_culls_only_translucent_backfaces(platform, opacity, transparent, layer):
     module = importlib.import_module(f"stacking_{platform}.gui.operations.scene_view")
     mesh = pv.Sphere()
     original_points = mesh.points.copy()
     view = Mock()
+    view._transparent_stones = transparent
     view._object_mesh.return_value = mesh
-    value = RenderObject("candidate/8", 8, [0, 0, 0, 0, 0, 0, 1], "candidate", opacity=opacity)
+    value = RenderObject("candidate/8", 8, [0, 0, 0, 0, 0, 0, 1], layer, opacity=opacity)
     module.OperationsSceneView._add_object(view, value)
     kwargs = view.add_mesh.call_args.kwargs
-    assert kwargs["culling"] == ("back" if opacity < 1. else False)
+    expected = min(opacity, .35) if transparent else opacity
+    assert kwargs["culling"] == ("back" if expected < 1. else False)
     assert kwargs["smooth_shading"] is True
-    assert kwargs["opacity"] == opacity
+    assert kwargs["opacity"] == expected
+    assert value.opacity == opacity
     assert kwargs["ambient"] == .42 and kwargs["diffuse"] == .58 and kwargs["specular"] == 0
     np.testing.assert_array_equal(mesh.points, original_points)
 
@@ -59,6 +64,11 @@ def test_stone_material_culls_only_translucent_backfaces(platform, opacity):
 def test_translucent_layers_select_the_correct_pass():
     frame = SimpleNamespace(target=None, objects=(), robot_parts=())
     assert not scene_is_translucent(frame, (), {})
+    assert not scene_is_translucent(frame, (), {}, transparent_stones=True)
+    frame.objects = (SimpleNamespace(opacity=1.),)
+    assert not scene_is_translucent(frame, (), {})
+    assert scene_is_translucent(frame, (), {}, transparent_stones=True)
+    frame.objects = ()
     frame.target = object()
     assert scene_is_translucent(frame, (), {})
     assert not scene_is_translucent(frame, (), {"target": False})
@@ -73,6 +83,20 @@ def test_translucent_layers_select_the_correct_pass():
     assert scene_is_translucent(frame, (), {})
     frame.robot_parts = (SimpleNamespace(part_id="motion_preview/1"),)
     assert scene_is_translucent(frame, (), {})
+
+
+@pytest.mark.parametrize("platform", ["tabletop", "excavator"])
+def test_transparency_toggle_invalidates_cached_scene(platform):
+    module = importlib.import_module(f"stacking_{platform}.gui.operations.scene_view")
+    view = SimpleNamespace(_transparent_stones=False, _last_robot_scene_key="cached",
+                           _perception_key="cached")
+    module.OperationsSceneView.set_transparent_stones(view, True)
+    assert view._transparent_stones
+    assert view._last_robot_scene_key is None
+    if platform == "excavator":
+        assert view._perception_key is None
+    module.OperationsSceneView.set_transparent_stones(view, False)
+    assert not view._transparent_stones
 
 
 def test_actual_depth_peeling_survives_switch_from_ssao():
