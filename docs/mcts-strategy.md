@@ -21,8 +21,8 @@ execution workflows, and historical benchmarks.
 ## Composite target foundation
 
 As of 2026-10-26, common target geometry, the native posegen adapter, proposal
-sampling, active-floor checks, rewards and observations accept multiple convex
-components.
+sampling, active-floor checks, rewards, observations and full MCTS entry points
+accept multiple convex components.
 The existing single tapered-target YAML and its
 native construction remain unchanged. A composite is written under
 `inventory.yml` as `target.components`; each piece has a stable string `id`,
@@ -187,19 +187,47 @@ DSF decomposition, not a Boolean-remeshed union surface. Search-to-planning
 poses transform all components together. Tests cover reopening, candidate and
 robot-motion replay, retained state/context, and branching both planning and
 search-only checkpoints into a new file while preserving the source bytes.
-These are persistence/replay tests, not native composite-search validation.
+These persistence/replay tests are separate from the native search tests below.
 
 The excavator's optional score-map inspector still requires migration to
 region-local grids; composite requests report this explicitly without blocking
 the main viewer. No robot execution is enabled by opening or branching a file.
 
-This does **not** enable full composite-target MCTS runs yet. The full search
-builders and both MCTS CLIs remain gated pending end-to-end composite-search
-validation. Direct action generation is available for testing with a suitable
-orientation provider.
-The independent single-target shape examples remain supported.
-Union-aware native seam containment is also deferred; no stacking-core change
-is needed for this initial adapter.
+### End-to-end search validation
+
+The shared search builders and both MCTS CLIs now accept composites. Before
+allocating search workers or creating a run, they verify that every component
+intersects the platform posegen `objective.ground_height` over an area. Elevated
+components still require a different support policy and fail explicitly. The
+independent single-target shape examples and old `.stack` files remain supported.
+
+`tests/test_composite_target_search.py` exercises disconnected, overlapping and
+L-shaped targets through native CPU posegen, short/long simulation, disturbance
+validation, required descendant validation, two successive placements and tree
+promotion. Synthetic DSF stones run with one and two CPU workers; additional
+tabletop CLI cases load catalog stones 1–3. Both paths save and reopen schema-2
+`.stack` results. Only search budgets/targets are overridden, not the platform
+physics tolerances or safety filters.
+
+The catalog cases exposed a raster-support edge case: a cell-center kernel can
+miss an irregular stone's lowest vertex and predict a pose slightly below
+ground, causing every full-vertex target-containment check to fail. Composite
+sampling now clamps its estimated placement height to the exact vertex-derived
+ground clearance before checking containment. This does not relax containment
+or simulation tolerances; tests cover both zero and nonzero ground heights.
+
+Run the bounded native regressions with:
+
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 QT_QPA_PLATFORM=offscreen \
+  python -m pytest -q tests/test_composite_target_search.py
+```
+
+These are integration smoke tests, not a full field-scale or robot-motion
+benchmark. No CUDA device was visible during this validation; native CUDA
+end-to-end behavior remains unverified. Region-local score-map inspection and
+union-aware native seam containment remain deferred; no stacking-core change
+is needed for the conservative whole-stone-in-one-component adapter.
 
 ## One placement search
 

@@ -1,4 +1,4 @@
-"""Composite .stack replay and checkpoint branching without enabling MCTS."""
+"""Composite .stack replay and checkpoint branching contracts."""
 
 from dataclasses import replace
 import hashlib

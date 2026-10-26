@@ -312,12 +312,31 @@ def test_mutation_score_uses_latest_orientation_bank_not_stale_cached_map():
     assert sample.score_at_object_pose(None, pose(), 0) == (0., 0.)
 
 
-def test_platform_can_build_composite_generator_but_full_mcts_stays_guarded():
+def test_platform_can_build_composite_generator():
     from pathlib import Path
     from stacking_tabletop import TabletopApplication
     inv = inventory()
     app = TabletopApplication.from_repository(Path(__file__).resolve().parents[1])
     gen = app.build_action_generator(inv, Solver())
     assert gen.planar_sampler._composite is not None
-    with pytest.raises(NotImplementedError, match="full composite MCTS remains gated"):
-        app.build_mcts(inv)
+
+
+@pytest.mark.parametrize("ground_z", [0., .7])
+def test_raster_support_does_not_reject_a_tilted_stone_below_ground(ground_z):
+    from stacking_common.actions._support_maps import bottom_height_kernel
+
+    target = CompositeTargetGeometry((TargetComponent("floor", box(), pose(z=ground_z)),))
+    inv = inventory(target, [box(.4, .3, .2)])
+    sample = sampler(inv, yaw_angles=(0.,), floor_policy=policy(inv, ground_z=ground_z))
+    quaternion = Rotation.from_euler("xyz", [17., 23., 11.], degrees=True).as_quat()
+    sample.orientation_provider = MappingOrientationProvider({1: quaternion})
+    vertices = sample.stones[0].points
+    rotated = Rotation.from_quat(quaternion).apply(vertices)
+    kernel = bottom_height_kernel(vertices, quaternion, 2. / 24., 2. / 24.)
+    # The cell centers miss the lowest corner. The uncorrected estimate would
+    # make the full vertex containment check reject every otherwise valid XY.
+    assert kernel.bottom_height.min() > rotated[:, 2].min() + 1e-5
+    scores = sample.score_map(state(inv), None, 0)
+    assert scores["candidates"]
+    for candidate in scores["candidates"]:
+        assert candidate["placement_height"] + rotated[:, 2].min() == pytest.approx(ground_z)

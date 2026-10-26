@@ -175,7 +175,8 @@ def run(args):
     application = replace(application, mcts_profile=replace(application.mcts_profile,
         request=request, root_cem=replace(application.mcts_profile.root_cem, seed=seed)))
     inventory = application.load_inventory(ids, {i: scene.pose(i) for i in ids})
-    require_search_target(inventory.target)
+    require_search_target(inventory.target,
+        ground_z=float(application.posegen_profile.objective.get("ground_height", 0.)))
     solver = load_native_solver_profile(application.solver_profiles.grasp, application.solver_profiles.motion)
     context = planning_context(application, inventory, scene, solver, runtime)
     if checkpoint is None:

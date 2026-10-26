@@ -104,7 +104,11 @@ class CompositePlanarSampler:
             kernel = self._kernels[kernel_key]
             support = support_likelihood_maps_by_kernel(surface, [kernel], owner.settings["contact_gap_tolerance"])
             height = support.contact_height[0].ravel()
-            placement = support.placement_height[0].ravel()
+            # The raster kernel can miss the lowest vertex of an irregular or
+            # tilted stone. Do not let that discretization error put its mesh
+            # below the physical ground and reject every containment anchor.
+            placement = np.maximum(support.placement_height[0].ravel(),
+                                   self.regions.ground_z - rotated[:, 2].min())
             likelihood = support.support[0].ravel()
             finite = np.isfinite(height) & np.isfinite(placement) & np.isfinite(likelihood)
             indices = np.flatnonzero(finite)

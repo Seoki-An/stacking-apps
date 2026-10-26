@@ -227,6 +227,3 @@ def test_platform_can_observe_and_score_composite_without_native_allocation(plat
     observation, value, info = evaluator(placed(inv, [pose(-3.)]))
     assert observation.target_kind == "composite" and np.isfinite(value)
     assert 0. < info["target_IoU"] < 1.
-    # Still fail before native solver allocation in an end-to-end run.
-    with pytest.raises(NotImplementedError, match="full composite MCTS remains gated"):
-        app.build_mcts(inv)

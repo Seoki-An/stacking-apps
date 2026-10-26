@@ -39,14 +39,18 @@ from stacking_common.search import (
 from stacking_common.visualization.heightmap import HeightMapRenderer
 
 
-def require_search_target(target) -> None:
-    """Keep production entry points gated until composite end-to-end validation."""
+def require_search_target(target, *, ground_z: float = 0.) -> None:
+    """Validate composite support assumptions before allocating native workers.
+
+    Components may overlap or be disconnected, but must intersect the shared
+    physical ground plane over an area. Elevated regions need a separate
+    support policy; accepting them here would silently omit their proposals.
+    """
 
     if isinstance(target, CompositeTargetGeometry):
-        raise NotImplementedError(
-            "composite targets support geometry, evaluation, and saved-run replay; "
-            "full composite MCTS remains gated pending end-to-end validation"
-        )
+        from stacking_common.actions.target_regions import TargetRegions
+
+        TargetRegions(target, ground_z=ground_z)
 
 
 class StackingSearchApplication:
@@ -102,7 +106,8 @@ class StackingSearchApplication:
     ) -> dict[EvaluationFidelity, StackingEnvironment[Observation]]:
         """Build independent short-search and long-validation environments."""
 
-        require_search_target(inventory.target)
+        require_search_target(inventory.target,
+            ground_z=float(self.posegen_profile.objective.get("ground_height", 0.)))
         return {
             fidelity: self.build_environment(
                 inventory,
@@ -134,7 +139,8 @@ class StackingSearchApplication:
     ) -> MonteCarloTreeSearch[Observation]:
         """Compose the native common platform MCTS path."""
 
-        require_search_target(inventory.target)
+        require_search_target(inventory.target,
+            ground_z=float(self.posegen_profile.objective.get("ground_height", 0.)))
         if environments is not None and transition_evaluator is not None:
             raise ValueError(
                 "provide MCTS environments or a transition evaluator, not both"

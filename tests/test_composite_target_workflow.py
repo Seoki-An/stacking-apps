@@ -1,4 +1,4 @@
-"""Composite geometry/posegen must not silently use single-volume search rules."""
+"""Search accepts ground-supported composites and rejects unsupported targets early."""
 
 from pathlib import Path
 from types import SimpleNamespace
@@ -27,17 +27,23 @@ def composite_target():
     ("build_search_environments", ()),
     ("build_parallel_transition_evaluator", (2,)),
 ])
-def test_composite_search_stops_before_native_allocation(composite_target, method, extra):
-    # No profiles or native backend are needed: reject before accessing them.
+def test_elevated_composite_stops_before_native_allocation(composite_target, method, extra):
     application = StackingSearchApplication()
+    application.posegen_profile = SimpleNamespace(objective={"ground_height": -10.})
     inventory = SimpleNamespace(target=composite_target)
-    with pytest.raises(NotImplementedError, match="full composite MCTS remains gated"):
+    with pytest.raises(ValueError, match="common ground plane"):
         getattr(application, method)(inventory, *extra)
 
 
 def test_search_guard_preserves_single_targets_and_duck_typed_fixtures():
     require_search_target(target_geometry())
     require_search_target(SimpleNamespace(width=1.0, length=1.0, height=1.0))
+
+
+def test_composite_preflight_uses_the_platform_ground_plane(composite_target):
+    require_search_target(composite_target)
+    with pytest.raises(ValueError, match="common ground plane"):
+        require_search_target(composite_target, ground_z=-10.)
 
 
 def test_composite_direct_pose_solver_factory_is_available(composite_target, monkeypatch):
@@ -60,14 +66,17 @@ def test_composite_direct_pose_solver_factory_is_available(composite_target, mon
     assert application.build_pose_solver(inventory, core_module=native_module) is solver
 
 
-def test_excavator_cli_rejects_composite_before_creating_run(
+def test_excavator_cli_rejects_elevated_composite_before_creating_run(
     composite_target, tmp_path, monkeypatch, capsys,
 ):
     from stacking_excavator import ExcavatorApplication
     from stacking_excavator.planning import cli
+    from dataclasses import replace
 
     repository = Path(__file__).resolve().parents[1]
     application = ExcavatorApplication.from_repository(repository)
+    application = replace(application, posegen_profile=replace(application.posegen_profile,
+        objective={**application.posegen_profile.objective, "ground_height": -10.}))
     monkeypatch.setattr(ExcavatorApplication, "from_repository", lambda *a, **k: application)
     monkeypatch.setattr(ExcavatorApplication, "load_inventory",
                         lambda *a, **k: SimpleNamespace(target=composite_target))
@@ -80,4 +89,4 @@ def test_excavator_cli_rejects_composite_before_creating_run(
         "--save-run", str(destination),
     ]) == 2
     assert not destination.exists()
-    assert "full composite MCTS remains gated" in capsys.readouterr().err
+    assert "common ground plane" in capsys.readouterr().err

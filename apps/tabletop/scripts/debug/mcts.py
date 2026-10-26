@@ -285,7 +285,8 @@ def main() -> int | None:
         }
         pick_scene_description = "synthetic uniform poses"
     inventory = application.load_inventory(object_ids, initial_poses)
-    require_search_target(inventory.target)
+    require_search_target(inventory.target,
+        ground_z=float(application.posegen_profile.objective.get("ground_height", 0.)))
     planning_context = None
     native_solver = None
     if plan_motion:
