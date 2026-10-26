@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from stacking_common.artifacts import StackRunStore
 from stacking_common.workflows.planning_output import PlanningRunOutput
+from stacking_common.profiles.targets import target_shape_choices
 
 
 class PlanningRunDialog(QDialog):
@@ -45,6 +46,22 @@ class PlanningRunDialog(QDialog):
         self.object_ids = QLineEdit()
         self.object_ids.setPlaceholderText("Use profile IDs, or enter e.g. 1 2 3")
         self._file_row(form, "MCTS profile", self.config_path, "YAML (*.yml *.yaml)")
+        self.target_shape = QComboBox()
+        if self.source is not None:
+            self.target_shape.addItem("Recorded target (locked)", None)
+            self.target_shape.setEnabled(False)
+        else:
+            default, names = target_shape_choices(
+                self.repository / "apps/tabletop/config/inventory.yml")
+            if default is None:
+                self.target_shape.addItem("Configured inline target", None)
+            for name in names:
+                self.target_shape.addItem(name, name)
+            self.target_shape.setCurrentIndex(self.target_shape.findData(default))
+        self.target_shape.setToolTip(
+            "Select a target from config/target_shapes.yml for this new run only. "
+            "Resume uses the recorded geometry, even if the registry has changed.")
+        form.addRow("Target shape", self.target_shape)
         self._file_row(form, "Save new run", self.output_path, "Stacking runs (*.stack)", save=True)
         self.overwrite = QCheckBox("Overwrite existing run on successful completion")
         form.addRow(self.overwrite)
@@ -151,6 +168,8 @@ class PlanningRunDialog(QDialog):
         else:
             arguments += ["--steps", str(self.steps.value()), "--max-run-time", str(self.wall_seconds.value()),
                           "--no-plan-motion" if self.search_only.isChecked() else "--plan-motion"]
+            if self.target_shape.currentData() is not None:
+                arguments += ["--target-shape", self.target_shape.currentData()]
             scan_override = self.pose_from_scan.currentData()
             if scan_override is not None:
                 arguments.append("--pose-from-scan" if scan_override else "--no-pose-from-scan")

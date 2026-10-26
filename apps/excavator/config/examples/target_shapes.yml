@@ -1,0 +1,49 @@
+# Legacy standalone batch collection, still usable with --shapes-file.
+# Edit ../target_shapes.yml for the CLI and operations GUI target registry.
+# Physical SI targets for the full 49-stone excavator catalog.
+# Stone hull volume is about 11.53 m^3; targets allow space for voids.
+# Box is solid. Pyramid is truncated to keep a usable top for finite stones.
+one_sided_wall:
+  width: 1.6
+  length: 4.5
+  height: 3.0
+  origin: [0.0, 0.0, 0.0]
+  support_overlap: 0.02
+  taper_degrees:
+    width_positive: 11.309932474020215
+    width_negative: 0.0
+    length_positive: 0.0
+    length_negative: 0.0
+two_sided_wall:
+  width: 2.0
+  length: 4.0
+  height: 3.0
+  origin: [0.0, 0.0, 0.0]
+  support_overlap: 0.02
+  taper_degrees:
+    width_positive: 5.0
+    width_negative: 5.0
+    length_positive: 0.0
+    length_negative: 0.0
+pyramid:
+  width: 4.0
+  length: 4.0
+  height: 2.8
+  origin: [0.0, 0.0, 0.0]
+  support_overlap: 0.02
+  taper_degrees:
+    width_positive: 30.51023740611555
+    width_negative: 30.51023740611555
+    length_positive: 30.51023740611555
+    length_negative: 30.51023740611555
+box:
+  width: 2.8
+  length: 3.2
+  height: 2.0
+  origin: [0.0, 0.0, 0.0]
+  support_overlap: 0.02
+  taper_degrees:
+    width_positive: 0.0
+    width_negative: 0.0
+    length_positive: 0.0
+    length_negative: 0.0

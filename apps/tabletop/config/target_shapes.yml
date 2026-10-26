@@ -1,0 +1,44 @@
+# Named tabletop targets in metres. Each selection is one build goal.
+units: si
+default: tapered_wall
+shapes:
+  tapered_wall:
+    width: 0.08
+    length: 0.17
+    height: 0.15
+    origin: [0.0, 0.0, 0.0]
+    support_overlap: 0.05
+    taper_degrees:
+      width_positive: 0.0
+      width_negative: 0.0
+      length_positive: 10.0
+      length_negative: 10.0
+  box:
+    width: 0.12
+    length: 0.20
+    height: 0.15
+    origin: [0.0, 0.0, 0.0]
+    support_overlap: 0.05
+    taper_degrees:
+      width_positive: 0.0
+      width_negative: 0.0
+      length_positive: 0.0
+      length_negative: 0.0
+  two_piers:
+    components:
+      - id: west
+        pose: [-0.15, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        shape: &pier
+          width: 0.12
+          length: 0.20
+          height: 0.15
+          origin: [0.0, 0.0, 0.0]
+          support_overlap: 0.05
+          taper_degrees:
+            width_positive: 0.0
+            width_negative: 0.0
+            length_positive: 0.0
+            length_negative: 0.0
+      - id: east
+        pose: [0.15, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        shape: *pier

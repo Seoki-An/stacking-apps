@@ -196,8 +196,13 @@ def main() -> int | None:
     )
 
     mcts_profile = load_mcts_profile(config_path)
+    target_options = {}
+    if args.target_shape is not None or checkpoint is not None:
+        recorded = (None if checkpoint is None else
+            StackRunStore.load_run_context(args.resume_run, checkpoint.context_sha256).profiles["inventory_profile"])
+        target_options = dict(target_shape=args.target_shape, recorded_target=recorded)
     application = replace(
-        TabletopApplication.from_repository(repository),
+        TabletopApplication.from_repository(repository, **target_options),
         mcts_profile=mcts_profile,
     )
     recorded_scan = None
@@ -209,6 +214,7 @@ def main() -> int | None:
     application = replace(application, action_generation_profile=replace(
         application.action_generation_profile, pose_from_scan=scan_enabled))
     print(f"pose_from_scan: {str(scan_enabled).lower()}", flush=True)
+    print(f"target shape: {application.inventory_profile.target_name or 'inline/recorded'}", flush=True)
     pick_scene = None
     if checkpoint is not None:
         if object_ids != tuple(checkpoint.state.object_ids):
@@ -397,6 +403,7 @@ def main() -> int | None:
                 ),
                 metadata={
                     "platform": "tabletop",
+                    "target_shape": application.inventory_profile.target_name,
                     "producer": "apps/tabletop/scripts/debug/mcts.py",
                     "config": {
                         "path": str(config_path),
@@ -694,6 +701,7 @@ def _parser() -> argparse.ArgumentParser:
         help="MCTS YAML containing tree and debug sections.",
     )
     parser.add_argument("--repository", type=Path)
+    parser.add_argument("--target-shape", help="name in config/target_shapes.yml; new runs only")
     parser.add_argument("--object-ids", type=int, nargs="+")
     parser.add_argument("--steps", type=int)
     parser.add_argument("--iterations", type=int)

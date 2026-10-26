@@ -125,8 +125,13 @@ class InventoryProfile:
     density: float
     density_overrides: tuple[tuple[int, float], ...]
     target: TargetProfile | CompositeTargetProfile
+    target_name: str | None = field(default=None, metadata={"omit_default_from_context": True})
 
     def __post_init__(self) -> None:
+        if self.target_name is not None and (
+            not isinstance(self.target_name, str) or not self.target_name.strip()
+        ):
+            raise ValueError("inventory target name must be a non-empty string")
         if not self.object_ids:
             raise ValueError("platform object catalog must not be empty")
         if any(object_id <= 0 for object_id in self.object_ids):
@@ -152,7 +157,7 @@ class InventoryProfile:
         return dict(self.density_overrides).get(value, self.density)
 
 
-def load_inventory_profile(path: str | Path) -> InventoryProfile:
+def load_inventory_profile(path: str | Path, *, target_shape=None, recorded_target=None) -> InventoryProfile:
     """Load the explicitly resolved platform inventory profile."""
 
     profile_path = Path(path)
@@ -165,7 +170,9 @@ def load_inventory_profile(path: str | Path) -> InventoryProfile:
         raise ValueError("inventory profile units must be 'si'")
 
     objects = _mapping(values, "objects")
-    target = _target_profile(_mapping(values, "target"))
+    from .targets import resolve_inventory_target
+    target, target_name = resolve_inventory_target(profile_path, values,
+        target_shape=target_shape, recorded_target=recorded_target)
     object_ids = _required(objects, "ids")
     if not isinstance(object_ids, Sequence) or isinstance(object_ids, str):
         raise TypeError("inventory profile object IDs must be a sequence")
@@ -183,6 +190,7 @@ def load_inventory_profile(path: str | Path) -> InventoryProfile:
             )
         ),
         target=target,
+        target_name=target_name,
     )
 
 

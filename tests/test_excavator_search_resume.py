@@ -146,6 +146,7 @@ def test_search_resume_dialog_preserves_mode_and_additional_steps(interrupted_ru
         checkpoint = load_resume_checkpoint(source)
         context = StackRunStore.load_run_context(source, checkpoint.context_sha256)
         assert not dialog.pose_from_scan.isEnabled()
+        assert not dialog.target_shape.isEnabled()
         assert dialog.pose_from_scan.currentData() is context.profiles["pose_from_scan"]
         dialog.steps.setValue(21)
         dialog.wall_seconds.setValue(3600)
@@ -153,6 +154,7 @@ def test_search_resume_dialog_preserves_mode_and_additional_steps(interrupted_ru
         assert args[args.index('--steps') + 1] == '21'
         assert args[args.index('--max-run-time') + 1] == '3600'
         assert '--resume-run' in args and '--pick-pose-data' not in args
+        assert '--target-shape' not in args
         assert '--pose-from-scan' not in args and '--no-pose-from-scan' not in args
     finally:
         dialog.close()

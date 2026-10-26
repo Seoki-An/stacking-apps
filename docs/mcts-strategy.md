@@ -25,11 +25,11 @@ sampling, active-floor checks, rewards, observations and full MCTS entry points
 accept multiple convex components.
 The existing single tapered-target YAML and its
 native construction remain unchanged. A composite is written under
-`inventory.yml` as `target.components`; each piece has a stable string `id`,
+the selected entry in `target_shapes.yml` as `components`; each piece has a stable string `id`,
 an optional `[x, y, z, qx, qy, qz, qw]` pose, and either `shape` or `nodes`:
 
 ```yaml
-target:
+example_shape:
   components:
     - id: west
       pose: [-3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
@@ -57,6 +57,35 @@ pose means identity. Nodes are inline in this milestone; external target asset
 loading is not introduced. Native target sharpness, epsilon and friction still
 come from the platform posegen profile. Do not mix `components` with the legacy
 target-level dimensions.
+
+### Named target selection
+
+Both platforms keep object assets, IDs and densities in `config/inventory.yml`,
+and named target definitions in `config/target_shapes.yml`. The registry has
+`units: si`, a `default` name, and a `shapes` mapping. Each shape is either the
+existing tapered-volume mapping or a `components` mapping as illustrated above.
+The current defaults are tabletop `tapered_wall` and excavator `default`
+(the wall recorded in `excavator_plan17.stack`). The previous excavator
+`tapered_tower` remains selectable. Each platform owns its physical
+dimensions; there is no shared global scale.
+
+Both operations GUIs offer a **Target shape** dropdown in **New planning run**.
+Selection is per-run and does not rewrite configuration. The CLI equivalent is
+`--target-shape NAME` on either the tabletop debug MCTS script or
+`stacking_excavator.planning.cli`. Omitting it selects the registry default.
+Examples include tabletop `box` / `two_piers`, and excavator `pyramid` /
+`two_walls`. A composite is one goal; selecting multiple batch names still
+creates separate searches.
+
+Resolved inventory profiles retain the selected target and its name so existing
+application consumers need not depend on registry files. Saved planning
+contexts include both; search artifacts carry the actual target geometry.
+Resume restores the recorded target without consulting today's registry and
+locks the GUI selector. A conflicting `--target-shape` is rejected. Other
+native/profile/asset resume checks remain unchanged. Legacy inline `target:`
+inventory files still load, and legacy recorded profiles without a target name
+retain their serialized layout/hash. A named override explicitly selects the
+adjacent registry even when an old inventory has an inline target.
 
 `CompositeTargetGeometry` preserves separate posed meshes, aggregate `bounds`,
 component IDs, union `contains(points)` / `horizontal_mask(xy, z)` queries,

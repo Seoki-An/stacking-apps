@@ -80,7 +80,8 @@ class TabletopApplication(StackingSearchApplication):
 
     @classmethod
     def from_repository(
-        cls, repository: str | Path, *, mcts_config: str | Path | None = None
+        cls, repository: str | Path, *, mcts_config: str | Path | None = None,
+        target_shape=None, recorded_target=None,
     ) -> "TabletopApplication":
         root = Path(repository)
         profiles = SolverProfileFiles.from_directory(
@@ -121,7 +122,7 @@ class TabletopApplication(StackingSearchApplication):
             posegen_profile=load_posegen_profile(profiles.posegen),
             mcts_profile=load_mcts_profile(mcts_profile_path),
             inventory_profile=load_inventory_profile(
-                inventory_profile_path
+                inventory_profile_path, target_shape=target_shape, recorded_target=recorded_target,
             ),
             perception_profile=load_perception_profile(
                 perception_profile_path

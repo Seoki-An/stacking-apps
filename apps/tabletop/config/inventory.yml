@@ -1,4 +1,4 @@
-# Tabletop object assets and target geometry in explicit SI units.
+# Tabletop object assets in explicit SI units.
 units: si
 
 objects:
@@ -8,14 +8,4 @@ objects:
   # Add measured per-object material densities here when they become available.
   density_overrides: {}
 
-target:
-  width: 0.08
-  length: 0.17
-  height: 0.15
-  origin: [0.0, 0.0, 0.0]
-  support_overlap: 0.05
-  taper_degrees:
-    width_positive: 0.0
-    width_negative: 0.0
-    length_positive: 10.0
-    length_negative: 10.0
+# Target definitions and the default selection live in target_shapes.yml.

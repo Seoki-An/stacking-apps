@@ -1847,6 +1847,10 @@ stacking-excavator-plan --repository . \
   --search-only --steps 10 --save-run /tmp/excavator-search3.stack
 ```
 
+For automated placement-only examples using all 49 stones and separate wall,
+pyramid, and box targets, see [the target-shape batch runner](excavator-target-shape-examples.md).
+It freezes per-shape profiles, saves every attempt, and resumes incomplete runs.
+
 `--iterations`, `--max-search-time`, and `--config` (MCTS YAML) bound or replace
 search settings. Small time limits can expire during initial CEM generation.
 `--max-run-time` limits the entire worker, including native grasp/motion work.

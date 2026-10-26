@@ -12,3 +12,4 @@ from .inventory import (
 from .environment import load_environment_profile
 from .simulation import load_simulation_profile
 from .posegen import load_posegen_profile
+from .targets import TargetRegistry, load_target_registry
