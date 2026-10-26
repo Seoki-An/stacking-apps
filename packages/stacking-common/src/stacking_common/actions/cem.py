@@ -224,7 +224,7 @@ class CEMRootActionGenerator(Generic[ObservationT]):
             if expired():
                 break
             ranked = self._rank(state, observation, pool)
-            parents = self._limit_per_object(ranked)[: self.config.elite]
+            parents = self._elite_parents(ranked)
             if not parents and fresh_exhausted:
                 break
             fresh_count = self.config.population if not parents else int(
@@ -416,6 +416,9 @@ class CEMRootActionGenerator(Generic[ObservationT]):
             **parent.diagnostics,
             "source": source,
         }
+        region_metadata = getattr(self.generator.planar_sampler, "region_metadata", None)
+        if callable(region_metadata):
+            diagnostics.update(region_metadata(action.object_index, pose))
         score_at_pose = getattr(
             self.generator.planar_sampler, "score_at_pose", None
         )
@@ -533,6 +536,29 @@ class CEMRootActionGenerator(Generic[ObservationT]):
             counts[object_id] = counts.get(object_id, 0) + 1
             kept.append(candidate)
         return kept
+
+    def _elite_parents(self, ranked):
+        """Keep region diversity in exploration; final ranking is unchanged."""
+        if not any(item.diagnostics.get("target_region_id") is not None for item in ranked):
+            return self._limit_per_object(ranked)[:self.config.elite]
+        selected, seen, counts = [], set(), {}
+        for diversify in (True, False):
+            for item in ranked:
+                if any(item is previous for previous in selected):
+                    continue
+                region = item.diagnostics.get("target_region_id")
+                region = None if region is None else tuple(region)
+                if diversify and (region is None or region in seen):
+                    continue
+                oid = item.action.object_id
+                if self.config.max_per_object is not None and counts.get(oid, 0) >= self.config.max_per_object:
+                    continue
+                selected.append(item)
+                seen.add(region)
+                counts[oid] = counts.get(oid, 0) + 1
+                if len(selected) == self.config.elite:
+                    return selected
+        return selected
 
 
 def _duplicate(first: Action, second: Action, xy_threshold, yaw_threshold) -> bool:

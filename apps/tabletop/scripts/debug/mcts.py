@@ -37,6 +37,7 @@ from stacking_common.workflows.mcts_reporting import (
     print_search_step as _print_step,
     tree_statistics as _tree_statistics,
 )
+from stacking_common.workflows.search import require_search_target
 from stacking_tabletop import TabletopApplication
 from stacking_tabletop.config.action import resolve_pose_from_scan
 from stacking_tabletop.config import (
@@ -285,6 +286,7 @@ def main() -> int | None:
         }
         pick_scene_description = "synthetic uniform poses"
     inventory = application.load_inventory(object_ids, initial_poses)
+    require_search_target(inventory.target)
     planning_context = None
     native_solver = None
     if plan_motion:

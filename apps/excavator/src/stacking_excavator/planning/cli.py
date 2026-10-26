@@ -18,6 +18,7 @@ from stacking_common.search import EvaluationFidelity, MCTSNode, MCTSSession
 from stacking_common.visualization import TargetVolume
 from stacking_common.visualization.mcts import MCTSDebugArtifact, project_mcts_step
 from stacking_common.workflows.process import supervise_planning
+from stacking_common.workflows.search import require_search_target
 from stacking_common.workflows.mcts_reporting import (
     ProgressReporter, print_search_step, print_sequence_step, search_statistics, tree_statistics,
 )
@@ -175,6 +176,7 @@ def run(args):
     application = replace(application, mcts_profile=replace(application.mcts_profile,
         request=request, root_cem=replace(application.mcts_profile.root_cem, seed=seed)))
     inventory = application.load_inventory(ids, {i: scene.pose(i) for i in ids})
+    require_search_target(inventory.target)
     solver = load_native_solver_profile(application.solver_profiles.grasp, application.solver_profiles.motion)
     context = planning_context(application, inventory, scene, solver, runtime)
     if checkpoint is None:

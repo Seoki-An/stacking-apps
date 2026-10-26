@@ -22,6 +22,7 @@ from ._support_maps import bottom_height_kernel
 from .types import PlanarPlacement, PlacementFilterDecision
 from .generator import PlacementActionGenerator
 from .filtering import ActiveFloorFilter
+from stacking_common.domain import CompositeTargetGeometry
 from stacking_common.search.types import ActionGenerationResult
 
 
@@ -59,7 +60,8 @@ class ScoredPlanarPoseSampler:
         self.seed = seed
         self.rng = np.random.RandomState(seed)
         self.stones = [_StoneView(obj, inventory.initial_pose(obj.object_id)) for obj in inventory]
-        self.target_wall = SimpleNamespace(width=inventory.target.width, length=inventory.target.length,
+        composite = isinstance(inventory.target, CompositeTargetGeometry)
+        self.target_wall = None if composite else SimpleNamespace(width=inventory.target.width, length=inventory.target.length,
             height=inventory.target.height, origin=inventory.target.origin,
             taper=asdict(inventory.target.taper))
         self._kernels = {}
@@ -70,6 +72,13 @@ class ScoredPlanarPoseSampler:
         self._state_map_bundle = None
         self._score_context = None
         self._score_keys = {}
+        self._composite = None
+        if composite:
+            from .floor import ActiveFloorPolicy, floor_policy_settings
+            from .composite_sampling import CompositePlanarSampler
+            if self.floor_policy is None:
+                self.floor_policy = ActiveFloorPolicy(inventory, **floor_policy_settings(settings["floor"]))
+            self._composite = CompositePlanarSampler(self)
 
     def view(self, state, observation):
         planar = {
@@ -111,6 +120,8 @@ class ScoredPlanarPoseSampler:
         return tuple(value.copy() for value in self._quaternions[key])
 
     def score_map(self, state, observation, object_index):
+        if self._composite is not None:
+            return self._composite.score_map(state, observation, object_index)
         # State/observation arrays are mutable. Key their contents, not just
         # their identities, and retain maps only for the current scene.
         height = np.asarray(observation.scene_height_map)
@@ -179,6 +190,8 @@ class ScoredPlanarPoseSampler:
         return scores
 
     def sample(self, inventory, state, observation, object_index, count, sampling_priority):
+        if self._composite is not None:
+            return self._composite.sample(state, observation, object_index, count, sampling_priority)
         scores = self.score_map(state, observation, object_index)
         candidates = scores.get("candidates", [])
         if not candidates:
@@ -227,6 +240,8 @@ class ScoredPlanarPoseSampler:
         return tuple(np.round(np.r_[pose[:2], pose[3:]], 7))
 
     def score_at_object_pose(self, observation, pose, object_index):
+        if self._composite is not None:
+            return self._composite.score_at_pose(observation, pose, object_index)
         # Mutations must retain the parent object's orientation-aware score map.
         entry = self._scores.get(object_index)
         if entry is None or entry[0] is not observation:
@@ -250,6 +265,9 @@ class ScoredPlanarPoseSampler:
         span = float(valid.max() - valid.min())
         return raw, (0. if span <= 1e-12 else float((raw - valid.min()) / span))
 
+    def region_metadata(self, object_index, pose):
+        return {} if self._composite is None else self._composite.metadata(object_index, pose)
+
 
 class ScoredPlacementActionGenerator(PlacementActionGenerator):
     """Draw fresh pose populations with optional volume-biased stone budgets.
@@ -260,6 +278,9 @@ class ScoredPlacementActionGenerator(PlacementActionGenerator):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        if isinstance(getattr(self.inventory, "target", None), CompositeTargetGeometry):
+            # Mutations can cross gaps even when all fresh seeds are valid.
+            self.filters += (TargetXYOverlapFilter(),)
         self.rng = random.Random(self.planar_sampler.seed)
         self._sampling_calls = 0
         self._stone_weights = None
@@ -350,11 +371,12 @@ class ScoredPlacementActionGenerator(PlacementActionGenerator):
             for index, count in counts.items():
                 if not count or (request.deadline is not None and time.monotonic() >= request.deadline):
                     continue
+                composite = isinstance(self.inventory.target, CompositeTargetGeometry)
                 proposals = self.planar_sampler.sample(self.inventory, state, observation,
-                    index, self.config.max_poses_per_object, request.sampling_priority)
+                    index, count if composite else self.config.max_poses_per_object, request.sampling_priority)
                 count = min(count, len(proposals))
                 corner_seed = bool(proposals and proposals[0].diagnostics.get("sampling_policy") == "corner_seed")
-                chosen = proposals[:count] if priority or corner_seed else self.rng.sample(proposals, count)
+                chosen = proposals[:count] if priority or corner_seed or composite else self.rng.sample(proposals, count)
                 jobs.extend((batch, state, index, proposal) for proposal in chosen)
                 attempts[batch] += count
         candidates = [[] for _ in states]
@@ -375,6 +397,14 @@ class TargetXYOverlapFilter:
         points, _ = inventory[object_index].mesh_arrays()
         points = Rotation.from_quat(solved.pose[3:]).apply(points) + solved.pose[:3]
         target = inventory.target
+        if isinstance(target, CompositeTargetGeometry):
+            from .target_regions import polygon, polygons_overlap
+            footprint = polygon(points[:, :2])
+            overlap = any(polygons_overlap(footprint, polygon(component.world_geometry.points[:, :2]))
+                          for component in target.components)
+            diagnostics = {"target_structure_xy_overlap": overlap}
+            return (PlacementFilterDecision.accept(**diagnostics) if overlap else
+                    PlacementFilterDecision.reject("final_pose_outside_target", **diagnostics))
         half = np.array([target.width, target.length]) / 2.
         overlap = bool(np.all(points[:, :2].max(axis=0) >= target.origin[:2] - half)
                        and np.all(points[:, :2].min(axis=0) <= target.origin[:2] + half))

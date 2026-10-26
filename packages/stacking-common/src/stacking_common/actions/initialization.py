@@ -6,18 +6,20 @@ from stacking_common.domain import ObjectInventory, State
 from stacking_common.domain.geometry import transform_points
 
 from .types import InitializedPlacement, PlanarPlacement
+from .target_regions import ground_height
 
 
 class MeshHeightInitializer:
     """Place a candidate above overlapping mesh bounds and the ground plane."""
 
-    def __init__(self, clearance: float, xy_padding: float) -> None:
+    def __init__(self, clearance: float, xy_padding: float, *, ground_z: float | None = None) -> None:
         if not np.isfinite(clearance) or clearance < 0.0:
             raise ValueError("initial height clearance must be non-negative")
         if not np.isfinite(xy_padding) or xy_padding < 0.0:
             raise ValueError("initial height XY padding must be non-negative")
         self.clearance = float(clearance)
         self.xy_padding = float(xy_padding)
+        self.ground_z = ground_z
 
     def initialize(
         self,
@@ -35,7 +37,7 @@ class MeshHeightInitializer:
         candidate_min_xy = np.min(candidate_world[:, :2], axis=0)
         candidate_max_xy = np.max(candidate_world[:, :2], axis=0)
 
-        support_height = float(inventory.target.origin[2])
+        support_height = ground_height(inventory, self.ground_z)
         support_indices: list[int] = []
         for placed_index in state.placed_object_indices:
             placed = inventory[placed_index]

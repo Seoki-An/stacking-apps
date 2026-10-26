@@ -6,6 +6,7 @@ import numpy as np
 
 from stacking_common.domain.geometry import transform_points
 from .types import InitializedPlacement
+from .target_regions import ground_height
 
 
 def read_ply_vertices(path):
@@ -64,9 +65,10 @@ Face data is not needed for bounding-box initialization.
 
 
 class PlyHeightInitializer:
-    def __init__(self, model_directory, *, clearance, xy_padding):
+    def __init__(self, model_directory, *, clearance, xy_padding, ground_z=None):
         self.model_directory = Path(model_directory)
         self.clearance, self.xy_padding = float(clearance), float(xy_padding)
+        self.ground_z = ground_z
         self._vertices = {}
         self._bounds = {}
 
@@ -102,7 +104,7 @@ class PlyHeightInitializer:
         pose[2] = 0.
         points = transform_points(self.vertices(inventory[object_index]), pose)
         low, high = points.min(axis=0), points.max(axis=0)
-        height = float(inventory.target.origin[2])
+        height = ground_height(inventory, self.ground_z)
         supports = []
         bounds = self.prepare_scene(inventory, state) if scene_context is None else scene_context
         for index, p_low, p_high in bounds:

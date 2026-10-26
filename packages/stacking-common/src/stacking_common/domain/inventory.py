@@ -6,7 +6,7 @@ import numpy as np
 
 from ._validation import pose_array
 from .object import StackObject
-from .target import TargetGeometry
+from .target import TargetRegion
 
 
 class ObjectInventory(Sequence[StackObject]):
@@ -16,7 +16,7 @@ class ObjectInventory(Sequence[StackObject]):
         self,
         objects: Sequence[StackObject],
         initial_poses: Mapping[int, np.ndarray],
-        target: TargetGeometry,
+        target: TargetRegion,
     ) -> None:
         self.objects = tuple(objects)
         self.target = target

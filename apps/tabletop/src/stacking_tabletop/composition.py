@@ -397,7 +397,8 @@ class TabletopApplication(StackingSearchApplication):
 
 
     def build_floor_policy(self, inventory):
-        return TabletopPlacementSafety(inventory, **self.floor_settings)
+        return TabletopPlacementSafety(inventory, **self.floor_settings,
+            ground_z=float(self.posegen_profile.objective.get("ground_height", 0.)))
 
     @property
     def floor_settings(self):

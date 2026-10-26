@@ -9,7 +9,7 @@ from typing import Mapping
 
 import numpy as np
 
-from stacking_common.domain import ObjectInventory, State
+from stacking_common.domain import CompositeTargetGeometry, ObjectInventory, State
 from stacking_common.planning import CoreSceneBuilder, SceneMobility, SceneObjectInstance
 
 from .types import InitializedPlacement, PlacementSolveResult
@@ -189,15 +189,32 @@ class CorePlacementPoseSolver:
         )
         if profile.target_entity_id <= len(inventory):
             raise ValueError("posegen target entity ID collides with an object entity")
-        self.target_model = core_module.BodyModel.dsf(
-            profile.target_model_id,
-            inventory.target.points,
-            mass=1.0,
-            inertia=np.eye(3),
-            friction=profile.target_friction,
-            sharpness=profile.target_sharpness,
-            epsilon=profile.target_epsilon,
-        )
+        if isinstance(inventory.target, CompositeTargetGeometry):
+            components = inventory.target.components
+            # Keep one target entity: native containment chooses the best DSF
+            # component for the whole stone. Separate target entities would
+            # instead accumulate penalties, requiring containment in all of them.
+            # Baking the component poses leaves the enclosing body at identity.
+            self.target_model = core_module.BodyModel.dsf_components(
+                profile.target_model_id,
+                [component.world_geometry.points for component in components],
+                mass=1.0,
+                inertia=np.eye(3),
+                frictions=[profile.target_friction] * len(components),
+                sharpnesses=[profile.target_sharpness] * len(components),
+                epsilon=profile.target_epsilon,
+            )
+        else:
+            # Preserve the legacy single-DSF construction and numerical inputs.
+            self.target_model = core_module.BodyModel.dsf(
+                profile.target_model_id,
+                inventory.target.points,
+                mass=1.0,
+                inertia=np.eye(3),
+                friction=profile.target_friction,
+                sharpness=profile.target_sharpness,
+                epsilon=profile.target_epsilon,
+            )
         self.target_body = core_module.BodyInstance(
             profile.target_entity_id,
             self.target_model,
@@ -258,12 +275,22 @@ class CorePlacementPoseSolver:
         )
         if not self.profile.placed_as_boundaries and self.profile.boundary_radius is not None:
             target = self.inventory.target
-            half = np.array([target.width, target.length]) / 2.0
-            boundaries = [self.scene_builder.entity_id(index)
-                for index in state.placed_object_indices
-                if np.linalg.norm(np.maximum(np.abs(
-                    state.object_poses[state.object_ids[index]][:2] - target.origin[:2]
-                ) - half, 0.0)) > self.profile.boundary_radius]
+            if isinstance(target, CompositeTargetGeometry):
+                xy = np.asarray([
+                    state.object_poses[state.object_ids[index]][:2]
+                    for index in state.placed_object_indices
+                ]).reshape(-1, 2)
+                distances = target.footprint_distance(xy)
+                boundaries = [self.scene_builder.entity_id(index)
+                    for index, distance in zip(state.placed_object_indices, distances)
+                    if distance > self.profile.boundary_radius]
+            else:
+                half = np.array([target.width, target.length]) / 2.0
+                boundaries = [self.scene_builder.entity_id(index)
+                    for index in state.placed_object_indices
+                    if np.linalg.norm(np.maximum(np.abs(
+                        state.object_poses[state.object_ids[index]][:2] - target.origin[:2]
+                    ) - half, 0.0)) > self.profile.boundary_radius]
         return objects, boundaries
 
     def _prepare_problem_scene(self, state):
@@ -330,6 +357,14 @@ class CorePlacementPoseSolver:
                 for entity_id, forces in result.contact_force.items()
             },
         }
+        if isinstance(self.inventory.target, CompositeTargetGeometry):
+            diagnostics.update(
+                posegen_target_component_ids=tuple(
+                    component.component_id for component in self.inventory.target.components
+                ),
+                posegen_target_component_count=len(self.inventory.target.components),
+                posegen_target_containment="whole_stone_in_one_component",
+            )
         converged = bool(stats.converged and stats.force_solver.converged)
         # Restore newtons; the native c_feq fallback is quadratic in the wrench.
         wrench_norm = max(

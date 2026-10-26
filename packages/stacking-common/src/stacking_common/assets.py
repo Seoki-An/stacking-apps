@@ -12,7 +12,7 @@ from stacking_common.domain import (
     ConvexGeometry,
     ObjectInventory,
     StackObject,
-    TargetGeometry,
+    TargetRegion,
 )
 
 
@@ -36,7 +36,7 @@ class ObjectAssetLoader:
         self,
         model_directory: str | Path,
         density: float,
-        target: TargetGeometry,
+        target: TargetRegion,
         density_overrides: Mapping[int, float] | None = None,
         core_module=None,
     ) -> None:

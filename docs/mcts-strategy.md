@@ -18,6 +18,116 @@ the resolved settings. See [MCTS batching](mcts-batching.md) for the PMBS-style
 scheduler and [excavator planning](excavator-planning.md) for native solvers,
 execution workflows, and historical benchmarks.
 
+## Composite target foundation
+
+As of 2026-10-26, common target geometry, the native posegen adapter, proposal
+sampling and active-floor checks accept multiple convex components.
+The existing single tapered-target YAML and its
+native construction remain unchanged. A composite is written under
+`inventory.yml` as `target.components`; each piece has a stable string `id`,
+an optional `[x, y, z, qx, qy, qz, qw]` pose, and either `shape` or `nodes`:
+
+```yaml
+target:
+  components:
+    - id: west
+      pose: [-3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+      shape: &box
+        width: 2.0
+        length: 2.0
+        height: 2.0
+        origin: [0.0, 0.0, 0.0]
+        support_overlap: 0.02
+        taper_degrees:
+          width_positive: 0.0
+          width_negative: 0.0
+          length_positive: 0.0
+          length_negative: 0.0
+    - id: east
+      pose: [3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+      shape: *box
+```
+
+`shape` uses all the existing tapered-volume fields in the component's local
+frame, including its local `origin`. Alternatively, `nodes: [[x, y, z], ...]`
+defines the vertices of one nondegenerate convex hull in that local frame.
+The component pose then transforms it into the common search frame. A missing
+pose means identity. Nodes are inline in this milestone; external target asset
+loading is not introduced. Native target sharpness, epsilon and friction still
+come from the platform posegen profile. Do not mix `components` with the legacy
+target-level dimensions.
+
+`CompositeTargetGeometry` preserves separate posed meshes, aggregate `bounds`,
+component IDs, union `contains(points)` / `horizontal_mask(xy, z)` queries,
+`component_membership(points)`, and distance to the union's XY footprint.
+The combined `points`/`faces` concatenate meshes; they never form a global
+convex hull. Overlapping pieces may both contain a query point, but the union
+contains it only once. Component IDs identify geometric pieces, not independent
+construction goals or necessarily disconnected regions. There is deliberately
+no synthetic rectangular `width`, `origin`, `taper`, or summed `volume` on the
+composite; union-volume accounting belongs to the pending reward migration.
+
+Direct native posegen can be used with an inventory loaded from this profile:
+
+```python
+inventory = application.load_inventory(object_ids, initial_poses)
+solver = application.build_pose_solver(inventory)
+# Supply explicit InitializedPlacement proposals to solver.solve(...).
+```
+
+Both CPU and CUDA adapters build **one target body with multiple DSFs** using
+`BodyModel.dsf_components`. Component poses are baked into its nodes once;
+the enclosing target body stays at identity. CUDA accounts for all target
+geometries while reserving only one target-body slot. The native objective
+retains its existing conservative semantics: it selects the component with
+the best whole-stone containment margin. A stone spanning a component seam
+can therefore be penalized even when entirely inside the geometric union.
+Separate target entity IDs are not used, since their containment penalties
+would accumulate. Composite results record `posegen_target_component_ids`,
+`posegen_target_component_count`, and
+`posegen_target_containment: whole_stone_in_one_component`.
+
+### Region-aware action generation
+
+`application.build_action_generator(inventory, solver)` supports composites.
+Touching or overlapping component cross-sections at the common ground plane
+form one connected sampling region. Each disconnected region has its own grid,
+floor coverage and layer progression, so the first stone in an empty region
+does not need to connect to stones in another region. Coverage counts only
+cells inside the union; gaps, notches and overlapping pieces are not counted
+as extra floor area. All placed stones still contribute to support-height
+initialization and the shared native physical scene.
+
+The sampler uses region-local height maps rasterized from the placed meshes,
+not one bounding grid stretched across distant components. Anchor masks check
+oriented stone vertices against component half-spaces at their predicted
+placement height, including taper. The existing XY inset scale remains a
+sampling heuristic; full containment is still enforced by native validation.
+Corner seeds are feasible footprint extrema in each empty region. Fresh draws
+rotate across available regions, and CEM elite-parent selection reserves
+regional representatives within the existing elite/per-object limits. Final
+candidate ranking is unchanged.
+
+Proposals carry `target_component_ids`, `target_region_ids` and a primary
+`target_region_id`. Mutation and accepted optimized poses recompute membership
+from projected geometry; these labels are diagnostics, not proof of 3D
+containment. Solved candidates must overlap an actual component footprint,
+even when floor-fill restrictions are relaxed.
+
+Components must intersect the same physical ground plane over an area. This
+plane comes from the platform posegen objective's `ground_height` (default
+zero); elevated components requiring independent support are rejected for now.
+Single-target profiles retain their original target-origin ground convention.
+No additional YAML settings are needed.
+
+This does **not** enable full composite-target MCTS runs yet. The full search
+builders and both MCTS CLIs reject these targets explicitly until rewards,
+observation/viewer geometry and saved-run support are migrated. Direct action
+generation is available for testing with a suitable orientation provider.
+The independent single-target shape examples remain supported.
+Union-aware native seam containment is also deferred; no stacking-core change
+is needed for this initial adapter.
+
 ## One placement search
 
 1. Establish the root from the current state or the previously selected subtree.

@@ -289,6 +289,9 @@ class PlacementActionGenerator(Generic[ObservationT]):
         diagnostics.update(initial.diagnostics)
         diagnostics.update(solved.diagnostics)
         diagnostics.update(filter_diagnostics)
+        region_metadata = getattr(self.planar_sampler, "region_metadata", None)
+        if callable(region_metadata):
+            diagnostics.update(region_metadata(object_index, solved.pose))
         diagnostics["planar_score"] = proposal.score
         action = Action(
             object_index=object_index,

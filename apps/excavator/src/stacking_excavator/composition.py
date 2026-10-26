@@ -114,7 +114,8 @@ class ExcavatorApplication(StackingSearchApplication):
                                  dict(profile.density_overrides)).load(object_ids, initial_poses)
 
     def build_floor_policy(self, inventory):
-        return ActiveFloorPolicy(inventory, **self.floor_settings)
+        return ActiveFloorPolicy(inventory, **self.floor_settings,
+            ground_z=float(self.posegen_profile.objective.get("ground_height", 0.)))
 
     def build_orientation_provider(self):
         # The scored sampler applies yaw to this base for both support kernels
@@ -137,7 +138,8 @@ class ExcavatorApplication(StackingSearchApplication):
         profile = self.action_generation_profile.generator
         return PlyHeightInitializer(self.repository_root / self.inventory_profile.model_directory,
             clearance=profile.initial_height_clearance,
-            xy_padding=profile.initial_height_xy_padding)
+            xy_padding=profile.initial_height_xy_padding,
+            ground_z=float(self.posegen_profile.objective.get("ground_height", 0.)))
 
     def build_placement_planning_problem(self, state, action, *, pick_pose,
                                          pick_scene_poses=None, metadata=None):

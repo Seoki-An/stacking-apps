@@ -6,13 +6,16 @@ from .geometry import ConvexGeometry
 from .inventory import ObjectInventory
 from .object import StackObject
 from .state import State
-from .target import DirectionalTaper, TargetGeometry
+from .target import (
+    CompositeTargetGeometry, DirectionalTaper, TargetComponent, TargetGeometry, TargetRegion,
+)
 from .trajectory import StackObjectTrajectory
 
 __all__ = [
     "Action",
     "ActionList",
     "ContactPoint",
+    "CompositeTargetGeometry",
     "ConvexGeometry",
     "DirectionalTaper",
     "ObjectInventory",
@@ -20,4 +23,6 @@ __all__ = [
     "StackObjectTrajectory",
     "State",
     "TargetGeometry",
+    "TargetComponent",
+    "TargetRegion",
 ]

@@ -3,9 +3,143 @@
 from dataclasses import dataclass, field
 
 import numpy as np
+from scipy.spatial import ConvexHull
 
-from ._validation import vector3_array
-from .geometry import ConvexGeometry
+from ._validation import pose_array, vector3_array
+from .geometry import ConvexGeometry, transform_points
+
+
+@dataclass(frozen=True)
+class TargetComponent:
+    """One convex target piece, posed in the canonical world frame.
+
+    Component IDs describe the decomposition, not separate construction goals.
+    Mesh containment uses the convex polytope, as for the original target;
+    native posegen uses its smooth DSF representation of these vertices.
+    """
+
+    component_id: str
+    geometry: ConvexGeometry
+    pose: np.ndarray = field(
+        default_factory=lambda: np.array([0., 0., 0., 0., 0., 0., 1.]))
+    _world_geometry: ConvexGeometry = field(init=False, repr=False)
+    _footprint: np.ndarray = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.component_id, str) or not self.component_id.strip():
+            raise ValueError("target component ID must be a non-empty string")
+        if not isinstance(self.geometry, ConvexGeometry):
+            raise TypeError("target component geometry must be ConvexGeometry")
+        pose = pose_array(self.pose, "target component pose")
+        pose[3:] /= np.linalg.norm(pose[3:])
+        pose.setflags(write=False)
+        geometry = ConvexGeometry(
+            transform_points(self.geometry.points, pose), self.geometry.faces,
+            sharpness=self.geometry.sharpness,
+        )
+        xy = geometry.points[:, :2]
+        footprint = xy[ConvexHull(xy).vertices].copy()
+        footprint.setflags(write=False)
+        object.__setattr__(self, "component_id", self.component_id.strip())
+        object.__setattr__(self, "pose", pose)
+        object.__setattr__(self, "_world_geometry", geometry)
+        object.__setattr__(self, "_footprint", footprint)
+
+    @property
+    def world_geometry(self) -> ConvexGeometry:
+        """Immutable component mesh with its rigid transform applied once."""
+        return self._world_geometry
+
+    @property
+    def bounds(self) -> np.ndarray:
+        points = self._world_geometry.points
+        return np.stack((points.min(axis=0), points.max(axis=0)))
+
+    def contains(self, points: np.ndarray, tolerance: float = 1e-9) -> np.ndarray:
+        return self._world_geometry.contains(points, tolerance)
+
+    def footprint_distance(self, points: np.ndarray) -> np.ndarray:
+        """XY distance to the component projection; zero inside it."""
+        values = _xy_points(points)
+        edges = np.roll(self._footprint, -1, axis=0) - self._footprint
+        delta = values[:, None, :] - self._footprint[None, :, :]
+        fraction = np.clip(
+            np.einsum("nej,ej->ne", delta, edges)
+            / np.einsum("ej,ej->e", edges, edges), 0., 1.)
+        distance = np.linalg.norm(delta - fraction[:, :, None] * edges, axis=2).min(axis=1)
+        # ConvexHull orders the projected vertices counterclockwise.
+        cross = edges[None, :, 0] * delta[:, :, 1] - edges[None, :, 1] * delta[:, :, 0]
+        distance[np.all(cross >= 0., axis=1)] = 0.
+        return distance
+
+
+@dataclass(frozen=True)
+class CompositeTargetGeometry:
+    """Union of convex target components, without filling gaps or notches.
+
+    This is a geometry/native-posegen contract, not yet an end-to-end search
+    target. It deliberately has no synthetic width/origin/taper or volume:
+    rectangular policies and summed component volumes are incorrect for a
+    general union. Consumers must use component or union queries, not box fields.
+    """
+
+    components: tuple[TargetComponent, ...]
+
+    def __post_init__(self) -> None:
+        components = tuple(self.components)
+        if not components:
+            raise ValueError("composite target requires at least one component")
+        if not all(isinstance(value, TargetComponent) for value in components):
+            raise TypeError("composite target components must be TargetComponent values")
+        ids = [component.component_id for component in components]
+        if len(set(ids)) != len(ids):
+            raise ValueError("target component IDs must be unique")
+        object.__setattr__(self, "components", components)
+
+    @property
+    def component_ids(self) -> tuple[str, ...]:
+        return tuple(component.component_id for component in self.components)
+
+    @property
+    def meshes(self) -> tuple[tuple[np.ndarray, np.ndarray], ...]:
+        """Separate world-frame meshes, preserving every convex piece."""
+        return tuple((component.world_geometry.points.copy(),
+                      component.world_geometry.faces.copy())
+                     for component in self.components)
+
+    @property
+    def bounds(self) -> np.ndarray:
+        bounds = np.stack([component.bounds for component in self.components])
+        return np.stack((bounds[:, 0].min(axis=0), bounds[:, 1].max(axis=0)))
+
+    @property
+    def points(self) -> np.ndarray:
+        """Concatenated vertices, never the convex hull of the union."""
+        return np.concatenate([component.world_geometry.points for component in self.components])
+
+    @property
+    def faces(self) -> np.ndarray:
+        faces, offset = [], 0
+        for component in self.components:
+            geometry = component.world_geometry
+            faces.append(geometry.faces + offset)
+            offset += len(geometry.points)
+        return np.concatenate(faces)
+
+    def component_membership(self, points: np.ndarray, tolerance: float = 1e-9) -> np.ndarray:
+        """Return an (N, K) mask; overlapping pieces may both contain a point."""
+        return np.column_stack([component.contains(points, tolerance) for component in self.components])
+
+    def contains(self, points: np.ndarray, tolerance: float = 1e-9) -> np.ndarray:
+        return np.any(self.component_membership(points, tolerance), axis=1)
+
+    def horizontal_mask(self, points: np.ndarray, z: float, tolerance: float = 1e-9) -> np.ndarray:
+        """Union membership of XY samples at one world-frame height."""
+        return self.contains(_horizontal_points(points, z), tolerance)
+
+    def footprint_distance(self, points: np.ndarray) -> np.ndarray:
+        """Distance to the union of XY projections, not to its bounding box."""
+        return np.min([component.footprint_distance(points) for component in self.components], axis=0)
 
 
 @dataclass(frozen=True)
@@ -116,6 +250,32 @@ class TargetGeometry:
     def contains(self, points: np.ndarray, tolerance: float = 1e-9) -> np.ndarray:
         return self._geometry.contains(points, tolerance)
 
+    @property
+    def components(self) -> tuple[TargetComponent, ...]:
+        """Expose the legacy tapered box as one canonical component."""
+        return (TargetComponent("target", self._geometry),)
+
+    @property
+    def component_ids(self) -> tuple[str, ...]:
+        return ("target",)
+
+    @property
+    def meshes(self) -> tuple[tuple[np.ndarray, np.ndarray], ...]:
+        return ((self.points, self.faces),)
+
+    @property
+    def bounds(self) -> np.ndarray:
+        return np.stack((self._geometry.points.min(axis=0), self._geometry.points.max(axis=0)))
+
+    def component_membership(self, points: np.ndarray, tolerance: float = 1e-9) -> np.ndarray:
+        return self.contains(points, tolerance)[:, None]
+
+    def horizontal_mask(self, points: np.ndarray, z: float, tolerance: float = 1e-9) -> np.ndarray:
+        return self.contains(_horizontal_points(points, z), tolerance)
+
+    def footprint_distance(self, points: np.ndarray) -> np.ndarray:
+        return self.components[0].footprint_distance(points)
+
     def _vertices(self, origin: np.ndarray) -> np.ndarray:
         bottom_z = -self.support_overlap * self.height
         top_z = self.height
@@ -151,3 +311,20 @@ class TargetGeometry:
                 [top[0], top[3], top_z],
             ]
         )
+
+
+TargetRegion = TargetGeometry | CompositeTargetGeometry
+
+
+def _xy_points(points: np.ndarray) -> np.ndarray:
+    values = np.asarray(points, dtype=float)
+    if values.ndim != 2 or values.shape[1] != 2 or not np.isfinite(values).all():
+        raise ValueError("target XY points must be finite with shape (N, 2)")
+    return values
+
+
+def _horizontal_points(points: np.ndarray, z: float) -> np.ndarray:
+    values = _xy_points(points)
+    if not np.isfinite(z):
+        raise ValueError("target section height must be finite")
+    return np.column_stack((values, np.full(len(values), z)))

@@ -14,7 +14,7 @@ from stacking_common.actions import (
     TargetContainmentFilter,
 )
 from stacking_common.actions.scored import ScoredPlanarPoseSampler, ScoredPlacementActionGenerator
-from stacking_common.domain import ObjectInventory, State
+from stacking_common.domain import CompositeTargetGeometry, ObjectInventory, State
 from stacking_common.environment import (
     ArrayObservationBuilder,
     CorePlacementBackend,
@@ -37,6 +37,16 @@ from stacking_common.search import (
 )
 
 from stacking_common.visualization.heightmap import HeightMapRenderer
+
+
+def require_search_target(target) -> None:
+    """Reject composite targets until search policies support their union."""
+
+    if isinstance(target, CompositeTargetGeometry):
+        raise NotImplementedError(
+            "composite targets support geometry, native posegen, and action generation; "
+            "MCTS rewards, observations, and viewer support are not implemented yet"
+        )
 
 
 class StackingSearchApplication:
@@ -92,6 +102,7 @@ class StackingSearchApplication:
     ) -> dict[EvaluationFidelity, StackingEnvironment[Observation]]:
         """Build independent short-search and long-validation environments."""
 
+        require_search_target(inventory.target)
         return {
             fidelity: self.build_environment(
                 inventory,
@@ -123,6 +134,7 @@ class StackingSearchApplication:
     ) -> MonteCarloTreeSearch[Observation]:
         """Compose the native common platform MCTS path."""
 
+        require_search_target(inventory.target)
         if environments is not None and transition_evaluator is not None:
             raise ValueError(
                 "provide MCTS environments or a transition evaluator, not both"
@@ -276,6 +288,7 @@ class StackingSearchApplication:
     def _build_state_evaluators(self, inventory: ObjectInventory):
         """Use identical observation and reward profiles for search and commit."""
 
+        require_search_target(inventory.target)
         profile = self.environment_profile
         renderer = HeightMapRenderer(
             inventory,
@@ -339,6 +352,7 @@ class StackingSearchApplication:
         return MeshHeightInitializer(
             clearance=profile.initial_height_clearance,
             xy_padding=profile.initial_height_xy_padding,
+            ground_z=float(self.posegen_profile.objective.get("ground_height", 0.)),
         )
 
 

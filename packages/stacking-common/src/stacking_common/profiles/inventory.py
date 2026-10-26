@@ -1,13 +1,19 @@
 """Typed platform object-asset and target configuration."""
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 import yaml
 
-from stacking_common.domain import DirectionalTaper, TargetGeometry
+from stacking_common.domain import (
+    CompositeTargetGeometry,
+    ConvexGeometry,
+    DirectionalTaper,
+    TargetComponent,
+    TargetGeometry,
+)
 
 
 @dataclass(frozen=True)
@@ -39,12 +45,86 @@ class TargetProfile:
 
 
 @dataclass(frozen=True)
+class TargetComponentProfile:
+    """One local convex target shape and its world-frame rigid pose.
+
+    Exactly one of ``shape`` (the legacy tapered volume) or ``nodes`` is set.
+    Nodes define one convex hull, never a hull over several components.
+    """
+
+    component_id: str
+    shape: TargetProfile | None = None
+    nodes: np.ndarray | None = None
+    pose: np.ndarray = field(
+        default_factory=lambda: np.array([0., 0., 0., 0., 0., 0., 1.])
+    )
+
+    def __post_init__(self) -> None:
+        if (self.shape is None) == (self.nodes is None):
+            raise ValueError("target component requires exactly one of shape or nodes")
+        if self.shape is not None and not isinstance(self.shape, TargetProfile):
+            raise TypeError("target component shape must be a TargetProfile")
+        if self.nodes is not None:
+            nodes = np.array(self.nodes, dtype=float, copy=True)
+            if nodes.ndim != 2 or nodes.shape[1] != 3 or len(nodes) < 4:
+                raise ValueError("target component nodes must have shape (N, 3), N >= 4")
+            if not np.all(np.isfinite(nodes)):
+                raise ValueError("target component nodes must be finite")
+            nodes.setflags(write=False)
+            object.__setattr__(self, "nodes", nodes)
+        component = self.geometry()
+        object.__setattr__(self, "component_id", component.component_id)
+        object.__setattr__(self, "pose", component.pose)
+
+    def geometry(self) -> TargetComponent:
+        if self.shape is not None:
+            shape = self.shape.geometry()
+            geometry = ConvexGeometry(shape.points, shape.faces)
+        else:
+            from scipy.spatial import ConvexHull, QhullError
+
+            try:
+                hull = ConvexHull(self.nodes)
+            except QhullError as error:
+                raise ValueError(
+                    "target component nodes must define a nondegenerate 3D convex hull"
+                ) from error
+            faces = hull.simplices.copy()
+            triangles = self.nodes[faces]
+            normals = np.cross(
+                triangles[:, 1] - triangles[:, 0],
+                triangles[:, 2] - triangles[:, 0],
+            )
+            reverse = np.einsum("ij,ij->i", normals, hull.equations[:, :3]) < 0
+            faces[reverse] = faces[reverse, ::-1]
+            geometry = ConvexGeometry(self.nodes, faces)
+        return TargetComponent(self.component_id, geometry, self.pose)
+
+
+@dataclass(frozen=True)
+class CompositeTargetProfile:
+    """A target defined by the union of independently posed convex components."""
+
+    components: tuple[TargetComponentProfile, ...]
+
+    def __post_init__(self) -> None:
+        components = tuple(self.components)
+        if any(not isinstance(item, TargetComponentProfile) for item in components):
+            raise TypeError("target components must be TargetComponentProfile values")
+        object.__setattr__(self, "components", components)
+        self.geometry()
+
+    def geometry(self) -> CompositeTargetGeometry:
+        return CompositeTargetGeometry(tuple(item.geometry() for item in self.components))
+
+
+@dataclass(frozen=True)
 class InventoryProfile:
     model_directory: Path
     object_ids: tuple[int, ...]
     density: float
     density_overrides: tuple[tuple[int, float], ...]
-    target: TargetProfile
+    target: TargetProfile | CompositeTargetProfile
 
     def __post_init__(self) -> None:
         if not self.object_ids:
@@ -85,8 +165,7 @@ def load_inventory_profile(path: str | Path) -> InventoryProfile:
         raise ValueError("inventory profile units must be 'si'")
 
     objects = _mapping(values, "objects")
-    target = _mapping(values, "target")
-    taper = _mapping(target, "taper_degrees")
+    target = _target_profile(_mapping(values, "target"))
     object_ids = _required(objects, "ids")
     if not isinstance(object_ids, Sequence) or isinstance(object_ids, str):
         raise TypeError("inventory profile object IDs must be a sequence")
@@ -103,26 +182,58 @@ def load_inventory_profile(path: str | Path) -> InventoryProfile:
                 for object_id, density in raw_overrides.items()
             )
         ),
-        target=TargetProfile(
-            width=float(_required(target, "width")),
-            length=float(_required(target, "length")),
-            height=float(_required(target, "height")),
-            origin=np.asarray(_required(target, "origin"), dtype=float),
-            support_overlap=float(_required(target, "support_overlap")),
-            taper=DirectionalTaper.from_degrees(
-                width_positive=float(
-                    _required(taper, "width_positive")
-                ),
-                width_negative=float(
-                    _required(taper, "width_negative")
-                ),
-                length_positive=float(
-                    _required(taper, "length_positive")
-                ),
-                length_negative=float(
-                    _required(taper, "length_negative")
-                ),
+        target=target,
+    )
+
+
+def _target_profile(
+    values: Mapping[str, object],
+) -> TargetProfile | CompositeTargetProfile:
+    if "components" not in values:
+        return _shape_profile(values)
+    if set(values) != {"components"}:
+        raise ValueError("target components cannot be mixed with single-target fields")
+    components = values["components"]
+    if not isinstance(components, Sequence) or isinstance(components, (str, bytes)):
+        raise TypeError("target components must be a sequence")
+    profiles = []
+    for component in components:
+        if not isinstance(component, Mapping):
+            raise TypeError("target component must be a mapping")
+        unknown = set(component) - {"id", "pose", "shape", "nodes"}
+        if unknown:
+            raise ValueError(f"unknown target component fields: {sorted(unknown)}")
+        if ("shape" in component) == ("nodes" in component):
+            raise ValueError("target component requires exactly one of shape or nodes")
+        kwargs = {}
+        if "pose" in component:
+            kwargs["pose"] = np.asarray(component["pose"], dtype=float)
+        profiles.append(TargetComponentProfile(
+            component_id=_required(component, "id"),
+            shape=(
+                _shape_profile(_mapping(component, "shape"))
+                if "shape" in component else None
             ),
+            nodes=(np.asarray(component["nodes"], dtype=float)
+                   if "nodes" in component else None),
+            **kwargs,
+        ))
+    return CompositeTargetProfile(tuple(profiles))
+
+
+def _shape_profile(values: Mapping[str, object]) -> TargetProfile:
+    taper = _mapping(values, "taper_degrees")
+    return TargetProfile(
+        width=float(_required(values, "width")),
+        length=float(_required(values, "length")),
+        height=float(_required(values, "height")),
+        origin=np.asarray(_required(values, "origin"), dtype=float),
+        support_overlap=float(_required(values, "support_overlap")),
+        taper=DirectionalTaper.from_degrees(
+            width_positive=float(_required(taper, "width_positive")),
+            width_negative=float(_required(taper, "width_negative")),
+            length_positive=float(_required(taper, "length_positive")),
+            length_negative=float(_required(taper, "length_negative")),
         ),
     )
 

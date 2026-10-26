@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from stacking_common.domain import Action, ObjectInventory, State
+from stacking_common.domain import Action, CompositeTargetGeometry, ObjectInventory, State
 from stacking_common.domain.geometry import quaternion_matrix, transform_points
+from .target_regions import TargetRegions, ground_height
 
 
 def floor_policy_settings(settings) -> dict:
@@ -22,6 +23,7 @@ class ActiveFloorPolicy:
         self, inventory: ObjectInventory, *, bottom_tolerance: float,
         fill_ratio: float, grid_size: int,
         coverage_mode: str = "bottom_slice",
+        ground_z: float | None = None,
     ) -> None:
         if not np.isfinite(bottom_tolerance) or bottom_tolerance <= 0:
             raise ValueError("floor bottom tolerance must be positive")
@@ -34,6 +36,13 @@ class ActiveFloorPolicy:
         self.bottom_tolerance = float(bottom_tolerance)
         self.fill_ratio = float(fill_ratio)
         self.grid_size = int(grid_size)
+        self.ground_z = ground_height(inventory, ground_z)
+        self.target_regions = (TargetRegions(inventory.target, self.ground_z)
+                               if isinstance(inventory.target, CompositeTargetGeometry) else None)
+        self._region_grids = ({region.region_id: tuple(_readonly(value) for value in
+                              region.grid((self.grid_size, self.grid_size)))
+                              for region in self.target_regions.regions}
+                             if self.target_regions is not None else {})
         # Search states share most placed stones with their parents. Entries and
         # masks are pure functions of (object, exact pose), so they are reused;
         # cached arrays are read-only.
@@ -51,6 +60,8 @@ class ActiveFloorPolicy:
 
         if context is None:
             context = self.context_details(state)
+        if self.target_regions is not None:
+            return self._composite_rejection(action, context)
         reason, diagnostics = self._reject_at_layer(
             action, context["support_z"], context["occupied"],
             neighbors=context["occupied_neighbor"], grid=(context["xx"], context["yy"]))
@@ -61,15 +72,19 @@ class ActiveFloorPolicy:
     def context(self, state: State) -> tuple[float, np.ndarray]:
         """Find the first layer below the configured coverage threshold."""
         context = self.context_details(state)
+        if self.target_regions is not None:
+            raise ValueError("composite targets have per-region floors; use context_details()['regions']")
         return context["support_z"], context["occupied"]
 
     def context_details(self, state: State) -> dict[str, object]:
         """Share the active layer's geometry between sampling and validation."""
+        if self.target_regions is not None:
+            return self._composite_context(state)
         entries = [
             self._entry(index, state.object_poses[state.object_ids[index]])
             for index in state.placed_object_indices
         ]
-        support_z = float(self.inventory.target.origin[2])
+        support_z = self.ground_z
         remaining = list(entries)
         layer_entries: list[dict[str, object]] = []
         occupied = self._empty_mask()
@@ -103,10 +118,11 @@ class ActiveFloorPolicy:
             "completed_layers": completed_layers,
         }
 
-    def _reject_at_layer(self, action, support_z, occupied, *, neighbors=None, grid=None):
+    def _reject_at_layer(self, action, support_z, occupied, *, neighbors=None, grid=None, valid=None):
         candidate = self._entry(action.object_index, action.pose)
         above = float(candidate["bottom"]) > support_z + self.bottom_tolerance
-        candidate_cells = self._mask(candidate, support_z, grid=grid)
+        candidate_cells = (self._mask(candidate, support_z, grid=grid) if valid is None else
+                           self._compute_mask(candidate, support_z, grid) & valid)
         if neighbors is None:
             neighbors = _neighbor_mask(occupied)
         cell_count = int(np.count_nonzero(candidate_cells))
@@ -131,8 +147,12 @@ class ActiveFloorPolicy:
             "fixed_scene_active_layer_min_contact_cells": 1,
             "fixed_scene_active_layer_unfilled_cells": unfilled_count,
             "fixed_scene_active_layer_overlap_cells": overlap,
-            "fixed_scene_active_layer_occupancy": float(np.mean(occupied)),
+            "fixed_scene_active_layer_occupancy": (float(np.mean(occupied)) if valid is None else
+                                                    float(np.count_nonzero(occupied) / max(np.count_nonzero(valid), 1))),
         }
+        if valid is not None and cell_count == 0:
+            diagnostics["active_floor_reject_reason"] = "outside_active_region"
+            return "outside_active_region", diagnostics
         if above:
             diagnostics["active_floor_reject_reason"] = "above_active_layer"
             return "above_active_layer", diagnostics
@@ -146,6 +166,70 @@ class ActiveFloorPolicy:
             )
             return "disconnected_active_layer", diagnostics
         return None, diagnostics
+
+    def _composite_context(self, state):
+        entries = [self._entry(index, state.object_poses[state.object_ids[index]])
+                   for index in state.placed_object_indices]
+        contexts = []
+        for region in self.target_regions.regions:
+            lower, upper, xx, yy = self._region_grids[region.region_id]
+            ground_mask = region.mask(xx, yy, self.ground_z)
+            if not ground_mask.any():
+                raise ValueError("floor grid misses a composite target region; increase floor.grid_size")
+            # Only stones actually overlapping this region contribute to its layers.
+            projected_target = (region.target.footprint_distance(np.c_[xx.ravel(), yy.ravel()]) <= 1e-9).reshape(xx.shape)
+            remaining = [entry for entry in entries if np.any(projected_target & self._projected_mask(entry, xx, yy))]
+            empty = not remaining
+            support_z, completed = self.ground_z, []
+            while True:
+                valid = region.mask(xx, yy, support_z)
+                layer = [entry for entry in remaining
+                         if entry["bottom"] <= support_z + self.bottom_tolerance
+                         and np.any(self._compute_mask(entry, support_z, (xx, yy)) & valid)]
+                occupied = np.zeros(xx.shape, dtype=bool)
+                for entry in layer:
+                    occupied |= self._compute_mask(entry, support_z, (xx, yy))
+                occupied &= valid
+                occupancy = np.count_nonzero(occupied) / max(np.count_nonzero(valid), 1)
+                if not valid.any() or not layer or occupancy < self.fill_ratio:
+                    break
+                completed.append({"support_z": support_z, "coverage": float(occupancy)})
+                consumed = {id(entry) for entry in layer}
+                remaining = [entry for entry in remaining if id(entry) not in consumed]
+                support_z = max(entry["top"] for entry in layer)
+            contexts.append({
+                "region_id": region.region_id, "region": region, "empty": empty,
+                "support_z": support_z, "bottom_tol": self.bottom_tolerance,
+                "lower": lower, "upper": upper, "xx": xx, "yy": yy, "valid": valid,
+                "occupied": occupied, "occupied_neighbor": _neighbor_mask(occupied) & valid,
+                "occupancy": float(occupancy), "coverage_mode": self.coverage_mode,
+                "completed_layers": completed,
+            })
+        return {"regions": tuple(contexts), "ground_z": self.ground_z}
+
+    @staticmethod
+    def _projected_mask(entry, xx, yy):
+        mask = np.zeros(xx.shape, dtype=bool)
+        for normals, offsets in entry["volumes"]:
+            mask |= _volume_columns(normals, offsets, xx, yy)[0]
+        return mask
+
+    def _composite_rejection(self, action, context):
+        metadata = self.target_regions.pose_metadata(self.inventory, action.object_index, action.pose)
+        candidate = self._entry(action.object_index, action.pose)
+        regions = [region for region in context["regions"] if region["region_id"] in metadata["target_region_ids"]]
+        if not regions:
+            return "outside_target_region", {**metadata,
+                "fixed_scene_active_layer_fill_score": 0., "fixed_scene_active_layer_above": False}
+        # Resolve the placement's region from geometry, not a stale CEM label.
+        region = max(regions, key=lambda item: np.count_nonzero(
+            self._projected_mask(candidate, item["xx"], item["yy"]) & item["valid"]))
+        reason, diagnostics = self._reject_at_layer(action, region["support_z"], region["occupied"],
+            neighbors=region["occupied_neighbor"], grid=(region["xx"], region["yy"]), valid=region["valid"])
+        diagnostics.update(metadata, target_region_id=region["region_id"],
+            fixed_scene_active_layer_coverage_mode=self.coverage_mode,
+            fixed_scene_completed_layers=region["completed_layers"])
+        return reason, diagnostics
 
     def _entry(self, object_index: int, pose: np.ndarray) -> dict[str, object]:
         pose = np.asarray(pose, dtype=float)
@@ -223,7 +307,7 @@ class ActiveFloorPolicy:
 
     def _compute_mask(self, entry, support_z: float, grid) -> np.ndarray:
         xx, yy = grid
-        occupied = self._empty_mask()
+        occupied = np.zeros(xx.shape, dtype=bool)
         for normals, offsets in entry["volumes"]:
             if self.coverage_mode == "projected_footprint":
                 # Union the convex components, preserving gaps between them.
