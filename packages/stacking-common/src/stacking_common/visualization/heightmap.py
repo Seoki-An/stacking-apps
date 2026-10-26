@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from stacking_common.domain import ObjectInventory, State
+from stacking_common.domain import CompositeTargetGeometry, ObjectInventory, State
 from stacking_common.domain.geometry import transform_points
 
 
@@ -23,8 +23,14 @@ class HeightMapRenderer:
         self.inventory = inventory
         self.resolution = tuple(int(value) for value in resolution)
         self.margin = float(margin)
-        center = inventory.target.origin[:2]
-        span = max(inventory.target.width, inventory.target.length) + self.margin
+        target = inventory.target
+        if isinstance(target, CompositeTargetGeometry):
+            lower, upper = target.bounds
+            center = (lower[:2] + upper[:2]) / 2.
+            span = max(upper[:2] - lower[:2]) + self.margin
+        else:
+            center = target.origin[:2]
+            span = max(target.width, target.length) + self.margin
         self.xlim = _readonly(
             np.array([center[0] - span / 2.0, center[0] + span / 2.0])
         )
@@ -36,6 +42,13 @@ class HeightMapRenderer:
                 [(inventory.target.points, inventory.target.faces)]
             )
         )
+        self.target_footprint_mask = None
+        if isinstance(target, CompositeTargetGeometry):
+            x = np.linspace(*self.xlim, self.resolution[1])
+            y = np.linspace(*self.ylim, self.resolution[0])
+            xx, yy = np.meshgrid(x, y)
+            self.target_footprint_mask = _readonly(
+                (target.footprint_distance(np.c_[xx.ravel(), yy.ravel()]) <= 1e-9).reshape(self.resolution))
 
     def render(self, state: State) -> np.ndarray:
         if tuple(state.object_ids) != self.inventory.object_ids:

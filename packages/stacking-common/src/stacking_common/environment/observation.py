@@ -7,7 +7,7 @@ from threading import Lock
 
 import numpy as np
 
-from stacking_common.domain import ObjectInventory, StackObject, State
+from stacking_common.domain import CompositeTargetGeometry, ObjectInventory, StackObject, State
 
 from ._geometry import transform_points
 from .contracts import HeightMapRenderer
@@ -31,7 +31,7 @@ class ObservationSource(Protocol):
     object_surface_normals: np.ndarray
     object_surface_mask: np.ndarray
     object_physical_features: np.ndarray
-    target: ObservationTarget
+    target: ObservationTarget | CompositeTargetGeometry
     target_height_map: np.ndarray | None
     xlim: np.ndarray
     ylim: np.ndarray
@@ -108,6 +108,7 @@ class InventoryObservationAdapter:
             height_map_renderer.render_target(), "target height map"
         )
         self.height_map_renderer = height_map_renderer
+        self.target_footprint_mask = getattr(height_map_renderer, "target_footprint_mask", None)
 
     def snapshot_for_observation(self, state: State) -> State:
         # Array observations and platform height maps consume the current scene,
@@ -130,7 +131,12 @@ class InventoryObservationAdapter:
 
 @dataclass
 class Observation:
-    """One observation with immutable static geometry and owned scene arrays."""
+    """One observation with immutable static geometry and owned scene arrays.
+
+    Composite width/length/height/origin describe the AABB envelope only, never
+    containment. Component offsets partition the world-frame target mesh; the
+    footprint mask records actual XY occupancy, including gaps and notches.
+    """
 
     pending_points: np.ndarray
     pending_faces: np.ndarray
@@ -155,6 +161,12 @@ class Observation:
     object_surface_normals: np.ndarray | None = None
     object_surface_mask: np.ndarray | None = None
     object_physical_features: np.ndarray | None = None
+    target_kind: str = "single"
+    target_bounds: np.ndarray | None = None
+    target_component_ids: tuple[str, ...] = ()
+    target_component_point_offsets: np.ndarray | None = None
+    target_component_face_offsets: np.ndarray | None = None
+    target_footprint_mask: np.ndarray | None = None
 
 
 class _DeferredObservation(Observation):
@@ -266,6 +278,23 @@ class ArrayObservationBuilder:
         )
         self._xlim = _readonly_array(inventory.xlim, dtype=np.float32)
         self._ylim = _readonly_array(inventory.ylim, dtype=np.float32)
+        self._target_metadata = {}
+        if isinstance(inventory.target, CompositeTargetGeometry):
+            target = inventory.target
+            mask = getattr(inventory, "target_footprint_mask", None)
+            if mask is None:
+                x = np.linspace(*inventory.xlim, config.height_map_resolution[1])
+                y = np.linspace(*inventory.ylim, config.height_map_resolution[0])
+                xx, yy = np.meshgrid(x, y)
+                mask = (target.footprint_distance(np.c_[xx.ravel(), yy.ravel()]) <= 1e-9).reshape(xx.shape)
+            self._target_metadata = dict(
+                target_kind="composite", target_bounds=_readonly_array(target.bounds),
+                target_component_ids=target.component_ids,
+                target_component_point_offsets=_readonly_array(np.cumsum(
+                    [0, *[len(item.world_geometry.points) for item in target.components]])),
+                target_component_face_offsets=_readonly_array(np.cumsum(
+                    [0, *[len(item.world_geometry.faces) for item in target.components]])),
+                target_footprint_mask=_readonly_array(mask, dtype=bool))
 
     def defer(self, state: State) -> Observation:
         """Capture a branch-independent observation for later array access."""
@@ -335,6 +364,12 @@ class ArrayObservationBuilder:
             )
 
         target = inventory.target
+        if isinstance(target, CompositeTargetGeometry):
+            lower, upper = target.bounds
+            width, length, height = upper - lower
+            origin = np.r_[(lower[:2] + upper[:2]) / 2., lower[2]]
+        else:
+            width, length, height, origin = target.width, target.length, target.height, target.origin
         return Observation(
             pending_points=pending_points,
             pending_faces=pending_faces,
@@ -347,10 +382,10 @@ class ArrayObservationBuilder:
             action_mask=action_mask,
             scene_height_map=scene_height_map,
             target_height_map=target_height_map,
-            target_width=np.float32(target.width),
-            target_length=np.float32(target.length),
-            target_height=np.float32(target.height),
-            target_origin=np.asarray(target.origin, dtype=np.float32),
+            target_width=np.float32(width),
+            target_length=np.float32(length),
+            target_height=np.float32(height),
+            target_origin=np.asarray(origin, dtype=np.float32),
             height_map_xlim=self._xlim,
             height_map_ylim=self._ylim,
             object_ids=np.asarray(state.object_ids, dtype=np.int32),
@@ -359,6 +394,7 @@ class ArrayObservationBuilder:
             object_surface_normals=self._surface_normals,
             object_surface_mask=self._surface_mask,
             object_physical_features=self._physical_features,
+            **self._target_metadata,
         )
 
     def _action_mask(self, state: State) -> np.ndarray:

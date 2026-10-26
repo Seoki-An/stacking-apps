@@ -40,12 +40,12 @@ from stacking_common.visualization.heightmap import HeightMapRenderer
 
 
 def require_search_target(target) -> None:
-    """Reject composite targets until search policies support their union."""
+    """Keep end-to-end runs guarded until saved-run/viewer support is migrated."""
 
     if isinstance(target, CompositeTargetGeometry):
         raise NotImplementedError(
-            "composite targets support geometry, native posegen, and action generation; "
-            "MCTS rewards, observations, and viewer support are not implemented yet"
+            "composite targets support geometry, action generation, rewards, and observations; "
+            "full MCTS viewer and saved-run support are not implemented yet"
         )
 
 
@@ -288,7 +288,6 @@ class StackingSearchApplication:
     def _build_state_evaluators(self, inventory: ObjectInventory):
         """Use identical observation and reward profiles for search and commit."""
 
-        require_search_target(inventory.target)
         profile = self.environment_profile
         renderer = HeightMapRenderer(
             inventory,
@@ -312,6 +311,7 @@ class StackingSearchApplication:
             inventory,
             overlap_evaluator,
             profile.reward,
+            ground_z=float(self.posegen_profile.objective.get("ground_height", 0.)),
         )
         return observation_builder, reward_evaluator
 

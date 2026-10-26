@@ -4,6 +4,7 @@ from collections import OrderedDict
 
 import numpy as np
 
+from stacking_common.domain import CompositeTargetGeometry
 from stacking_common.domain.geometry import transform_points
 from stacking_common.visualization.heightmap import _rasterize_triangles
 
@@ -16,13 +17,32 @@ class SurfaceFlatness:
     Each reward worker owns its caches; no mutable state is shared by branches.
     """
 
-    def __init__(self, inventory):
+    def __init__(self, inventory, *, ground_z=0.):
         self.inventory = inventory
         target = inventory.target
-        self.floor_z = float(target.origin[2])
-        cells = (np.arange(32) + .5) / 32 - .5
-        self.x = target.origin[0] + target.width * cells
-        self.y = target.origin[1] + target.length * cells
+        self._grids = None
+        if isinstance(target, CompositeTargetGeometry):
+            from stacking_common.actions.target_regions import TargetRegions
+            regions = TargetRegions(target, ground_z)
+            self.floor_z = regions.ground_z
+            self._grids, weights = [], []
+            for region in regions.regions:
+                lower, upper, xx, yy = region.grid((32, 32))
+                mask = region.mask(xx, yy, self.floor_z).ravel()
+                if not mask.any():
+                    raise ValueError("surface reward grid misses a composite target region")
+                self._grids.append((xx[0], yy[:, 0], mask))
+                weights.extend([float(np.prod(upper - lower)) / 1024] * int(mask.sum()))
+            self._weights = np.asarray(weights)
+            self._size = len(weights)
+        else:
+            self.floor_z = float(target.origin[2])
+            cells = (np.arange(32) + .5) / 32 - .5
+            self.x = target.origin[0] + target.width * cells
+            self.y = target.origin[1] + target.length * cells
+            self._size = len(self.x) * len(self.y)
+            self._weights = np.ones(self._size)
+        self._weight_sum = float(self._weights.sum())
         self._objects = OrderedDict()
         self._scenes = OrderedDict()
 
@@ -44,8 +64,16 @@ class SurfaceFlatness:
         points, faces = self.inventory.objects[index].mesh_arrays()
         world = transform_points(points, pose)
         world[:, 2] -= self.floor_z
-        surface = np.zeros(len(self.x) * len(self.y))
-        _rasterize_triangles(surface, self.x, self.y, world[faces].reshape(-1, 3, 3))
+        if self._grids is None:
+            surface = np.zeros(self._size)
+            _rasterize_triangles(surface, self.x, self.y, world[faces].reshape(-1, 3, 3))
+        else:
+            pieces = []
+            for x, y, mask in self._grids:
+                values = np.zeros(len(x) * len(y))
+                _rasterize_triangles(values, x, y, world[faces].reshape(-1, 3, 3))
+                pieces.append(values[mask])
+            surface = np.concatenate(pieces)
         return self._remember(self._objects, key, surface, 128)
 
     def measure(self, state):
@@ -64,7 +92,7 @@ class SurfaceFlatness:
         if cached is not None:
             self._scenes.move_to_end(key)
             _, total, maximum = cached
-            return maximum, total / (len(self.x) * len(self.y))
+            return maximum, total / self._weight_sum
 
         parent = self._scenes.get(key[:-1]) if key else None
         if parent is not None:
@@ -74,14 +102,14 @@ class SurfaceFlatness:
             added = self._object_surface(key[-1])
             increase = np.maximum(added - previous, 0.)
             surface = previous + increase
-            total += float(increase.sum())
+            total += float((increase * self._weights).sum())
             maximum = max(maximum, float(added.max()))
         else:
             # Motion can expose previously hidden surfaces. Recompose the
             # envelope from current poses, reusing unchanged object projections.
-            surface = np.zeros(len(self.x) * len(self.y))
+            surface = np.zeros(self._size)
             for object_key in key:
                 np.maximum(surface, self._object_surface(object_key), out=surface)
-            total, maximum = float(surface.sum()), float(surface.max())
+            total, maximum = float((surface * self._weights).sum()), float(surface.max())
         self._remember(self._scenes, key, (surface, total, maximum), 64)
-        return maximum, total / surface.size
+        return maximum, total / self._weight_sum

@@ -21,7 +21,8 @@ execution workflows, and historical benchmarks.
 ## Composite target foundation
 
 As of 2026-10-26, common target geometry, the native posegen adapter, proposal
-sampling and active-floor checks accept multiple convex components.
+sampling, active-floor checks, rewards and observations accept multiple convex
+components.
 The existing single tapered-target YAML and its
 native construction remain unchanged. A composite is written under
 `inventory.yml` as `target.components`; each piece has a stable string `id`,
@@ -65,7 +66,8 @@ convex hull. Overlapping pieces may both contain a query point, but the union
 contains it only once. Component IDs identify geometric pieces, not independent
 construction goals or necessarily disconnected regions. There is deliberately
 no synthetic rectangular `width`, `origin`, `taper`, or summed `volume` on the
-composite; union-volume accounting belongs to the pending reward migration.
+composite; resolution-dependent union-volume accounting belongs to the overlap
+evaluator rather than the geometry contract.
 
 Direct native posegen can be used with an inventory loaded from this profile:
 
@@ -120,10 +122,53 @@ zero); elevated components requiring independent support are rejected for now.
 Single-target profiles retain their original target-origin ground convention.
 No additional YAML settings are needed.
 
+### Union rewards and observations
+
+`VoxelOverlapEvaluator` uses one shared voxel lattice for composite targets.
+It enumerates component-local bounding boxes and deduplicates occupied cells,
+without allocating the empty volume between distant components. The existing
+platform `overlap_resolution` controls the approximation; components too small
+to resolve are rejected instead of silently disappearing. Its `target_volume`
+is the voxel-union volume, not a sum of component volumes. Single-target
+evaluation retains its original lattice and analytic volume denominator.
+
+For composites, reward coverage is the union of all placed stones inside this
+target lattice. Overlapping DSFs and overlapping stones cannot earn duplicate
+coverage. The incremental reward uses newly covered volume divided by the
+fixed inventory mean stone volume, so adding a remote target does not dilute
+the reward for placing a stone. The historical `target_IoU` diagnostic remains
+a coverage fraction, not mathematical intersection-over-union. Rewards also
+report `target_volume` and `target_volume_method` (`voxel_union` or `analytic`).
+Previous coverage is evaluated at the current settled poses, as before.
+
+Directional and height heuristics select the nearest component footprint,
+breaking ties by distance to its vertex centroid and then component ID. This
+avoids pointing inward toward an aggregate center in a gap. These are local
+component heuristics, not decomposition-invariant union metrics. Surface
+flatness uses 32-by-32 grids per connected ground region, masks actual union
+footprints and weights cells by physical area; gaps and component overlap do
+not bias the mean. Native posegen's whole-stone-in-one-component constraint is
+unchanged even though geometric reward containment measures the true union.
+
+Observations preserve concatenated component meshes plus `target_kind`,
+`target_bounds`, stable component IDs, vertex/face offsets and an actual
+`target_footprint_mask`. For composites only, the legacy width/length/height
+and origin fields describe the axis-aligned bounding envelope (origin at its
+bottom center), **not** a rectangular target. Target height maps render the
+upper envelope of the separate meshes. Their global fixed-resolution grid
+can lose detail for widely separated regions; proposal sampling continues to
+use its own region-local grids. Learning records include the component data;
+existing learned models are not automatically made composite-aware.
+
+Direct `build_environment` and `build_committed_state_evaluator` calls can now
+observe and score composite scenes. Deferred observations and full observation
+records retain the component metadata. This is not yet a migration of `.stack`
+run contexts, checkpoints or the operations viewer.
+
 This does **not** enable full composite-target MCTS runs yet. The full search
-builders and both MCTS CLIs reject these targets explicitly until rewards,
-observation/viewer geometry and saved-run support are migrated. Direct action
-generation is available for testing with a suitable orientation provider.
+builders and both MCTS CLIs reject these targets explicitly until viewer and
+saved-run support are migrated. Direct action generation is available for
+testing with a suitable orientation provider.
 The independent single-target shape examples remain supported.
 Union-aware native seam containment is also deferred; no stacking-core change
 is needed for this initial adapter.

@@ -23,6 +23,18 @@ def encode_heightmap_observation(
         "height_map_xlim": _array(observation.height_map_xlim, np.float32),
         "height_map_ylim": _array(observation.height_map_ylim, np.float32),
     }
+    if observation.target_kind == "composite":
+        # Preserve the geometry that scalar envelope dimensions cannot encode.
+        values.update({
+            "target_is_composite": np.array(True),
+            "target_bounds": _array(observation.target_bounds, np.float32),
+            "target_points": _array(observation.target_points, np.float32),
+            "target_faces": _array(observation.target_faces, np.int32),
+            "target_component_ids": np.asarray(observation.target_component_ids),
+            "target_component_point_offsets": _array(observation.target_component_point_offsets, np.int32),
+            "target_component_face_offsets": _array(observation.target_component_face_offsets, np.int32),
+            "target_footprint_mask": _array(observation.target_footprint_mask, bool),
+        })
     if observation.object_ids is None:
         return values
 

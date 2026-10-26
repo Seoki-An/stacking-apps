@@ -5,7 +5,7 @@ from typing import Callable, Protocol, Sequence
 
 import numpy as np
 
-from stacking_common.domain import StackObject, State
+from stacking_common.domain import CompositeTargetGeometry, StackObject, State
 
 from ._geometry import exposed_surface_normal, quaternion_matrix
 from .overlap import OverlapEvaluator
@@ -19,7 +19,7 @@ class RewardTarget(Protocol):
 
 class RewardInventory(Protocol):
     objects: Sequence[StackObject]
-    target: RewardTarget
+    target: RewardTarget | CompositeTargetGeometry
 
     def initial_pose(self, object_id: int) -> np.ndarray:
         """Return an object's pose before it enters the placed scene."""
@@ -104,6 +104,8 @@ class StackingReward:
         overlap_evaluator: OverlapEvaluator,
         config: RewardConfig,
         support_evaluator: SupportEvaluator | None = None,
+        *,
+        ground_z: float = 0.,
     ) -> None:
         self.inventory = inventory
         self.overlap_evaluator = overlap_evaluator
@@ -114,15 +116,21 @@ class StackingReward:
         volumes = np.asarray([obj.volume for obj in inventory.objects], dtype=float)
         if not len(volumes) or np.any(~np.isfinite(volumes)) or np.any(volumes <= 0):
             raise ValueError("reward normalization requires finite positive inventory volumes")
-        target_volume = float(inventory.target.volume)
+        self._composite = isinstance(inventory.target, CompositeTargetGeometry)
+        if self._composite and (not hasattr(overlap_evaluator, "target_volume")
+                                or not callable(getattr(overlap_evaluator, "scene_coverage", None))):
+            raise TypeError("composite rewards require union target_volume and scene_coverage evaluation")
+        target_volume = float(overlap_evaluator.target_volume if self._composite else inventory.target.volume)
         if not np.isfinite(target_volume) or target_volume <= 0:
             raise ValueError("reward normalization requires a finite positive target volume")
         self.mean_object_volume = float(volumes.mean())
+        self.target_volume = target_volume
         self.target_overlap_increment_scale = target_volume / self.mean_object_volume
         self._surface = None
         if config.weights.surface_flatness != 0.:
             from .surface import SurfaceFlatness
-            self._surface = SurfaceFlatness(inventory)
+            self._surface = (SurfaceFlatness(inventory, ground_z=ground_z) if self._composite
+                             else SurfaceFlatness(inventory))
 
     def compute(self, state: State) -> tuple[float, dict[str, object]]:
         if not state.placed_object_indices or not state.action_history:
@@ -133,7 +141,6 @@ class StackingReward:
         inventory_ids = [int(stack_object.object_id) for stack_object in objects]
         if state.object_ids != inventory_ids:
             raise ValueError("state inventory does not match reward inventory")
-        target = inventory.target
         overlap_evaluator = self.overlap_evaluator
         sequence = state.placed_object_indices
         action = state.action_history[-1]
@@ -158,15 +165,17 @@ class StackingReward:
             clipped = True
 
         previous_overlap = 0.0
+        previous_placements = []
         for index in sequence[:-1]:
             stack_object = objects[index]
             pose = state.object_poses.get(
                 stack_object.object_id,
                 inventory.initial_pose(stack_object.object_id),
             )
-            previous_overlap += float(
-                overlap_evaluator.target_coverage(stack_object, pose)
-            )
+            if self._composite:
+                previous_placements.append((stack_object, pose))
+            else:
+                previous_overlap += float(overlap_evaluator.target_coverage(stack_object, pose))
 
         placed_object = objects[placed_index]
         placed_pose = state.object_poses.get(
@@ -176,8 +185,12 @@ class StackingReward:
         containment = float(
             overlap_evaluator.object_containment(placed_object, placed_pose)
         )
-        placed_overlap = containment * placed_object.volume / target.volume
-        target_overlap = previous_overlap + placed_overlap
+        if self._composite:
+            previous_overlap = overlap_evaluator.scene_coverage(previous_placements)
+            target_overlap = overlap_evaluator.scene_coverage([*previous_placements, (placed_object, placed_pose)])
+        else:
+            placed_overlap = containment * placed_object.volume / self.target_volume
+            target_overlap = previous_overlap + placed_overlap
         overlap_delta = target_overlap - previous_overlap
         overlap_increment = max(overlap_delta, 0.0)
         normalized_overlap_increment = overlap_increment * self.target_overlap_increment_scale
@@ -241,6 +254,8 @@ class StackingReward:
             "target_IoU_increment": overlap_increment,
             "target_IoU_increment_normalized": normalized_overlap_increment,
             "target_overlap_increment_scale": self.target_overlap_increment_scale,
+            "target_volume": self.target_volume,
+            "target_volume_method": "voxel_union" if self._composite else "analytic",
             "mean_object_volume": self.mean_object_volume,
             "target_overlap_increment_reward": weights.target_overlap_increment * normalized_overlap_increment,
             "object_IoU": containment,
@@ -274,10 +289,10 @@ class StackingReward:
             placed_object.object_id,
             self.inventory.initial_pose(placed_object.object_id),
         )
-        target = self.inventory.target
-        z = float(pose[2]) - float(target.origin[2])
+        origin, height = self._target_reference(pose)
+        z = float(pose[2]) - float(origin[2])
         lowness = 1.0 - float(
-            np.clip(z / max(float(target.height), 1e-6), 0.0, 1.0)
+            np.clip(z / max(float(height), 1e-6), 0.0, 1.0)
         )
         return float(volume_score * lowness)
 
@@ -302,9 +317,8 @@ class StackingReward:
         if heading_norm < 0.05:
             inward = 0.5
         else:
-            direction = np.asarray(
-                self.inventory.target.origin[:2], dtype=float
-            ) - np.asarray(pose[:2], dtype=float)
+            origin, _ = self._target_reference(pose)
+            direction = np.asarray(origin[:2], dtype=float) - np.asarray(pose[:2], dtype=float)
             direction_norm = float(np.linalg.norm(direction))
             if direction_norm < 1e-9:
                 inward = 0.5
@@ -317,6 +331,20 @@ class StackingReward:
                     np.clip((dot - minimum) / (1.0 - minimum), 0.0, 1.0)
                 )
         return upward * inward
+
+    def _target_reference(self, pose):
+        target = self.inventory.target
+        if not self._composite:
+            return target.origin, target.height
+        # A convex component's vertex centroid lies inside it. An aggregate
+        # center can lie in a gap/notch and incorrectly reward outward tilts.
+        component = min(target.components, key=lambda item: (
+            float(item.footprint_distance([pose[:2]])[0]),
+            float(np.linalg.norm(item.world_geometry.points.mean(0)[:2] - pose[:2])),
+            item.component_id))
+        lower, upper = component.bounds
+        center = component.world_geometry.points.mean(0)
+        return np.r_[center[:2], lower[2]], upper[2] - lower[2]
 
 
 def _contact_support_summary(

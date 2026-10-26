@@ -26,14 +26,12 @@ def composite_target():
     ("build_mcts", ()),
     ("build_search_environments", ()),
     ("build_parallel_transition_evaluator", (2,)),
-    ("build_environment", (object(),)),
-    ("build_committed_state_evaluator", ()),
 ])
 def test_composite_search_stops_before_native_allocation(composite_target, method, extra):
     # No profiles or native backend are needed: reject before accessing them.
     application = StackingSearchApplication()
     inventory = SimpleNamespace(target=composite_target)
-    with pytest.raises(NotImplementedError, match="MCTS rewards, observations"):
+    with pytest.raises(NotImplementedError, match="full MCTS viewer and saved-run"):
         getattr(application, method)(inventory, *extra)
 
 
@@ -82,4 +80,4 @@ def test_excavator_cli_rejects_composite_before_creating_run(
         "--save-run", str(destination),
     ]) == 2
     assert not destination.exists()
-    assert "MCTS rewards, observations, and viewer support" in capsys.readouterr().err
+    assert "full MCTS viewer and saved-run support" in capsys.readouterr().err

@@ -6,7 +6,7 @@ from typing import Protocol
 
 import numpy as np
 
-from stacking_common.domain import StackObject, TargetGeometry
+from stacking_common.domain import CompositeTargetGeometry, StackObject, TargetRegion
 from stacking_common.domain.geometry import inverse_transform_points, transform_points
 
 
@@ -29,15 +29,22 @@ class VoxelOverlapEvaluator:
 
     _CACHE_SIZE = 1024
 
-    def __init__(self, target: TargetGeometry, resolution: float) -> None:
+    def __init__(self, target: TargetRegion, resolution: float) -> None:
         self.target = target
         self.resolution = float(resolution)
         if not np.isfinite(self.resolution) or self.resolution <= 0.0:
             raise ValueError("overlap resolution must be positive and finite")
-        self._axes, self._lattice_indices, self._grid_points = self._voxel_centers()
+        self._composite = isinstance(target, CompositeTargetGeometry)
+        if self._composite:
+            self._grid_points = self._union_voxel_centers()
+            self.target_volume = len(self._grid_points) * self.resolution**3
+        else:
+            self._axes, self._lattice_indices, self._grid_points = self._voxel_centers()
+            self.target_volume = float(target.volume)
         # Geometry and the target grid are fixed for this evaluator. Keep exact
         # object/pose intersections across CEM re-ranking and reward queries.
         self._intersections = OrderedDict()
+        self._occupancies = OrderedDict()
         self._cache_lock = Lock()
 
     def object_containment(
@@ -50,9 +57,64 @@ class VoxelOverlapEvaluator:
         self, stack_object: StackObject, pose: np.ndarray
     ) -> float:
         intersection = self._intersection_volume(stack_object, pose)
-        return float(np.clip(intersection / self.target.volume, 0.0, 1.0))
+        return float(np.clip(intersection / self.target_volume, 0.0, 1.0))
 
-    def _voxel_centers(self) -> np.ndarray:
+    def scene_coverage(self, placements) -> float:
+        """Union coverage of (object, pose) pairs; overlapping stones count once."""
+        occupied = np.zeros(len(self._grid_points), dtype=bool)
+        for obj, pose in placements:
+            occupied[self._occupied_rows(obj, pose)] = True
+        return float(np.clip(occupied.sum() * self.resolution**3 / self.target_volume, 0., 1.))
+
+    def _union_voxel_centers(self):
+        """One shared lattice, enumerated only inside component bounding boxes.
+
+        Integer-cell deduplication makes overlap and decomposition irrelevant.
+        Never allocate the potentially enormous empty box between components.
+        """
+        origin = self.target.bounds[0]
+        retained = []
+        for component in self.target.components:
+            lower, upper = component.bounds
+            if np.any(upper - lower < self.resolution):
+                raise ValueError("overlap resolution must not exceed a target component dimension")
+            start = np.ceil((lower - origin) / self.resolution - .5 - 1e-9).astype(np.int64)
+            stop = np.floor((upper - origin) / self.resolution - .5 + 1e-9).astype(np.int64) + 1
+            shape = stop - start
+            size = int(shape[0]) * int(shape[1]) * int(shape[2])
+            count = 0
+            for offset in range(0, size, 65536):
+                flat = np.arange(offset, min(offset + 65536, size))
+                cells = np.column_stack(np.unravel_index(flat, tuple(shape))) + start
+                points = origin + (cells + .5) * self.resolution
+                cells = cells[component.contains(points)]
+                retained.append(cells)
+                count += len(cells)
+            if not count:
+                raise ValueError("overlap grid misses a target component; reduce overlap resolution")
+        cells = np.unique(np.concatenate(retained), axis=0)
+        return origin + (cells + .5) * self.resolution
+
+    def _occupied_rows(self, stack_object, pose):
+        pose = np.array(pose, dtype=float, copy=True)
+        key = (id(stack_object), pose.shape, pose.tobytes())
+        with self._cache_lock:
+            cached = self._occupancies.get(key)
+            if cached is not None:
+                self._occupancies.move_to_end(key)
+                return cached[1]
+        rows = self._candidate_grid_rows(stack_object, pose)
+        local = inverse_transform_points(self._grid_points[rows], pose)
+        rows = rows[stack_object.contains_local_points(local, tolerance=self.resolution * 1e-6)]
+        rows.setflags(write=False)
+        with self._cache_lock:
+            self._occupancies[key] = (stack_object, rows)
+            self._occupancies.move_to_end(key)
+            if len(self._occupancies) > self._CACHE_SIZE:
+                self._occupancies.popitem(last=False)
+        return rows
+
+    def _voxel_centers(self):
         points = self.target.points
         minimum = np.min(points, axis=0)
         maximum = np.max(points, axis=0)
@@ -98,6 +160,8 @@ class VoxelOverlapEvaluator:
     def _compute_intersection_volume(
         self, stack_object: StackObject, pose: np.ndarray
     ) -> float:
+        if self._composite:
+            return len(self._occupied_rows(stack_object, pose)) * self.resolution**3
         points = self._candidate_grid_points(stack_object, pose)
         local_points = inverse_transform_points(points, pose)
         inside = stack_object.contains_local_points(
@@ -108,6 +172,9 @@ class VoxelOverlapEvaluator:
     def _candidate_grid_points(
         self, stack_object: StackObject, pose: np.ndarray
     ) -> np.ndarray:
+        return self._grid_points[self._candidate_grid_rows(stack_object, pose)]
+
+    def _candidate_grid_rows(self, stack_object, pose):
         """Conservatively crop the original grid, preserving its voxel centers."""
         lower = np.full(3, np.inf)
         upper = np.full(3, -np.inf)
@@ -118,7 +185,7 @@ class VoxelOverlapEvaluator:
             margin = float(np.min(np.einsum(
                 'ij,ij->i', normals, face_centers - center)))
             if margin <= 0.0:
-                return self._grid_points
+                return np.arange(len(self._grid_points))
             # A plane tolerance can extend acute corners much farther than
             # the tolerance itself. Expanding about an interior point by
             # 1 + tolerance/min_face_distance encloses the relaxed polytope.
@@ -127,11 +194,18 @@ class VoxelOverlapEvaluator:
                 1.0 + 2.0 * tolerance / margin)
             world = transform_points(expanded, pose)
             if not np.all(np.isfinite(world)):
-                return self._grid_points
+                return np.arange(len(self._grid_points))
             lower = np.minimum(lower, np.min(world, axis=0))
             upper = np.maximum(upper, np.max(world, axis=0))
         lower -= self.resolution
         upper += self.resolution
+        if self._composite:
+            # Union cells are lexicographically sorted; crop X before Y/Z.
+            start = np.searchsorted(self._grid_points[:, 0], lower[0], side="left")
+            stop = np.searchsorted(self._grid_points[:, 0], upper[0], side="right")
+            rows = np.arange(start, stop)
+            points = self._grid_points[rows]
+            return rows[np.all((points >= lower) & (points <= upper), axis=1)]
         # The points within these bounds form one lattice sub-block. Its kept
         # rows, in lattice order, equal the full-grid mask in the same order.
         block = tuple(
@@ -140,4 +214,4 @@ class VoxelOverlapEvaluator:
             for axis, low, high in zip(self._axes, lower, upper)
         )
         rows = self._lattice_indices[block].ravel()
-        return self._grid_points[rows[rows >= 0]]
+        return rows[rows >= 0]
