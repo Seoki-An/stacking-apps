@@ -162,13 +162,41 @@ existing learned models are not automatically made composite-aware.
 
 Direct `build_environment` and `build_committed_state_evaluator` calls can now
 observe and score composite scenes. Deferred observations and full observation
-records retain the component metadata. This is not yet a migration of `.stack`
-run contexts, checkpoints or the operations viewer.
+records retain the component metadata.
+
+### Saved runs, target replay and checkpoint branching
+
+Composite target headers use MCTS artifact schema **2** and contain local
+component points, triangle faces, sharpness, stable IDs and rigid poses, plus
+the display structure offset. The SQLite `.stack` container remains version 1.
+Single-target artifacts retain schema 1 and their existing target payload;
+older files still open without conversion. Older application builds correctly
+reject composite schema 2 rather than displaying a false single box.
+
+Composite planning contexts additionally record `profiles.target_geometry`.
+It is part of the context hash referenced by each checkpoint and motion plan.
+Resolved target profiles are also retained and can be reconstructed without
+reading current YAML. Single-target context layouts/hashes are unchanged.
+Replay prefers the explicit recorded meshes. Component edits change the
+context hash and are rejected by resume validation.
+
+Both operation viewers render component shells separately in one target actor,
+without bridging gaps or taking a global convex hull. Shared boundaries and
+overlapping component surfaces can remain visible: this is a rendering of the
+DSF decomposition, not a Boolean-remeshed union surface. Search-to-planning
+poses transform all components together. Tests cover reopening, candidate and
+robot-motion replay, retained state/context, and branching both planning and
+search-only checkpoints into a new file while preserving the source bytes.
+These are persistence/replay tests, not native composite-search validation.
+
+The excavator's optional score-map inspector still requires migration to
+region-local grids; composite requests report this explicitly without blocking
+the main viewer. No robot execution is enabled by opening or branching a file.
 
 This does **not** enable full composite-target MCTS runs yet. The full search
-builders and both MCTS CLIs reject these targets explicitly until viewer and
-saved-run support are migrated. Direct action generation is available for
-testing with a suitable orientation provider.
+builders and both MCTS CLIs remain gated pending end-to-end composite-search
+validation. Direct action generation is available for testing with a suitable
+orientation provider.
 The independent single-target shape examples remain supported.
 Union-aware native seam containment is also deferred; no stacking-core change
 is needed for this initial adapter.

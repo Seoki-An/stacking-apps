@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
 from pathlib import Path
 from typing import Mapping
 
-from stacking_common.domain import DirectionalTaper
 from stacking_common.visualization.contracts import (
     CameraView,
     ContactMarker,
@@ -17,7 +15,6 @@ from stacking_common.visualization.contracts import (
     SceneSnapshot,
     SceneTimeline,
     ScoreField,
-    TargetVolume,
 )
 from stacking_common.visualization.mcts import (
     CandidateOutcome,
@@ -26,6 +23,7 @@ from stacking_common.visualization.mcts import (
     MCTSDebugStep,
     SceneMotionDiagnostic,
 )
+from .target import encode_target as _encode_target, decode_target as _decode_target
 
 
 class MCTSDebugArtifactStore:
@@ -63,10 +61,14 @@ def decode_mcts_debug(values: Mapping[str, object]) -> MCTSDebugArtifact:
     """Decode the versioned common artifact schema."""
 
     version = int(values.get("schema_version", 0))
-    if version != 1:
+    if version not in (1, 2):
         raise ValueError("unsupported MCTS debug artifact schema version")
     frame_id = str(values["frame_id"])
     raw_target = values.get("target")
+    if raw_target is not None:
+        raw_target = _mapping(raw_target, "target")
+    if version == 1 and raw_target is not None and raw_target.get("kind") == "composite":
+        raise ValueError("composite targets require MCTS artifact schema version 2")
     raw_camera = values.get("camera")
     return MCTSDebugArtifact(
         schema_version=version,
@@ -123,28 +125,6 @@ def decode_mcts_step(
     """Decode one independently stored MCTS step."""
 
     return _decode_step(values, str(frame_id))
-
-
-def _encode_target(value: TargetVolume) -> dict[str, object]:
-    return {
-        "origin": value.origin.tolist(),
-        "width": value.width,
-        "length": value.length,
-        "height": value.height,
-        "structure_offset": value.structure_offset.tolist(),
-        "taper": asdict(value.taper),
-    }
-
-
-def _decode_target(values: Mapping[str, object]) -> TargetVolume:
-    return TargetVolume(
-        origin=values["origin"],
-        width=values["width"],
-        length=values["length"],
-        height=values["height"],
-        structure_offset=values.get("structure_offset", [0.0, 0.0, 0.0]),
-        taper=DirectionalTaper(**_mapping(values.get("taper", {}), "target taper")),
-    )
 
 
 def _encode_camera(value: CameraView) -> dict[str, object]:

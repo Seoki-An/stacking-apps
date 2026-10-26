@@ -533,6 +533,7 @@ class StackRunStore:
             target=artifact.target,
             camera=artifact.camera,
             steps=(),
+            schema_version=artifact.schema_version,
         )
         writer = cls.create_mcts(path, header, metadata=metadata)
         try:

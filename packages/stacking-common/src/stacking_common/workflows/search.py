@@ -40,12 +40,12 @@ from stacking_common.visualization.heightmap import HeightMapRenderer
 
 
 def require_search_target(target) -> None:
-    """Keep end-to-end runs guarded until saved-run/viewer support is migrated."""
+    """Keep production entry points gated until composite end-to-end validation."""
 
     if isinstance(target, CompositeTargetGeometry):
         raise NotImplementedError(
-            "composite targets support geometry, action generation, rewards, and observations; "
-            "full MCTS viewer and saved-run support are not implemented yet"
+            "composite targets support geometry, evaluation, and saved-run replay; "
+            "full composite MCTS remains gated pending end-to-end validation"
         )
 
 

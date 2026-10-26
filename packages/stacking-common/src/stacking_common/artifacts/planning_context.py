@@ -89,6 +89,11 @@ def build_planning_context(application, inventory, pick_scene, solver, runtime):
     }
     profiles.update(native_solver=_values(solver), runtime=_values(runtime),
                     pick_scene=pick_scene.artifact_metadata())
+    from stacking_common.domain import CompositeTargetGeometry
+    if isinstance(inventory.target, CompositeTargetGeometry):
+        from .target import encode_target
+        from stacking_common.visualization import target_display
+        profiles["target_geometry"] = encode_target(target_display(inventory.target))
     geometry = tuple(FixedCollisionGeometry(
         item.obstacle_id, "box", np.r_[item.center, 0., 0., 0., 1.],
         planning.obstacle_friction, tuple(item.size),

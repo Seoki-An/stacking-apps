@@ -29,6 +29,8 @@ from stacking_common.visualization import (
     MCTSDebugStep,
     SceneObjectPose,
     TargetVolume,
+    CompositeTargetVolume,
+    TargetDisplay,
 )
 
 
@@ -106,7 +108,7 @@ class OperationsFrame:
     overlays: tuple[RenderObject, ...]
     contacts: tuple[ContactMarker, ...]
     forces: tuple[ForceMarker, ...]
-    target: TargetVolume | None
+    target: TargetDisplay | None
     camera: CameraView | None
     active_candidate_id: str | None
     timeline_frame: int
@@ -573,7 +575,7 @@ class OperationsController:
             robot_parts=robot_parts,
         )
 
-    def _planning_target(self, record) -> TargetVolume | None:
+    def _planning_target(self, record) -> TargetDisplay | None:
         if self.artifact is None:
             return None
         target = self.artifact.target
@@ -585,6 +587,12 @@ class OperationsController:
         transform = np.asarray(transform, dtype=float)
         if transform.shape != (7,) or not np.all(np.isfinite(transform)):
             return target
+        if isinstance(target, CompositeTargetVolume):
+            from stacking_common.domain import TargetComponent
+            transform = compose_poses(transform, np.r_[target.structure_offset, 0., 0., 0., 1.])
+            return CompositeTargetVolume(tuple(TargetComponent(
+                item.component_id, item.geometry, compose_poses(transform, item.pose))
+                for item in target.components))
         return TargetVolume(
             origin=target.origin + transform[:3],
             width=target.width,

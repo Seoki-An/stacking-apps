@@ -25,7 +25,6 @@ from stacking_common.search import (
 )
 from stacking_common.visualization import (
     MCTSDebugArtifact,
-    TargetVolume,
     project_mcts_step,
 )
 from stacking_common.workflows.mcts_reporting import (
@@ -584,16 +583,10 @@ def _build_root_environment(application, inventory, transition_backend):
 
 
 def _debug_header(inventory, *, frame_id: str) -> MCTSDebugArtifact:
-    target = inventory.target
+    from stacking_common.visualization import target_display
     return MCTSDebugArtifact(
         frame_id=frame_id,
-        target=TargetVolume(
-            origin=target.origin,
-            width=target.width,
-            length=target.length,
-            height=target.height,
-            taper=target.taper,
-        ),
+        target=target_display(inventory.target),
         steps=(),
     )
 

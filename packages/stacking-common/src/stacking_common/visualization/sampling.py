@@ -38,6 +38,9 @@ def initial_pose_score_view(inventory, state, object_id, initial_pose, *, planar
     reconstruction with normal floor gates, not a replay of retries or the
     multi-orientation normalization used during search.
     """
+    from stacking_common.domain import CompositeTargetGeometry
+    if isinstance(inventory.target, CompositeTargetGeometry):
+        raise ValueError("Composite target rendering is supported; per-region score-map inspection is not yet available")
     if settings.get('strategy') or not settings.get('score') or not (settings.get('floor') or settings.get('floor_fill')):
         raise ValueError('Score inspection requires pre-region sampler settings')
     removed_scores = {'open_area', 'frontier'}

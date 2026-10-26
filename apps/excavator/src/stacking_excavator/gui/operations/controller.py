@@ -7,9 +7,9 @@ import numpy as np
 from scipy.spatial.transform import Rotation, Slerp
 
 from stacking_common.artifacts import StackRunStore
-from stacking_common.domain import DirectionalTaper
+from stacking_common.artifacts.target import target_from_context
 from stacking_common.profiles.visualization import SceneBox
-from stacking_common.visualization import MCTSDebugStep, SceneSnapshot, TargetVolume
+from stacking_common.visualization import MCTSDebugStep, SceneSnapshot
 from stacking_common.visualization.operations import (
     OperationsController as CommonOperationsController, OperationsFrame, RenderObject,
 )
@@ -20,16 +20,7 @@ from stacking_excavator.planning.replay import recorded_planning_profile, verify
 
 def recorded_target(context, artifact_target):
     """Display the physical target recorded by runs predating artifact taper."""
-    values = context.profiles["inventory_profile"]["target"]
-    return TargetVolume(
-        origin=values["origin"],
-        width=values["width"],
-        length=values["length"],
-        height=values["height"],
-        structure_offset=(np.zeros(3) if artifact_target is None
-                          else artifact_target.structure_offset),
-        taper=DirectionalTaper(**values.get("taper", {})),
-    )
+    return target_from_context(context, artifact_target)
 
 
 
@@ -87,7 +78,7 @@ class OperationsController(CommonOperationsController):
     def initial_pose_score_view(self):
         """Inspect recorded settings and the pre-search scene, independent of YAML."""
         from stacking_common.assets import ObjectAssetLoader
-        from stacking_common.domain import State, TargetGeometry
+        from stacking_common.domain import State
         from stacking_common.visualization.sampling import initial_pose_score_view
 
         step, candidate = self.current_step, self.active_candidate
@@ -112,11 +103,11 @@ class OperationsController(CommonOperationsController):
             return self._score_view[1]
         if self._score_inventory is None or self._score_inventory[0] != digest:
             profile = context.profiles['inventory_profile']
-            target = dict(profile['target'])
-            target['taper'] = DirectionalTaper(**target['taper'])
+            from stacking_common.profiles.inventory import target_profile_from_record
+            target = target_profile_from_record(profile['target']).geometry()
             ids = tuple(map(int, profile['object_ids']))
             inventory = ObjectAssetLoader(self.repository / profile['model_directory'],
-                profile['density'], TargetGeometry(**target),
+                profile['density'], target,
                 dict(profile['density_overrides'])).load(ids,
                     {oid: np.array([0., 0., 0., 0., 0., 0., 1.]) for oid in ids})
             self._score_inventory = (digest, inventory)

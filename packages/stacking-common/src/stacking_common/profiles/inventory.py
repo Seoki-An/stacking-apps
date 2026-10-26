@@ -221,6 +221,20 @@ def _target_profile(
     return CompositeTargetProfile(tuple(profiles))
 
 
+def target_profile_from_record(values: Mapping[str, object]) -> TargetProfile | CompositeTargetProfile:
+    """Rehydrate resolved context values (radians), not the YAML input schema."""
+    if "components" not in values:
+        return TargetProfile(**{**values, "support_overlap": values.get("support_overlap", 0.),
+                                "taper": DirectionalTaper(**values.get("taper", {}))})
+    if set(values) != {"components"}:
+        raise ValueError("target components cannot be mixed with single-target fields")
+    return CompositeTargetProfile(tuple(TargetComponentProfile(
+        component_id=item["component_id"],
+        shape=None if item.get("shape") is None else target_profile_from_record(item["shape"]),
+        nodes=item.get("nodes"), pose=item["pose"],
+    ) for item in values["components"]))
+
+
 def _shape_profile(values: Mapping[str, object]) -> TargetProfile:
     taper = _mapping(values, "taper_degrees")
     return TargetProfile(

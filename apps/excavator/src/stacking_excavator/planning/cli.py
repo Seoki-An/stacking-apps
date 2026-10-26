@@ -15,7 +15,6 @@ from stacking_common.artifacts.planning_context import build_planning_context, _
 from stacking_common.profiles.native import load_native_solver_profile
 from stacking_common.planning import PickSceneSnapshot
 from stacking_common.search import EvaluationFidelity, MCTSNode, MCTSSession
-from stacking_common.visualization import TargetVolume
 from stacking_common.visualization.mcts import MCTSDebugArtifact, project_mcts_step
 from stacking_common.workflows.process import supervise_planning
 from stacking_common.workflows.search import require_search_target
@@ -180,11 +179,10 @@ def run(args):
     solver = load_native_solver_profile(application.solver_profiles.grasp, application.solver_profiles.motion)
     context = planning_context(application, inventory, scene, solver, runtime)
     if checkpoint is None:
-        target = inventory.target
+        from stacking_common.visualization import target_display
         writer = StackRunStore.create_mcts(args.save_run, MCTSDebugArtifact(
             application.planning_profile.world_T_stack.child_frame, (),
-            TargetVolume(target.origin, target.width, target.length, target.height,
-                         taper=target.taper)),
+            target_display(inventory.target)),
             metadata={"platform": "excavator", "mode": "search" if args.search_only else "planning",
                       "config": {"path": str((args.config or args.repository / "apps/excavator/config/mcts_cpu.yml").resolve())}})
         writer.append_run_context(context)

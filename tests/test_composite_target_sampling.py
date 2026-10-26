@@ -319,5 +319,5 @@ def test_platform_can_build_composite_generator_but_full_mcts_stays_guarded():
     app = TabletopApplication.from_repository(Path(__file__).resolve().parents[1])
     gen = app.build_action_generator(inv, Solver())
     assert gen.planar_sampler._composite is not None
-    with pytest.raises(NotImplementedError, match="full MCTS viewer and saved-run"):
+    with pytest.raises(NotImplementedError, match="full composite MCTS remains gated"):
         app.build_mcts(inv)

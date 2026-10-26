@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from stacking_common.domain import DirectionalTaper, TargetGeometry
+from stacking_common.domain import CompositeTargetGeometry, DirectionalTaper, TargetComponent, TargetGeometry
 
 
 @dataclass(frozen=True)
@@ -72,6 +72,38 @@ class TargetVolume:
             taper=self.taper,
             support_overlap=0.0,
         ).points
+
+
+@dataclass(frozen=True)
+class CompositeTargetVolume:
+    """Explicit local component meshes/poses, never a hull across components."""
+
+    components: tuple[TargetComponent, ...]
+    structure_offset: np.ndarray = field(default_factory=lambda: np.zeros(3))
+
+    def __post_init__(self):
+        geometry = CompositeTargetGeometry(tuple(self.components))
+        object.__setattr__(self, "components", geometry.components)
+        object.__setattr__(self, "structure_offset", _vector3(self.structure_offset, "target structure offset"))
+
+    @property
+    def points(self):
+        return CompositeTargetGeometry(self.components).points + self.structure_offset
+
+    @property
+    def faces(self):
+        return CompositeTargetGeometry(self.components).faces
+
+
+TargetDisplay = TargetVolume | CompositeTargetVolume
+
+
+def target_display(target, *, structure_offset=(0., 0., 0.)) -> TargetDisplay:
+    """Project physical target geometry without changing the legacy shell."""
+    if isinstance(target, CompositeTargetGeometry):
+        return CompositeTargetVolume(target.components, structure_offset)
+    return TargetVolume(target.origin, target.width, target.length, target.height,
+                        structure_offset=structure_offset, taper=target.taper)
 
 
 @dataclass(frozen=True)

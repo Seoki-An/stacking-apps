@@ -22,7 +22,8 @@ from .contracts import (
     SceneSnapshot,
     SceneTimeline,
     ScoreField,
-    TargetVolume,
+    CompositeTargetVolume,
+    TargetDisplay,
 )
 
 
@@ -306,7 +307,7 @@ class MCTSDebugArtifact:
 
     frame_id: str
     steps: tuple[MCTSDebugStep, ...]
-    target: TargetVolume | None = None
+    target: TargetDisplay | None = None
     camera: CameraView | None = None
     schema_version: int = 1
 
@@ -315,7 +316,7 @@ class MCTSDebugArtifact:
         steps = tuple(self.steps)
         if not frame_id:
             raise ValueError("MCTS debug artifact frame ID is required")
-        if int(self.schema_version) != 1:
+        if int(self.schema_version) not in (1, 2):
             raise ValueError("unsupported MCTS debug artifact schema version")
         if not all(isinstance(value, MCTSDebugStep) for value in steps):
             raise TypeError("MCTS debug artifact steps must be MCTSDebugStep values")
@@ -326,7 +327,8 @@ class MCTSDebugArtifact:
             raise ValueError("MCTS debug step numbers must be unique")
         object.__setattr__(self, "frame_id", frame_id)
         object.__setattr__(self, "steps", steps)
-        object.__setattr__(self, "schema_version", 1)
+        object.__setattr__(self, "schema_version", 2 if isinstance(self.target, CompositeTargetVolume)
+                           else int(self.schema_version))
 
 
 def project_mcts_step(

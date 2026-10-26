@@ -10,6 +10,9 @@ from .contracts import (
     SceneTimeline,
     ScoreField,
     TargetVolume,
+    CompositeTargetVolume,
+    TargetDisplay,
+    target_display,
 )
 from .mcts import (
     CandidateOutcome,
@@ -39,5 +42,8 @@ __all__ = [
     "SceneTimeline",
     "ScoreField",
     "TargetVolume",
+    "CompositeTargetVolume",
+    "TargetDisplay",
+    "target_display",
     "project_mcts_step",
 ]

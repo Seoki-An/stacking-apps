@@ -31,7 +31,7 @@ def test_composite_search_stops_before_native_allocation(composite_target, metho
     # No profiles or native backend are needed: reject before accessing them.
     application = StackingSearchApplication()
     inventory = SimpleNamespace(target=composite_target)
-    with pytest.raises(NotImplementedError, match="full MCTS viewer and saved-run"):
+    with pytest.raises(NotImplementedError, match="full composite MCTS remains gated"):
         getattr(application, method)(inventory, *extra)
 
 
@@ -80,4 +80,4 @@ def test_excavator_cli_rejects_composite_before_creating_run(
         "--save-run", str(destination),
     ]) == 2
     assert not destination.exists()
-    assert "full MCTS viewer and saved-run support" in capsys.readouterr().err
+    assert "full composite MCTS remains gated" in capsys.readouterr().err
