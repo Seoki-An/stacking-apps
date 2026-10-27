@@ -144,6 +144,17 @@ regional representatives within the existing elite/per-object limits. Final
 candidate ranking rules are unchanged, although coarser proposals can change
 numerical scores and the selected sequence.
 
+Regional proposal scoring caches immutable component half-spaces and uses a
+bounded, sampler-local LRU for vertex/orientation-dependent containment offsets.
+Height and position remain live query inputs; inset and margin are cache keys.
+Candidate banks use read-only NumPy columns, preserving orientation/grid order.
+Sampling selects row indices and constructs metadata only for selected rows;
+`score_map()["candidates"]` remains an iterable/indexable diagnostic view whose
+records are materialized on demand. The shared elite/Boltzmann draw logic and
+RNG consumption are unchanged. In particular, composite draws still request
+one row at a time, so any positive elite fraction selects one elite per draw;
+this performance change does not introduce a different exploration policy.
+
 Proposals carry `target_component_ids`, `target_region_ids` and a primary
 `target_region_id`. Mutation and accepted optimized poses recompute membership
 from projected geometry; these labels are diagnostics, not proof of 3D

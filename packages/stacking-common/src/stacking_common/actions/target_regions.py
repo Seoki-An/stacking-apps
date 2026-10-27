@@ -1,6 +1,7 @@
 """Connected target regions for proposal and floor policies, not separate goals."""
 
 from dataclasses import dataclass
+from functools import lru_cache
 
 import numpy as np
 from scipy.spatial import ConvexHull
@@ -110,6 +111,49 @@ class TargetRegions:
                            if set(region.region_id).intersection(component_ids))
         return {"target_component_ids": component_ids, "target_region_ids": region_ids,
                 "target_region_id": region_ids[0] if region_ids else None}
+
+
+class CachedAnchorContainment:
+    """Sampler-local half-spaces and bounded orientation-dependent offsets.
+
+    Target geometry is immutable. Heights/XY positions remain query inputs,
+    while vertex content, inset and margin key the reusable support offsets.
+    The LRU bound prevents arbitrary CEM rotations growing the cache forever.
+    """
+
+    def __init__(self, region):
+        planes = []
+        for component in region.target.components:
+            centers, normals, _ = component.world_geometry.face_data()
+            bounds = np.einsum("ij,ij->i", centers, normals)
+            xy_norm = np.linalg.norm(normals[:, :2], axis=1)
+            for array in (normals, bounds, xy_norm):
+                array.setflags(write=False)
+            planes.append((normals, bounds, xy_norm))
+        self.planes = tuple(planes)
+
+        @lru_cache(maxsize=1024)
+        def offsets(vertex_bytes, inset_scale, margin):
+            points = np.frombuffer(vertex_bytes, dtype=float).reshape(-1, 3).copy()
+            points[:, :2] *= inset_scale
+            result = []
+            for normals, bounds, xy_norm in self.planes:
+                support = (points @ normals.T).max(0)
+                values = bounds - support - margin * xy_norm
+                values.setflags(write=False)
+                result.append(values)
+            return tuple(result)
+
+        self.offsets = offsets
+
+    def __call__(self, xy, rotated_points, placement_z, *, inset_scale=1., margin=0.):
+        xy = np.asarray(xy, dtype=float).reshape(-1, 2)
+        positions = np.c_[xy, np.broadcast_to(placement_z, (len(xy),))]
+        offsets = self.offsets(np.asarray(rotated_points, dtype=float).tobytes(),
+                               inset_scale, margin)
+        return np.column_stack([
+            np.all(positions @ normals.T <= values + 1e-9, axis=1)
+            for (normals, _, _), values in zip(self.planes, offsets)])
 
 
 def anchor_components(region, xy, rotated_points, placement_z, *, inset_scale=1., margin=0.):

@@ -1,6 +1,6 @@
 """Region-balanced proposals using actual convex-component containment masks."""
 
-from types import SimpleNamespace
+from collections.abc import Sequence
 
 import numpy as np
 from scipy.ndimage import distance_transform_edt
@@ -11,8 +11,39 @@ from stacking_common.visualization.heightmap import _rasterize_triangles
 
 from . import _scored_floor as floor
 from ._support_maps import bottom_height_kernel, support_likelihood_maps_by_kernel
-from .target_regions import SamplingRegion, anchor_components
+from .target_regions import CachedAnchorContainment, SamplingRegion
 from .types import PlanarPlacement
+
+
+class _CandidateRows(Sequence):
+    """Read-only diagnostic row view; search keeps candidates in column arrays.
+
+    A dict is constructed only when a caller requests a row (or explicitly
+    iterates the diagnostic view), not for every feasible grid location.
+    """
+
+    def __init__(self, batches):
+        self.batches = tuple(batches)
+        self.ends = np.cumsum([len(columns["score"]) for _, _, columns in self.batches])
+
+    def __len__(self):
+        return int(self.ends[-1]) if len(self.ends) else 0
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [self[row] for row in range(*index.indices(len(self)))]
+        if index < 0:
+            index += len(self)
+        if not 0 <= index < len(self):
+            raise IndexError(index)
+        batch = int(np.searchsorted(self.ends, index, side="right"))
+        row = index - (int(self.ends[batch - 1]) if batch else 0)
+        region_id, component_ids, columns = self.batches[batch]
+        item = {key: values[row].item() for key, values in columns.items()
+                if key not in ("xy", "membership")}
+        item.update(xy=columns["xy"][row].copy(), target_region_id=region_id,
+                    target_component_ids=tuple(component_ids[columns["membership"][row]].tolist()))
+        return item
 
 
 class CompositePlanarSampler:
@@ -35,6 +66,9 @@ class CompositePlanarSampler:
         self._surfaces = {}
         self._cursor = 0
         self._kernels = {}
+        self._rotated = {}
+        self._containment = {region.region_id: CachedAnchorContainment(region)
+                             for region in self.regions.regions}
 
     def metadata(self, object_index, pose):
         return self.regions.pose_metadata(self.owner.inventory, object_index, pose)
@@ -55,7 +89,7 @@ class CompositePlanarSampler:
         if key in self._maps:
             self._latest_maps[object_index] = self._maps[key]
             return self._maps[key]
-        candidates, maps = [], {}
+        batches, maps = [], {}
         shared = self._support_maps(state, object_index, quaternions,
                                     SamplingRegion(owner.inventory.target))
         for layer in self._layers:
@@ -68,12 +102,16 @@ class CompositePlanarSampler:
                 result = self._region_scores(layer, local)
                 result["grid_source"] = "region_fallback"
             maps[layer["region_id"]] = result
-            candidates.extend(result["candidates"])
+            batches.extend(result["candidates"].batches)
+        candidates = _CandidateRows(batches)
         if candidates:
-            scores = np.array([item["score"] for item in candidates])
+            scores = np.concatenate([columns["score"] for _, _, columns in batches])
             low, span = scores.min(), max(float(np.ptp(scores)), 1e-12)
-            for item in candidates:
-                item["normalized_score"] = float((item["score"] - low) / span)
+            for _, _, columns in batches:
+                columns["normalized_score"] = (columns["score"] - low) / span
+        for _, _, columns in batches:
+            for values in columns.values():
+                values.setflags(write=False)
         result = {"regions": maps, "candidates": candidates}
         self._maps[key] = result
         self._latest_maps[object_index] = result
@@ -103,7 +141,12 @@ class CompositePlanarSampler:
         source = owner.stones[object_index].points
         orientations = []
         for q in quaternions:
-            rotated = Rotation.from_quat(q).apply(source)
+            rotation_key = (object_index, tuple(q))
+            if rotation_key not in self._rotated:
+                rotated = Rotation.from_quat(q).apply(source)
+                rotated.setflags(write=False)
+                self._rotated[rotation_key] = rotated
+            rotated = self._rotated[rotation_key]
             kernel_key = (object_index, dx, dy, tuple(q))
             if kernel_key not in self._kernels:
                 self._kernels[kernel_key] = bottom_height_kernel(source, q, dx, dy)
@@ -128,14 +171,15 @@ class CompositePlanarSampler:
         scale = owner.config.target_anchor_inset_scale
         scale = .6 if scale is None else scale
         margin = float(owner.settings.get("target_mask_margin", 0.))
-        candidates = []
+        chunks = []
+        containment = self._containment[region_id]
         score_grid = np.full(shape, np.nan)
         mask = np.zeros(shape, dtype=bool)
         for orientation, (rotated, height, placement, likelihood) in enumerate(orientations):
             finite = np.isfinite(height) & np.isfinite(placement) & np.isfinite(likelihood)
             indices = np.flatnonzero(finite)
-            membership = anchor_components(region, xy[indices], rotated, placement[indices],
-                                           inset_scale=scale, margin=margin)
+            membership = containment(xy[indices], rotated, placement[indices],
+                                     inset_scale=scale, margin=margin)
             valid = membership.any(axis=1)
             indices, membership = indices[valid], membership[valid]
             # A scaled footprint may overhang, but its anchor cannot be in a gap.
@@ -177,53 +221,60 @@ class CompositePlanarSampler:
                       + float(score_cfg.get("fill_area", 0.)) * unfilled / max(int(unfilled.max()), 1)
                       + float(score_cfg.get("target_boundary", 0.)) * boundary
                       + float(score_cfg.get("planar_bias", score_cfg.get("excavator_distance", .25))) * np.minimum(bias, 1.))
-            full = anchor_components(region, xy[indices], rotated, placement[indices],
-                                     inset_scale=max(scale, 1.), margin=margin).any(axis=1)
-            for row, index in enumerate(indices):
-                candidates.append(dict(xy=xy[index].copy(), score=float(scores[row]),
-                    height=float(height[index]), placement_height=float(placement[index]),
-                    orientation_index=orientation, target_region_id=region_id,
-                    target_component_ids=tuple(component_ids[membership[row]].tolist()),
-                    lower_floor=bool(height[index] <= layer["support_z"] + layer["bottom_tol"]),
-                    full_footprint=bool(full[row]), seed=False))
+            full = containment(xy[indices], rotated, placement[indices],
+                               inset_scale=max(scale, 1.), margin=margin).any(axis=1)
+            chunks.append(dict(xy=xy[indices], score=scores,
+                height=height[indices], placement_height=placement[indices],
+                orientation_index=np.full(len(indices), orientation, dtype=int),
+                membership=membership,
+                lower_floor=height[indices] <= layer["support_z"] + layer["bottom_tol"],
+                full_footprint=full, seed=np.zeros(len(indices), dtype=bool)))
             score_grid.ravel()[indices] = np.fmax(score_grid.ravel()[indices], scores)
             mask.ravel()[indices] = True
-        if layer["empty"] and not owner.relax_corner_seed:
-            eligible = [item for item in candidates if item["full_footprint"]]
-            if eligible:
-                centers = np.array([item["xy"] for item in eligible])
+        columns = ({key: np.concatenate([chunk[key] for chunk in chunks]) for key in chunks[0]}
+                   if chunks else {"score": np.empty(0)})
+        if chunks and layer["empty"] and not owner.relax_corner_seed:
+            eligible = np.flatnonzero(columns["full_footprint"])
+            if len(eligible):
+                centers = columns["xy"][eligible]
                 # Feasible extrema, not corners of a bounding rectangle or notch.
                 for direction in ((-1., -1.), (1., -1.), (1., 1.), (-1., 1.)):
-                    eligible[int(np.argmax(centers @ direction))]["seed"] = True
+                    columns["seed"][eligible[int(np.argmax(centers @ direction))]] = True
         return {"x_coords": x, "y_coords": y, "scores": score_grid,
-                "candidate_mask": mask, "candidates": candidates}
+                "candidate_mask": mask, "columns": columns,
+                "candidates": _CandidateRows([(region_id, component_ids, columns)])}
 
     def sample(self, state, observation, object_index, count, sampling_priority):
         if count <= 0:
             return ()
         scores = self.score_map(state, observation, object_index)
-        pools = {key: list(value["candidates"]) for key, value in scores["regions"].items() if value["candidates"]}
+        pools = {key: np.arange(len(value["candidates"]))
+                 for key, value in scores["regions"].items() if value["candidates"]}
         if not pools:
             return ()
         keys = sorted(pools)
         cursor = self._cursor % len(keys)
         selected = []
-        view = SimpleNamespace(cfg=SimpleNamespace(action=SimpleNamespace(planar=self.owner.settings)))
         while pools and len(selected) < count:
             key = keys[cursor % len(keys)]
             cursor += 1
             if key not in pools:
                 continue
             pool = pools[key]
-            seeds = [item for item in pool if item["seed"]]
-            eligible = seeds or pool
+            region_map = scores["regions"][key]
+            columns = region_map["columns"]
+            seeds = pool[columns["seed"][pool]]
+            eligible = seeds if len(seeds) else pool
             if sampling_priority == "lower_floor_first":
-                lower = [item for item in eligible if item["lower_floor"]]
-                eligible = lower or eligible
-            item = floor.sample_scored_candidates(view, eligible, 1, True, rng=self.owner.rng)[0]
+                lower = eligible[columns["lower_floor"][eligible]]
+                eligible = lower if len(lower) else eligible
+            chosen = floor.sample_scored_indices(self.owner.settings, columns["score"][eligible],
+                                                1, True, rng=self.owner.rng)[0]
+            index = int(eligible[chosen])
+            item = region_map["candidates"][index]
             selected.append(item)
-            pools[key] = [other for other in pool if other is not item]
-            if not pools[key]:
+            pools[key] = pool[pool != index]
+            if not len(pools[key]):
                 del pools[key]
         self._cursor = cursor % len(keys)
         quaternions = self.owner.quaternions(state, observation, object_index)
@@ -237,17 +288,27 @@ class CompositePlanarSampler:
 
     def score_at_pose(self, observation, pose, object_index):
         metadata = self.metadata(object_index, pose)
-        scores = self._latest_maps.get(object_index, {"candidates": ()})
-        candidates = [item for item in scores["candidates"]
-                      if item["target_region_id"] in metadata["target_region_ids"]]
-        if not candidates:
+        scores = self._latest_maps.get(object_index, {"regions": {}})
+        nearest = None
+        for region_id, region_map in scores["regions"].items():
+            if region_id not in metadata["target_region_ids"] or not region_map["candidates"]:
+                continue
+            columns = region_map["columns"]
+            # Preserve scalar norm arithmetic and stable first-row tie-breaking.
+            distances = np.fromiter((float(np.linalg.norm(xy - pose[:2]))
+                                     for xy in columns["xy"]), dtype=float)
+            index = int(np.argmin(distances))
+            if nearest is None or distances[index] < nearest[0]:
+                nearest = (distances[index], region_id, region_map, index)
+        if nearest is None:
             return 0., 0.
-        item = min(candidates, key=lambda item: float(np.linalg.norm(item["xy"] - pose[:2])))
-        region = next(region for region in self.regions.regions if region.region_id == item["target_region_id"])
+        _, region_id, region_map, index = nearest
+        columns = region_map["columns"]
         rotated = Rotation.from_quat(pose[3:]).apply(self.owner.stones[object_index].points)
         scale = self.owner.config.target_anchor_inset_scale
-        if not anchor_components(region, [pose[:2]], rotated, item["placement_height"],
-                                 inset_scale=.6 if scale is None else scale,
-                                 margin=float(self.owner.settings.get("target_mask_margin", 0.))).any():
+        if not self._containment[region_id](
+                [pose[:2]], rotated, columns["placement_height"][index],
+                inset_scale=.6 if scale is None else scale,
+                margin=float(self.owner.settings.get("target_mask_margin", 0.))).any():
             return 0., 0.
-        return item["score"], item["normalized_score"]
+        return float(columns["score"][index]), float(columns["normalized_score"][index])

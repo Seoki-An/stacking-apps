@@ -783,21 +783,29 @@ def sample_scored_candidates(
 
     Candidates must be distinct objects.
     """
+    indices = sample_scored_indices(
+        inventory.cfg.action.planar, [item["score"] for item in candidates],
+        k, random_start, rng=rng)
+    return [candidates[index] for index in indices]
+
+
+def sample_scored_indices(settings, scores, k, random_start, *, rng):
+    """Array counterpart of the shared elite/Boltzmann selection policy."""
     k = max(int(k), 1)
-    temperature = float(inventory.cfg.action.planar.get("boltzmann_temperature", 1.0))
+    temperature = float(settings.get("boltzmann_temperature", 1.0))
     if temperature <= 0.0:
         raise ValueError("action.planar.boltzmann_temperature must be positive")
     min_probability = float(
-        inventory.cfg.action.planar.get("boltzmann_min_probability", 0.0)
+        settings.get("boltzmann_min_probability", 0.0)
     )
     if min_probability < 0.0:
         raise ValueError("action.planar.boltzmann_min_probability must be >= 0")
-    score_cfg = inventory.cfg.action.planar.get("score", {})
+    score_cfg = settings.get("score", {})
     elite_fraction = float(score_cfg.get("elite_fraction", 0.0))
     if elite_fraction < 0.0:
         raise ValueError("action.planar.score.elite_fraction must be >= 0")
-    scores = np.asarray([item["score"] for item in candidates], dtype=float)
-    chosen = np.zeros(len(candidates), dtype=bool)
+    scores = np.asarray(scores, dtype=float)
+    chosen = np.zeros(len(scores), dtype=bool)
     selected: list[int] = []
 
     def choose(indices) -> bool:
@@ -808,7 +816,7 @@ def sample_scored_candidates(
         chosen[index] = True
         return True
 
-    elite_count = min(int(np.ceil(k * min(elite_fraction, 1.0))), len(candidates))
+    elite_count = min(int(np.ceil(k * min(elite_fraction, 1.0))), len(scores))
     if elite_count > 0:
         # Stable descending order, as sorted(..., reverse=True) on finite scores.
         for index in np.argsort(-scores, kind="stable")[:elite_count]:
@@ -824,7 +832,7 @@ def sample_scored_candidates(
 
     if not random_start:
         selected.sort(key=scores.__getitem__, reverse=True)
-    return [candidates[index] for index in selected]
+    return selected
 
 def _weighted_choice(
     indices: np.ndarray,
