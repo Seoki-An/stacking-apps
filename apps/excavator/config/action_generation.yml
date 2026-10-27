@@ -15,6 +15,7 @@ filtering:
   posegen_equilibrium_threshold: 1.0
   posegen_gap_threshold: 0.005
 planar:
+  # Shared composite proposal grid; empty regional pools retry locally. Floor grids stay separate.
   grid_shape: [32, 32]
   target_anchor_inset_scale: 0.9
   floor:

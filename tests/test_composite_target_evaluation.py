@@ -47,6 +47,68 @@ def test_union_volume_counts_overlap_once_without_allocating_the_gap(offset, vol
     assert len(evaluator._grid_points) == round(volume / .25**3)
     assert not hasattr(evaluator, "_lattice_indices")
     assert len(np.unique(evaluator._grid_points, axis=0)) == len(evaluator._grid_points)
+    # The index scales with local boxes, not the distance between components.
+    assert sum(index.size for _, index in evaluator._union_blocks) == 2 * 8**3
+    assert all(not index.flags.writeable for _, index in evaluator._union_blocks)
+
+
+@pytest.mark.parametrize("offset", [0., .6, 4., 10000.])
+def test_union_index_matches_full_grid_mask_including_boundaries_and_empty_queries(offset):
+    geometry = composite((box(2., 1., 2.), pose(yaw=.4)),
+                         (box(1., 2., 1.), pose(offset, .2, .3, yaw=-.6)))
+    evaluator = VoxelOverlapEvaluator(geometry, .15)
+    points = evaluator._grid_points
+    rng = np.random.default_rng(3)
+    queries = [(geometry.bounds[0] - 1., geometry.bounds[1] + 1.),
+               (geometry.bounds[1] + 1., geometry.bounds[1] + 2.)]
+    for _ in range(30):
+        center = points[rng.integers(len(points))]
+        radius = rng.uniform(0., .8, 3)
+        queries.append((center - radius, center + radius))
+    for point in points[::max(len(points) // 10, 1)]:
+        queries.extend([(point, point), (np.nextafter(point, -np.inf), point),
+                        (point, np.nextafter(point, np.inf))])
+
+    def check(bounds):
+        lower, upper = bounds
+        expected = np.flatnonzero(np.all((points >= lower) & (points <= upper), axis=1))
+        actual = evaluator._union_grid_rows(lower, upper)
+        np.testing.assert_array_equal(actual, expected)
+        return actual
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(check, queries))
+
+
+def test_indexed_union_matches_slab_reference_for_containment_and_scene_rewards():
+    geometry = composite((box(2., 1., 2.), pose(yaw=.4)),
+                         (box(1., 2., 1.), pose(.8, yaw=-.6)))
+    inv = inventory(geometry, [box(.6, .5, .4)] * 3)
+    indexed = VoxelOverlapEvaluator(geometry, .1)
+    reference = VoxelOverlapEvaluator(geometry, .1)
+
+    def slab_rows(lower, upper):
+        points = reference._grid_points
+        first = np.searchsorted(points[:, 0], lower[0], side="left")
+        last = np.searchsorted(points[:, 0], upper[0], side="right")
+        rows = np.arange(first, last)
+        return rows[np.all((points[rows] >= lower) & (points[rows] <= upper), axis=1)]
+
+    reference._union_grid_rows = slab_rows
+    np.testing.assert_array_equal(indexed._grid_points, reference._grid_points)
+    assert indexed.target_volume == reference.target_volume
+    poses = [pose(-.2, .1, .2, yaw=.2), pose(.1, .1, .2, yaw=-.3), pose(.8, .3, .4)]
+    placements = []
+    for obj, value in zip(inv.objects, poses):
+        np.testing.assert_array_equal(indexed._candidate_grid_rows(obj, value),
+                                      reference._candidate_grid_rows(obj, value))
+        assert indexed.object_containment(obj, value) == reference.object_containment(obj, value)
+        placements.append((obj, value))
+        assert indexed.scene_coverage(placements) == reference.scene_coverage(placements)
+    config = RewardConfig(1., .5, RewardWeights(0., 0., 1., 0., 0., 0.))
+    current = placed(inv, poses)
+    assert StackingReward(inv, indexed, config).compute(current) == \
+        StackingReward(inv, reference, config).compute(current)
 
 
 def test_decomposition_order_and_duplicate_components_preserve_union_lattice():

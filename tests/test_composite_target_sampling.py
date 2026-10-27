@@ -137,6 +137,80 @@ def test_sampling_rotates_regions_even_with_one_draw_per_object_and_large_gaps()
     assert all(p.diagnostics["sampling_policy"] == "corner_seed" for p in proposals)
     assert all(abs(p.pose[0]) > 998. for p in proposals)
     assert sample.score_map(current, None, 0)["regions"][("east",)]["scores"].shape == (24, 24)
+    assert all(item["grid_source"] == "region_fallback"
+               for item in sample.score_map(current, None, 0)["regions"].values())
+
+
+def test_shared_grid_computes_support_once_per_orientation_and_keeps_region_pools(monkeypatch):
+    from stacking_common.actions import composite_sampling
+
+    inv = inventory()
+    sample = sampler(inv)
+    calls = []
+    original = composite_sampling.support_likelihood_maps_by_kernel
+
+    def record(surface, kernels, tolerance):
+        calls.append(surface.copy())
+        return original(surface, kernels, tolerance)
+
+    monkeypatch.setattr(composite_sampling, "support_likelihood_maps_by_kernel", record)
+    current = state(inv)
+    scores = sample.score_map(current, None, 0)
+    assert len(calls) == len(sample.quaternions(current, None, 0))
+    east, west = scores["regions"].values()
+    assert east["grid_source"] == west["grid_source"] == "shared"
+    np.testing.assert_array_equal(east["x_coords"], west["x_coords"])
+    np.testing.assert_array_equal(east["y_coords"], west["y_coords"])
+    assert east["scores"].shape == west["scores"].shape == (24, 24)
+    assert len(sample._composite._surfaces) == 1
+    assert all(np.isfinite(surface).all() for surface in calls)
+    assert {item["target_region_id"] for item in scores["candidates"]} == {("east",), ("west",)}
+    assert sample.score_map(current, None, 0) is scores
+    assert len(calls) == 2  # Repeated requests reuse this state's score map.
+    np.testing.assert_allclose(
+        [item["normalized_score"] for item in scores["candidates"]],
+        (np.array([item["score"] for item in scores["candidates"]]) -
+         min(item["score"] for item in scores["candidates"])) /
+        max(np.ptp([item["score"] for item in scores["candidates"]]), 1e-12))
+
+
+def test_shared_surface_keeps_ground_and_placed_geometry_in_target_gap(monkeypatch):
+    from stacking_common.actions import composite_sampling
+
+    inv = inventory(shapes=[box(1., 1., .5), box(.25, .25, .25)])
+    sample = sampler(inv, yaw_angles=(0.,))
+    surfaces = []
+    original = composite_sampling.support_likelihood_maps_by_kernel
+
+    def record(surface, kernels, tolerance):
+        surfaces.append(surface.copy())
+        return original(surface, kernels, tolerance)
+
+    monkeypatch.setattr(composite_sampling, "support_likelihood_maps_by_kernel", record)
+    scores = sample.score_map(state(inv, [pose(z=.2)]), None, 1)
+    assert len(surfaces) == 1
+    grid = next(iter(scores["regions"].values()))
+    xx, yy = np.meshgrid(grid["x_coords"], grid["y_coords"])
+    gap = ~inv.target.horizontal_mask(np.c_[xx.ravel(), yy.ravel()], 0.).reshape(xx.shape)
+    assert np.isfinite(surfaces[0]).all()
+    assert np.any(surfaces[0][gap] > .6)
+    assert np.any(surfaces[0][gap] == 0.)
+    assert not any((value["candidate_mask"] & gap).any() for value in scores["regions"].values())
+
+
+def test_local_fallback_checks_stone_footprint_not_only_region_grid_coverage():
+    geometry = CompositeTargetGeometry((TargetComponent("west", box(.4, 2.), pose(-3.)),
+                                        TargetComponent("east", box(.4, 2.), pose(3.))))
+    inv = inventory(geometry, [box(.38, .25, .25)])
+    sample = sampler(inv, yaw_angles=(0.,))
+    scores = sample.score_map(state(inv), None, 0)
+    # Both walls have global-grid cell centers, but none fit the wide stone.
+    from stacking_common.actions.target_regions import SamplingRegion
+    _, _, xx, yy = SamplingRegion(geometry).grid((24, 24))
+    assert all(region.mask(xx, yy, 0.).any() for region in sample.floor_policy.target_regions.regions)
+    assert all(value["grid_source"] == "region_fallback" and value["candidates"]
+               for value in scores["regions"].values())
+    assert {item["target_region_id"] for item in scores["candidates"]} == {("east",), ("west",)}
 
 
 def test_sampler_keeps_empty_second_region_after_first_placement():

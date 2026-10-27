@@ -38,9 +38,34 @@ def test_excavator_plan17_wall_preserves_recorded_dimensions_and_taper():
     np.testing.assert_array_equal(actual.geometry().points, expected.geometry().points)
 
 
+def test_excavator_l_shaped_wall_overlaps_and_forms_one_region():
+    import numpy as np
+    from stacking_common.actions.target_regions import TargetRegions
+
+    registry = load_target_registry(ROOT / "apps/excavator/config/target_shapes.yml")
+    profile, name = registry.select("l_shaped_wall")
+    geometry = profile.geometry()
+    assert name == "l_shaped_wall"
+    assert registry.default == "default"
+    assert isinstance(geometry, CompositeTargetGeometry)
+    assert len(geometry.components) == 2
+    regions = TargetRegions(geometry)
+    assert len(regions.regions) == 1
+    assert set(regions.regions[0].region_id) == {"north_arm", "east_arm"}
+    # Interior overlap remains present from ground to the tapered wall tops.
+    overlap = np.array([[-1., -1., z] for z in (0., 1.5, 3.)])
+    assert all(component.world_geometry.contains(overlap).all()
+               for component in geometry.components)
+    # Both arms are included, but the concave notch is not convexified.
+    np.testing.assert_array_equal(geometry.contains(np.array([
+        [-1., 1., 0.], [1., -1., 0.], [1., 1., 0.], [3., 0., 0.],
+    ])), [True, True, False, False])
+
+
 @pytest.mark.parametrize("platform,application,default,composite", [
     ("tabletop", TabletopApplication, "tapered_wall", "two_piers"),
     ("excavator", ExcavatorApplication, "default", "two_walls"),
+    ("excavator", ExcavatorApplication, "default", "l_shaped_wall"),
 ])
 def test_platform_registry_defaults_selection_and_recorded_restore(
     platform, application, default, composite, monkeypatch,
@@ -106,7 +131,10 @@ def test_invalid_registry_fails_clearly(change, tmp_path):
         load_target_registry(path)
 
 
-@pytest.mark.parametrize("platform,chosen", [("tabletop", "two_piers"), ("excavator", "two_walls")])
+@pytest.mark.parametrize("platform,chosen", [
+    ("tabletop", "two_piers"), ("excavator", "two_walls"),
+    ("excavator", "l_shaped_wall"),
+])
 def test_gui_selection_passes_name_without_editing_registry(platform, chosen, tmp_path):
     pytest.importorskip("PySide6")
     from PySide6.QtWidgets import QApplication

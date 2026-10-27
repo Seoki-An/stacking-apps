@@ -16,6 +16,7 @@ filtering:
   # candidate contacts; 3 mm admits the commissioned single-object solves.
   posegen_gap_threshold: 0.003
 planar:
+  # Shared composite proposal grid; empty regional pools retry locally. Floor grids stay separate.
   grid_shape: [32, 32]
   # Legacy anchor inset; values below 1 permit controlled target overhang.
   target_anchor_inset_scale: 0.9

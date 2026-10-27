@@ -88,3 +88,24 @@ shapes:
       - id: east
         pose: [2.5, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
         shape: *wall
+  l_shaped_wall:
+    # Two perpendicular walls; 2 x 2 m ground overlap, one connected region.
+    # Ground footprint spans [-2, 2] in XY, excluding the upper-right 2 x 2 m notch.
+    components:
+      - id: north_arm
+        pose: [-1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        shape: &l-arm
+          width: 2.0
+          length: 4.0
+          height: 3.0
+          origin: [0.0, 0.0, 0.0]
+          support_overlap: 0.02
+          taper_degrees:
+            width_positive: 5.0
+            width_negative: 5.0
+            length_positive: 5.0
+            length_negative: 5.0
+      - id: east_arm
+        # Pose quaternion is XYZW: 90 degrees about Z.
+        pose: [0.0, -1.0, 0.0, 0.0, 0.0, 0.7071067811865476, 0.7071067811865476]
+        shape: *l-arm

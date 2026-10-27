@@ -122,22 +122,27 @@ would accumulate. Composite results record `posegen_target_component_ids`,
 
 `application.build_action_generator(inventory, solver)` supports composites.
 Touching or overlapping component cross-sections at the common ground plane
-form one connected sampling region. Each disconnected region has its own grid,
+form one connected sampling region. Each disconnected region has its own floor grid,
 floor coverage and layer progression, so the first stone in an empty region
 does not need to connect to stones in another region. Coverage counts only
 cells inside the union; gaps, notches and overlapping pieces are not counted
 as extra floor area. All placed stones still contribute to support-height
 initialization and the shared native physical scene.
 
-The sampler uses region-local height maps rasterized from the placed meshes,
-not one bounding grid stretched across distant components. Anchor masks check
+The sampler shares one `planar.grid_shape` height map over the target bounds,
+rasterized from all placed meshes with physical ground retained in target gaps.
+Support maps are computed once per object/orientation and reused across regions.
+If a region has no eligible candidates, it retries a region-local grid at the
+same configured resolution. This prevents narrow or distant regions from
+silently disappearing, while floor grids remain independent. Anchor masks check
 oriented stone vertices against component half-spaces at their predicted
 placement height, including taper. The existing XY inset scale remains a
 sampling heuristic; full containment is still enforced by native validation.
 Corner seeds are feasible footprint extrema in each empty region. Fresh draws
 rotate across available regions, and CEM elite-parent selection reserves
 regional representatives within the existing elite/per-object limits. Final
-candidate ranking is unchanged.
+candidate ranking rules are unchanged, although coarser proposals can change
+numerical scores and the selected sequence.
 
 Proposals carry `target_component_ids`, `target_region_ids` and a primary
 `target_region_id`. Mutation and accepted optimized poses recompute membership
@@ -160,6 +165,13 @@ platform `overlap_resolution` controls the approximation; components too small
 to resolve are rejected instead of silently disappearing. Its `target_volume`
 is the voxel-union volume, not a sum of component volumes. Single-target
 evaluation retains its original lattice and analytic volume denominator.
+
+Composite queries use immutable component-local 3D lookup blocks into this
+same deduplicated lattice. A stone's bounding box slices those blocks directly,
+instead of scanning full X slabs. Overlapping blocks share global voxel IDs;
+query results are deduplicated in the original lattice order. The index adds
+memory proportional to component bounding boxes, not the gap between them,
+and changes neither voxel centers, containment tolerances, nor union rewards.
 
 For composites, reward coverage is the union of all placed stones inside this
 target lattice. Overlapping DSFs and overlapping stones cannot earn duplicate
@@ -219,7 +231,7 @@ search-only checkpoints into a new file while preserving the source bytes.
 These persistence/replay tests are separate from the native search tests below.
 
 The excavator's optional score-map inspector still requires migration to
-region-local grids; composite requests report this explicitly without blocking
+region-aware score maps; composite requests report this explicitly without blocking
 the main viewer. No robot execution is enabled by opening or branching a file.
 
 ### End-to-end search validation

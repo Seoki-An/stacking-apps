@@ -74,12 +74,14 @@ class VoxelOverlapEvaluator:
         """
         origin = self.target.bounds[0]
         retained = []
+        blocks = []
         for component in self.target.components:
             lower, upper = component.bounds
             if np.any(upper - lower < self.resolution):
                 raise ValueError("overlap resolution must not exceed a target component dimension")
             start = np.ceil((lower - origin) / self.resolution - .5 - 1e-9).astype(np.int64)
             stop = np.floor((upper - origin) / self.resolution - .5 + 1e-9).astype(np.int64) + 1
+            blocks.append((start, stop))
             shape = stop - start
             size = int(shape[0]) * int(shape[1]) * int(shape[2])
             count = 0
@@ -93,7 +95,49 @@ class VoxelOverlapEvaluator:
             if not count:
                 raise ValueError("overlap grid misses a target component; reduce overlap resolution")
         cells = np.unique(np.concatenate(retained), axis=0)
+        self._union_blocks = self._index_union_cells(origin, cells, blocks)
         return origin + (cells + .5) * self.resolution
+
+    def _index_union_cells(self, origin, cells, blocks):
+        """Local 3D indices into the unchanged, deduplicated union lattice.
+
+        Allocate only component bounding boxes, never the empty space between
+        disconnected components. Overlapping blocks reference the same global
+        row IDs; query results are deduplicated and retain global lattice order.
+        """
+        indexed = []
+        for start, stop in blocks:
+            first = np.searchsorted(cells[:, 0], start[0], side="left")
+            last = np.searchsorted(cells[:, 0], stop[0], side="left")
+            rows = np.arange(first, last)
+            inside = np.all((cells[rows] >= start) & (cells[rows] < stop), axis=1)
+            rows = rows[inside]
+            local = cells[rows] - start
+            indices = np.full(tuple(stop - start), -1, dtype=np.intp)
+            indices[tuple(local.T)] = rows
+            axes = tuple(origin[axis] + (np.arange(start[axis], stop[axis]) + .5)
+                         * self.resolution for axis in range(3))
+            indices.setflags(write=False)
+            for axis in axes:
+                axis.setflags(write=False)
+            indexed.append((axes, indices))
+        return tuple(indexed)
+
+    def _union_grid_rows(self, lower, upper):
+        chunks = []
+        for axes, indices in self._union_blocks:
+            block = tuple(slice(np.searchsorted(axis, low, side="left"),
+                                np.searchsorted(axis, high, side="right"))
+                          for axis, low, high in zip(axes, lower, upper))
+            rows = indices[block].ravel()
+            rows = rows[rows >= 0]
+            if len(rows):
+                chunks.append(rows)
+        if not chunks:
+            return np.empty(0, dtype=np.intp)
+        if len(chunks) == 1:
+            return chunks[0]
+        return np.unique(np.concatenate(chunks))
 
     def _occupied_rows(self, stack_object, pose):
         pose = np.array(pose, dtype=float, copy=True)
@@ -200,12 +244,7 @@ class VoxelOverlapEvaluator:
         lower -= self.resolution
         upper += self.resolution
         if self._composite:
-            # Union cells are lexicographically sorted; crop X before Y/Z.
-            start = np.searchsorted(self._grid_points[:, 0], lower[0], side="left")
-            stop = np.searchsorted(self._grid_points[:, 0], upper[0], side="right")
-            rows = np.arange(start, stop)
-            points = self._grid_points[rows]
-            return rows[np.all((points >= lower) & (points <= upper), axis=1)]
+            return self._union_grid_rows(lower, upper)
         # The points within these bounds form one lattice sub-block. Its kept
         # rows, in lattice order, equal the full-grid mask in the same order.
         block = tuple(

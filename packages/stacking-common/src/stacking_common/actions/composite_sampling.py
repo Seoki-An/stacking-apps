@@ -11,17 +11,18 @@ from stacking_common.visualization.heightmap import _rasterize_triangles
 
 from . import _scored_floor as floor
 from ._support_maps import bottom_height_kernel, support_likelihood_maps_by_kernel
-from .target_regions import anchor_components
+from .target_regions import SamplingRegion, anchor_components
 from .types import PlanarPlacement
 
 
 class CompositePlanarSampler:
     """Keep the original scorer untouched; share its kernels and draw policy.
 
-    Each connected region gets a local grid of the configured size. Empty space
-    between distant targets therefore neither consumes resolution nor dilutes
-    floor coverage. All placed meshes, not only the region's stones, contribute
-    to the local top surface and remain in native collision/force scenes.
+    The configured grid size is shared across the target's XY bounds. Regions
+    retain their own floor policy and sampling pools. If the shared grid yields
+    no candidates for a region, retry its original local grid so narrow or
+    distant components do not silently disappear. All placed meshes contribute
+    to the physical surface, including geometry outside the target footprint.
     """
 
     def __init__(self, owner):
@@ -55,8 +56,17 @@ class CompositePlanarSampler:
             self._latest_maps[object_index] = self._maps[key]
             return self._maps[key]
         candidates, maps = [], {}
+        shared = self._support_maps(state, object_index, quaternions,
+                                    SamplingRegion(owner.inventory.target))
         for layer in self._layers:
-            result = self._region_scores(state, object_index, quaternions, layer)
+            result = self._region_scores(layer, shared)
+            result["grid_source"] = "shared"
+            if (not result["candidates"] and
+                    not np.array_equal(layer["region"].target.bounds,
+                                       owner.inventory.target.bounds)):
+                local = self._support_maps(state, object_index, quaternions, layer["region"])
+                result = self._region_scores(layer, local)
+                result["grid_source"] = "region_fallback"
             maps[layer["region_id"]] = result
             candidates.extend(result["candidates"])
         if candidates:
@@ -69,15 +79,18 @@ class CompositePlanarSampler:
         self._latest_maps[object_index] = result
         return result
 
-    def _region_scores(self, state, object_index, quaternions, layer):
+    def _support_maps(self, state, object_index, quaternions, region):
+        """Compute the physical surface/support once, before target masking."""
         owner = self.owner
-        region = layer["region"]
         shape = tuple(max(2, value) for value in owner.config.grid_shape)
         _, _, xx, yy = region.grid(shape)
         x, y = xx[0], yy[:, 0]
         dx, dy = float(x[1] - x[0]), float(y[1] - y[0])
         xy = np.c_[xx.ravel(), yy.ravel()]
-        if region.region_id not in self._surfaces:
+        grid_key = (shape, tuple(x), tuple(y))
+        if grid_key not in self._surfaces:
+            # Gaps in the target still have physical ground. Masking them with
+            # NaNs here would invalidate support kernels near target edges.
             surface = np.full(xx.size, self.regions.ground_z)
             for index in state.placed_object_indices:
                 obj = owner.inventory[index]
@@ -85,31 +98,40 @@ class CompositePlanarSampler:
                 pose = state.object_poses.get(obj.object_id, owner.inventory.initial_pose(obj.object_id))
                 world = transform_points(points, pose)
                 _rasterize_triangles(surface, x, y, world[faces])
-            self._surfaces[region.region_id] = surface.reshape(shape)
-        surface = self._surfaces[region.region_id]
+            self._surfaces[grid_key] = surface.reshape(shape)
+        surface = self._surfaces[grid_key]
+        source = owner.stones[object_index].points
+        orientations = []
+        for q in quaternions:
+            rotated = Rotation.from_quat(q).apply(source)
+            kernel_key = (object_index, dx, dy, tuple(q))
+            if kernel_key not in self._kernels:
+                self._kernels[kernel_key] = bottom_height_kernel(source, q, dx, dy)
+            support = support_likelihood_maps_by_kernel(
+                surface, [self._kernels[kernel_key]], owner.settings["contact_gap_tolerance"])
+            # Raster kernels may miss the lowest vertex of an irregular stone.
+            placement = np.maximum(support.placement_height[0].ravel(),
+                                   self.regions.ground_z - rotated[:, 2].min())
+            orientations.append((rotated, support.contact_height[0].ravel(),
+                                 placement, support.support[0].ravel()))
+        return x, y, xy, shape, orientations
+
+    def _region_scores(self, layer, support_maps):
+        owner = self.owner
+        region = layer["region"]
+        region_id = region.region_id
+        component_ids = np.array(region.target.component_ids)
+        x, y, xy, shape, orientations = support_maps
+        dx, dy = float(x[1] - x[0]), float(y[1] - y[0])
         score_cfg = owner.settings.get("score", {})
         cfg = owner.settings["floor"]
         scale = owner.config.target_anchor_inset_scale
         scale = .6 if scale is None else scale
         margin = float(owner.settings.get("target_mask_margin", 0.))
-        source = owner.stones[object_index].points
         candidates = []
         score_grid = np.full(shape, np.nan)
         mask = np.zeros(shape, dtype=bool)
-        for orientation, q in enumerate(quaternions):
-            rotated = Rotation.from_quat(q).apply(source)
-            kernel_key = (object_index, region.region_id, shape, tuple(q))
-            if kernel_key not in self._kernels:
-                self._kernels[kernel_key] = bottom_height_kernel(source, q, dx, dy)
-            kernel = self._kernels[kernel_key]
-            support = support_likelihood_maps_by_kernel(surface, [kernel], owner.settings["contact_gap_tolerance"])
-            height = support.contact_height[0].ravel()
-            # The raster kernel can miss the lowest vertex of an irregular or
-            # tilted stone. Do not let that discretization error put its mesh
-            # below the physical ground and reject every containment anchor.
-            placement = np.maximum(support.placement_height[0].ravel(),
-                                   self.regions.ground_z - rotated[:, 2].min())
-            likelihood = support.support[0].ravel()
+        for orientation, (rotated, height, placement, likelihood) in enumerate(orientations):
             finite = np.isfinite(height) & np.isfinite(placement) & np.isfinite(likelihood)
             indices = np.flatnonzero(finite)
             membership = anchor_components(region, xy[indices], rotated, placement[indices],
@@ -160,14 +182,12 @@ class CompositePlanarSampler:
             for row, index in enumerate(indices):
                 candidates.append(dict(xy=xy[index].copy(), score=float(scores[row]),
                     height=float(height[index]), placement_height=float(placement[index]),
-                    orientation_index=orientation, target_region_id=region.region_id,
-                    target_component_ids=tuple(np.array(region.target.component_ids)[membership[row]].tolist()),
+                    orientation_index=orientation, target_region_id=region_id,
+                    target_component_ids=tuple(component_ids[membership[row]].tolist()),
                     lower_floor=bool(height[index] <= layer["support_z"] + layer["bottom_tol"]),
                     full_footprint=bool(full[row]), seed=False))
-                previous = score_grid.ravel()[index]
-                if not np.isfinite(previous) or scores[row] > previous:
-                    score_grid.ravel()[index] = scores[row]
-                mask.ravel()[index] = True
+            score_grid.ravel()[indices] = np.fmax(score_grid.ravel()[indices], scores)
+            mask.ravel()[indices] = True
         if layer["empty"] and not owner.relax_corner_seed:
             eligible = [item for item in candidates if item["full_footprint"]]
             if eligible:

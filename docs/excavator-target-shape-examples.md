@@ -19,8 +19,43 @@ supplies the batch runner, CLI `--target-shape`, and the operations GUI's
 object settings. The default shape named `default` preserves the wall from
 `excavator_plan17.stack`; `tapered_tower` remains selectable, and `two_walls`
 demonstrates one composite goal with two disconnected DSFs.
+`l_shaped_wall` instead overlaps two perpendicular 2 × 4 × 3 m wall DSFs:
+their ground overlap is 2 × 2 m, and the L-shaped footprint spans [-2, 2] m
+on both axes, excluding the upper-right 2 × 2 m notch. Both components taper
+5° on all four side faces. They form one connected
+sampling region with shared floor progress; union coverage counts overlap once.
+Native containment still requires each stone to fit inside at least one DSF,
+so placements that only fit by spanning the component seam remain restricted.
+
+Select **l_shaped_wall** in the operations GUI's target dropdown, or start a
+bounded placement-only CUDA test (the default target is unchanged):
+
+```bash
+python -m stacking_excavator.planning.cli \
+  --config apps/excavator/config/mcts_cuda.yml \
+  --target-shape l_shaped_wall --search-only \
+  --steps 5 --iterations 200 --max-search-time 60 --max-run-time 600 \
+  --save-run /tmp/excavator-l-shaped.stack
+```
+
 The four original example shapes below are also registered. Dimensions are at ground level;
 the targets include the platform's normal support overlap below ground.
+
+Composite proposals share one `planar.grid_shape` grid over the complete target's
+XY bounds (32×32 by default). Support maps are computed once per stone and
+orientation; region masks exclude gaps and preserve balanced sampling. Each
+region still uses its own `planar.floor.grid_size` coverage grid and advances its
+layers independently. If a stone has no eligible proposals in a region on the
+shared grid, sampling retries the original region-local grid at the configured
+resolution. This also protects narrow or widely separated components that the
+shared grid misses. Per-region score maps expose `grid_source` as `shared` or
+`region_fallback` for diagnostics.
+
+The shared grid changes proposal discretization, not the native target geometry,
+continuous pose optimization, MCTS policy, simulation, or rewards. Coarser seeds
+can still change the resulting sequence; local fallback prevents empty regional
+pools but does not guarantee identical proposal coverage. Existing `.stack`
+documents remain readable.
 
 | Shape | Base width × length | Height | Top width × length | Sloped faces |
 | --- | --- | --- | --- | --- |
