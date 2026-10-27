@@ -166,7 +166,7 @@ def test_search_backend_receives_robustness_for_both_fidelities(monkeypatch, pla
     monkeypatch.setattr(CorePlacementBackend, 'from_profile', staticmethod(build))
     for fidelity in (EvaluationFidelity.SHORT, EvaluationFidelity.LONG):
         assert application.build_core_backend(NS(models={}), fidelity) == 'backend'
-    assert calls[0][0] is application.short_simulation_profile
+    assert calls[0][0] is application.simulation_profile
     assert calls[1][0] is application.simulation_profile
     assert all(config is application.environment_profile.place_stability for _, config in calls)
 

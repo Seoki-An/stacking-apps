@@ -69,7 +69,7 @@ class _RemainingObjectGenerator:
             index
             for index in range(len(state.object_ids))
             if index not in state.placed_object_indices
-        ][: request.max_candidates]
+        ][request.attempt_offset : request.attempt_offset + request.max_candidates]
         candidates = tuple(ActionCandidate(_action(index)) for index in remaining)
         return ActionGenerationResult(
             candidates=candidates,
@@ -142,7 +142,7 @@ def test_coordinator_runs_complete_deterministic_search_cycles() -> None:
 
     assert result.root is root
     assert result.completed_iterations == 6
-    assert root.visits == 7  # One reset pseudocount plus six completed iterations.
+    assert root.visits == 9  # Pseudocount, two root seeds, six iterations.
     assert len(root.children) == 2
     assert all(child.evaluated for child in root.children)
     assert result.selected is root.children[0]
@@ -179,17 +179,16 @@ def test_empty_root_can_retry_unconsumed_fresh_proposals_and_receives_deadline()
 
     generator = EmptyThenFresh()
     search = MonteCarloTreeSearch(
-        replace(_config(), max_depth=1, validate_root_before_search=True,
-                rejected_root_retry_rounds=1),
+        replace(_config(), max_depth=1, rejected_root_retry_rounds=1),
         _RemainingObjectGenerator(), _ObjectPriorityScorer(),
         _DeterministicEvaluator(), _ZeroEstimator(), root_action_generator=generator,
     )
     result = search.search(MCTSNode(state=_state(), observation=()),
-        MCTSSearchRequest(iterations=3, max_time_seconds=10.0, final_validation_reserve_seconds=1.0))
+        MCTSSearchRequest(iterations=3, max_time_seconds=10.0, ))
     assert result.selected is not None
     assert generator.retry
     assert len(generator.deadlines) == 2
-    assert generator.deadlines[1] - generator.deadlines[0] == pytest.approx(1.0)
+    assert generator.deadlines[1] == generator.deadlines[0]
 
 
 def test_initial_depth1_schedule_prevents_early_descendant_expansion() -> None:
@@ -262,9 +261,9 @@ def test_coordinator_matches_legacy_depth_bounded_bootstrap_discount() -> None:
 
     child = result.root.children[0]
     assert estimator.remaining_depths == [2]
-    assert child.mean_value == pytest.approx(6.0)
-    assert result.root.value_sum == pytest.approx(3.0)
-    assert result.root.mean_value == pytest.approx(1.5)
+    assert child.mean_value == pytest.approx(5.75)  # Includes root admission.
+    assert result.root.value_sum == pytest.approx(5.75)
+    assert result.root.mean_value == pytest.approx(5.75 / 3)
 
 
 class _OffsetGenerator:
@@ -326,20 +325,6 @@ def test_coordinator_resumes_generation_after_recorded_attempts() -> None:
 def test_search_request_rejects_empty_sampling_priority() -> None:
     with pytest.raises(ValueError, match="root action sampling priority"):
         MCTSSearchRequest(iterations=1, root_sampling_priority=" ")
-
-
-def test_search_request_requires_wall_budget_for_final_validation_reserve() -> None:
-    with pytest.raises(ValueError, match="requires a maximum search time"):
-        MCTSSearchRequest(
-            iterations=1,
-            final_validation_reserve_seconds=1.0,
-        )
-    with pytest.raises(ValueError, match="smaller than"):
-        MCTSSearchRequest(
-            iterations=1,
-            max_time_seconds=1.0,
-            final_validation_reserve_seconds=1.0,
-        )
 
 
 class _WrongLengthScorer:
@@ -594,6 +579,8 @@ def test_environment_evaluator_rechecks_active_floor_after_settling(fallback) ->
 
 
 class _BatchEvaluator(_DeterministicEvaluator):
+    worker_count = 2
+
     def __init__(self):
         self.batch_sizes = []
 
@@ -632,10 +619,10 @@ def test_coordinator_batches_sibling_evaluation() -> None:
     assert evaluator.batch_sizes == [2]
     assert result.evaluated_candidates == 2
     assert len(result.root.evaluated_children()) == 2
-    assert result.short_simulation_batches == 1
-    assert result.short_simulation_jobs == 2
-    assert result.short_max_batch_size == 2
-    assert result.long_simulation_jobs == 0
+    assert result.long_simulation_batches == 1
+    assert result.long_simulation_jobs == 2
+    assert result.max_evaluation_batch_size == 2
+    assert result.short_simulation_jobs == 0
 
 
 class _FinalEvaluator(_DeterministicEvaluator):
@@ -661,89 +648,6 @@ class _FinalEvaluator(_DeterministicEvaluator):
         )
 
 
-def test_final_long_validation_rejects_failure_and_selects_by_long_reward() -> None:
-    config = MCTSConfig(
-        max_depth=1,
-        max_children=2,
-        exploration_constant=0.0,
-        discount=1.0,
-        generation_batch_size=2,
-        evaluation_batch_size=2,
-        final_validation_candidates=2,
-        widening=ProgressiveWideningConfig(enabled=False),
-    )
-    search = MonteCarloTreeSearch(
-        config,
-        _RemainingObjectGenerator(),
-        _ObjectPriorityScorer(),
-        _FinalEvaluator(),
-        _ZeroEstimator(),
-    )
-
-    result = search.search(
-        MCTSNode(state=_state(), observation=()),
-        MCTSSearchRequest(
-            iterations=2,
-            final_validation_fidelity=EvaluationFidelity.LONG,
-        ),
-    )
-
-    assert result.final_validation_attempts == 2
-    assert result.final_validation_failures == 1
-    assert result.long_simulation_batches == 2
-    assert result.long_simulation_jobs == 2
-    assert result.selected.action.object_index == 1
-    assert result.selected.info["final_validation_reward"] == 9.0
-
-
-def test_final_validation_stops_scheduling_after_wall_deadline(
-    monkeypatch,
-) -> None:
-    clock = [0.0]
-    monkeypatch.setattr(
-        "stacking_common.search.mcts.search.time.monotonic",
-        lambda: clock[0],
-    )
-
-    class TimedFinalEvaluator(_FinalEvaluator):
-        def evaluate(self, state, action, fidelity):
-            result = super().evaluate(state, action, fidelity)
-            if fidelity is EvaluationFidelity.LONG:
-                clock[0] = 1.1
-            return result
-
-    config = MCTSConfig(
-        max_depth=1,
-        max_children=2,
-        exploration_constant=0.0,
-        discount=1.0,
-        generation_batch_size=2,
-        evaluation_batch_size=2,
-        final_validation_candidates=2,
-        widening=ProgressiveWideningConfig(enabled=False),
-    )
-    search = MonteCarloTreeSearch(
-        config,
-        _RemainingObjectGenerator(),
-        _ObjectPriorityScorer(),
-        TimedFinalEvaluator(),
-        _ZeroEstimator(),
-    )
-
-    result = search.search(
-        MCTSNode(state=_state(), observation=()),
-        MCTSSearchRequest(
-            iterations=1,
-            max_time_seconds=1.0,
-            final_validation_fidelity=EvaluationFidelity.LONG,
-        ),
-    )
-
-    assert result.final_validation_attempts == 1
-    assert result.final_validation_timed_out
-    assert result.timed_out
-
-
 class _RevalidationEvaluator:
     def evaluate(self, state, action, fidelity):
         pose = action.pose.copy()
@@ -756,31 +660,6 @@ class _RevalidationEvaluator:
             reward=3.0,
             fidelity=fidelity,
         )
-
-
-def test_preserved_subtree_revalidation_clears_drifted_descendants() -> None:
-    root = MCTSNode(state=_state(), observation=())
-    action = _action(0)
-    child = root.add_candidate(action)
-    old_state = _state([0], actions=[action])
-    old_state.object_poses[10] = action.pose.copy()
-    child.set_result(old_state, "old", 1.0)
-    grandchild = child.add_candidate(_action(1))
-    grandchild.set_result(_state([0, 1]), "grandchild", 1.0)
-    search = MonteCarloTreeSearch(
-        _config(),
-        _RemainingObjectGenerator(),
-        _ObjectPriorityScorer(),
-        _RevalidationEvaluator(),
-        _ZeroEstimator(),
-    )
-
-    result = search.revalidate_children(root, max_drift=0.05)
-
-    assert result.attempted == result.accepted == 1
-    assert result.cleared_subtrees == 1
-    assert child.children == []
-    assert child.info["authoritative_fidelity"] == "long"
 
 
 class _RootGateEvaluator(_DeterministicEvaluator):
@@ -853,9 +732,7 @@ def _root_policy_config(**overrides) -> MCTSConfig:
         "discount": 1.0,
         "generation_batch_size": 2,
         "evaluation_batch_size": 2,
-        "validate_root_before_search": True,
         "root_lookahead": True,
-        "final_validation_candidates": 2,
         "widening": ProgressiveWideningConfig(enabled=False),
     }
     values.update(overrides)
@@ -876,7 +753,6 @@ def test_root_gate_long_validates_before_descendant_search() -> None:
         MCTSNode(state=_state(), observation=()),
         MCTSSearchRequest(
             iterations=1,
-            final_validation_fidelity=EvaluationFidelity.LONG,
         ),
     )
 
@@ -884,7 +760,7 @@ def test_root_gate_long_validates_before_descendant_search() -> None:
         (EvaluationFidelity.LONG, (), 0),
         (EvaluationFidelity.LONG, (), 1),
     ]
-    assert evaluator.calls[2] == (EvaluationFidelity.SHORT, (1,), 0)
+    assert evaluator.calls[2] == (EvaluationFidelity.LONG, (1,), 0)
     assert result.root_validation.attempted == 2
     assert result.root_validation.accepted == 1
     assert result.root_validation.rejected == 1
@@ -932,7 +808,6 @@ def test_root_lookahead_covers_every_authoritative_root_first() -> None:
         MCTSNode(state=_state(), observation=()),
         MCTSSearchRequest(
             iterations=2,
-            final_validation_fidelity=EvaluationFidelity.LONG,
         ),
     )
 
@@ -957,23 +832,18 @@ def test_root_lookahead_batches_independent_root_continuations() -> None:
         MCTSNode(state=_state(), observation=()),
         MCTSSearchRequest(
             iterations=2,
-            final_validation_fidelity=EvaluationFidelity.LONG,
         ),
     )
 
-    short_batches = [
-        states
-        for fidelity, states in evaluator.batch_calls
-        if fidelity is EvaluationFidelity.SHORT
-    ]
-    assert short_batches == [((0,), (1,))]
+    batches = [states for fidelity, states in evaluator.batch_calls
+               if fidelity is EvaluationFidelity.LONG]
+    assert batches == [((0,), (1,))]
     assert result.completed_iterations == 2
-    assert result.short_simulation_batches == 1
-    assert result.short_max_batch_size == 2
-    assert np.isclose(result.short_settling_job_seconds, 0.2)
-    assert np.isclose(result.short_structural_job_seconds, 0.4)
-    assert np.isclose(result.long_settling_job_seconds, 0.2)
-    assert np.isclose(result.long_structural_job_seconds, 0.4)
+    assert result.long_simulation_batches == 3
+    assert result.max_evaluation_batch_size == 2
+    assert result.short_simulation_jobs == 0
+    assert np.isclose(result.long_settling_job_seconds, 0.4)
+    assert np.isclose(result.long_structural_job_seconds, 0.8)
 
 
 def test_nonroot_frontiers_batch_action_generation_across_root_branches() -> None:
@@ -1007,7 +877,6 @@ def test_nonroot_frontiers_batch_action_generation_across_root_branches() -> Non
             discount=1.0,
             generation_batch_size=2,
             evaluation_batch_size=3,
-            validate_root_before_search=True,
             root_lookahead=True,
             widening=ProgressiveWideningConfig(enabled=False),
         ),
@@ -1032,12 +901,12 @@ def test_nonroot_frontiers_batch_action_generation_across_root_branches() -> Non
     assert (1, 1, 1) in generator.batch_depths
     # Ordinary batches follow global PUCT; they need not cover every branch.
     assert any(
-        len(depths) > 1 and set(depths) == {2}
+        len(depths) > 1 and 2 in depths
         for depths in generator.batch_depths
     )
     assert result.pose_generation_max_node_batch == 3
     assert result.descendant_frontier_batches == 2
-    assert result.descendant_frontier_iterations == 6
+    assert result.descendant_frontier_iterations == 5  # Duplicate proposals consume no visit.
     assert result.completed_iterations == 9
 
 
@@ -1085,36 +954,19 @@ def _final_selection_root() -> MCTSNode:
 
 
 @pytest.mark.parametrize(
-    ("selection", "expected_index", "descendant_attempts"),
+    ("selection", "expected_index"),
     [
-        (FinalSelectionConfig(mode="mean"), 0, 0),
-        (
-            FinalSelectionConfig(
-                mode="max_descendant",
-                validate_descendant_path=True,
-            ),
-            1,
-            2,
-        ),
-        (
-            FinalSelectionConfig(
-                mode="mixed",
-                max_weight=0.75,
-                validate_descendant_path=True,
-            ),
-            1,
-            2,
-        ),
+        (FinalSelectionConfig(max_weight=0.0), 0),
+        (FinalSelectionConfig(max_weight=1.0), 1),
+        (FinalSelectionConfig(max_weight=0.75), 1),
     ],
 )
-def test_final_selection_supports_mean_max_and_mixed_modes(
+def test_final_selection_blends_mean_and_path_with_weight(
     selection,
     expected_index,
-    descendant_attempts,
 ) -> None:
     search = MonteCarloTreeSearch(
         _root_policy_config(
-            validate_root_before_search=False,
             root_lookahead=False,
             final_selection=selection,
         ),
@@ -1129,16 +981,18 @@ def test_final_selection_supports_mean_max_and_mixed_modes(
         MCTSSearchRequest(
             iterations=1,
             reset_statistics=False,
-            final_validation_fidelity=EvaluationFidelity.LONG,
-        ),
+            ),
     )
 
     assert result.selected is not None
     assert result.selected.action.object_index == expected_index
     assert result.ranked_candidates[0] is result.selected
     assert {node.action.object_index for node in result.ranked_candidates} == {0, 1}
-    assert result.descendant_validation_attempts == descendant_attempts
-    assert result.final_selection_mode == selection.mode
+    assert result.descendant_validation_attempts == 0
+    assert result.final_selection_max_weight == selection.max_weight
+    assert result.selected.info['final_selection_score'] == pytest.approx(
+        {0.0: 10.0, 1.0: 20.0, 0.75: 16.25}[selection.max_weight])
+    assert result.selected.info['final_selection_max_weight'] == selection.max_weight
 
 
 class _RetryingRootGenerator:
@@ -1205,7 +1059,6 @@ def test_all_rejected_roots_trigger_diversified_retry() -> None:
         MCTSNode(state=_state(), observation=()),
         MCTSSearchRequest(
             iterations=1,
-            final_validation_fidelity=EvaluationFidelity.LONG,
         ),
     )
 
@@ -1262,11 +1115,9 @@ def _retry_path_search(depth, evaluator):
             evaluation_batch_size=4,
             rejected_root_retry_rounds=1,
             final_selection=FinalSelectionConfig(
-                mode="mixed", max_weight=0.5,
-                validate_descendant_path=True,
-                validate_descendant_depth=depth,
-                require_validated_descendant=True,
-            ),
+                max_weight=0.5,
+                descendant_depth=depth,
+                ),
         ),
         _RemainingObjectGenerator(),
         _ObjectPriorityScorer(),
@@ -1278,50 +1129,8 @@ def _retry_path_search(depth, evaluator):
         MCTSNode(state=state, observation=()),
         MCTSSearchRequest(
             iterations=1, max_time_seconds=10.0,
-            final_validation_fidelity=EvaluationFidelity.LONG,
-        ),
+            ),
     )
-
-
-@pytest.mark.parametrize("depth", [1, 2, 3, 5])
-def test_retry_builds_required_descendant_path(depth):
-    evaluator = _RetryPathEvaluator()
-    result = _retry_path_search(depth, evaluator)
-
-    assert result.root_retry.rounds == 1
-    assert result.selected is not None
-    assert result.selected.action.pose[0] == 2.0
-    assert result.selected.info["validated_descendant_path_available"]
-    required = min(depth, 3)
-    assert result.selected.info["validated_descendant_path_return"] == 1 + required
-    assert max(d for _, batch in evaluator.batches for d in batch) == 1 + required
-    if depth > 1:
-        assert any(f is EvaluationFidelity.SHORT and batch == (3, 3, 3, 3)
-                   for f, batch in evaluator.batches)
-
-
-def test_retry_depth_extension_preserves_physical_validation():
-    result = _retry_path_search(2, _RetryPathEvaluator(fail_descendants=True))
-
-    assert result.selected is not None
-    assert not result.selected.state.failed
-    assert result.selected.info["validated_descendant_fallback"]
-    assert result.selected.action.pose[0] >= 2.0  # The failed roots stay excluded.
-    assert result.descendant_validation_failures > 0
-
-
-def test_retry_depth_extension_stops_at_deadline(monkeypatch):
-    clock = [0.0]
-    monkeypatch.setattr(
-        "stacking_common.search.mcts.search.time.monotonic", lambda: clock[0]
-    )
-    evaluator = _RetryPathEvaluator(clock=clock)
-    result = _retry_path_search(2, evaluator)
-
-    assert result.selected is not None
-    assert result.selected.info["validated_descendant_fallback"]
-    assert result.timed_out
-    assert max(d for _, batch in evaluator.batches for d in batch) == 2
 
 
 def test_early_lookahead_prefers_a_placeable_continuation_over_greedy_dead_end():
@@ -1339,7 +1148,7 @@ def test_early_lookahead_prefers_a_placeable_continuation_over_greedy_dead_end()
     def selected_object(warmup):
         search = MonteCarloTreeSearch(
             replace(_config(), initial_depth1_steps=warmup, root_lookahead=True,
-                    validate_root_before_search=True, exploration_constant=2.0),
+                    exploration_constant=2.0),
             PackingGenerator(), _ObjectPriorityScorer(),
             _DeterministicEvaluator(), _ZeroEstimator(),
         )
@@ -1379,111 +1188,6 @@ class _BatchedLongEvaluator:
     def evaluate_batch(self, states, actions, fidelity):
         self.batches.append(len(actions))
         return tuple(self._result(s, a, fidelity) for s, a in zip(states, actions))
-
-
-def test_descendant_validation_batches_roots_and_keeps_serial_order() -> None:
-    def state(placed=(), actions=()):
-        return State(object_ids=[10, 20, 30], placed_object_indices=list(placed),
-                     object_poses={}, trajectories=[], action_history=list(actions),
-                     terminated=not placed)
-
-    root = MCTSNode(state=state(), observation=())
-    for root_index in (0, 1):
-        root_action = _action(root_index)
-        child = root.add_candidate(root_action)
-        child.set_result(state([root_index], [root_action]), (root_index,), 0.0,
-                         info={"authoritative_fidelity": "long"})
-        child.record_visit(0.0)
-        for index in (0, 1, 2):
-            if index == root_index:
-                continue
-            # Short-fidelity results: each root's best-known descendant is tried first.
-            action = _action(index)
-            descendant = child.add_candidate(action)
-            descendant.set_result(state([root_index, index], [root_action, action]),
-                                  (root_index, index),
-                                  _BatchedLongEvaluator.rewards[(root_index, index)])
-    root.expansion_exhausted = True
-    evaluator = _BatchedLongEvaluator()
-    search = MonteCarloTreeSearch(
-        _root_policy_config(
-            validate_root_before_search=False, root_lookahead=False, evaluation_batch_size=4,
-            final_selection=FinalSelectionConfig(
-                mode="max_descendant", validate_descendant_path=True,
-                require_validated_descendant=True),
-        ),
-        _RemainingObjectGenerator(), _ObjectPriorityScorer(), evaluator, _ZeroEstimator(),
-    )
-
-    result = search.search(root, MCTSSearchRequest(
-        iterations=1, reset_statistics=False,
-        final_validation_fidelity=EvaluationFidelity.LONG))
-
-    # Both roots validate all their children in one shared round. Root 0
-    # still falls back to its second child after 0 -> 1 fails, as a
-    # one-child-at-a-time walk would.
-    assert evaluator.batches == [4]
-    assert result.descendant_validation_attempts == 4
-    assert result.descendant_validation_failures == 1
-    assert result.selected.action.object_index == 1
-    scores = {node.action.object_index: node.info["validated_descendant_path_return"]
-              for node in result.ranked_candidates}
-    assert scores == {0: 3.0, 1: 8.0}
-
-
-@pytest.mark.parametrize(("long_failures", "path_return"), [
-    ((), 9.0),        # The known child passes and forms the path.
-    (((0, 1),), None),  # It fails; the short failure is not retried, so no path remains.
-])
-def test_descendant_validation_skips_children_that_failed_short(long_failures, path_return) -> None:
-    class Evaluator(_BatchedLongEvaluator):
-        def _result(self, state, action, fidelity):
-            result = super()._result(state, action, fidelity)
-            placed = tuple(result.state.placed_object_indices)
-            failed = placed in long_failures
-            result.state.failed = failed
-            return TransitionEvaluation(state=result.state, observation=result.observation,
-                                        reward=result.reward, fidelity=fidelity, failed=failed)
-
-    def state(placed=(), actions=(), failed=False):
-        return State(object_ids=[10, 20, 30], placed_object_indices=list(placed),
-                     object_poses={}, trajectories=[], action_history=list(actions),
-                     terminated=not placed, failed=failed)
-
-    root = MCTSNode(state=state(), observation=())
-    root_action = _action(0)
-    child = root.add_candidate(root_action)
-    child.set_result(state([0], [root_action]), (0,), 0.0, info={"authoritative_fidelity": "long"})
-    child.record_visit(0.0)
-    for index, failed in ((1, False), (2, True)):
-        action = _action(index)
-        descendant = child.add_candidate(action)
-        descendant.set_result(state([0, index], [root_action, action], failed=failed),
-                              (0, index), _BatchedLongEvaluator.rewards[(0, index)])
-    root.expansion_exhausted = True
-    evaluator = Evaluator()
-    search = MonteCarloTreeSearch(
-        _root_policy_config(
-            validate_root_before_search=False, root_lookahead=False, evaluation_batch_size=4,
-            final_selection=FinalSelectionConfig(
-                mode="max_descendant", validate_descendant_path=True,
-                require_validated_descendant=True),
-        ),
-        _RemainingObjectGenerator(), _ObjectPriorityScorer(), evaluator, _ZeroEstimator(),
-    )
-
-    result = search.search(root, MCTSSearchRequest(
-        iterations=1, reset_statistics=False,
-        final_validation_fidelity=EvaluationFidelity.LONG))
-
-    assert evaluator.batches == [1]  # The short-failed child is never long-validated.
-    if path_return is None:
-        assert result.selected is child
-        assert child.rejection_reason is None
-        assert child.info["validated_descendant_fallback"]
-        assert not child.info["validated_descendant_path_available"]
-    else:
-        assert result.selected.info["validated_descendant_path_return"] == path_return
 
 
 class _FloorFallbackGenerator(_RemainingObjectGenerator):
@@ -1547,9 +1251,9 @@ class _FloorFallbackEvaluator:
 def _floor_fallback_search(generator, evaluator, *, depth=1):
     return MonteCarloTreeSearch(
         _root_policy_config(max_depth=depth, root_lookahead=True, rejected_root_retry_rounds=2,
-            final_selection=FinalSelectionConfig(mode='mixed', max_weight=.5,
-                validate_descendant_path=True, validate_descendant_depth=2,
-                require_validated_descendant=True)),
+            final_selection=FinalSelectionConfig(max_weight=.5,
+                descendant_depth=2,
+                )),
         generator, _ObjectPriorityScorer(), evaluator, _ZeroEstimator(),
         root_action_generator=generator,
     )
@@ -1564,7 +1268,7 @@ def test_floor_fallback_finds_valid_placement_after_strict_exhaustion(reject_flo
     result = search.search(
         MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
             root_sampling_priority='lower_floor_first', deeper_sampling_priority='lower_floor_first',
-            final_validation_fidelity=EvaluationFidelity.LONG))
+            ))
     assert result.selected is not None
     assert result.floor_fill_fallback.attempted and result.floor_fill_fallback.selected
     assert result.floor_fill_fallback.accepted == 2
@@ -1586,7 +1290,7 @@ def test_floor_fallback_does_not_run_when_strict_search_succeeds():
     generator = _FloorFallbackGenerator()
     result = _floor_fallback_search(generator, _FloorFallbackEvaluator(strict_succeeds=True)).search(
         MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
-            final_validation_fidelity=EvaluationFidelity.LONG))
+            ))
     assert result.selected is not None
     assert not result.floor_fill_fallback.attempted
     assert not any(relaxed for relaxed, _ in generator.calls)
@@ -1612,22 +1316,14 @@ def test_floor_root_survives_when_only_its_continuation_needs_relaxation(fail_de
     root = MCTSNode(state=State([10, 20, 30, 40], [], {}, [], []), observation=())
     result = search.search(root, MCTSSearchRequest(iterations=1,
         root_sampling_priority='lower_floor_first', deeper_sampling_priority='lower_floor_first',
-        final_validation_fidelity=EvaluationFidelity.LONG))
+        ))
     assert not generator.relaxed
-    if fail_descendants:
-        assert result.selected is not None
-        assert result.selected.info["validated_descendant_fallback"]
-        assert result.floor_fill_fallback.attempted
-        return
     assert result.selected is not None
+    assert result.selected.info["descendant_depth_fallback"]
     assert not result.floor_fill_fallback.attempted
-    assert not any(generator.roots)  # Never rebuild or relax the root pool.
-    assert not result.selected.action.diagnostics.get('floor_fill_fallback')
-    assert result.selected.info['floor_fill_continuation_recovered']
-    assert result.selected.info['validated_descendant_path_available']
-    assert result.selected.rejected_expansions['active_floor_above_active_layer'] > 0
-    assert any(child.action.diagnostics.get('floor_fill_fallback')
-               for child in result.selected.children)
+    assert not any(generator.roots)
+    assert not result.selected.children
+    assert result.selected.rejected_expansions["active_floor_above_active_layer"] > 0
     assert all(priority == 'lower_floor_first' for _, priority in generator.calls)
 
 
@@ -1638,18 +1334,17 @@ def test_floor_fallback_preserves_physics_but_relaxes_missing_continuations(fail
                                        fail_descendants=fail_descendants)
     result = _floor_fallback_search(generator, evaluator, depth=3 if fail_descendants else 1).search(
         MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
-            final_validation_fidelity=EvaluationFidelity.LONG))
+            ))
     assert result.floor_fill_fallback.attempted
     assert result.floor_fill_fallback.selected is fail_descendants
-    assert result.floor_fill_fallback.pools == 3  # First pool plus two retry pools.
+    assert result.floor_fill_fallback.pools == (1 if fail_descendants else 3)
     assert not generator.relaxed
     if fail_descendants:
         assert result.selected is not None
-        assert result.selected.info["validated_descendant_fallback"]
+        assert result.selected.info["descendant_depth_fallback"]
         assert not result.selected.state.failed
-        # Relaxed-floor descendants fail at short search fidelity, so none is
-        # revalidated long.
-        assert (True, EvaluationFidelity.SHORT) in evaluator.calls
+        # Descendants use the same physics; no extra validation/repair follows.
+        assert (True, EvaluationFidelity.LONG) in evaluator.calls
         assert result.descendant_validation_failures == 0
     else:
         assert result.selected is None
@@ -1662,7 +1357,7 @@ def test_floor_fallback_respects_search_deadline(monkeypatch):
     generator = _FloorFallbackGenerator()
     result = _floor_fallback_search(generator, _FloorFallbackEvaluator(clock=clock)).search(
         MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
-            max_time_seconds=10., final_validation_fidelity=EvaluationFidelity.LONG))
+            max_time_seconds=10., ))
     assert result.selected is None and result.timed_out
     assert not result.floor_fill_fallback.attempted
     assert not any(relaxed for relaxed, _ in generator.calls)
@@ -1673,7 +1368,7 @@ def test_next_placement_rebuilds_relaxed_continuations_under_strict_policy():
     evaluator = _FloorFallbackEvaluator()
     search = _floor_fallback_search(generator, evaluator, depth=3)
     state = State([10, 20, 30, 40], [], {}, [], [])
-    request = MCTSSearchRequest(iterations=1, final_validation_fidelity=EvaluationFidelity.LONG)
+    request = MCTSSearchRequest(iterations=1, )
     first = search.search(MCTSNode(state=state, observation=()), request)
     assert first.selected is not None and first.selected.children
     retained = tuple(first.selected.children)
@@ -1714,7 +1409,7 @@ def test_floor_fallback_retries_fresh_pools_until_one_qualifies():
     generator = Generator()
     result = _floor_fallback_search(generator, Evaluator()).search(
         MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
-            final_validation_fidelity=EvaluationFidelity.LONG))
+            ))
     assert result.selected is not None
     assert result.selected.action.diagnostics['relaxed_pool'] == 2
     assert result.floor_fill_fallback.pools == 2 and result.floor_fill_fallback.selected
@@ -1769,7 +1464,7 @@ def test_empty_root_retries_ordinary_sampling_after_corner_validation_failure(ge
     result = _floor_fallback_search(generator, _FloorFallbackEvaluator()).search(
         MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
             root_sampling_priority='lower_floor_first', deeper_sampling_priority='lower_floor_first',
-            final_validation_fidelity=EvaluationFidelity.LONG))
+            ))
     assert result.selected is not None
     assert result.floor_fill_fallback.policy == 'corner_seed'
     assert result.floor_fill_fallback.attempted and result.floor_fill_fallback.selected

@@ -64,11 +64,7 @@ class StackingSearchApplication:
         """Build the platform stacking-core placement backend."""
 
         fidelity = EvaluationFidelity(fidelity)
-        profile = (
-            self.short_simulation_profile
-            if fidelity is EvaluationFidelity.SHORT
-            else self.simulation_profile
-        )
+        profile = self.simulation_profile
         backend_type = CorePlacementBackend
         if self.mcts_profile.parallel.simulation_backend == "cuda":
             from stacking_common.environment.cuda_backend import CudaPlacementBackend
@@ -104,7 +100,7 @@ class StackingSearchApplication:
         self,
         inventory: ObjectInventory,
     ) -> dict[EvaluationFidelity, StackingEnvironment[Observation]]:
-        """Build independent short-search and long-validation environments."""
+        """Build the single settling-then-full-simulation environment."""
 
         require_search_target(inventory.target,
             ground_z=float(self.posegen_profile.objective.get("ground_height", 0.)))
@@ -116,10 +112,7 @@ class StackingSearchApplication:
                 result_workers=(self.mcts_profile.parallel.effective_workers
                                 if self.mcts_profile.parallel.simulation_backend == "cuda" else 1),
             )
-            for fidelity in (
-                EvaluationFidelity.SHORT,
-                EvaluationFidelity.LONG,
-            )
+            for fidelity in (EvaluationFidelity.LONG,)
         }
 
     def build_mcts(
@@ -231,7 +224,7 @@ class StackingSearchApplication:
         inventory: ObjectInventory,
         worker_count: int,
     ) -> ParallelTransitionEvaluator[Observation]:
-        """Build independent short/long simulator pairs for sibling batches."""
+        """Build independent simulators for sibling batches."""
 
         if worker_count <= 0:
             raise ValueError("MCTS transition worker count must be positive")

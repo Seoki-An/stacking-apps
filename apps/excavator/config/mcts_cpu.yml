@@ -10,7 +10,6 @@ tree:
   exploration_constant: 2.0
   discount: 0.9
   failure_reward: -1.0
-  simulation_depth: 5  # Legacy TREE_SIMULATION_DEPTH; absent from ablation.yml.
   initial_depth1_steps: 8  # Depth 1 until 8 objects have been placed.
   root_lookahead: true
 widening:
@@ -18,6 +17,7 @@ widening:
   coefficient: 3.0
   exponent: 0.5
 generation:
+  rejected_root_retry_rounds: 3  # Fresh root pools after physical rejection.
   batch_size: 32
   expansion_retry_batches: 3
   min_feasible_children: 3
@@ -26,19 +26,10 @@ generation:
   # Sample the unfilled active floor before higher placements at every depth.
   root_sampling_priority: lower_floor_first
   deeper_sampling_priority: lower_floor_first
-validation:
-  max_candidates: 32
-  root_before_search: true
-  rejected_root_retry_rounds: 3
-  time_reserve: 30.0
-  max_state_drift: 0.1
 final_selection:
-  mode: mixed
-  max_weight: 0.5  # Legacy default for mode: max_descendant.
-  validate_descendant_path: true
-  validate_descendant_depth: 1
-  # Prefer validated paths; at final exhaustion, use the best physically validated root.
-  require_validated_descendant: true
+  max_weight: 0.5
+  descendant_depth: 1
+  # Prefer sufficient depth; if none qualify, rank feasible roots by mean.
 parallel:
   posegen_backend: cpu  # cpu or cuda
   simulation_backend: cpu  # cpu or cuda
@@ -56,7 +47,7 @@ root_cem:
   duplicate_xy_threshold: 0.03
   duplicate_yaw_threshold_degrees: 5.0
   # Keep validation slots available for different stones.
-  max_per_object: 2
+  max_per_object: 2  # Baseline; grows to ceil(keep / remaining stones), elites use elite.
   height_map_score_weight: 1.0
   seed: 0
 bootstrap:

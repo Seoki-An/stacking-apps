@@ -227,7 +227,7 @@ def test_partial_generation_backs_up_only_real_candidates():
     assert all(len(branch.children) <= 1 for branch in root.children)
 
 
-def test_mixed_depth_batch_respects_simulation_fidelity():
+def test_mixed_depth_batch_uses_one_simulation_fidelity():
     root = tree(visits=1, means=(10.0, 9.0))
     first = root.children[0]
     first.clear_children()
@@ -240,10 +240,8 @@ def test_mixed_depth_batch_respects_simulation_fidelity():
     evaluator = Evaluator()
     engine = MonteCarloTreeSearch(config(evaluation_batch_size=2), Generator(), Scorer(), evaluator, ZeroEstimator())
     result = engine.search(root, MCTSSearchRequest(
-        iterations=2, reset_statistics=False, simulation_depth=2,
-        beyond_depth_fidelity=EvaluationFidelity.NONE,
-    ))
-    assert [call[2] for call in evaluator.calls] == [EvaluationFidelity.NONE, EvaluationFidelity.SHORT]
+        iterations=2, reset_statistics=False, ))
+    assert [call[2] for call in evaluator.calls] == [EvaluationFidelity.LONG, EvaluationFidelity.LONG]
     assert result.completed_iterations == 2
 
 

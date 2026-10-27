@@ -176,8 +176,7 @@ def run(args):
     if iterations is not None:
         request = replace(request, iterations=iterations)
     if max_time is not None:
-        request = replace(request, max_time_seconds=max_time,
-                          final_validation_reserve_seconds=min(request.final_validation_reserve_seconds, max_time / 2))
+        request = replace(request, max_time_seconds=max_time)
     application = replace(application, mcts_profile=replace(application.mcts_profile,
         request=request, root_cem=replace(application.mcts_profile.root_cem, seed=seed)))
     inventory = application.load_inventory(ids, {i: scene.pose(i) for i in ids})
@@ -222,7 +221,7 @@ def run(args):
     progress.start()
     try:
         root_environment = application.build_environment(inventory,
-            application.build_core_backend(inventory, EvaluationFidelity.SHORT))
+            application.build_core_backend(inventory, EvaluationFidelity.LONG))
         reset = root_environment.reset()
         if checkpoint is not None:
             root_environment.restore(checkpoint.state)

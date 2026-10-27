@@ -583,7 +583,7 @@ def main() -> int | None:
 
 def _build_root_environment(application, inventory, transition_backend):
     backend = (
-        application.build_core_backend(inventory, EvaluationFidelity.SHORT)
+        application.build_core_backend(inventory, EvaluationFidelity.LONG)
         if transition_backend in {"core", "simulation"}
         else _KinematicPlacementBackend()
     )
@@ -611,7 +611,7 @@ def _build_environments(application, inventory, transition_backend):
             inventory,
             _KinematicPlacementBackend(),
         )
-        for fidelity in (EvaluationFidelity.SHORT, EvaluationFidelity.LONG)
+        for fidelity in (EvaluationFidelity.LONG,)
     }
 
 

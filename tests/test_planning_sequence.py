@@ -43,6 +43,7 @@ def test_two_step_sequence_rebuilds_committed_observation_and_reward(platform):
     simulated_observations = []
     simulated_rewards = []
     checkpoints = []
+    old_descendants = []
 
     class Search:
         def search(self, root, request):
@@ -74,6 +75,9 @@ def test_two_step_sequence_rebuilds_committed_observation_and_reward(platform):
             simulated_rewards.append(reward)
             child = root.add_candidate(action)
             child.set_result(state, observation, reward, info={**info, "authoritative_fidelity": "long"})
+            if index == 0:
+                old_descendants.append(child.add_candidate(
+                    Action(1, _pose(z=.04), _pose(z=.04), object_id=inventory[1].object_id)))
             return SimpleNamespace(root=root, selected=child, ranked_candidates=(child,),
                 completed_iterations=1, generated_candidates=1, evaluated_candidates=1, failed_evaluations=0)
 
@@ -105,6 +109,7 @@ def test_two_step_sequence_rebuilds_committed_observation_and_reward(platform):
 
     assert result.succeeded
     assert len(result.steps) == 2
+    assert old_descendants and all(node.parent is None for node in old_descendants)
     assert result.final_state.object_poses[10][0] == .2
     assert result.final_state.object_poses[20][0] == .04
     for (debug, _), checkpoint in zip(writer.steps, checkpoints):

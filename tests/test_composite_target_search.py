@@ -46,9 +46,8 @@ def bounded_application(workers=1):
         tree=replace(search.tree, max_depth=2, max_children=2, root_max_children=4,
                      generation_batch_size=4, min_feasible_children=1,
                      evaluation_batch_size=4, rejected_root_retry_rounds=0,
-                     expansion_retry_batches=1, final_validation_candidates=4),
-        request=replace(search.request, iterations=4, max_time_seconds=60.,
-                        final_validation_reserve_seconds=15.),
+                     expansion_retry_batches=1),
+        request=replace(search.request, iterations=4, max_time_seconds=60.),
         root_cem=replace(search.root_cem, population=8, elite=4, keep=4, iterations=1),
         parallel=replace(search.parallel, workers=workers, enabled=workers > 1,
                          posegen_backend="cpu", simulation_backend="cpu")))
@@ -80,8 +79,10 @@ def test_native_composite_search_and_promotion(kind, workers, tmp_path):
             assert np.isfinite(selected.reward)
             assert selected.observation.target_kind == "composite"
             assert selected.info["simulation_settled"]
-            assert selected.info["root_long_validated"]
-            assert selected.info["validated_descendant_path_available"]
+            assert result.short_simulation_jobs == 0
+            assert result.final_validation_attempts == result.descendant_validation_attempts == 0
+            assert (selected.info["descendant_depth_satisfied"]
+                    or selected.info["descendant_depth_fallback"])
             assert selected.info["settled_active_floor_checked"]
             assert selected.info["place_robustness_evaluated"]
             assert not selected.info["place_robustness_failed"]

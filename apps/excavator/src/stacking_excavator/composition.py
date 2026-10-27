@@ -54,7 +54,6 @@ class ExcavatorApplication(StackingSearchApplication):
     solver_profiles: SolverProfileFiles
     environment_profile: EnvironmentProfile
     simulation_profile: CoreSimulationProfile
-    short_simulation_profile: CoreSimulationProfile
     posegen_profile: CorePosegenProfile
     inventory_profile: InventoryProfile
     action_generation_profile: ActionGenerationProfile
@@ -93,7 +92,6 @@ class ExcavatorApplication(StackingSearchApplication):
             raise TypeError("pose_from_scan must be boolean")
         return cls(root, solvers, environment,
                    load_simulation_profile(solvers.simulation),
-                   load_simulation_profile(solvers.simulation, fidelity="short"),
                    load_posegen_profile(solvers.posegen),
                    load_inventory_profile(config / "inventory.yml", target_shape=target_shape,
                                           recorded_target=recorded_target),

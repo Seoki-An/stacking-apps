@@ -113,7 +113,6 @@ def test_cli_search_completes_and_open_result_emits_path(qt, tmp_path, scan_over
     profile['debug'].update(object_ids=[1], steps=1, iterations=1, max_search_time=2.,
                             transition_backend='kinematic', pose_solver='passthrough', pick_pose_data=None)
     profile['parallel']['enabled'] = False
-    profile['validation']['time_reserve'] = .1
     config = tmp_path / 'mcts.yml'
     config.write_text(yaml.safe_dump(profile))
     dialog = PlanningRunDialog(ROOT)

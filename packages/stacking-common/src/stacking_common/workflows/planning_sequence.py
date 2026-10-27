@@ -387,6 +387,8 @@ class MCTSPlanningSequenceCoordinator(Generic[ObservationT]):
 
         info = dict(node.info)
         if poses_changed:
+            node.clear_children()
+            node.reset_statistics(recursive=True)
             # Contacts, forces, and the latest trajectory describe the old
             # simulated scene. They cannot establish contacts at the committed
             # pose without another simulation, which would move that pose again.

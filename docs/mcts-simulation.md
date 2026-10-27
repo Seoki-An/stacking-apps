@@ -1,5 +1,9 @@
 # MCTS의 placement simulation 구성
 
+> Historical staged-simulation description. The runtime strategy changed on
+> 2026-10-27: see [Unified MCTS simulation](mcts-unified-simulation.md) for the
+> current single simulation, depth filter, and subtree reuse behavior.
+
 **확인일: 2026-10-21.** 현재 working tree의 공통 구현과 excavator/tabletop
 기본 설정을 기준으로 정리한다. 초기 후보 생성은
 [Initial placement sampling](initial-pose-sampling-summary.md)을 참고한다.

@@ -1221,3 +1221,49 @@ def test_batched_floor_context_matches_scalar_for_mixed_states_and_refreshes(cov
     # Returning to an old pose still builds a fresh per-batch context.
     first.object_poses[10][0] = 0.
     check()
+
+
+@pytest.mark.parametrize('remaining, expected', [(32, 2), (16, 2), (10, 4), (4, 8), (2, 16), (1, 32)])
+def test_cem_adapts_per_object_quota_to_remaining_inventory(remaining, expected):
+    from collections import Counter
+    from stacking_common.domain import Action
+
+    # Placed objects must not dilute the quota. The proposed pool contains
+    # enough distinct poses to fill keep, ordered with one stone first.
+    placed = 3
+    state = State(list(range(placed + remaining)), list(range(placed)), {}, [], [])
+    candidates = tuple(ActionCandidate(Action(
+        index, _pose(x=index + pose * .001), _pose(x=index + pose * .001),
+        object_id=index,
+    )) for index in range(placed, placed + remaining) for pose in range(32))
+    base = SimpleNamespace(generate=lambda *args: ActionGenerationResult(
+        candidates, attempts=len(candidates), exhausted=True))
+    config = CEMRootConfig(
+        population=max(32, len(candidates)), elite=16, iterations=1, keep=32,
+        mutation_xy_std=0., mutation_yaw_std=0., fresh_fraction=.5,
+        duplicate_xy_threshold=0., duplicate_yaw_threshold=0., max_per_object=2)
+    cem = CEMRootActionGenerator(base, _ConstantScore(), config)
+    result = cem.generate(state, None, ActionGenerationRequest(32))
+    counts = Counter(c.action.object_id for c in result.candidates)
+    assert len(result.candidates) == 32
+    assert max(counts.values()) == expected
+    assert cem.config.max_per_object == 2
+
+    # Elite budget has its own effective quota, including the regional path.
+    elite_limit = max(2, int(np.ceil(config.elite / remaining)))
+    for pool in (candidates, tuple(ActionCandidate(c.action, diagnostics={
+            'target_region_id': ('west' if n % 2 else 'east',)
+        }) for n, c in enumerate(candidates))):
+        parents = cem._elite_parents(pool, state)
+        assert len(parents) == config.elite
+        assert max(Counter(c.action.object_id for c in parents).values()) <= elite_limit
+
+
+def test_cem_quota_preserves_unlimited_setting_and_handles_no_remaining_stones():
+    from dataclasses import replace
+    cem = _recovery_cem(_RecoveryGenerator())
+    assert cem._object_limit(None, 32) is None
+    cem.config = replace(cem.config, max_per_object=2)
+    state = State([10], [0], {}, [], [])
+    assert cem._object_limit(state, 32) == 0
+    assert cem._elite_parents([], state) == []

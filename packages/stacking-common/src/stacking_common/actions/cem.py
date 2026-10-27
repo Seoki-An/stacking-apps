@@ -224,7 +224,7 @@ class CEMRootActionGenerator(Generic[ObservationT]):
             if expired():
                 break
             ranked = self._rank(state, observation, pool)
-            parents = self._elite_parents(ranked)
+            parents = self._elite_parents(ranked, state)
             if not parents and fresh_exhausted:
                 break
             fresh_count = self.config.population if not parents else int(
@@ -366,7 +366,9 @@ class CEMRootActionGenerator(Generic[ObservationT]):
                     for action in self._excluded_actions
                 )
             ]
-        ranked = self._limit_per_object(ranked)[: self.config.keep]
+        ranked = self._limit_per_object(
+            ranked, self._object_limit(state, self.config.keep)
+        )[: self.config.keep]
         self.last_statistics = CEMStatistics(
             rounds=tuple(round_statistics),
             rejection_counts=rejection_counts,
@@ -524,23 +526,33 @@ class CEMRootActionGenerator(Generic[ObservationT]):
             kept.append(candidate)
         return kept, duplicate_count
 
-    def _limit_per_object(self, candidates):
+    def _object_limit(self, state, target_count):
+        """Keep the configured diversity cap until too few stones remain."""
         if self.config.max_per_object is None:
+            return None
+        remaining = len(state.object_ids) - len(state.placed_object_indices)
+        if remaining == 0:
+            return 0
+        return max(self.config.max_per_object, math.ceil(target_count / remaining))
+
+    def _limit_per_object(self, candidates, limit):
+        if limit is None:
             return candidates
         counts = {}
         kept = []
         for candidate in candidates:
             object_id = candidate.action.object_id
-            if counts.get(object_id, 0) >= self.config.max_per_object:
+            if counts.get(object_id, 0) >= limit:
                 continue
             counts[object_id] = counts.get(object_id, 0) + 1
             kept.append(candidate)
         return kept
 
-    def _elite_parents(self, ranked):
+    def _elite_parents(self, ranked, state):
         """Keep region diversity in exploration; final ranking is unchanged."""
+        limit = self._object_limit(state, self.config.elite)
         if not any(item.diagnostics.get("target_region_id") is not None for item in ranked):
-            return self._limit_per_object(ranked)[:self.config.elite]
+            return self._limit_per_object(ranked, limit)[:self.config.elite]
         selected, seen, counts = [], set(), {}
         for diversify in (True, False):
             for item in ranked:
@@ -551,7 +563,7 @@ class CEMRootActionGenerator(Generic[ObservationT]):
                 if diversify and (region is None or region in seen):
                     continue
                 oid = item.action.object_id
-                if self.config.max_per_object is not None and counts.get(oid, 0) >= self.config.max_per_object:
+                if limit is not None and counts.get(oid, 0) >= limit:
                     continue
                 selected.append(item)
                 seen.add(region)

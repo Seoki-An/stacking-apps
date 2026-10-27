@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import fields, replace
 from typing import Generic, TypeVar
+
+import numpy as np
 
 from stacking_common.domain import Action, State
 from stacking_common.search.types import ExecutionRejections
@@ -29,7 +31,7 @@ class MCTSSession(Generic[ObservationT]):
         self.root = root.detach()
         self._rejections = ExecutionRejections()
         self._seed_actions: list[Action] = []
-        self._revalidate_next = False
+        self._search_context = None
 
     @property
     def execution_rejections(self) -> ExecutionRejections:
@@ -38,19 +40,22 @@ class MCTSSession(Generic[ObservationT]):
     def search(self, request: MCTSSearchRequest) -> MCTSSearchResult[ObservationT]:
         """Search from the current root with accumulated runtime feedback."""
 
+        context = (getattr(self.search_engine, 'config', None),
+                   id(getattr(self.search_engine, 'transition_evaluator', self.search_engine)),
+                   request.evaluation_fidelity)
+        if self._search_context is not None and context != self._search_context:
+            self.root.clear_children()
+            self.root.reset_statistics(recursive=True)
+        self._search_context = context
         effective_request = replace(
             request,
             execution_rejections=self._rejections.merged(
                 request.execution_rejections
             ),
             seed_actions=(*self._seed_actions, *request.seed_actions),
-            revalidate_children=(
-                request.revalidate_children or self._revalidate_next
-            ),
         )
         result = self.search_engine.search(self.root, effective_request)
         self._seed_actions.clear()
-        self._revalidate_next = False
         return result
 
     def promote(
@@ -65,6 +70,8 @@ class MCTSSession(Generic[ObservationT]):
 
         if selected.parent is not self.root:
             raise ValueError("the promoted node must be a child of the session root")
+        changed = observed_state is not None and not _same_scene(selected.state, observed_state)
+        changed |= observed_state is None and observed_observation is not None
         selected.detach()
         if observed_state is not None:
             observation = (
@@ -84,8 +91,9 @@ class MCTSSession(Generic[ObservationT]):
             )
         elif observed_observation is not None:
             selected.observation = observed_observation
-        if not preserve_subtree:
+        if not preserve_subtree or changed:
             selected.clear_children()
+            selected.reset_statistics(recursive=True)
         else:
             # Root generation starts a new pool (possibly CEM), so a deeper
             # node's attempt cursor and exhausted flag cannot carry over.
@@ -95,7 +103,6 @@ class MCTSSession(Generic[ObservationT]):
             selected.rejected_expansions.clear()
             selected.info.pop("external_seed_attempts", None)
         self.root = selected
-        self._revalidate_next = bool(preserve_subtree and selected.children)
         return self.root
 
     def reject_execution(
@@ -161,3 +168,26 @@ class MCTSSession(Generic[ObservationT]):
             use_initial_pose=self._rejections.use_initial_pose,
         )
         self.root.expansion_exhausted = False
+
+
+def _same_scene(first: State, second: State) -> bool:
+    """Reuse only identical physical/reward inputs; no pose-drift tolerance."""
+    return (
+        first.object_ids == second.object_ids
+        and first.placed_object_indices == second.placed_object_indices
+        and first.object_poses.keys() == second.object_poses.keys()
+        and all(np.array_equal(first.object_poses[key], second.object_poses[key])
+                for key in first.object_poses)
+        and (first.terminated, first.failed, first.simulation_settled) ==
+            (second.terminated, second.failed, second.simulation_settled)
+        and first.pose_identified_object_ids == second.pose_identified_object_ids
+        and first.latest_velocity_integrals() == second.latest_velocity_integrals()
+        and len(first.contact_points) == len(second.contact_points)
+        and all(np.array_equal(getattr(a, field.name), getattr(b, field.name))
+                for a, b in zip(first.contact_points, second.contact_points)
+                for field in fields(a))
+        and len(first.action_history) == len(second.action_history)
+        and all(a.object_id == b.object_id and a.object_index == b.object_index
+                and np.array_equal(a.pose, b.pose)
+                for a, b in zip(first.action_history, second.action_history))
+    )

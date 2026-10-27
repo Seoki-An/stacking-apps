@@ -194,7 +194,7 @@ def _match_reviewed_estimate(capture, metadata, candidate):
 def _coordinator(saved, repository, checkpoint, inventory, progress):
     profiles = saved.context.profiles
     solver = NativeSolverProfile(**dict(profiles['native_solver']))
-    simulation = _recorded_simulation(profiles['short_simulation_profile'])
+    simulation = _recorded_simulation(profiles['simulation_profile'])
     robustness = PlaceStabilityConfig(**dict(profiles['environment_profile']['place_stability']))
     action_profile = profiles['action_generation_profile']
     safety = None

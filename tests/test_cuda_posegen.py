@@ -96,6 +96,16 @@ def test_cuda_schedule_propagates_pose_and_per_request_gap(monkeypatch):
     assert all(r.diagnostics['posegen_result_backend'] == 'cuda' for r in results)
 
 
+def test_cuda_continuation_passes_stage_fixed_rho_to_native(monkeypatch):
+    solver, calls, _ = adapter(monkeypatch)
+    solver.core.PosegenConfig = core.PosegenConfig
+    solver._scheduled_config = CorePlacementPoseSolver._scheduled_config.__get__(solver)
+    solver.solve_batch(None, requests())
+    assert len(calls) == 4
+    for items, expected in zip(calls, [.01, .00875, .00625, .005]):
+        assert [item.config.objective.rho for item in items] == pytest.approx([expected] * 2)
+
+
 @pytest.mark.parametrize('status', [s for s in Status if s not in (Status.converged, Status.precision_limit, Status.iteration_limit, Status.capacity_overflow)])
 def test_failed_request_rejects_without_disrupting_other_stages(monkeypatch, status):
     solver, calls, retries = adapter(monkeypatch, failure=status)

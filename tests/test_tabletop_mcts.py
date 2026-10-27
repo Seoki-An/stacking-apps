@@ -90,20 +90,12 @@ def test_tabletop_composition_loads_and_builds_native_mcts_path() -> None:
     assert search.root_action_generator.generator is search.action_generator
     assert application.default_mcts_request().iterations == 1024
     assert application.mcts_profile.tree.generation_batch_size == 32
-    assert application.mcts_profile.tree.final_validation_candidates == 32
     assert application.mcts_profile.tree.initial_depth1_steps == 0
     assert application.action_generation_profile.planar.yaw_angles == (0.0, np.pi)
-    assert application.mcts_profile.tree.validate_root_before_search
     assert application.mcts_profile.tree.root_lookahead
     assert application.mcts_profile.tree.rejected_root_retry_rounds == 3
-    assert application.mcts_profile.tree.final_selection.mode == "mixed"
-    assert application.mcts_profile.tree.final_selection.validate_descendant_path
-    assert application.mcts_profile.tree.final_selection.require_validated_descendant
-    assert application.mcts_profile.tree.final_selection.validate_descendant_depth == 2
-    assert (
-        application.default_mcts_request().final_validation_reserve_seconds
-        == 60.0
-    )
+    assert application.mcts_profile.tree.final_selection.max_weight == 0.5
+    assert application.mcts_profile.tree.final_selection.descendant_depth == 2
     assert application.mcts_profile.parallel.enabled
     assert application.mcts_profile.parallel.effective_workers == 12
     assert application.mcts_profile.root_cem.height_map_score_weight == 1.0
@@ -111,16 +103,8 @@ def test_tabletop_composition_loads_and_builds_native_mcts_path() -> None:
         application.mcts_profile.root_cem.mutation_yaw_std,
         np.deg2rad(5.0),
     )
-    assert application.short_simulation_profile.placement.structural.max_time == 4.0
-    assert (
-        application.short_simulation_profile.placement.structural.freeze_radius
-        == 0.10
-    )
-    assert (
-        application.short_simulation_profile.placement.support_chain_z_tolerance
-        == 0.005
-    )
-    assert application.simulation_profile.placement.structural.max_time == 15.0
+    assert application.simulation_profile.placement.short_gate is None
+    assert application.simulation_profile.placement.structural.max_time == 10.0
     assert application.simulation_profile.placement.structural.freeze_radius is None
     search.close()
 

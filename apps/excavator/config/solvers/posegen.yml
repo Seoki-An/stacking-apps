@@ -61,6 +61,8 @@ schedule:
   # Cosine schedule from agent/env/components/action/pose_solver.py.
   # Each weight is the sum of its coefficient * named basis; see the guide.
   objective_weights:
+    # Fixed within each stage: 0.01 -> 0.00875 -> 0.00625 -> 0.005.
+    rho: {constant: 0.005, anti_ramp: 0.005}
     k_wrench: {ramp: 1.0}
     k_comp: {ramp: 10.0}
     k_gap_c: {constant: 60.0, ramp: 150.0, gap_feedback: 100000.0}

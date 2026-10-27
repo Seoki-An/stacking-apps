@@ -180,7 +180,7 @@ def main():
     state = pickle.loads(args.state.read_bytes()) if args.state else None
     ids = list(app.inventory_profile.object_ids) if state is None else state.object_ids
     inventory = app.load_inventory(ids, {i: [0., 0., 0., 0., 0., 0., 1.] for i in ids})
-    environment = app.build_environment(inventory, app.build_core_backend(inventory, EvaluationFidelity.SHORT))
+    environment = app.build_environment(inventory, app.build_core_backend(inventory, EvaluationFidelity.LONG))
     search = app.build_mcts(inventory, rng=random.Random(args.seed))
     request = app.default_mcts_request()
     try:
@@ -225,7 +225,7 @@ def main():
                    load_before=load_before, load_after=os.getloadavg(),
                    core_native_sha256=digest(core._native.__file__), capabilities=core.cuda_capabilities(),
                    profiles={name: _values(getattr(app, name)) for name in (
-                       'mcts_profile', 'posegen_profile', 'simulation_profile', 'short_simulation_profile',
+                       'mcts_profile', 'posegen_profile', 'simulation_profile',
                        'environment_profile', 'action_generation_profile')},
                    source_sha256={str(p.relative_to(ROOT)): digest(p) for directory in (
                        ROOT / 'packages/stacking-common/src', ROOT / 'apps/excavator/src')

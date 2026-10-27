@@ -1,0 +1,436 @@
+% Standalone explanatory document, not an input to the manuscript.
+% Build: tectonic --outdir .analysis/mcts-final-selection docs/mcts-final-selection-algorithms.tex
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=19mm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\newcommand{\Gval}{G_{\mathrm{val}}}
+\newcommand{\SHORT}{\mathrm{SHORT}}
+\newcommand{\LONG}{\mathrm{LONG}}
+\newcommand{\none}{\bot}
+\newcommand{\MeanRoot}{\bar Q}
+\newcommand{\depth}{d}
+\newcommand{\EvalChildren}{\operatorname{EvaluatedSelectableChildren}}
+\newcommand{\Auth}{\operatorname{Authoritative}}
+\newcommand{\Sel}{\operatorname{Selectable}}
+\newcommand{\Expired}{\operatorname{DeadlineExpired}}
+\algrenewcommand\algorithmiccomment[1]{\hfill\(\triangleright\) #1}
+\begin{document}
+\small
+\begin{center}
+{\LARGE MCTS Final Selection and Path Validation}\\[6pt]
+{\large Algorithms aligned with the notation in \texttt{root.pdf}}\\[5pt]
+27 October 2026
+\end{center}
+
+\section*{1. Scope and notation}
+This document explains the current implementation, not a proposed change to the
+selection policy. Its notation follows Sections III-B--D and V-D of
+\emph{Automated Irregular Shaped Stone Stacking via Pose Optimization and Monte
+Carlo Tree Search}, using the local \texttt{stacking-paper/root.pdf} and its
+LaTeX definitions. The code baseline is \texttt{stacking-apps} commit
+\texttt{a6c1f9d}; the relevant implementation is
+\texttt{stacking\_common/search/mcts/search.py}.
+
+\begin{tabular}{p{.25\linewidth}p{.69\linewidth}}
+\hline
+Paper notation & Meaning retained here \\
+\hline
+$s_k=(\mathcal X_k,\mathcal I_k,T)$ & Current scene, remaining inventory, target.\\
+$a_k=(i_{k+1},q_{k+1})$ & Object choice and optimized placement pose.\\
+$\mathcal T=(\mathcal N,\mathcal E)$ & Search tree; node $n$ represents state $s(n)$.\\
+$n_a$ & Root child reached by the proposed next action $a$.\\
+$N(n),\ Q(n)$ & Completed backup visits and empirical mean return.\\
+$r(s,a),\ \gamma$ & Transition reward and discount factor.\\
+$\pi_{\mathrm{init}},\pi_{\mathrm{opt}},\pi_{\mathrm{sim}}$ & Proposal, pose optimization, and simulation modules.\\
+$\Gval(a),\ \beta,\ J(a)$ & Validated path return, mixture weight, and final score.\\
+\hline
+\end{tabular}
+
+For a validated continuation $(a_k,\ldots,a_{k+h})$,
+\[
+ \Gval(a_k)=\sum_{j=0}^{h}\gamma^j r(s_{k+j},a_{k+j}),
+ \qquad J(a)=(1-\beta)Q(n_a)+\beta\Gval(a).
+\]
+The current placement reward is included; no leaf bootstrap is added to this
+path sum. A terminal node can shorten the requested continuation.
+
+\textbf{Additional implementation notation.}
+$p(n)$ and $a(n)$ are the parent and incoming action of node $n$;
+$r_n$ is its stored transition reward. $\depth(n)$ is depth from the current
+root. $h_{\mathrm{val}}$ is the requested number of descendants, with effective
+depth $h(n)=\min\{h_{\mathrm{val}},\max(d_{\max}-\depth(n),0)\}$.
+$b_{\mathrm{val}}$ and $b_{\mathrm{req}}$ denote
+\texttt{validate\_descendant\_path} and
+\texttt{require\_validated\_descendant}.
+$G[n]$ is a working path-return map; $\none$ means unavailable. It is called
+$\Gval$ only when authoritative evidence justifies that interpretation.
+
+\textbf{Mean-score exception.}
+Define $\MeanRoot(n)=Q(n)$ for authoritatively seeded roots. Otherwise, the code uses
+a recorded final-validation reward if present, and $Q(n)$ if not. Thus $\MeanRoot$
+documents an implementation exception without redefining the paper's $Q$.
+
+\textbf{Three roles.} SHORT provides lower-cost search evaluations. LONG
+checks root placements and promising continuations. $J$ ranks candidates using
+search statistics and path evidence. LONG is not a guarantee of real-world stability.
+
+\newpage
+\section*{2. Final selection: prepare evidence, then rank}
+The effective weight is $\beta=0$ for \texttt{mean}, $\beta=1$ for
+\texttt{max\_descendant}, and the configured \texttt{max\_weight} for
+\texttt{mixed}. $L$ denotes \texttt{final\_validation\_candidates}.
+Here the configured final fidelity is LONG; when it is absent, authoritative
+re-evaluation is omitted and path validation uses known returns instead.
+
+\begin{algorithm}[H]
+\caption{FinalSelect: one finalization attempt}
+\small
+\begin{algorithmic}[1]
+\Require Root $n_0$, configuration, deadline, retained fallback pool $\mathcal F$
+\State $\mathcal C\gets\EvalChildren(n_0)$
+\ForAll{$n\in\mathcal C$}
+  \State $g\gets$ \Call{KnownPathReturn}{$n,h(n)$} if $\beta>0$; otherwise $\none$
+  \State $J_{\mathrm{pre}}(a(n))\gets(1-\beta)\MeanRoot(n)+\beta g$ if $g$ is finite; otherwise $\MeanRoot(n)$
+\EndFor
+\State Stably sort $\mathcal C$ by descending $J_{\mathrm{pre}}$; keep its first $L$ entries if $L>0$
+\If{final fidelity exists and $L>0$}
+  \ForAll{batches of non-authoritative nodes in $\mathcal C$, while time remains}
+    \State \Call{EvaluateAuthoritative}{batch}
+    \State Record final-validation success/failure and reward for each node
+  \EndFor
+\EndIf
+\State Remove unevaluated or non-selectable nodes from $\mathcal C$
+\State $G\gets\emptyset$
+\If{$\beta>0$}
+  \ForAll{$n\in\mathcal C$}
+    \If{$h(n)=0$}
+      \State $G[n]\gets r_n$
+    \ElsIf{$b_{\mathrm{val}}$}
+      \State $G[n]\gets$ \Call{ValidatePathLong}{$n,h(n)$}
+      \Comment{Walks share batches}
+    \Else
+      \State $G[n]\gets$ \Call{KnownPathReturn}{$n,h(n)$}
+    \EndIf
+  \EndFor
+  \State \Call{RepairMissingPaths}{$\mathcal C,G$}
+  \State \Call{RelaxFloorContinuations}{$\mathcal C,G$}
+\EndIf
+\ForAll{$n\in\mathcal C$}
+  \If{$\beta=0$}
+    \State $J(a(n))\gets\MeanRoot(n)$ \Comment{Current code bypasses the path requirement}
+  \ElsIf{$G[n]$ is unavailable or nonfinite}
+    \If{$b_{\mathrm{req}}$}
+      \State Reject $n$ as missing a validated descendant; add $n$ to $\mathcal F$
+      \State $J(a(n))\gets-\infty$
+    \Else
+      \State $J(a(n))\gets\MeanRoot(n)$ \Comment{Mean fallback}
+    \EndIf
+  \Else
+    \State $J(a(n))\gets(1-\beta)\MeanRoot(n)+\beta G[n]$
+  \EndIf
+\EndFor
+\State Stably sort finite-scored nodes by descending $J$
+\State \Return first node and ranking, or no selection
+\end{algorithmic}
+\end{algorithm}
+{\footnotesize
+Root preparation normally LONG-validates roots before exploration. This routine
+is not a substitute for that preparation: $L=0$ means no truncation but also
+skips this routine's root re-evaluation loop. Final ties retain provisional
+order. Validation order, eligibility, repair, and mean statistics can therefore
+depend on the mode; the modes are not currently score-only ablations.\par}
+
+\newpage
+\section*{3. Existing paths: read versus validate}
+\begin{algorithm}[H]
+\caption{KnownPathReturn: read existing evidence, without new simulation}
+\small
+\begin{algorithmic}[1]
+\Function{KnownPathReturn}{$n,h$}
+  \If{$n$ failed} \State \Return $\none$ \EndIf
+  \If{$h\leq0$ or $n$ is terminal} \State \Return $r_n$ \EndIf
+  \State $\mathcal R\gets\emptyset$
+  \ForAll{$u\in\EvalChildren(n)$}
+    \State $g\gets$ \Call{KnownPathReturn}{$u,h-1$}
+    \If{$g\neq\none$} \State Add $g$ to $\mathcal R$ \EndIf
+  \EndFor
+  \If{$\mathcal R=\emptyset$} \State \Return $\none$ \EndIf
+  \State \Return $r_n+\gamma\max\mathcal R$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+Known rewards may come from SHORT or LONG. This is a maximum over existing
+paths of sufficient depth, not $Q(n)$ and not a validated return by definition.
+
+\begin{algorithm}[H]
+\caption{ValidatePathLong: first-passing existing continuation}
+\small
+\begin{algorithmic}[1]
+\Function{ValidatePathLong}{$n,h$}
+  \If{$n$ failed} \State \Return $\none$ \EndIf
+  \If{$h\leq0$ or $n$ is terminal} \State \Return $r_n$ \EndIf
+  \If{final fidelity is absent}
+    \State \Return \Call{KnownPathReturn}{$n,h$}
+  \EndIf
+  \State Order children by descending \Call{KnownPathReturn}{$u,h-1$}
+  \State Put unavailable returns last; skip children without an action or selectability
+  \ForAll{remaining children $u$ in that fixed order}
+    \If{$\neg\Auth(u)$}
+      \State Yield $u$ and later non-authoritative siblings in its known/unknown group
+      \State Scheduler LONG-evaluates the yielded nodes; resume this walk
+    \EndIf
+    \If{$u$ is evaluated and selectable}
+      \State $g\gets$ \Call{ValidatePathLong}{$u,h-1$}
+      \If{$g$ is finite}
+        \State \Return $r_n+\gamma g$ \Comment{First passing path; no re-ranking}
+      \EndIf
+    \EndIf
+  \EndFor
+  \State \Return $\none$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+\small
+The scheduler advances walks from several roots, batches their pending
+evaluations, and returns $\none$ for unfinished walks when its deadline check
+fires. Checks occur at scheduling boundaries, not as a hard native-call cutoff.
+This function creates no new actions and does not retry SHORT-rejected children.
+For example, pre-validation tail returns $(100,50)$ may become $(1,10)$ after
+LONG; the first-passing walk can return the path with tail return $1$.
+
+\newpage
+\section*{4. Authoritative evaluation and validated maximum}
+\begin{algorithm}[H]
+\caption{EvaluateAuthoritative: re-evaluate transitions from parent states}
+\small
+\begin{algorithmic}[1]
+\Require Batch $\mathcal B$ of nodes with incoming actions
+\State Save each node's previous successor state
+\State Run configured final-fidelity $\pi_{\mathrm{sim}}$ on
+  $\{(s(p(n)),a(n)):n\in\mathcal B\}$
+\ForAll{returned evaluations and corresponding nodes $n$}
+  \State Check returned fidelity and unchanged object inventory
+  \If{evaluation succeeds and successor drift exceeds the configured threshold}
+    \State Discard descendants of $n$
+  \EndIf
+  \State Store successor, reward $r_n$, observation, and failure/rejection information
+  \State Mark evaluation fidelity authoritative; update evaluation counters
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+\textbf{Two different transitions.} MCTS SHORT-to-LONG re-evaluation is a new
+simulation from the parent scene. Inside a LONG backend call, its short gate
+and long extension can instead be consecutive phases of one simulation.
+Settling and structural simulation determine the nominal successor; disturbance
+trials measure robustness without replacing that successor.
+
+\textbf{Cache limitation.} The current authoritative check tests whether a node
+is evaluated and its recorded fidelity matches. It is not an explicit
+parent-state-version hash check. Drift invalidation and tree/session handling
+provide additional safeguards; this document does not assert that the fidelity
+flag alone proves parent-state consistency. Small drift below the threshold
+does not automatically discard descendants.
+
+\begin{algorithm}[H]
+\caption{AuthoritativeMaxReturn: aggregation used during repair}
+\small
+\begin{algorithmic}[1]
+\Function{AuthoritativeMaxReturn}{$n,h$}
+  \If{$\neg\Sel(n)$ or $\neg\Auth(n)$}
+    \State \Return $\none$
+  \EndIf
+  \If{$h\leq0$ or $n$ is terminal} \State \Return $r_n$ \EndIf
+  \State $\mathcal R\gets\emptyset$
+  \ForAll{$u\in\EvalChildren(n)$}
+    \State $g\gets$ \Call{AuthoritativeMaxReturn}{$u,h-1$}
+    \If{$g\neq\none$} \State Add $g$ to $\mathcal R$ \EndIf
+  \EndFor
+  \If{$\mathcal R=\emptyset$} \State \Return $\none$ \EndIf
+  \State \Return $r_n+\gamma\max\mathcal R$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+This computes a maximum over the authoritative paths currently present, not all
+possible continuations. Initial validation uses first-passing traversal; repair
+uses this maximum for roots it is repairing. Already successful initial paths
+are not globally replaced by repair maxima.
+
+\newpage
+\section*{5. Bounded repair of missing continuations}
+Repair preserves physically valid root placements and authoritative prefixes.
+It does not mean retrying a physically rejected placement until it passes.
+Let $B$ be the evaluation-batch limit, $R$ the configured expansion-retry count,
+and $h=\min(h_{\mathrm{val}},d_{\max}-1)$.
+
+\begin{algorithm}[H]
+\caption{RepairMissingPaths: generate and validate replacement continuations}
+\small
+\begin{algorithmic}[1]
+\Procedure{RepairMissingPaths}{$\mathcal C,G$}
+  \If{$h\leq0$ or $\beta=0$ or $\neg b_{\mathrm{val}}$ or $\neg b_{\mathrm{req}}$}
+    \State \Return
+  \EndIf
+  \If{final fidelity is absent} \State \Return \EndIf
+  \State Temporarily use the finalization deadline for candidate generation
+  \For{$j=1,\ldots,Rh$}
+    \If{deadline expired} \State Mark timeout; \textbf{break} \EndIf
+    \State $\mathcal M\gets\{n\in\mathcal C:G[n]=\none,\ \Sel(n),\ \Auth(n)\}$
+    \If{$\mathcal M=\emptyset$} \State \textbf{break} \EndIf
+    \State Build frontier queues below roots in $\mathcal M$ using authoritative prefixes
+    \State Interleave queues to choose at most $B$ frontier parents
+    \If{no parents are available} \State \textbf{break} \EndIf
+    \State Gather existing selectable, non-authoritative children of those parents
+    \State Allocate spare batch capacity to parents without such children
+    \State Generate new actions via $\pi_{\mathrm{init}}\to\pi_{\mathrm{opt}}$
+    \State Respect widening, generation-attempt limits, and the deadline
+    \State SHORT-screen at most $B$ pending children whose search fidelity is SHORT
+    \State Recollect selectable, non-authoritative children
+    \ForAll{authoritative batches drawn from the first $B$ children, while time remains}
+      \State \Call{EvaluateAuthoritative}{batch}
+      \State Update descendant-validation counters
+      \State Backpropagate each evaluated node's result into $Q$ and $N$
+    \EndFor
+    \ForAll{$n\in\mathcal M$}
+      \State $G[n]\gets$ \Call{AuthoritativeMaxReturn}{$n,h$}
+    \EndFor
+  \EndFor
+  \State Restore the previous generation deadline
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\textbf{Frontier construction.} Stop at terminal nodes or the requested depth.
+Visit evaluated children in descending $\MeanRoot$ order and descend only through
+authoritative children. If deeper frontiers exist, use them. Otherwise, use the
+current node if it has selectable non-authoritative children or can expand.
+The latter check includes widening, pending capacity, exhaustion, and attempt
+limits; it is not just a child-count comparison.
+
+\textbf{Failure and statistics.} Failed children remain recorded but are not
+revived. A SHORT rejection ordinarily prevents LONG validation. Repair can
+change both $\Gval$ and $Q$, because it backs up new results. Consequently,
+comparing modes that enable versus skip repair is not a ranking-only ablation.
+Exhausting this bounded procedure is not proof that no feasible path exists.
+
+\newpage
+\section*{6. Continuation relaxation and exhaustion fallback}
+\begin{algorithm}[H]
+\caption{RelaxFloorContinuations: optional second repair pass}
+\small
+\begin{algorithmic}[1]
+\Procedure{RelaxFloorContinuations}{$\mathcal C,G$}
+  \If{relaxation is unavailable, deadline expired, or repair is disabled}
+    \State \Return
+  \EndIf
+  \State Find selectable authoritative roots with $G[n]=\none$, not previously tried
+  \State Exclude roots whose own actions already came from floor-fill fallback
+  \If{none remain or the relaxation context declines} \State \Return \EndIf
+  \State Enter the continuation floor-fill relaxation context
+  \State Mark these roots as attempted
+  \State Reopen generation at selectable, nonterminal nodes within the requested depth
+  \State Retain existing children and validation/rejection evidence
+  \State \Call{RepairMissingPaths}{these roots, $G$}
+  \State Record recovery status and leave the relaxation context
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+Only continuation proposal admission is relaxed here. Root admission and
+physical validation thresholds are not relaxed. This is separate from the
+outer search's fresh-root retries and root corner/floor proposal fallbacks.
+
+\begin{algorithm}[H]
+\caption{SelectDescendantFallback: last resort after outer retries/fallbacks}
+\small
+\begin{algorithmic}[1]
+\Require Retained pool $\mathcal F$ across finalization attempts and retired roots
+\State Keep only nodes rejected for missing validated descendants
+\State Require authoritative root placement, nonfailed physical state, and an action
+\State Exclude execution-rejected actions and nonfinite $\MeanRoot$ values
+\State Stably sort remaining nodes by descending $\MeanRoot$
+\ForAll{remaining nodes $n$}
+  \State Clear the missing-descendant rejection and corresponding node failure flag
+  \State Mark descendant evidence unavailable and mean fallback active
+  \State $J(a(n))\gets\MeanRoot(n)$; reattach $n$ to the root if detached
+\EndFor
+\State \Return highest-ranked node and ranking, or no selection
+\end{algorithmic}
+\end{algorithm}
+No new simulation is started by this final fallback, including after a deadline.
+It does not revive a physically failed state. In this branch, mixed and path-only
+modes also rank by the mean-root estimate. Only the next placement is executed;
+continuations are predictions, followed by observation and replanning.
+
+\textbf{Example.} For rewards $(2,3,4)$ and $\gamma=0.9$, a validated
+two-descendant path has $\Gval=2+0.9(3)+0.9^2(4)=7.94$.
+If $Q(n_a)=6$ and $\beta=0.5$, then $J(a)=6.97$ in the normal mean-statistics
+case. If no continuation can be established and the final fallback is used,
+the score is instead $\MeanRoot(n_a)$, not a fabricated path return.
+
+\newpage
+\section*{7. Configuration and code correspondence}
+\small
+\begin{tabular}{p{.49\linewidth}p{.45\linewidth}}
+\hline
+Configuration & Algorithm meaning \\
+\hline
+\texttt{final\_selection.mode} & Effective $\beta$: mean / mixed / path-only.\\
+\texttt{final\_selection.max\_weight} & $\beta$ only in mixed mode.\\
+\texttt{validate\_descendant\_depth} & $h_{\mathrm{val}}$; also the known-path scoring horizon.\\
+\texttt{validate\_descendant\_path} & $b_{\mathrm{val}}$: perform additional authoritative path validation.\\
+\texttt{require\_validated\_descendant} & $b_{\mathrm{req}}$: reject missing evidence before exhaustion fallback.\\
+\texttt{validation.max\_candidates} & $L$: shortlist cap; zero disables final root re-evaluation here.\\
+\texttt{generation.expansion\_retry\_batches} & $R$: controls bounded repair rounds together with depth.\\
+\texttt{generation.evaluation\_batch\_size} & $B$: evaluation/allocation limit, not the widening cap.\\
+\hline
+\end{tabular}
+
+\textbf{Current coupling, not desired invariants.}
+With $\beta=0$, descendant evidence and its requirement are bypassed.
+With $b_{\mathrm{val}}=\mathrm{false}$ and $\beta>0$, an available known return
+can satisfy the code's requirement even if not LONG-validated.
+With $h_{\mathrm{val}}=0$, the path score reduces to the root placement reward;
+that is not equivalent to switching off validation while retaining a deeper
+known-return horizon. Provisional ranking also affects shortlist membership and
+work order. These facts must be retained or explicitly changed when designing
+controlled Q-only versus mixed comparisons.
+
+\begin{tabular}{p{.40\linewidth}p{.54\linewidth}}
+\hline
+Algorithm & Methods in \texttt{search/mcts/search.py} \\
+\hline
+FinalSelect & \texttt{\_final\_select}, \texttt{\_final\_path\_scores},
+\texttt{\_final\_root\_score}\\
+Provisional and mean score & \texttt{\_provisional\_root\_score},
+\texttt{\_mean\_root\_score}\\
+KnownPathReturn & \texttt{\_known\_descendant\_return}\\
+ValidatePathLong & \texttt{\_validated\_descendant\_walk},
+\texttt{\_run\_validation\_walks}\\
+EvaluateAuthoritative & \texttt{\_evaluate\_authoritative},
+\texttt{\_is\_authoritative}\\
+RepairMissingPaths & \texttt{\_repair\_descendant\_paths}\\
+AuthoritativeMaxReturn & Nested \texttt{path\_return} in repair\\
+RelaxFloorContinuations & \texttt{\_repair\_floor\_continuations}\\
+SelectDescendantFallback & \texttt{\_select\_descendant\_fallback}\\
+\hline
+\end{tabular}
+
+\textbf{Scope limits.} The algorithms compress batching and counter updates;
+they do not reproduce the complete exploration loop, outer retry orchestration,
+or simulator internals. Default platform profiles use LONG as final fidelity.
+Initial first-passing traversal and repair-max aggregation remain distinct.
+No speed, feasibility, or ranking-quality improvement is asserted by this
+description; those require the controlled benchmarks described in
+\texttt{mcts-validation-and-benchmark-20261027.md}.
+
+\textbf{Notation provenance.} Paper PDF SHA-256:\\
+\texttt{26b3fd108956709b3e8c6fe975fa08a0326d0c1049c7ce2d0dd79ae139e6e861}.\\
+Source definitions in the sibling paper checkout:\\
+\texttt{root.tex}; \texttt{sections/03\_overview.tex};\\
+\texttt{sections/05\_sequence\_planning.tex}.
+\end{document}

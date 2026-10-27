@@ -165,6 +165,11 @@ def search_statistics(
             "timed_out": result.final_validation_timed_out,
         },
         "simulation": {
+            "batches": result.short_simulation_batches + result.long_simulation_batches,
+            "jobs": result.short_simulation_jobs + result.long_simulation_jobs,
+            "batch_wall_seconds": result.short_simulation_seconds + result.long_simulation_seconds,
+            "settling_job_seconds": result.short_settling_job_seconds + result.long_settling_job_seconds,
+            "structural_job_seconds": result.short_structural_job_seconds + result.long_structural_job_seconds,
             "short_batches": result.short_simulation_batches,
             "short_jobs": result.short_simulation_jobs,
             "short_parallel_batches": result.short_parallel_batches,
@@ -208,7 +213,7 @@ def search_statistics(
             "attempts": result.descendant_validation_attempts,
             "failures": result.descendant_validation_failures,
         },
-        "final_selection_mode": result.final_selection_mode,
+        "final_selection_max_weight": result.final_selection_max_weight,
         "tree": {
             "nodes": tree["nodes"],
             "evaluated": tree["evaluated"],
@@ -369,22 +374,13 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
                 )
             )
             print(f"[INFO] CEM posegen rejections: {reasons}")
-    if result.short_simulation_jobs:
+    if result.short_simulation_jobs + result.long_simulation_jobs:
         print(
-            "[INFO] MCTS short simulation: "
-            f"batches={result.short_simulation_batches}, "
-            f"jobs={result.short_simulation_jobs}, "
-            f"parallel_batches={result.short_parallel_batches}, "
-            f"parallel_jobs={result.short_parallel_jobs}, "
+            "[INFO] MCTS simulation (settling -> full structure): "
+            f"batches={result.short_simulation_batches + result.long_simulation_batches}, "
+            f"jobs={result.short_simulation_jobs + result.long_simulation_jobs}, "
             f"workers={result.transition_workers}, "
-            f"max_batch_size={result.short_max_batch_size}"
-        )
-    if result.long_simulation_jobs:
-        print(
-            "[INFO] MCTS long simulation: "
-            f"batches={result.long_simulation_batches}, "
-            f"jobs={result.long_simulation_jobs}, "
-            f"workers={result.transition_workers}"
+            f"max_batch_size={result.max_evaluation_batch_size}"
         )
     if result.pose_generation_batches:
         print(
@@ -398,13 +394,10 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
     print(
         "[Timing] MCTS phases: "
         f"pose_generation={result.pose_generation_seconds:.2f}s, "
-        f"short_batch_wall={result.short_simulation_seconds:.2f}s, "
-        f"long_batch_wall={result.long_simulation_seconds:.2f}s; "
+        f"simulation_batch_wall={result.short_simulation_seconds + result.long_simulation_seconds:.2f}s; "
         "simulation_job_seconds="
-        f"(short_settle={result.short_settling_job_seconds:.2f}s, "
-        f"short_structural={result.short_structural_job_seconds:.2f}s, "
-        f"long_settle={result.long_settling_job_seconds:.2f}s, "
-        f"long_structural={result.long_structural_job_seconds:.2f}s)"
+        f"(settling={result.short_settling_job_seconds + result.long_settling_job_seconds:.2f}s, "
+        f"structural={result.short_structural_job_seconds + result.long_structural_job_seconds:.2f}s)"
     )
     if result.final_validation_attempts:
         print(
@@ -416,7 +409,7 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
         )
     if result.root_validation.attempted:
         print(
-            "[INFO] Root authoritative validation: "
+            "[INFO] Root simulation: "
             f"attempted={result.root_validation.attempted}, "
             f"kept={result.root_validation.accepted}, "
             f"rejected={result.root_validation.rejected}, "
@@ -435,7 +428,7 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
             "[INFO] Descendant final validation: "
             f"attempted={result.descendant_validation_attempts}, "
             f"rejected={result.descendant_validation_failures}, "
-            f"mode={result.final_selection_mode}"
+            f"max_weight={result.final_selection_max_weight}"
         )
     if result.root_retry.rounds:
         print(
@@ -483,6 +476,8 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
         return
 
     info = selected.info
+    if info.get("descendant_depth_fallback"):
+        print("[INFO] Descendant depth unavailable: selected feasible root by mean return")
     stage_times = info.get("simulation_stage_times")
     if isinstance(stage_times, dict) and stage_times:
         stages = ", ".join(

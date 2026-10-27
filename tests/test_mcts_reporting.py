@@ -45,7 +45,6 @@ def test_excavator_cli_reports_search_and_stops_heartbeat(tmp_path, monkeypatch,
     # Exercise successful native validation with the narrower ablation target.
     values["root_cem"].update(population=96, elite=24, iterations=1, keep=12)
     values["tree"]["root_max_children"] = 12
-    values["validation"]["max_candidates"] = 12
     config = tmp_path / "mcts.yml"
     config.write_text(yaml.safe_dump(values))
     reporters = []

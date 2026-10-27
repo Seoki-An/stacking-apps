@@ -42,21 +42,13 @@ phases:
     dt: 0.01
     steps: 400
     sample_count: 64
-  short_structural:
-    energy_threshold: 0.00001
-    velocity_integral_threshold: 0.2
-    min_time: 0.5
-    max_time: 4.0
-    extra_steps: 20
-    final_extra_steps: 40
-    freeze_radius: 1.5
   structural:
     energy_threshold: 0.00001
     velocity_integral_threshold: 0.2
     min_time: 3.0
-    max_time: 15.0
-    extra_steps: 150
-    final_extra_steps: 300
+    max_time: 10.0
+    extra_steps: 85
+    final_extra_steps: 200
 validation:
   contact_gap_tolerance: 0.02
   minimum_support_count: 1

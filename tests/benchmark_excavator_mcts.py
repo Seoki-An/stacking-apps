@@ -64,7 +64,7 @@ def build(args):
     ids = list(application.inventory_profile.object_ids)
     inventory = application.load_inventory(ids, {i: [0., 0., 0., 0., 0., 0., 1.] for i in ids})
     environment = application.build_environment(inventory,
-        application.build_core_backend(inventory, EvaluationFidelity.SHORT))
+        application.build_core_backend(inventory, EvaluationFidelity.LONG))
     search = application.build_mcts(inventory, rng=random.Random(args.seed))
     if args.mode == 'previous' or args.prepare:
         search.__class__ = baseline_class(args.output, args.baseline_ref)

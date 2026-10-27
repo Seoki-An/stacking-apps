@@ -24,14 +24,15 @@ def state(placed=False):
 
 
 @pytest.fixture
-def backends():
+def backends(request):
     if not core.cuda_capabilities().get('simulation_solve') or not core.cuda_capabilities().get('devices'):
         pytest.skip('requires core GPU simulation and device')
     models = {i: core.BodyModel.dsf(i, np.concatenate([np.eye(3), -np.eye(3)]) * .05,
                                   mass=1., inertia=np.eye(3), sharpness=2) for i in (10, 20)}
     short = SimulationPhaseConfig(.01, 1e-5, .2, .025, .15, 2, final_extra_steps=3)
     long = replace(short, min_time=.055, max_time=.2, extra_steps=4, final_extra_steps=6)
-    config = CorePlacementConfig(long, .01, 4, .02, 1, short_gate=short)
+    config = CorePlacementConfig(long, .01, 4, .02, 1,
+                                 short_gate=short if getattr(request, "param", True) else None)
     physics = core.SimulationConfig()
     physics.gravity = np.zeros(3)
     gpu = CudaPlacementBackend(models, config, physics, settling_simulation_config=physics)
@@ -51,6 +52,8 @@ def test_phase_time_bounds_are_strict():
     assert _steps_after(0., .01) == 1
 
 
+@pytest.mark.parametrize("backends", [False, True], indirect=True,
+                         ids=["unified", "legacy_staged"])
 def test_native_batch_matches_scalar_cpu_and_preserves_history(backends):
     cpu, gpu = backends
     states = (state(), state(True))
@@ -62,7 +65,8 @@ def test_native_batch_matches_scalar_cpu_and_preserves_history(backends):
         assert result.settled == reference.settled
         assert result.diagnostics['simulation_backend'] == 'cuda'
         assert result.diagnostics['simulation_stage_times'] == pytest.approx(reference.diagnostics['simulation_stage_times'])
-        assert result.diagnostics['simulation_stage_times']['long_extension'] > 0
+        phase = 'long_extension' if gpu.config.short_gate else 'structural'
+        assert result.diagnostics['simulation_stage_times'][phase] > 0
         for object_id in result.object_poses:
             np.testing.assert_allclose(result.object_poses[object_id], reference.object_poses[object_id], atol=1e-6)
             np.testing.assert_allclose(result.trajectories[object_id].times, reference.trajectories[object_id].times, atol=1e-6)

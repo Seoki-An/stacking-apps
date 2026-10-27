@@ -1,5 +1,9 @@
 # Current MCTS strategy
 
+> Historical staged-simulation description. The runtime strategy changed on
+> 2026-10-27: see [Unified MCTS simulation](mcts-unified-simulation.md) for the
+> current single simulation, depth filter, and subtree reuse behavior.
+
 This document describes the shared MCTS implementation and the excavator CPU
 and CUDA profiles as of 2026-10-21, including continuation repair. MCTS searches
 placement sequences, validates the immediate action and required continuations,
@@ -334,8 +338,13 @@ Sources: [CPU profile](../apps/excavator/config/mcts_cpu.yml) and
 ## Candidate generation and exploration
 
 CEM generates and ranks root proposals, then combines mutations of elites with
-fresh proposals. Both profiles use a fresh fraction of `0.5` and retain at most
-two candidates per object. Root and deeper sampling use `lower_floor_first`.
+fresh proposals. Both profiles use a fresh fraction of `0.5` and a baseline
+`max_per_object` of two. With `N` unplaced inventory objects, the effective cap
+is `max(max_per_object, ceil(keep / N))`; elite-parent selection uses `elite`
+instead of `keep`. Thus fewer remaining stones can contribute more distinct
+poses without increasing the total pool or elite budget. An unset cap remains
+unlimited; insufficient feasible poses can still leave the pool underfilled.
+Root and deeper sampling use `lower_floor_first`.
 These proposal scores are priors; physical simulation still decides whether a
 placement is acceptable. More precisely, the default tree prior logit combines
 equilibrium and containment, while CEM adds the normalized planar score to rank

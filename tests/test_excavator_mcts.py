@@ -57,10 +57,10 @@ def test_native_excavator_mcts_selects_a_validated_recorded_object(posegen_backe
     profile = application.mcts_profile
     # The narrower ablation target needs more candidates than the old 8-sample smoke.
     application = replace(application, mcts_profile=replace(profile,
-        tree=replace(profile.tree, root_max_children=12, final_validation_candidates=12),
+        tree=replace(profile.tree, root_max_children=12, ),
         root_cem=replace(profile.root_cem, population=96, elite=24, iterations=1, keep=12)))
     request = replace(application.default_mcts_request(), iterations=2,
-                      max_time_seconds=60., final_validation_reserve_seconds=20.)
+                      max_time_seconds=60., )
     environment = application.build_environment(inventory,
         application.build_core_backend(inventory, EvaluationFidelity.SHORT))
     reset = environment.reset()

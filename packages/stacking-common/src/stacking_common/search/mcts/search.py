@@ -28,7 +28,7 @@ from stacking_common.search.types import (
 from .backup import backpropagate
 from .config import MCTSConfig
 from .node import MCTSNode
-from .tree_policy import best_child, can_expand, expansion_room, select_child
+from .tree_policy import can_expand, expansion_room, select_child
 
 
 ObservationT = TypeVar("ObservationT")
@@ -39,19 +39,12 @@ class MCTSSearchRequest:
     """Runtime controls for one bounded MCTS invocation."""
 
     iterations: int
-    evaluation_fidelity: EvaluationFidelity = EvaluationFidelity.SHORT
+    evaluation_fidelity: EvaluationFidelity = EvaluationFidelity.LONG
     epsilon: float = 0.0
     reset_statistics: bool = True
     root_sampling_priority: str | None = None
     deeper_sampling_priority: str | None = None
     max_time_seconds: float | None = None
-    simulation_depth: int | None = None
-    beyond_depth_fidelity: EvaluationFidelity | None = None
-    final_validation_fidelity: EvaluationFidelity | None = None
-    final_validation_reserve_seconds: float = 0.0
-    revalidate_children: bool = False
-    revalidation_fidelity: EvaluationFidelity = EvaluationFidelity.LONG
-    max_revalidation_drift: float = 0.1
     execution_rejections: ExecutionRejections = field(
         default_factory=ExecutionRejections
     )
@@ -67,45 +60,11 @@ class MCTSSearchRequest:
             or self.max_time_seconds <= 0.0
         ):
             raise ValueError("MCTS maximum search time must be positive")
-        if (
-            not math.isfinite(self.final_validation_reserve_seconds)
-            or self.final_validation_reserve_seconds < 0.0
-        ):
-            raise ValueError(
-                "MCTS final-validation reserve must be finite and non-negative"
-            )
-        if self.final_validation_reserve_seconds > 0.0:
-            if self.max_time_seconds is None:
-                raise ValueError(
-                    "MCTS final-validation reserve requires a maximum search time"
-                )
-            if self.final_validation_reserve_seconds >= self.max_time_seconds:
-                raise ValueError(
-                    "MCTS final-validation reserve must be smaller than the "
-                    "maximum search time"
-                )
-        if self.simulation_depth is not None and self.simulation_depth < 0:
-            raise ValueError("MCTS simulation depth must be non-negative")
-        if (
-            not math.isfinite(self.max_revalidation_drift)
-            or self.max_revalidation_drift < 0.0
-        ):
-            raise ValueError("MCTS revalidation drift must be non-negative")
         object.__setattr__(
             self, "evaluation_fidelity", EvaluationFidelity(self.evaluation_fidelity)
         )
-        for name in ("beyond_depth_fidelity", "final_validation_fidelity"):
-            value = getattr(self, name)
-            if value is not None:
-                object.__setattr__(self, name, EvaluationFidelity(value))
-        object.__setattr__(
-            self,
-            "revalidation_fidelity",
-            EvaluationFidelity(self.revalidation_fidelity),
-        )
         object.__setattr__(self, "epsilon", float(self.epsilon))
         object.__setattr__(self, "reset_statistics", bool(self.reset_statistics))
-        object.__setattr__(self, "revalidate_children", bool(self.revalidate_children))
         if not isinstance(self.execution_rejections, ExecutionRejections):
             raise TypeError("MCTS execution rejections must be ExecutionRejections")
         seeds = tuple(self.seed_actions)
@@ -196,6 +155,7 @@ class MCTSSearchResult(Generic[ObservationT]):
     effective_max_depth: int
     ranked_candidates: tuple[MCTSNode[ObservationT], ...] = ()
     timed_out: bool = False
+    # Legacy result columns retained for existing artifact/consumer compatibility.
     final_validation_attempts: int = 0
     final_validation_failures: int = 0
     final_validation_timed_out: bool = False
@@ -227,7 +187,7 @@ class MCTSSearchResult(Generic[ObservationT]):
     floor_fill_fallback: FloorFillFallbackResult = FloorFillFallbackResult()
     descendant_validation_attempts: int = 0
     descendant_validation_failures: int = 0
-    final_selection_mode: str = "mean"
+    final_selection_max_weight: float = 0.5
     seeded_candidates: int = 0
     execution_rejected_candidates: int = 0
     backend_failure: dict[str, object] | None = None
@@ -246,9 +206,6 @@ class _SearchCounters:
     generated_candidates: int = 0
     evaluated_candidates: int = 0
     failed_evaluations: int = 0
-    final_validation_attempts: int = 0
-    final_validation_failures: int = 0
-    final_validation_timed_out: bool = False
     short_simulation_batches: int = 0
     short_simulation_jobs: int = 0
     short_parallel_batches: int = 0
@@ -268,8 +225,6 @@ class _SearchCounters:
     root_retry_retired: int = 0
     root_retry_generated: int = 0
     root_retry_accepted: int = 0
-    descendant_validation_attempts: int = 0
-    descendant_validation_failures: int = 0
     seeded_candidates: int = 0
     execution_rejected_candidates: int = 0
     pose_generation_seconds: float = 0.0
@@ -313,7 +268,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         root: MCTSNode[ObservationT],
         request: MCTSSearchRequest,
     ) -> MCTSSearchResult[ObservationT]:
-        """Run bounded selection-to-backup iterations and final validation."""
+        """Run a single-fidelity search, then rank its existing evidence."""
 
         if not root.evaluated:
             raise ValueError("MCTS search root must contain an evaluated state")
@@ -336,11 +291,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             if request.max_time_seconds is None
             else time.monotonic() + request.max_time_seconds
         )
-        iteration_deadline = (
-            None
-            if deadline is None
-            else deadline - request.final_validation_reserve_seconds
-        )
+        iteration_deadline = deadline
         counters = _SearchCounters(generation_deadline=iteration_deadline)
         root.detach()
         # Relaxation applies to one placement only. Rebuild any promoted
@@ -351,19 +302,10 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         self._apply_execution_rejections(root, request, counters)
         completed = 0
         selected, ranked_candidates = None, ()
-        descendant_fallbacks = []
-        revalidation = SubtreeRevalidationResult()
         fallback = FloorFillFallbackResult()
         backend_failure = None
         try:
             self._seed_root(root, request, counters)
-            if request.revalidate_children and root.children:
-                revalidation = self.revalidate_children(
-                    root,
-                    request.revalidation_fidelity,
-                    request.max_revalidation_drift,
-                    deadline=iteration_deadline,
-                )
             if request.reset_statistics:
                 root.reset_statistics(recursive=True)
             reset_generator_statistics = getattr(
@@ -372,14 +314,13 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             if callable(reset_generator_statistics):
                 reset_generator_statistics()
 
-            if self.config.validate_root_before_search:
-                self._prepare_authoritative_root(
-                    root,
-                    request,
-                    counters,
-                    iteration_deadline,
-                    reseed=request.reset_statistics,
-                )
+            self._prepare_root(
+                root,
+                request,
+                counters,
+                iteration_deadline,
+                reseed=request.reset_statistics,
+            )
             for child in root.evaluated_children():
                 if not child.children:
                     child.info.pop("root_lookahead_attempted", None)
@@ -420,9 +361,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                         break
                     completed += consumed
 
-            selected, ranked_candidates = self._final_select(
-                root, request, counters, deadline, descendant_fallbacks=descendant_fallbacks
-            )
+            selected, ranked_candidates = self._final_select(root)
             excluded_actions = [
                 child.action
                 for child in root.children
@@ -451,7 +390,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 accepted_before = counters.root_validation_attempts - (
                     counters.root_validation_failures
                 )
-                self._prepare_authoritative_root(
+                self._prepare_root(
                     root,
                     request,
                     counters,
@@ -481,27 +420,17 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                         request,
                         counters,
                     )
-                self._extend_retry_paths(root, request, counters, deadline)
                 excluded_actions.extend(retired)
                 excluded_actions.extend(
                     child.action
                     for child in root.children
                     if child.action is not None
                 )
-                selected, ranked_candidates = self._final_select(
-                    root, request, counters, deadline, descendant_fallbacks=descendant_fallbacks
-                )
+                selected, ranked_candidates = self._final_select(root)
             if selected is None:
                 selected, ranked_candidates, fallback = self._run_floor_fill_fallback(
-                    root, request, counters, deadline, descendant_fallbacks=descendant_fallbacks
+                    root, request, counters, deadline
                 )
-            if selected is None:
-                selected, ranked_candidates = self._select_descendant_fallback(
-                    root, request, descendant_fallbacks
-                )
-                if (selected is not None and fallback.attempted
-                        and selected.action.diagnostics.get(f"{fallback.policy}_fallback")):
-                    fallback = replace(fallback, selected=True)
         except BackendCapacityError as error:
             # Resource exhaustion is independent of sampling retries or floor
             # relaxation. Preserve the partial tree and stop this search now.
@@ -524,14 +453,9 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             backend_failure=backend_failure,
             timed_out=backend_failure is None and (
                 completed < request.iterations
-                or counters.final_validation_timed_out
                 or counters.root_validation_timed_out
-                or revalidation.timed_out
                 or deadline_exceeded
             ),
-            final_validation_attempts=counters.final_validation_attempts,
-            final_validation_failures=counters.final_validation_failures,
-            final_validation_timed_out=counters.final_validation_timed_out,
             short_simulation_batches=counters.short_simulation_batches,
             short_simulation_jobs=counters.short_simulation_jobs,
             short_parallel_batches=counters.short_parallel_batches,
@@ -561,7 +485,6 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             short_structural_job_seconds=counters.short_structural_job_seconds,
             long_settling_job_seconds=counters.long_settling_job_seconds,
             long_structural_job_seconds=counters.long_structural_job_seconds,
-            revalidation=revalidation,
             root_validation=RootValidationResult(
                 attempted=counters.root_validation_attempts,
                 accepted=(
@@ -583,20 +506,14 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 generated=counters.root_retry_generated,
                 accepted=counters.root_retry_accepted,
             ),
-            descendant_validation_attempts=(
-                counters.descendant_validation_attempts
-            ),
-            descendant_validation_failures=(
-                counters.descendant_validation_failures
-            ),
-            final_selection_mode=self.config.final_selection.mode,
+            final_selection_max_weight=self.config.final_selection.max_weight,
             seeded_candidates=counters.seeded_candidates,
             execution_rejected_candidates=(
                 counters.execution_rejected_candidates
             ),
         )
 
-    def _run_floor_fill_fallback(self, root, request, counters, deadline, *, descendant_fallbacks=None):
+    def _run_floor_fill_fallback(self, root, request, counters, deadline):
         """Retry corner seeds or floor filling within the original deadline.
 
         After the first pool, up to rejected_root_retry_rounds fresh pools run,
@@ -607,7 +524,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         policy = "corner_seed" if empty and callable(corner_relax) else "floor_fill"
         relax = (corner_relax if policy == "corner_seed" else
                  getattr(self.action_generator, "floor_fill_fallback", None))
-        if (not callable(relax) or request.final_validation_fidelity is None
+        if (not callable(relax)
                 or (deadline is not None and time.monotonic() >= deadline)):
             return None, (), FloorFillFallbackResult()
         with relax() as enabled:
@@ -636,7 +553,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 pools += 1
                 generated_before = counters.generated_candidates
                 accepted_before = counters.root_validation_attempts - counters.root_validation_failures
-                self._prepare_authoritative_root(root, request, counters, deadline)
+                self._prepare_root(root, request, counters, deadline)
                 generated += counters.generated_candidates - generated_before
                 accepted += (counters.root_validation_attempts - counters.root_validation_failures
                              - accepted_before)
@@ -646,11 +563,8 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     if not coverage:
                         break
                     self._run_root_lookahead_batch(coverage, request, counters)
-                self._extend_retry_paths(root, request, counters, deadline)
                 excluded.extend(child.action for child in root.children if child.action is not None)
-                selected, ranked = self._final_select(
-                    root, request, counters, deadline, descendant_fallbacks=descendant_fallbacks
-                )
+                selected, ranked = self._final_select(root)
                 if selected is not None:
                     break
             return selected, ranked, FloorFillFallbackResult(
@@ -674,63 +588,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 close()
             closed.add(id(collaborator))
 
-    def revalidate_children(
-        self,
-        root: MCTSNode[ObservationT],
-        fidelity: EvaluationFidelity = EvaluationFidelity.LONG,
-        max_drift: float = 0.1,
-        *,
-        deadline: float | None = None,
-    ) -> SubtreeRevalidationResult:
-        """Re-evaluate preserved children against their authoritative root."""
-
-        if root.state is None:
-            raise ValueError("preserved MCTS root must contain a state")
-        if not math.isfinite(max_drift) or max_drift < 0.0:
-            raise ValueError("MCTS revalidation drift must be non-negative")
-        children = root.evaluated_children()
-        fidelity = EvaluationFidelity(fidelity)
-        batch_size = self._authoritative_batch_size()
-        attempted = accepted = rejected = cleared = 0
-        timed_out = False
-        for start in range(0, len(children), batch_size):
-            if deadline is not None and time.monotonic() >= deadline:
-                timed_out = True
-                for child in children[start:]:
-                    child.reject("preserved_revalidation_timeout", info=child.info)
-                    rejected += 1
-                break
-            batch = children[start : start + batch_size]
-            actions = [
-                child.action for child in batch if child.action is not None
-            ]
-            evaluations = self._evaluate_transitions(
-                [root.state] * len(actions), actions, fidelity
-            )
-            attempted += len(evaluations)
-            for child, evaluation in zip(batch, evaluations):
-                previous = child.state
-                if previous is not None and not evaluation.failed and (
-                    _state_pose_drift(previous, evaluation.state) > max_drift
-                ):
-                    child.clear_children()
-                    cleared += 1
-                self._apply_evaluation(child, evaluation, authoritative=True)
-                if evaluation.failed:
-                    rejected += 1
-                else:
-                    accepted += 1
-        if children and accepted == 0:
-            root.expansion_exhausted = False
-        return SubtreeRevalidationResult(
-            attempted=attempted,
-            accepted=accepted,
-            rejected=rejected,
-            cleared_subtrees=cleared,
-            timed_out=timed_out,
-        )
-
-    def _prepare_authoritative_root(
+    def _prepare_root(
         self,
         root,
         request,
@@ -739,7 +597,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         *,
         reseed=False,
     ) -> None:
-        """Generate, long-validate, and seed every available root candidate."""
+        """Generate, simulate, and seed every available root candidate once."""
 
         while can_expand(root, self.config):
             if deadline is not None and time.monotonic() >= deadline:
@@ -754,11 +612,10 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             )
             if root.expansion_attempts == before:
                 break
-        fidelity = self._authoritative_fidelity(request)
         pending = [
             child
             for child in root.selectable_children()
-            if not self._is_authoritative(child, fidelity)
+            if not child.evaluated
         ]
         self._validate_root_nodes(
             root,
@@ -770,7 +627,6 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         for child in root.evaluated_children():
             if reseed or child.visits == 0:
                 self._back_up(child)
-                child.info["root_validation_seeded"] = True
 
     def _root_lookahead_eligible_children(self, root):
         if not self.config.root_lookahead or self.config.max_depth <= 1:
@@ -822,33 +678,6 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         )
         return attempted
 
-    def _extend_retry_paths(self, root, request, counters, deadline) -> None:
-        """Give fresh retry roots the depth required by final selection."""
-        depth = min(
-            self.config.final_selection.validate_descendant_depth,
-            max(self.config.max_depth - 1, 0),
-        )
-        if depth <= 1 or self._final_selection_weight() <= 0.0:
-            return
-        frontier = root.evaluated_children()
-        for _ in range(depth):
-            expandable = [
-                node for node in frontier
-                if not node.children and can_expand(node, self.config)
-            ]
-            batch_size = self.config.evaluation_batch_size
-            for start in range(0, len(expandable), batch_size):
-                if deadline is not None and time.monotonic() >= deadline:
-                    return
-                self._run_continuation_batch(
-                    expandable[start : start + batch_size], request, counters
-                )
-            frontier = [
-                child for node in frontier for child in node.evaluated_children()
-            ]
-            if not frontier:
-                break
-
     def _run_continuation_batch(self, children, request, counters) -> None:
         """Expand and evaluate one level beneath independent parent nodes."""
         selected_children = list(children)
@@ -897,7 +726,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         if evaluation_nodes:
             self._evaluate_many(
                 evaluation_nodes,
-                self._tree_fidelity(evaluation_nodes[0].depth, request),
+                request.evaluation_fidelity,
                 counters,
             )
         for child, selected in selected_nodes:
@@ -1019,12 +848,8 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 if len(evaluation_nodes) >= self.config.evaluation_batch_size:
                     break
 
-        by_fidelity = {}
-        for node in evaluation_nodes:
-            fidelity = self._tree_fidelity(node.depth, request)
-            by_fidelity.setdefault(fidelity, []).append(node)
-        for fidelity, nodes in by_fidelity.items():
-            self._evaluate_many(nodes, fidelity, counters)
+        if evaluation_nodes:
+            self._evaluate_many(evaluation_nodes, request.evaluation_fidelity, counters)
 
         # All reservations disappear here (and on any exception) without undoing
         # edits to real visits/rewards: the selection overlay is local only.
@@ -1134,7 +959,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             if child is None:
                 break
             if not child.evaluated:
-                fidelity = self._tree_fidelity(child.depth, request)
+                fidelity = request.evaluation_fidelity
                 batch = [child]
                 batch.extend(
                     sibling
@@ -1360,9 +1185,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         candidates = []
         for candidate in generated.candidates:
             reason = execution_rejections.reason(candidate.action)
-            if reason is None and self._contains_external_seed(
-                node, candidate.action
-            ):
+            if reason is None and self._contains_action(node, candidate.action):
                 reason = "duplicate_action"
             if reason is None:
                 candidates.append(candidate)
@@ -1476,16 +1299,6 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             for child in node.children
         )
 
-    @staticmethod
-    def _contains_external_seed(node, action: Action) -> bool:
-        return any(
-            bool(child.info.get("external_seed"))
-            and child.action is not None
-            and child.action.object_index == action.object_index
-            and np.allclose(child.action.pose, action.pose, rtol=0.0, atol=1e-9)
-            for child in node.children
-        )
-
     def _evaluate_many(self, nodes, fidelity, counters) -> None:
         if any(
             node.parent is None
@@ -1570,8 +1383,8 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         counters,
         deadline,
     ) -> None:
-        fidelity = self._authoritative_fidelity(request)
-        batch_size = self._authoritative_batch_size()
+        fidelity = request.evaluation_fidelity
+        batch_size = self._root_batch_size()
         for start in range(0, len(nodes), batch_size):
             if deadline is not None and time.monotonic() >= deadline:
                 counters.root_validation_timed_out = True
@@ -1582,375 +1395,53 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     )
                 break
             batch = nodes[start : start + batch_size]
-            evaluations = self._evaluate_authoritative(
-                batch,
-                fidelity,
-                request,
-                counters,
-            )
-            counters.root_validation_attempts += len(evaluations)
-            counters.root_validation_failures += sum(
-                evaluation.failed for evaluation in evaluations
-            )
-            for child in batch:
-                child.info["root_long_validated"] = bool(
-                    child.evaluated and child.selectable
-                )
+            self._evaluate_many(batch, fidelity, counters)
+            counters.root_validation_attempts += len(batch)
+            counters.root_validation_failures += sum(child.failed for child in batch)
 
-    def _final_select(self, root, request, counters, deadline=None, *, descendant_fallbacks=None):
-        if root.state is None:
-            return None, ()
+    def _final_select(self, root):
+        """Filter and rank existing evidence; never simulate or extend a path.
+
+        Depth counts edges below a root candidate, capped by the search horizon.
+        A successful terminal node satisfies the remaining horizon. If no root
+        has sufficient depth, retain the physically feasible roots and use mean
+        return, as the search-exhaustion fallback.
+        """
         children = root.evaluated_children()
         if not children:
             return None, ()
-        ranked = sorted(
-            children,
-            key=self._provisional_root_score,
-            reverse=True,
-        )
-        fidelity = request.final_validation_fidelity
-        limit = self.config.final_validation_candidates
-        candidates = ranked if limit == 0 else ranked[:limit]
-        if fidelity is not None and limit > 0:
-            pending = [
-                child
-                for child in candidates
-                if not self._is_authoritative(child, fidelity)
-            ]
-            batch_size = self._authoritative_batch_size()
-            for start in range(0, len(pending), batch_size):
-                if deadline is not None and time.monotonic() >= deadline:
-                    counters.final_validation_timed_out = True
-                    break
-                batch = pending[start : start + batch_size]
-                evaluations = self._evaluate_authoritative(
-                    batch,
-                    fidelity,
-                    request,
-                    counters,
-                )
-                counters.final_validation_attempts += len(evaluations)
-                counters.final_validation_failures += sum(
-                    evaluation.failed for evaluation in evaluations
-                )
-                for child, evaluation in zip(batch, evaluations):
-                    child.info["final_validation_failed"] = bool(
-                        evaluation.failed
-                    )
-                    child.info["final_validation_reward"] = float(
-                        evaluation.reward
-                    )
-
-        candidates = [
-            child for child in candidates if child.evaluated and child.selectable
-        ]
-        path_scores = self._final_path_scores(
-            candidates, request, counters, deadline
-        )
-        self._repair_descendant_paths(candidates, path_scores, request, counters, deadline)
-        self._repair_floor_continuations(candidates, path_scores, request, counters, deadline)
+        paths = {
+            child: self._known_descendant_return(
+                child, min(self.config.final_selection.descendant_depth,
+                           max(self.config.max_depth - child.depth, 0)),
+            )
+            for child in children
+        }
+        eligible = [child for child in children
+                    if paths[child] is not None and math.isfinite(paths[child])]
+        fallback = not eligible
+        weight = self.config.final_selection.max_weight
         scored = []
-        for child in candidates:
-            score = self._final_root_score(child, path_scores.get(child))
-            if (descendant_fallbacks is not None
-                    and child.rejection_reason == "missing_validated_descendant"
-                    and child not in descendant_fallbacks):
-                descendant_fallbacks.append(child)
-            if math.isfinite(score):
-                child.info["final_selection_mode"] = (
-                    self.config.final_selection.mode
-                )
-                child.info["final_selection_score"] = float(score)
-                scored.append((child, float(score)))
-        if not scored:
-            return None, ()
-        scored.sort(key=lambda pair: pair[1], reverse=True)
-        ranked_candidates = tuple(child for child, _ in scored)
-        return ranked_candidates[0], ranked_candidates
-
-    def _select_descendant_fallback(self, root, request, candidates):
-        """Last resort after all search retries: relax only the descendant gate.
-
-        Keep candidates across retired root pools, but require the placement
-        itself to have passed authoritative validation. No new work is started,
-        so this also applies when the search/validation budget has expired.
-        """
-        fidelity = self._authoritative_fidelity(request)
-        ranked = [child for child in candidates
-                  if child.rejection_reason == "missing_validated_descendant"
-                  and self._is_authoritative(child, fidelity)
-                  and not child.state.failed
-                  and child.action is not None
-                  and request.execution_rejections.reason(child.action) is None
-                  and math.isfinite(self._mean_root_score(child))]
-        ranked.sort(key=self._mean_root_score, reverse=True)
-        for child in ranked:
-            child.failed = False
-            child.rejection_reason = None
+        for child in eligible or children:
+            mean = float(child.mean_value)
+            path = paths[child]
+            score = mean if fallback else (1.0 - weight) * mean + weight * path
             child.info.update(
-                validated_descendant_path_available=False,
-                validated_descendant_fallback=True,
-                final_selection_used_mean_fallback=True,
-                final_selection_mode=self.config.final_selection.mode,
-                final_selection_score=float(self._mean_root_score(child)),
+                descendant_depth_satisfied=not fallback,
+                descendant_depth_fallback=fallback,
+                descendant_path_return=path,
+                final_selection_used_mean_fallback=fallback,
+                final_selection_max_weight=self.config.final_selection.max_weight,
+                final_selection_score=float(score),
             )
-            if child.parent is None:
-                root.attach(child)
-        return (ranked[0] if ranked else None), tuple(ranked)
-
-    def _repair_floor_continuations(self, candidates, scores, request, counters, deadline):
-        """Keep validated root placements while relaxing only their continuations.
-
-        Try once per root candidate, within the existing deadline and bounded
-        path-repair budget. Physical failures are never revived. Root generation
-        is not called inside this context, so strict root admission is preserved.
-        """
-        selection = self.config.final_selection
-        fidelity = request.final_validation_fidelity
-        relax = getattr(self.action_generator, "floor_fill_fallback", None)
-        if (not callable(relax) or fidelity is None
-                or not selection.require_validated_descendant
-                or not selection.validate_descendant_path
-                or self._final_selection_weight() <= 0.0
-                or (deadline is not None and time.monotonic() >= deadline)):
-            return
-        missing = [child for child in candidates
-                   if scores.get(child) is None and child.selectable
-                   and self._is_authoritative(child, fidelity)
-                   and not child.info.get("floor_fill_continuation_attempted")
-                   and not child.action.diagnostics.get("floor_fill_fallback")]
-        if not missing:
-            return
-        with relax() as enabled:
-            if not enabled:
-                return
-            for child in missing:
-                child.info["floor_fill_continuation_attempted"] = True
-                # Reopen exhausted generation under the changed admission rule,
-                # retaining existing children, validation, and rejection evidence.
-                pending = [(child, selection.validate_descendant_depth)]
-                while pending:
-                    node, remaining = pending.pop()
-                    if remaining <= 0 or node.terminal or not node.selectable:
-                        continue
-                    node.expansion_attempts = 0
-                    node.expansion_exhausted = False
-                    pending.extend((descendant, remaining - 1)
-                                   for descendant in node.evaluated_children())
-            self._repair_descendant_paths(missing, scores, request, counters, deadline)
-            for child in missing:
-                child.info["floor_fill_continuation_recovered"] = scores.get(child) is not None
-
-    def _repair_descendant_paths(self, candidates, scores, request, counters, deadline):
-        """Repair missing paths before excluding physically valid root actions.
-
-        Each round admits at most one evaluation batch of children, screened at
-        short search fidelity before long validation. Existing generation
-        attempt limits still apply; failed children stay attached so proposal
-        offsets and rejection evidence are retained.
-        """
-        selection = self.config.final_selection
-        fidelity = request.final_validation_fidelity
-        depth = min(selection.validate_descendant_depth, self.config.max_depth - 1)
-        if (depth <= 0 or self._final_selection_weight() <= 0.0
-                or not selection.validate_descendant_path
-                or not selection.require_validated_descendant or fidelity is None):
-            return
-
-        def unvalidated(node):
-            return [child for child in node.selectable_children()
-                    if not self._is_authoritative(child, fidelity)]
-
-        def path_return(node, remaining):
-            if not node.selectable or not self._is_authoritative(node, fidelity):
-                return None
-            if remaining <= 0 or node.terminal:
-                return float(node.reward)
-            tails = [path_return(child, remaining - 1)
-                     for child in node.evaluated_children()]
-            tails = [value for value in tails if value is not None]
-            return node.reward + self.config.discount * max(tails) if tails else None
-
-        def frontier(node, remaining):
-            if remaining <= 0 or node.terminal:
-                return []
-            result = []
-            for child in sorted(node.evaluated_children(),
-                                key=self._mean_root_score, reverse=True):
-                if self._is_authoritative(child, fidelity):
-                    result.extend(frontier(child, remaining - 1))
-            if result:
-                return result
-            if unvalidated(node) or can_expand(node, self.config):
-                result.append(node)
-            return result
-
-        previous_deadline = counters.generation_deadline
-        counters.generation_deadline = deadline
-        try:
-            for _ in range(self.config.expansion_retry_batches * depth):
-                if deadline is not None and time.monotonic() >= deadline:
-                    counters.final_validation_timed_out = True
-                    break
-                missing = [child for child in candidates
-                           if scores.get(child) is None and child.selectable
-                           and self._is_authoritative(child, fidelity)]
-                if not missing:
-                    break
-                # Interleave roots so one large subtree cannot take every slot.
-                queues = [frontier(child, depth) for child in missing]
-                parents = []
-                limit = self.config.evaluation_batch_size
-                while len(parents) < limit and any(queues):
-                    for queue in queues:
-                        if queue and len(parents) < limit:
-                            parents.append(queue.pop(0))
-                if not parents:
-                    break
-                pending = [child for parent in parents for child in unvalidated(parent)]
-                targets = self._allocate_generation_slots(
-                    [parent for parent in parents if not unvalidated(parent)],
-                    max(limit - len(pending), 0),
-                )
-                self._expand_many(list(targets), counters, request.deeper_sampling_priority,
-                                  request, new_candidate_targets=targets)
-                # Simulate never-evaluated children at short search fidelity first;
-                # nearly all failures are caught there, at lower cost, and only
-                # children that pass reach long validation.
-                unscreened = [
-                    child for parent in parents for child in parent.pending_children()
-                    if self._tree_fidelity(child.depth, request) is EvaluationFidelity.SHORT
-                ][:limit]
-                if unscreened and (deadline is None or time.monotonic() < deadline):
-                    self._evaluate_many(unscreened, EvaluationFidelity.SHORT, counters)
-                pending = [child for parent in parents for child in unvalidated(parent)]
-                batch_size = self._authoritative_batch_size()
-                for start in range(0, min(len(pending), limit), batch_size):
-                    if deadline is not None and time.monotonic() >= deadline:
-                        counters.final_validation_timed_out = True
-                        break
-                    batch = pending[start : min(start + batch_size, limit)]
-                    evaluations = self._evaluate_authoritative(
-                        batch, fidelity, request, counters
-                    )
-                    counters.descendant_validation_attempts += len(evaluations)
-                    counters.descendant_validation_failures += sum(e.failed for e in evaluations)
-                    for node in batch:
-                        self._back_up(node)
-                scores.update((child, path_return(child, depth)) for child in missing)
-        finally:
-            counters.generation_deadline = previous_deadline
-
-    def _evaluate_authoritative(
-        self,
-        nodes,
-        fidelity,
-        request,
-        counters,
-    ):
-        """Evaluate nodes, possibly under different parents, in one batch."""
-        nodes = [node for node in nodes if node.action is not None]
-        actions = [node.action for node in nodes]
-        self._record_evaluation_batch(counters, fidelity, len(actions))
-        evaluations = self._evaluate_transitions_timed(
-            [node.parent.state for node in nodes],
-            actions,
-            fidelity,
-            counters,
-        )
-        for node, evaluation in zip(nodes, evaluations):
-            if evaluation.fidelity is not fidelity:
-                raise ValueError("authoritative evaluator returned the wrong fidelity")
-            if evaluation.state.object_ids != node.parent.state.object_ids:
-                raise ValueError("transition evaluator changed the object inventory")
-            previous = node.state
-            if previous is not None and not evaluation.failed and (
-                _state_pose_drift(previous, evaluation.state)
-                > request.max_revalidation_drift
-            ):
-                node.clear_children()
-            self._apply_evaluation(node, evaluation, authoritative=True)
-            counters.evaluated_candidates += 1
-            counters.failed_evaluations += int(evaluation.failed)
-        return evaluations
-
-    def _final_path_scores(self, candidates, request, counters, deadline):
-        """Return each root candidate's descendant path return, or None."""
-        selection = self.config.final_selection
-        if self._final_selection_weight() <= 0.0:
-            return {}
-        scores = {}
-        walks = {}
-        for child in candidates:
-            depth = min(
-                selection.validate_descendant_depth,
-                max(self.config.max_depth - child.depth, 0),
-            )
-            if depth <= 0:
-                scores[child] = float(child.reward)
-            elif selection.validate_descendant_path:
-                walks[child] = self._validated_descendant_walk(
-                    child, depth, request.final_validation_fidelity
-                )
-            else:
-                scores[child] = self._known_descendant_return(child, depth)
-        scores.update(self._run_validation_walks(walks, request, counters, deadline))
-        return scores
-
-    def _final_root_score(self, child, path_score) -> float:
-        selection = self.config.final_selection
-        child.info.pop("validated_descendant_fallback", None)
-        mean_score = self._mean_root_score(child)
-        if self._final_selection_weight() <= 0.0:
-            return mean_score
-        weight = self._final_selection_weight()
-        child.info["validated_descendant_path_available"] = bool(
-            path_score is not None and math.isfinite(path_score)
-        )
-        if path_score is None or not math.isfinite(path_score):
-            child.info.pop("validated_descendant_path_return", None)
-            child.info["final_selection_used_mean_fallback"] = True
-            if selection.require_validated_descendant:
-                child.reject("missing_validated_descendant", info=child.info)
-                return -math.inf
-            return mean_score
-        child.info["final_selection_used_mean_fallback"] = False
-        child.info["validated_descendant_path_return"] = float(path_score)
-        return weight * float(path_score) + (1.0 - weight) * mean_score
-
-    def _provisional_root_score(self, child) -> float:
-        mean_score = self._mean_root_score(child)
-        weight = self._final_selection_weight()
-        if weight <= 0.0:
-            return mean_score
-        path_score = self._known_descendant_return(
-            child,
-            min(
-                self.config.final_selection.validate_descendant_depth,
-                max(self.config.max_depth - child.depth, 0),
-            ),
-        )
-        if path_score is None or not math.isfinite(path_score):
-            return mean_score
-        return weight * path_score + (1.0 - weight) * mean_score
-
-    def _mean_root_score(self, child) -> float:
-        if child.info.get("root_validation_seeded", False):
-            return float(child.mean_value)
-        if "final_validation_reward" in child.info:
-            return float(child.info["final_validation_reward"])
-        return float(child.mean_value)
-
-    def _final_selection_weight(self) -> float:
-        selection = self.config.final_selection
-        if selection.mode == "mean":
-            return 0.0
-        if selection.mode == "max_descendant":
-            return 1.0
-        return float(selection.max_weight)
+            if math.isfinite(score):
+                scored.append((child, score))
+        scored.sort(key=lambda pair: pair[1], reverse=True)
+        ranked = tuple(child for child, _ in scored)
+        return (ranked[0] if ranked else None), ranked
 
     def _known_descendant_return(self, node, remaining_depth):
-        if node.failed:
+        if not node.evaluated or not node.selectable:
             return None
         reward = float(node.reward)
         if remaining_depth <= 0 or node.terminal:
@@ -1964,120 +1455,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             return None
         return reward + self.config.discount * max(values)
 
-    def _validated_descendant_walk(self, node, remaining_depth, fidelity):
-        """Best-first path validation; yields lists of nodes to evaluate.
-
-        The caller evaluates each yielded list and resumes the walk, so walks
-        of several roots share authoritative batches. A node's next children
-        are validated together, ahead of need, but the walk still takes the
-        first child that passes in the same order: evaluations are independent,
-        so the selected path is the one a one-child-at-a-time walk finds.
-        Children without a known path return are deferred until reached, and
-        children that failed at search fidelity are skipped.
-        """
-        if node.failed:
-            return None
-        reward = float(node.reward)
-        if remaining_depth <= 0 or node.terminal:
-            return reward
-        children = sorted(
-            node.children,
-            key=lambda child: self._sortable_path_return(
-                child, remaining_depth - 1
-            ),
-            reverse=True,
-        )
-        if fidelity is None:
-            return self._known_descendant_return(node, remaining_depth)
-        # Children that already failed at search fidelity are not revalidated.
-        children = [
-            child for child in children
-            if child.action is not None and child.selectable
-        ]
-        # Children with a known path return sort first. They are validated
-        # together; the rest only when the walk reaches them.
-        known = [
-            math.isfinite(self._sortable_path_return(child, remaining_depth - 1))
-            for child in children
-        ]
-        for index, child in enumerate(children):
-            if not self._is_authoritative(child, fidelity):
-                yield [
-                    sibling
-                    for sibling, group in zip(children[index:], known[index:])
-                    if group == known[index]
-                    and not self._is_authoritative(sibling, fidelity)
-                ]
-            if not child.selectable or not child.evaluated:
-                continue
-            tail = yield from self._validated_descendant_walk(
-                child, remaining_depth - 1, fidelity
-            )
-            if tail is not None and math.isfinite(tail):
-                return reward + self.config.discount * tail
-        return None
-
-    def _run_validation_walks(self, walks, request, counters, deadline):
-        """Advance every walk, evaluating their pending nodes in shared batches.
-
-        A walk stopped by the deadline returns None, as a serial walk does.
-        """
-        results = {}
-        pending = {}
-
-        def advance(root):
-            try:
-                pending[root] = walks[root].send(None)
-            except StopIteration as stop:
-                results[root] = stop.value
-
-        for root in walks:
-            advance(root)
-        fidelity = request.final_validation_fidelity
-        batch_size = self._authoritative_batch_size()
-        while pending:
-            if deadline is not None and time.monotonic() >= deadline:
-                counters.final_validation_timed_out = True
-                for root in pending:
-                    walks[root].close()
-                    results[root] = None
-                break
-            roots = list(pending)
-            nodes = [node for root in roots for node in pending.pop(root)]
-            for start in range(0, len(nodes), batch_size):
-                evaluations = self._evaluate_authoritative(
-                    nodes[start : start + batch_size],
-                    fidelity,
-                    request,
-                    counters,
-                )
-                counters.descendant_validation_attempts += len(evaluations)
-                counters.descendant_validation_failures += sum(
-                    evaluation.failed for evaluation in evaluations
-                )
-            for root in roots:
-                advance(root)
-        return results
-
-    def _sortable_path_return(self, node, remaining_depth) -> float:
-        value = self._known_descendant_return(node, remaining_depth)
-        return -math.inf if value is None else float(value)
-
-    @staticmethod
-    def _is_authoritative(node, fidelity) -> bool:
-        return bool(
-            node.evaluated
-            and node.info.get("authoritative_fidelity") == fidelity.value
-        )
-
-    @staticmethod
-    def _authoritative_fidelity(request: MCTSSearchRequest):
-        return (
-            request.final_validation_fidelity
-            or EvaluationFidelity.LONG
-        )
-
-    def _authoritative_batch_size(self) -> int:
+    def _root_batch_size(self) -> int:
         return min(
             self.config.evaluation_batch_size,
             max(int(getattr(self.transition_evaluator, "worker_count", 1)), 1),
@@ -2105,10 +1483,8 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             counters.long_simulation_jobs += jobs
 
     @staticmethod
-    def _apply_evaluation(node, evaluation, *, authoritative=False, owned=False) -> None:
+    def _apply_evaluation(node, evaluation, *, owned=False) -> None:
         info = {**node.info, **evaluation.diagnostics}
-        if authoritative:
-            info["authoritative_fidelity"] = evaluation.fidelity.value
         node.set_result(
             evaluation.state,
             evaluation.observation,
@@ -2120,15 +1496,6 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             owned=owned,
         )
 
-    @staticmethod
-    def _tree_fidelity(depth: int, request: MCTSSearchRequest):
-        if (
-            request.simulation_depth is not None
-            and depth > request.simulation_depth
-            and request.beyond_depth_fidelity is not None
-        ):
-            return request.beyond_depth_fidelity
-        return request.evaluation_fidelity
 
 
 def _optional_priority(value: str | None, level: str) -> str | None:
@@ -2150,18 +1517,3 @@ def _diagnostic_seconds(evaluations, key: str) -> float:
         if math.isfinite(value) and value >= 0.0:
             total += value
     return total
-
-
-def _state_pose_drift(first, second) -> float:
-    common = set(first.object_poses) & set(second.object_poses)
-    if not common:
-        return 0.0
-    return max(
-        float(
-            np.linalg.norm(
-                np.asarray(first.object_poses[object_id])[:3]
-                - np.asarray(second.object_poses[object_id])[:3]
-            )
-        )
-        for object_id in common
-    )

@@ -38,7 +38,7 @@ physics:
       tol_abs: 0.00001
       tol_rel: 0.000001
 
-  # Shared by short and long structural validation.
+  # Full structure simulation after fixed-scene settling.
   structural:
     contact:
       model: limit_surface_6d
@@ -57,29 +57,20 @@ physics:
 # settling: timestep/count and stored pose budget.
 # structural: energy/motion limits, min/max simulated seconds, quiet steps.
 # final_extra_steps: quiet steps for the last stone.
-# freeze_radius: keep distant non-support stones static during short checks.
+# Full simulation moves the whole structure; no distant-stone freezing.
 phases:
   settling:
     dt: 0.01
     steps: 400
     sample_count: 64
 
-  short_structural:
-    energy_threshold: 0.000001
-    velocity_integral_threshold: 0.05
-    min_time: 0.5
-    max_time: 4.0
-    extra_steps: 20
-    final_extra_steps: 40
-    freeze_radius: 0.10
-
   structural:
     energy_threshold: 0.000001
     velocity_integral_threshold: 0.05
     min_time: 3.0
-    max_time: 15.0
-    extra_steps: 150
-    final_extra_steps: 300
+    max_time: 10.0
+    extra_steps: 85
+    final_extra_steps: 200
 
 # Shared validity checks: contact gap, support count, support-chain Z slack.
 validation:

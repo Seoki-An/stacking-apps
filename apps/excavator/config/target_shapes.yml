@@ -3,7 +3,6 @@ units: si
 default: default
 shapes:
   default:
-    # Recorded inventory target from .stacks/excavator_plan17.stack.
     width: 2.0
     length: 6.0
     height: 2.5
@@ -101,10 +100,10 @@ shapes:
           origin: [0.0, 0.0, 0.0]
           support_overlap: 0.02
           taper_degrees:
-            width_positive: 5.0
-            width_negative: 5.0
-            length_positive: 5.0
-            length_negative: 5.0
+            width_positive: 0.0
+            width_negative: 0.0
+            length_positive: 0.0
+            length_negative: 0.0
       - id: east_arm
         # Pose quaternion is XYZW: 90 degrees about Z.
         pose: [0.0, -1.0, 0.0, 0.0, 0.0, 0.7071067811865476, 0.7071067811865476]

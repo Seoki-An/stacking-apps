@@ -2035,6 +2035,14 @@ established by this delivery.
 | `scripts/desktop/generate_sequence.py` frame/home/lift constants | `planning.yml`; world stack offset (-6, 3), production lift 0.20 m |
 | Recorded July 1 plan | Fixture preserves its different 0.10 m lift and support heights; never substitutes current defaults |
 
+The current excavator posegen profile schedules force regularization with
+`schedule.objective_weights.rho: {constant: 0.005, anti_ramp: 0.005}`.
+The existing four stages use `0.01, 0.00875, 0.00625, 0.005`; each native
+solve holds its stage value fixed, and final feasibility uses the last stage.
+CPU and CUDA share this schedule. Simulation settings are independent.
+Profiles without this optional weight retain their constant `objective.rho`,
+including older saved run contexts and the tabletop profile.
+
 The excavator MCTS profile follows the local `stacking-planner`
 `agent/configs/ablation.yml`: depth 1 for the first 10 placements, then depth 3;
 200 iterations, 240 seconds, 16 children, 8 validation candidates, and CEM

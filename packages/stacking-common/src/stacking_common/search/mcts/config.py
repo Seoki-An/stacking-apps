@@ -6,45 +6,23 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class FinalSelectionConfig:
-    """Choose a root from mean evidence and validated descendant returns."""
+    """Choose a root from mean evidence and evaluated descendant returns."""
 
-    mode: str = "mean"
     max_weight: float = 0.5
-    validate_descendant_path: bool = False
-    validate_descendant_depth: int = 1
-    require_validated_descendant: bool = False
+    descendant_depth: int = 1
 
     def __post_init__(self) -> None:
-        mode = str(self.mode).strip().lower().replace("-", "_")
-        aliases = {
-            "max": "max_descendant",
-            "descendant_max": "max_descendant",
-            "mix": "mixed",
-            "max_mean_mix": "mixed",
-        }
-        mode = aliases.get(mode, mode)
-        if mode not in {"mean", "max_descendant", "mixed"}:
-            raise ValueError("unknown MCTS final-selection mode")
         if not math.isfinite(self.max_weight) or not 0.0 <= self.max_weight <= 1.0:
             raise ValueError(
                 "MCTS final-selection maximum weight must be between zero and one"
             )
         if (
-            not isinstance(self.validate_descendant_depth, int)
-            or self.validate_descendant_depth < 0
+            not isinstance(self.descendant_depth, int)
+            or self.descendant_depth < 0
         ):
             raise ValueError(
-                "MCTS descendant-validation depth must be a non-negative integer"
+                "MCTS descendant depth must be a non-negative integer"
             )
-        object.__setattr__(self, "mode", mode)
-        object.__setattr__(
-            self, "validate_descendant_path", bool(self.validate_descendant_path)
-        )
-        object.__setattr__(
-            self,
-            "require_validated_descendant",
-            bool(self.require_validated_descendant),
-        )
 
 
 @dataclass(frozen=True)
@@ -77,9 +55,7 @@ class MCTSConfig:
     expansion_retry_batches: int = 1
     min_feasible_children: int = 1
     evaluation_batch_size: int = 1
-    final_validation_candidates: int = 0
     initial_depth1_steps: int = 0
-    validate_root_before_search: bool = False
     root_lookahead: bool = False
     rejected_root_retry_rounds: int = 0
     final_selection: FinalSelectionConfig = field(
@@ -123,13 +99,6 @@ class MCTSConfig:
             if not isinstance(value, int) or value <= 0:
                 raise ValueError(f"MCTS {name} must be a positive integer")
         if (
-            not isinstance(self.final_validation_candidates, int)
-            or self.final_validation_candidates < 0
-        ):
-            raise ValueError(
-                "MCTS final validation candidate count must be non-negative"
-            )
-        if (
             not isinstance(self.initial_depth1_steps, int)
             or self.initial_depth1_steps < 0
         ):
@@ -141,9 +110,6 @@ class MCTSConfig:
             raise ValueError("MCTS rejected-root retry rounds must be non-negative")
         if not isinstance(self.final_selection, FinalSelectionConfig):
             raise TypeError("MCTS final selection must be a FinalSelectionConfig")
-        object.__setattr__(
-            self, "validate_root_before_search", bool(self.validate_root_before_search)
-        )
         object.__setattr__(self, "root_lookahead", bool(self.root_lookahead))
 
     def hard_child_limit(self, depth: int) -> int:

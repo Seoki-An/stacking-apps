@@ -71,3 +71,42 @@ def test_posegen_capacity_fields_are_loaded_recorded_and_validated(tmp_path, fie
         path.write_text(yaml.safe_dump(values))
         with pytest.raises(ValueError, match=field):
             load_mcts_profile(path)
+
+
+@pytest.mark.parametrize("key", ["validate_descendant_path", "validate_descendant_depth",
+                                "require_validated_descendant", "mode"])
+def test_removed_validation_flags_fail_with_migration_message(tmp_path, key):
+    values = yaml.safe_load((CONFIG / "mcts_cuda.yml").read_text())
+    values["final_selection"][key] = 1
+    path = tmp_path / "mcts.yml"
+    path.write_text(yaml.safe_dump(values))
+    with pytest.raises(ValueError, match="descendant_depth"):
+        load_mcts_profile(path)
+
+
+def test_new_profiles_have_one_full_simulation_after_settling():
+    from stacking_common.profiles.simulation import load_simulation_profile
+    from stacking_common.search import EvaluationFidelity
+    for platform in ("tabletop", "excavator"):
+        config = ROOT / "apps" / platform / "config"
+        profile = load_simulation_profile(config / "solvers/simulation.yml")
+        assert profile.placement.short_gate is None
+        assert profile.placement.settle_steps == 400
+        assert profile.placement.structural.freeze_radius is None
+        assert profile.placement.structural.min_time == 3.0
+        assert profile.placement.structural.max_time == 10.0
+        assert profile.placement.structural.final_extra_steps == 200
+        for backend in ("cpu", "cuda"):
+            mcts = load_mcts_profile(config / f"mcts_{backend}.yml")
+            assert mcts.request.evaluation_fidelity is EvaluationFidelity.LONG
+            assert mcts.tree.final_selection.max_weight == 0.5
+
+
+def test_short_structural_runtime_configuration_is_not_silently_ignored(tmp_path):
+    from stacking_common.profiles.simulation import load_simulation_profile
+    values = yaml.safe_load((CONFIG / "solvers/simulation.yml").read_text())
+    values["phases"]["short_structural"] = dict(values["phases"]["structural"])
+    path = tmp_path / "simulation.yml"
+    path.write_text(yaml.safe_dump(values))
+    with pytest.raises(ValueError, match="short_structural was removed"):
+        load_simulation_profile(path)

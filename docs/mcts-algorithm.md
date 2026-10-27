@@ -1,5 +1,9 @@
 # Simulation-Guided Tree Search for Stone Stacking
 
+> Historical staged-simulation description. The runtime strategy changed on
+> 2026-10-27: see [Unified MCTS simulation](mcts-unified-simulation.md) for the
+> current single simulation, depth filter, and subtree reuse behavior.
+
 논문 본문용 축약 초안이다. **구조물을 어떻게 탐색하고, 물리 평가를 어떻게 배분하며,
 다음 배치를 어떻게 선택하는지**를 설명한다. 세부 정의와 구현 설정은
 [Appendix 초안](mcts-algorithm-appendix.md)에 정리했다.

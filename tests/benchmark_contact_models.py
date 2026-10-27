@@ -61,7 +61,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--stacks', type=Path, nargs='+', required=True)
     parser.add_argument('--steps', type=int, nargs='+')
-    parser.add_argument('--fidelities', choices=('short', 'long'), nargs='+', default=['short', 'long'])
+    parser.add_argument('--fidelities', choices=('full',), nargs='+', default=['full'])
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--repeats', type=int, default=3)
     parser.add_argument('--patch-eps', type=float, nargs='+',
@@ -106,7 +106,7 @@ def main():
         ids = StackRunStore.load_planning_checkpoint(path, 1).state.object_ids
         inventory = app.load_inventory(ids, {i: np.array([0., 0., 0., 0., 0., 0., 1.]) for i in ids})
         for fidelity in args.fidelities:
-            profile = app.short_simulation_profile if fidelity == 'short' else app.simulation_profile
+            profile = app.simulation_profile
             # Keep the initial pose and release preparation identical between arms.
             profile = replace(profile, settling_physics=replace(profile.settling_physics, contact_model='single_point'))
             backends = {}

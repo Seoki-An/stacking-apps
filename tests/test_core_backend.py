@@ -115,6 +115,8 @@ def test_distinct_physics_preserves_settled_pose_but_resets_motion():
     backend = CorePlacementBackend.from_profile({10: model}, profile)
     backend.reset([10])
 
+    phases = []
+
     class RecordingSimulator:
         def __init__(self, native):
             self.native = native
@@ -125,6 +127,7 @@ def test_distinct_physics_preserves_settled_pose_but_resets_motion():
             self.native.clear_warm_start()
 
         def step_n(self, scene, dt, steps):
+            phases.append("settling" if self is settling else "structural")
             self.initial_scenes.append(scene)
             result = self.native.step_n(scene, dt, steps)
             self.final_scene = result.snapshot
@@ -141,6 +144,8 @@ def test_distinct_physics_preserves_settled_pose_but_resets_motion():
     action = Action(0, pose(0.2), pose(0.3), object_id=10)
     backend.place(state, action)
     assert settling.initial_scenes and structural.initial_scenes
+    assert phases[0] == "settling"
+    assert all(phase == "structural" for phase in phases[phases.index("structural"):])
     settled = settling.final_scene
     start = structural.initial_scenes[0]
     np.testing.assert_array_equal(start.body_pose(1), settled.body_pose(1))

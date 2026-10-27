@@ -9,7 +9,6 @@
 # - exploration_constant: PUCT exploration strength; number >= 0.
 # - discount: reward discount; number in [0, 1].
 # - failure_reward: reward assigned to a failed transition; finite number.
-# - simulation_depth: deepest level using short simulation; integer >= 0.
 # - initial_depth1_steps: root-only warmup placements; 0 enables early lookahead.
 # - root_lookahead: cover each validated root with one descendant; true | false.
 #
@@ -27,19 +26,11 @@
 #   tree iterations. Integer > 0; spare slots can evaluate pending siblings.
 # - root/deeper_sampling_priority: planar ordering; lower_floor_first.
 #
-# validation
-# - max_candidates: top root candidates receiving long simulation; integer >= 0.
-# - root_before_search: long-validate roots before descendants; true | false.
 # - rejected_root_retry_rounds: diversified all-rejected retries; integer >= 0.
-# - time_reserve: wall time reserved for final long checks; number >= 0.
-# - max_state_drift: drift that invalidates a preserved subtree; number >= 0.
 #
 # final_selection
-# - mode: mean | max_descendant | mixed.
-# - max_weight: descendant share in mixed mode; number in [0, 1].
-# - validate_descendant_path: long-check the promoted path; true | false.
-# - validate_descendant_depth: checked continuation depth; integer >= 0.
-# - require_validated_descendant: prefer valid paths; fall back to feasible roots only at exhaustion.
+# - max_weight: descendant share; 0 uses mean only, 1 uses path return only.
+# - descendant_depth: evaluated edges required below a root candidate (capped by horizon).
 #
 # parallel
 # - enabled: parallel pose generation and simulation; true | false.
@@ -53,7 +44,7 @@
 # - fresh_fraction: newly sampled fraction per later round; number in [0, 1].
 # - duplicate_xy_threshold: same-object XY duplicate limit; number >= 0.
 # - duplicate_yaw_threshold_degrees: orientation duplicate limit; number >= 0.
-# - max_per_object: retained-candidate diversity cap; integer > 0.
+# - max_per_object: baseline cap; grows to ceil(keep / remaining stones), elites use elite.
 # - height_map_score_weight: normalized low-floor preference; number >= 0.
 # - seed: NumPy mutation seed; integer.
 #
@@ -86,7 +77,6 @@ tree:
   exploration_constant: 1.0
   discount: 0.9
   failure_reward: -1.0
-  simulation_depth: 5
   initial_depth1_steps: 0  # Use lookahead from the first placement.
   root_lookahead: true
 
@@ -96,6 +86,7 @@ widening:
   exponent: 0.5
 
 generation:
+  rejected_root_retry_rounds: 3  # Fresh root pools after physical rejection.
   batch_size: 32
   expansion_retry_batches: 3
   min_feasible_children: 3
@@ -104,19 +95,9 @@ generation:
   root_sampling_priority: lower_floor_first
   deeper_sampling_priority: lower_floor_first
 
-validation:
-  max_candidates: 32
-  root_before_search: true
-  rejected_root_retry_rounds: 3
-  time_reserve: 60.0
-  max_state_drift: 0.1
-
 final_selection:
-  mode: mixed
   max_weight: 0.5
-  validate_descendant_path: true
-  validate_descendant_depth: 2
-  require_validated_descendant: true
+  descendant_depth: 2
 
 parallel:
   # Per-scene body/geometry minima cover the full inventory plus target.

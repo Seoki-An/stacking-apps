@@ -325,7 +325,7 @@ def test_cem_mutation_refreshes_region_labels_and_elites_cover_both_regions():
         value = action(inv, index, pose(x))
         candidates.append(ActionCandidate(value, diagnostics={"target_region_id": (region,)}))
     search = cem(gen, mutation_xy_std=1.)
-    assert [item.diagnostics["target_region_id"] for item in search._elite_parents(candidates)] == [("west",), ("east",)]
+    assert [item.diagnostics["target_region_id"] for item in search._elite_parents(candidates, state(inv))] == [("west",), ("east",)]
     rng = SimpleNamespace(normal=lambda *args, **kwargs: np.array([6., 0.]) if kwargs.get("size") == 2 else 0.)
     _, proposal = search._mutation_proposal(rng, candidates[0], None)
     assert proposal.diagnostics["target_region_id"] == ("east",)
@@ -338,9 +338,9 @@ def test_regional_elites_keep_per_object_limit_and_legacy_order_without_labels()
     search = cem(generator(inv), max_per_object=1)
     ranked = [ActionCandidate(action(inv, index, pose(x)), diagnostics={"target_region_id": (region,)})
               for x, index, region in ((-3., 0, "west"), (3., 0, "east"), (3., 1, "east"))]
-    assert search._elite_parents(ranked) == [ranked[0], ranked[2]]
+    assert search._elite_parents(ranked, state(inv)) == [ranked[0], ranked[2]]
     plain = [ActionCandidate(item.action) for item in ranked]
-    assert search._elite_parents(plain) == search._limit_per_object(plain)[:2]
+    assert search._elite_parents(plain, state(inv)) == search._limit_per_object(plain, 1)[:2]
 
 
 def test_xy_overlap_filter_rejects_notch_and_detects_edge_crossing():

@@ -10,6 +10,7 @@ import pytest
 import stacking_core as core
 
 from stacking_common.actions.core_solver import CorePlacementPoseSolver
+from stacking_common.actions.cuda_solver import CudaPlacementPoseSolver
 from stacking_common.profiles.posegen import load_posegen_profile
 from stacking_common.profiles.native import load_native_solver_profile
 
@@ -38,6 +39,44 @@ def test_old_profile_without_weights_preserves_previous_schedule():
     schedule.pop("objective_weights")
     restored = replace(profile, schedule=schedule)
     assert restored.schedule == profile.schedule
+
+
+@pytest.mark.parametrize("solver_type", [CorePlacementPoseSolver, CudaPlacementPoseSolver])
+def test_excavator_rho_continuation_is_stage_fixed_and_gap_independent(solver_type):
+    profile = load_posegen_profile(ROOT / "apps/excavator/config/solvers/posegen.yml")
+    solver = SimpleNamespace(profile=profile, core=core)
+    configs = [solver_type._scheduled_config(solver, t, gap, final=t == 1.)
+               for gap in (0., .1) for t in profile.schedule["times"]]
+    assert len(configs) == 8
+    # Inspect after every stage has been built: later stages must not mutate
+    # configurations already passed to native force/objective/gradient solves.
+    assert [c.objective.rho for c in configs] == pytest.approx(
+        [.01, .00875, .00625, .005] * 2)
+    assert profile.objective["rho"] == .01
+    assert [c.force_solver.max_iters for c in configs] == [1000] * 8
+
+
+def test_saved_profile_without_rho_schedule_keeps_constant_rho():
+    profile = load_posegen_profile(ROOT / "apps/excavator/config/solvers/posegen.yml")
+    weights = {k: v for k, v in profile.schedule["objective_weights"].items() if k != "rho"}
+    restored = replace(profile, schedule={**profile.schedule, "objective_weights": weights})
+    assert "rho" not in restored.schedule["objective_weights"]
+    solver = SimpleNamespace(profile=restored, core=core)
+    for t in restored.schedule["times"]:
+        assert CorePlacementPoseSolver._scheduled_config(
+            solver, t, .1, final=t == 1.).objective.rho == .01
+
+
+@pytest.mark.parametrize("rho", [
+    {"constant": 0.}, {"ramp": .01}, {"anti_ramp": .01},
+    {"constant": .005, "gap_feedback": .005},
+    {"constant": .005, "sine": .005},
+])
+def test_rho_schedule_requires_positive_stage_only_values(rho):
+    profile = load_posegen_profile(ROOT / "apps/excavator/config/solvers/posegen.yml")
+    weights = {**profile.schedule["objective_weights"], "rho": rho}
+    with pytest.raises(ValueError, match="schedule rho"):
+        replace(profile, schedule={**profile.schedule, "objective_weights": weights})
 
 
 @pytest.mark.parametrize("invalid", [

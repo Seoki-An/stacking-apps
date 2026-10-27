@@ -67,8 +67,18 @@ def load_mcts_profile(path: str | Path) -> MCTSProfile:
     tree = _mapping(values, "tree")
     widening = _mapping(values, "widening")
     generation = _mapping(values, "generation")
-    validation = _mapping(values, "validation")
+    if "validation" in values:
+        raise ValueError("MCTS validation block was removed; use final_selection.descendant_depth "
+                         "and generation.rejected_root_retry_rounds")
     final_selection = _mapping(values, "final_selection")
+    if "mode" in final_selection:
+        raise ValueError("final_selection.mode was removed; use max_weight (0 to 1) "
+                         "and descendant_depth")
+    removed = {"validate_descendant_path", "validate_descendant_depth",
+               "require_validated_descendant"} & final_selection.keys()
+    if removed or "simulation_depth" in tree:
+        raise ValueError("MCTS now uses one simulation profile; replace legacy validation "
+                         "controls with final_selection.descendant_depth")
     parallel = _mapping(values, "parallel")
     cem = _mapping(values, "root_cem")
     bootstrap = _mapping(values, "bootstrap")
@@ -93,29 +103,14 @@ def load_mcts_profile(path: str | Path) -> MCTSProfile:
         evaluation_batch_size=int(
             _required(generation, "evaluation_batch_size")
         ),
-        final_validation_candidates=int(
-            _required(validation, "max_candidates")
-        ),
         initial_depth1_steps=int(_required(tree, "initial_depth1_steps")),
-        validate_root_before_search=bool(
-            _required(validation, "root_before_search")
-        ),
         root_lookahead=bool(_required(tree, "root_lookahead")),
         rejected_root_retry_rounds=int(
-            _required(validation, "rejected_root_retry_rounds")
+            _required(generation, "rejected_root_retry_rounds")
         ),
         final_selection=FinalSelectionConfig(
-            mode=str(_required(final_selection, "mode")),
             max_weight=float(_required(final_selection, "max_weight")),
-            validate_descendant_path=bool(
-                _required(final_selection, "validate_descendant_path")
-            ),
-            validate_descendant_depth=int(
-                _required(final_selection, "validate_descendant_depth")
-            ),
-            require_validated_descendant=bool(
-                _required(final_selection, "require_validated_descendant")
-            ),
+            descendant_depth=int(_required(final_selection, "descendant_depth")),
         ),
         widening=ProgressiveWideningConfig(
             enabled=bool(_required(widening, "enabled")),
@@ -125,22 +120,13 @@ def load_mcts_profile(path: str | Path) -> MCTSProfile:
     )
     request = MCTSSearchRequest(
         iterations=int(_required(tree, "iterations")),
-        evaluation_fidelity=EvaluationFidelity.SHORT,
+        evaluation_fidelity=EvaluationFidelity.LONG,
         max_time_seconds=float(_required(tree, "max_search_time")),
-        simulation_depth=int(_required(tree, "simulation_depth")),
-        beyond_depth_fidelity=EvaluationFidelity.LONG,
-        final_validation_fidelity=EvaluationFidelity.LONG,
-        final_validation_reserve_seconds=float(
-            _required(validation, "time_reserve")
-        ),
         root_sampling_priority=str(
             _required(generation, "root_sampling_priority")
         ),
         deeper_sampling_priority=str(
             _required(generation, "deeper_sampling_priority")
-        ),
-        max_revalidation_drift=float(
-            _required(validation, "max_state_drift")
         ),
     )
     return MCTSProfile(

@@ -221,8 +221,7 @@ def test_simulation_contact_model_mapping(model) -> None:
     assert profile.settling_native_config().contact.model.name.lower() == "single_point"
 
 
-@pytest.mark.parametrize("fidelity", ["short", "long"])
-def test_simulation_patch_epsilon_is_phase_specific(tmp_path, fidelity):
+def test_simulation_patch_epsilon_is_phase_specific(tmp_path):
     import yaml
 
     values = yaml.safe_load((ROOT / "apps/tabletop/config/solvers/simulation.yml").read_text())
@@ -230,7 +229,7 @@ def test_simulation_patch_epsilon_is_phase_specific(tmp_path, fidelity):
     values["physics"]["settling"]["contact"]["patch_eps"] = 2e-4
     path = tmp_path / "simulation.yml"
     path.write_text(yaml.safe_dump(values))
-    profile = load_simulation_profile(path, fidelity=fidelity)
+    profile = load_simulation_profile(path)
     assert profile.native_config().contact.patch_eps == 1e-5
     assert profile.settling_native_config().contact.patch_eps == 2e-4
     for value in (-1., float("nan"), float("inf")):
@@ -273,24 +272,8 @@ def test_simulation_profile_builds_native_config_and_backend() -> None:
     assert settling.solver.stagnation_window == 0
     assert settling.solver.tol_abs == native.solver.tol_abs == 1e-5
     assert settling.solver.tol_rel == native.solver.tol_rel == 1e-6
-    assert profile.placement.short_gate is not None
-    assert profile.placement.short_gate.max_time == 4.0
-    assert profile.placement.structural.max_time == 15.0
-    short = load_simulation_profile(
-        ROOT / "apps" / "tabletop" / "config" / "solvers" / "simulation.yml",
-        fidelity="short",
-    )
-    assert short.placement.short_gate is None
-    assert short.placement.structural.max_time == 4.0
-    short_native = short.native_config()
-    assert short_native.damping == profile.damping
-    assert short_native.solver.tol_abs == short.solver_tol_abs
-    assert short_native.solver.tol_rel == short.solver_tol_rel
-    assert short_native.solver.stagnation_window == 0
-    assert short.settling_native_config().solver.stagnation_window == 0
-    assert short.settling_native_config().solver.tol_abs == 1e-5
-    assert short.settling_native_config().solver.tol_rel == 1e-6
-    assert short.settling_native_config().contact.model == settling.contact.model
+    assert profile.placement.short_gate is None
+    assert profile.placement.structural.max_time == 10.0
     application = TabletopApplication.from_repository(ROOT)
     backend = application.build_core_backend(inventory())
     assert backend.config.settle_steps == 400
@@ -336,16 +319,15 @@ def flat_simulation_values():
     return values
 
 
-@pytest.mark.parametrize("fidelity", ["short", "long"])
-def test_grouped_simulation_matches_flat_phase_and_physics_settings(tmp_path, fidelity):
+def test_grouped_simulation_matches_flat_phase_and_physics_settings(tmp_path):
     import yaml
 
     source = ROOT / "apps/tabletop/config/solvers/simulation.yml"
     flat = tmp_path / "simulation.yml"
     values = flat_simulation_values()
     flat.write_text(yaml.safe_dump(values))
-    grouped = load_simulation_profile(source, fidelity=fidelity)
-    legacy = load_simulation_profile(flat, fidelity=fidelity)
+    grouped = load_simulation_profile(source)
+    legacy = load_simulation_profile(flat)
     assert legacy.placement == grouped.placement
     for left, right in ((legacy, grouped), (legacy.settling_physics, grouped.settling_physics)):
         for name in left.__dataclass_fields__:
@@ -356,7 +338,7 @@ def test_grouped_simulation_matches_flat_phase_and_physics_settings(tmp_path, fi
     values["settling"]["solver"]["tol_abs"] = 0.001
     values["settling"]["solver"]["tol_rel"] = 0.0001
     flat.write_text(yaml.safe_dump(values))
-    old = load_simulation_profile(flat, fidelity=fidelity).settling_native_config()
+    old = load_simulation_profile(flat).settling_native_config()
     assert old.solver.tol_abs == 0.001
     assert old.solver.tol_rel == 0.0001
 
@@ -457,8 +439,7 @@ def test_old_solver_damping_key_is_not_silently_ignored(phase):
         CoreSimulationProfile.from_mapping(values)
 
 
-@pytest.mark.parametrize("fidelity", ["short", "long"])
-def test_constraint_scaling_round_trip_is_independent_of_physical_damping(tmp_path, fidelity):
+def test_constraint_scaling_round_trip_is_independent_of_physical_damping(tmp_path):
     import yaml
 
     values = yaml.safe_load((ROOT / "apps/tabletop/config/solvers/simulation.yml").read_text())
@@ -467,7 +448,7 @@ def test_constraint_scaling_round_trip_is_independent_of_physical_damping(tmp_pa
     values["physics"]["structural"]["solver"]["constraint_scale_reference"] = 0.02
     path = tmp_path / "simulation.yml"
     path.write_text(yaml.safe_dump(values))
-    profile = load_simulation_profile(path, fidelity=fidelity)
+    profile = load_simulation_profile(path)
     native = profile.native_config()
     settling = profile.settling_native_config()
     assert native.damping == settling.damping == 0.03
@@ -550,7 +531,8 @@ def test_inventory_profile_parses_object_density_override(tmp_path: Path) -> Non
     )
     path = tmp_path / "inventory.yml"
     path.write_text(configured)
-
+    (tmp_path / "target_shapes.yml").write_text(
+        (ROOT / "apps/tabletop/config/target_shapes.yml").read_text())
     profile = load_inventory_profile(path)
 
     assert profile.density_for(1) == 1000.0

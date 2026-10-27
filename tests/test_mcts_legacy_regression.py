@@ -133,7 +133,6 @@ def _build_search(evaluator) -> MonteCarloTreeSearch:
             discount=0.9,
             generation_batch_size=3,
             evaluation_batch_size=3,
-            final_validation_candidates=3,
             widening=ProgressiveWideningConfig(enabled=False),
         ),
         _RemainingGenerator(),
@@ -150,8 +149,7 @@ def _run(evaluator):
         MCTSNode(state=_state(), observation=()),
         MCTSSearchRequest(
             iterations=9,
-            final_validation_fidelity=EvaluationFidelity.LONG,
-        ),
+            ),
     )
     return search, result
 
@@ -173,8 +171,8 @@ def test_common_mcts_preserves_fixed_legacy_staged_validation_decision() -> None
     search, result = _run(_LegacyScenarioEvaluator())
 
     assert result.selected.action.object_id == LEGACY_SELECTED_OBJECT_ID
-    assert result.final_validation_attempts == 3
-    assert result.final_validation_failures == 1
+    assert result.root_validation.attempted == 3
+    assert result.root_validation.rejected == 1
     rejected = next(
         child
         for child in result.root.children
@@ -220,8 +218,7 @@ def test_multistep_session_preserves_legacy_staged_validation_sequence() -> None
         result = session.search(
             MCTSSearchRequest(
                 iterations=9,
-                final_validation_fidelity=EvaluationFidelity.LONG,
-            )
+                )
         )
         results.append(result)
         if result.selected is None:
@@ -231,11 +228,11 @@ def test_multistep_session_preserves_legacy_staged_validation_sequence() -> None
 
     assert selected_ids == [102, 103]
     assert results[-1].selected is None
-    # The preserved continuation fails revalidation. Promotion now also opens
-    # a fresh generation budget, so this deterministic generator proposes the
-    # remaining object again; final validation must still reject that retry.
-    assert results[-1].revalidation.rejected == 1
-    assert results[-1].final_validation_failures == 1
+    # The unsafe continuation already failed the unified evaluation. Reuse never
+    # revives it or needs a second validation pass.
+    assert results[-1].revalidation.rejected == 0
+    assert results[-1].final_validation_failures == 0
+    assert not session.root.evaluated_children()
     assert not session.root.terminal
     search.close()
 

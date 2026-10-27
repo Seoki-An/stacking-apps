@@ -323,7 +323,7 @@ def test_recorded_simulation_reconstructs_resolved_nested_dataclasses():
     from stacking_common.artifacts.planning_context import _values
     from stacking_tabletop.composition import TabletopApplication
     application = TabletopApplication.from_repository(ROOT)
-    for original in (application.simulation_profile, application.short_simulation_profile):
+    for original in (application.simulation_profile,):
         restored = refinement._recorded_simulation(_values(original))
         assert _values(restored) == _values(original)
         assert restored.placement.structural.dt == original.placement.structural.dt

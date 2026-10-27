@@ -82,7 +82,7 @@ def build_planning_context(application, inventory, pick_scene, solver, runtime):
     profiles = {
         name: _values(getattr(application, name))
         for name in (
-            "environment_profile", "simulation_profile", "short_simulation_profile",
+            "environment_profile", "simulation_profile",
             "posegen_profile", "mcts_profile", "inventory_profile",
             "action_generation_profile", "planning_profile",
         )

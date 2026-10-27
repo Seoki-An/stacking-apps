@@ -73,12 +73,12 @@ def test_config_rejects_invalid_search_values() -> None:
         _config(expansion_attempt_multiplier=0.5)
     with pytest.raises(ValueError, match="exponent"):
         ProgressiveWideningConfig(exponent=1.1)
-    with pytest.raises(ValueError, match="final-selection mode"):
+    with pytest.raises(TypeError, match="mode"):
         FinalSelectionConfig(mode="unknown")
     with pytest.raises(ValueError, match="maximum weight"):
         FinalSelectionConfig(max_weight=1.1)
-    with pytest.raises(ValueError, match="descendant-validation depth"):
-        FinalSelectionConfig(validate_descendant_depth=-1)
+    with pytest.raises(ValueError, match="descendant depth"):
+        FinalSelectionConfig(descendant_depth=-1)
     with pytest.raises(ValueError, match="retry rounds"):
         _config(rejected_root_retry_rounds=-1)
     with pytest.raises(ValueError, match="depth-1 step count"):

@@ -1,5 +1,9 @@
 # MCTS 알고리즘: Appendix 상세 정의 초안
 
+> Historical staged-simulation description. The runtime strategy changed on
+> 2026-10-27: see [Unified MCTS simulation](mcts-unified-simulation.md) for the
+> current single simulation, depth filter, and subtree reuse behavior.
+
 논문 [본문 초안](mcts-algorithm.md)을 뒷받침하는 구현 세부사항이다.
 Appendix 편집 시 수식·설정·예외 정책의 근거 자료로 사용한다.
 

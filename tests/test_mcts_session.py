@@ -124,7 +124,7 @@ def test_search_accepts_external_seed_and_filters_execution_feedback() -> None:
     )
 
     assert result.seeded_candidates == 1
-    assert result.execution_rejected_candidates == 1
+    assert result.execution_rejected_candidates == 3
     assert any(child.info.get("external_seed") for child in root.children)
     assert all(child.action.object_id != 10 for child in root.children)
 
@@ -139,7 +139,7 @@ def test_execution_rejection_matches_nearby_actions_without_aliasing() -> None:
     assert policy.reason(_action(2, x=0.20)) is None
 
 
-def test_session_promotes_revalidates_and_accumulates_rejections() -> None:
+def test_session_promotes_reuses_and_accumulates_rejections() -> None:
     evaluator = _Evaluator()
     search = _search(evaluator)
     root = MCTSNode(state=_state(), observation=())
@@ -154,7 +154,9 @@ def test_session_promotes_revalidates_and_accumulates_rejections() -> None:
     session.promote(selected, preserve_subtree=True)
     result = session.search(MCTSSearchRequest(iterations=1))
 
-    assert result.revalidation.attempted == 1
+    assert result.revalidation.attempted == 0
+    assert not any(parent == (0,) and object_id == 11
+                   for parent, object_id, _ in evaluator.calls)
     assert any(call[2] is EvaluationFidelity.LONG for call in evaluator.calls)
 
     session.reject_execution(continuation_action, reject_object=True)
@@ -185,7 +187,7 @@ def test_promotion_starts_new_cem_pool_without_discarding_subtree(previously_exh
     search = _search(evaluator)
     search.config = replace(search.config, max_depth=1, root_max_children=root_keep,
                             generation_batch_size=32, expansion_attempt_multiplier=3.0,
-                            validate_root_before_search=True)
+                            )
     search.root_action_generator = RecordingCEM(FreshPool(), _Prior(), CEMRootConfig(
         population=32, elite=4, iterations=1, keep=root_keep, mutation_xy_std=0.0,
         mutation_yaw_std=0.0, fresh_fraction=1.0, duplicate_xy_threshold=0.01,
@@ -216,12 +218,51 @@ def test_promotion_starts_new_cem_pool_without_discarding_subtree(previously_exh
     assert selected.visits == continuation.visits == 1
     assert continuation.expansion_attempts == 7 and continuation.expansion_exhausted
     result = session.search(MCTSSearchRequest(iterations=1, reset_statistics=False,
-                                            final_validation_fidelity=EvaluationFidelity.LONG))
+                                            ))
 
     assert offsets and offsets[0] == 0
     assert search.root_action_generator.last_statistics.final_candidates == root_keep
     assert result.generated_candidates == root_keep - 1
-    assert result.revalidation.attempted == result.revalidation.accepted == 1
+    assert result.revalidation.attempted == result.revalidation.accepted == 0
     assert continuation in selected.children and continuation.children == [descendant]
     assert "old_generation_failure" not in selected.rejected_expansions
     assert "external_seed_attempts" not in selected.info
+
+
+@pytest.mark.parametrize("change", ["none", "position", "orientation", "inventory", "failed"])
+def test_observed_scene_changes_invalidate_subtree_without_revalidation(change):
+    search = _search(_Evaluator())
+    root = MCTSNode(state=_state(), observation=())
+    selected = root.add_candidate(_action(0))
+    selected.set_result(_state([0]), (0,), 10)
+    descendant = selected.add_candidate(_action(1))
+    descendant.set_result(_state([0, 1]), (0, 1), 11)
+    descendant.record_visit(11)
+    session = MCTSSession(search, root)
+    observed = selected.state.copy()
+    if change == "position":
+        observed.object_poses[10][0] += 1e-9
+    elif change == "orientation":
+        observed.object_poses[10][3:] = [0., 0., 1., 0.]
+    elif change == "inventory":
+        observed.pose_identified_object_ids.add(10)
+    elif change == "failed":
+        observed.failed = True
+    session.promote(selected, observed_state=observed)
+    assert bool(selected.children) is (change == "none")
+    if change != "none":
+        assert descendant.parent is None
+        assert selected.value_sum == 0
+    assert not search.transition_evaluator.calls
+
+
+def test_changed_search_context_invalidates_retained_evidence():
+    evaluator = _Evaluator()
+    search = _search(evaluator)
+    session = MCTSSession(search, MCTSNode(state=_state(), observation=()))
+    session.search(MCTSSearchRequest(iterations=1))
+    retained = tuple(session.root.children)
+    search.config = replace(search.config, max_depth=0)
+    session.search(MCTSSearchRequest(iterations=1))
+    assert not session.root.children
+    assert all(child.parent is None for child in retained)

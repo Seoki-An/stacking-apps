@@ -1,4 +1,4 @@
-"""Final selection repairs missing continuations without discarding valid states."""
+"""Final selection uses existing full-simulation evidence without path repair."""
 
 import numpy as np
 import pytest
@@ -105,192 +105,105 @@ def setup(*, evaluator=None, depth=2, rounds=3, batch_size=4):
             expansion_attempt_multiplier=10.0,
             widening=ProgressiveWideningConfig(enabled=False),
             final_selection=FinalSelectionConfig(
-                mode="max_descendant", validate_descendant_depth=depth,
-                validate_descendant_path=True, require_validated_descendant=True,
+                max_weight=1.0, descendant_depth=depth,
             ),
         ), generator, Scorer(), evaluator, Estimator(),
     )
-    request = MCTSSearchRequest(iterations=1, final_validation_fidelity=EvaluationFidelity.LONG)
+    request = MCTSSearchRequest(iterations=1)
     return root, generator, evaluator, search, request
 
 
-def test_repairs_roots_even_when_another_candidate_already_has_a_valid_path():
+@pytest.mark.parametrize("weight", [0.0, 0.5, 1.0])
+def test_depth_filter_is_identical_for_all_weights(weight):
     root, generator, evaluator, search, request = setup()
-    ready = child(root, 0)
-    ready_second = child(ready, 1)
-    child(ready_second, 2)
-    missing = [child(root, index, reward=4.0) for index in (3, 4)]
-    retained = [child(node, 5) for node in missing]
-    failed = [child(node, 6, x=-1, authoritative=False) for node in retained]
-    counters = _SearchCounters(generation_deadline=12.0)
-
-    selected, ranked = search._final_select(root, request, counters)
-
-    assert selected in missing
-    assert set(ranked) == {ready, *missing}
-    assert counters.generation_deadline == 12.0
-    assert {call[0] for call in generator.calls} == {(3, 5), (4, 5)}
-    long = [batch for fidelity, batch in evaluator.calls if fidelity is EvaluationFidelity.LONG]
-    short = [batch for fidelity, batch in evaluator.calls if fidelity is EvaluationFidelity.SHORT]
-    assert len(long) == 2  # One shared rejection batch, one repair batch.
-    assert len(short) == 1  # New repair children are screened together first.
-    assert all(len(batch) == 2 for batch in long + short)
-    for node, prefix, rejected in zip(missing, retained, failed):
-        assert node.children[0] is prefix
-        assert rejected in prefix.children and rejected.failed
-        assert node.info["validated_descendant_path_return"] == 6.0
-    assert all(offset == 1 for _, offset, _ in generator.calls)
-
-
-def test_repair_builds_two_levels_when_no_continuation_exists():
-    root, generator, _, search, request = setup()
-    candidate = child(root, 0)
-    selected, _ = search._final_select(root, request, _SearchCounters())
-    assert selected is candidate
-    assert selected.info["validated_descendant_path_return"] == 3.0
-    assert any(len(placed) == 2 for placed, _, _ in generator.calls)
-
-
-def test_failed_repair_is_bounded_without_a_deadline():
-    root, generator, evaluator, search, request = setup(evaluator=Evaluator(fail_all=True), rounds=2)
-    candidate = child(root, 0)
-    selected, _ = search._final_select(root, request, _SearchCounters())
-    assert selected is None
-    assert candidate.rejection_reason == "missing_validated_descendant"
-    assert len(generator.calls) == 4  # Two rounds per required descendant level.
-    assert [offset for _, offset, _ in generator.calls] == [0, 1, 2, 3]
-    # Every generated child fails short screening, so none reaches long validation.
-    assert [fidelity for fidelity, _ in evaluator.calls] == [EvaluationFidelity.SHORT] * 4
-
-
-@pytest.mark.parametrize("blocked", ["physical_failure", "exhausted", "attempt_limit"])
-def test_repair_respects_physical_failures_and_generation_limits(blocked):
-    root, generator, _, search, request = setup()
-    candidate = child(root, 0)
-    if blocked == "physical_failure":
-        candidate.reject("physical_failure")
-    elif blocked == "exhausted":
-        candidate.expansion_exhausted = True
-    else:
-        candidate.expansion_attempts = 20
-    selected, _ = search._final_select(root, request, _SearchCounters())
-    assert selected is None
-    assert not generator.calls
-    if blocked == "physical_failure":
-        assert candidate.rejection_reason == "physical_failure"
-
-
-def test_repair_deadline_keeps_an_already_valid_candidate(monkeypatch):
-    clock = [0.0]
-    monkeypatch.setattr("stacking_common.search.mcts.search.time.monotonic", lambda: clock[0])
-    root, generator, _, search, request = setup(evaluator=Evaluator(clock=clock), batch_size=1)
-    ready = child(root, 0)
-    child(child(ready, 1), 2)
-    missing = child(root, 3)
-    counters = _SearchCounters()
-    selected, ranked = search._final_select(root, request, counters, deadline=0.5)
-    assert selected is ready and ranked == (ready,)
-    assert counters.final_validation_timed_out
-    assert len(generator.calls) == 1
-    assert missing.rejection_reason == "missing_validated_descendant"
-
-
-def test_repair_regenerates_below_a_state_changed_by_validation():
-    root, generator, _, search, request = setup(evaluator=Evaluator(drift=True))
-    candidate = child(root, 0)
-    prefix = child(candidate, 1, authoritative=False)
-    stale = child(prefix, 2)
-    selected, _ = search._final_select(root, request, _SearchCounters())
-    assert selected is candidate
-    assert candidate.children[0] is prefix
-    assert stale.parent is None
-    assert generator.calls[0][0] == (0, 1)
-
-
-@pytest.mark.parametrize("mode", ["mean", "optional", "no_validation"])
-def test_repair_does_not_change_selection_without_required_validation(mode):
-    from dataclasses import replace
-
-    root, generator, _, search, request = setup()
-    selection = search.config.final_selection
-    selection = replace(selection, **{
-        "mean": {"mode": "mean"},
-        "optional": {"require_validated_descendant": False},
-        "no_validation": {"validate_descendant_path": False},
-    }[mode])
-    search.config = replace(search.config, final_selection=selection)
-    child(root, 0)
-    search._final_select(root, request, _SearchCounters())
-    assert not generator.calls
-
-
-@pytest.mark.parametrize("retry_rounds", [0, 2])
-def test_exhausted_search_selects_best_feasible_root_across_retired_pools(retry_rounds):
-    root, generator, _, search, request = setup()
-    generator.generate = lambda *args: ActionGenerationResult((), attempts=0, exhausted=True)
-    search.config = replace(search.config, rejected_root_retry_rounds=retry_rounds)
-    roots = [child(root, index, reward=score) for index, score in enumerate((2., 7., 4.))]
-    for node in roots:
-        node.expansion_exhausted = True
-        node.record_visit(node.reward)
-        root.record_visit(node.reward)
-    root.expansion_exhausted = True
-    result = search.search(root, replace(request, reset_statistics=False))
-    assert result.selected is roots[1]
-    assert result.ranked_candidates == (roots[1], roots[2], roots[0])
-    for node in result.ranked_candidates:
-        assert node.selectable and node.parent is root
-        assert not node.state.failed
-        assert node.info["validated_descendant_fallback"]
-        assert not node.info["validated_descendant_path_available"]
-        assert node.info["final_selection_used_mean_fallback"]
-        assert node.info["final_selection_score"] == node.mean_value
-    assert result.root_retry.rounds == (1 if retry_rounds else 0)
-    # Restored roots remain usable by normal session promotion.
-    from stacking_common.search import MCTSSession
-    session = MCTSSession(search, root)
-    assert session.promote(result.selected).state.placed_object_indices == [1]
-
-
-def test_exhausted_search_prefers_valid_descendant_over_higher_mean_fallback():
-    root, _, _, search, request = setup()
-    root.expansion_exhausted = True
-    missing = child(root, 0, reward=100.)
-    missing.expansion_exhausted = True
-    missing.record_visit(100.)
-    root.record_visit(100.)
-    ready = child(root, 1, reward=1.)
-    child(child(ready, 2), 3)
-    result = search.search(root, replace(request, reset_statistics=False))
-    assert result.selected is ready
-    assert not ready.info.get("validated_descendant_fallback", False)
-    assert missing.rejection_reason == "missing_validated_descendant"
-
-
-def test_descendant_fallback_never_revives_physical_or_execution_failures():
-    from stacking_common.search import ExecutionRejections
-    root, _, _, search, request = setup()
-    candidates = [child(root, index) for index in range(5)]
-    for node in candidates:
-        node.reject("missing_validated_descendant")
-    candidates[0].reject("simulation_unsettled")
-    candidates[1].state.failed = True
-    candidates[2].info["authoritative_fidelity"] = "short"
-    candidates[4].info.clear()
-    request = replace(request, execution_rejections=ExecutionRejections(actions=(candidates[3].action,)))
-    selected, ranked = search._select_descendant_fallback(root, request, candidates)
-    assert selected is None and ranked == ()
-    assert all(not node.selectable for node in candidates)
-
-
-def test_descendant_fallback_uses_validated_root_after_deadline_without_new_work(monkeypatch):
-    root, generator, evaluator, search, request = setup()
-    candidate = child(root, 0, reward=3.)
-    candidate.record_visit(3.)
-    ticks = iter([0., 2.])
-    monkeypatch.setattr("stacking_common.search.mcts.search.time.monotonic", lambda: next(ticks, 2.))
-    result = search.search(root, replace(request, max_time_seconds=1., reset_statistics=False))
-    assert result.selected is candidate
-    assert result.timed_out
-    assert candidate.info["validated_descendant_fallback"]
+    search.config = replace(search.config, final_selection=FinalSelectionConfig(
+        max_weight=weight, descendant_depth=2))
+    complete = child(root, 0)
+    child(child(complete, 1), 2)
+    shallow = child(root, 3, reward=100)
+    shallow.record_visit(100)
+    pending = shallow.add_candidate(action(4))
+    pending.add_candidate(action(5))  # Unevaluated paths never satisfy the filter.
+    selected, ranked = search._final_select(root)
+    assert selected is complete and ranked == (complete,)
+    assert shallow.selectable  # A depth filter is not a physical rejection.
     assert not generator.calls and not evaluator.calls
+
+
+@pytest.mark.parametrize("weight", [0.0, 0.5, 1.0])
+def test_exhaustion_falls_back_to_mean_of_feasible_roots_without_repair(weight):
+    root, generator, evaluator, search, request = setup()
+    search.config = replace(search.config, final_selection=FinalSelectionConfig(
+        max_weight=weight, descendant_depth=2))
+    low = child(root, 0)
+    low.record_visit(2)
+    best = child(root, 1)
+    best.record_visit(5)
+    failed = child(root, 2)
+    failed.record_visit(100)
+    failed.reject("simulation_unsettled")
+    selected, ranked = search._final_select(root)
+    assert selected is best and ranked == (best, low)
+    assert selected.info["descendant_depth_fallback"]
+    assert not generator.calls and not evaluator.calls
+    assert not failed.selectable
+
+
+def test_path_score_is_maximum_of_evaluated_paths_not_first_passing_path():
+    root, generator, evaluator, search, request = setup(depth=1)
+    candidate = child(root, 0, reward=2)
+    child(candidate, 1, reward=1)
+    child(candidate, 2, reward=10)
+    failed = child(candidate, 3, reward=100)
+    failed.reject("physical_failure")
+    selected, _ = search._final_select(root)
+    assert selected.info["descendant_path_return"] == 12
+    assert selected.info["final_selection_score"] == 12
+    assert not evaluator.calls
+
+
+def test_terminal_success_satisfies_depth_but_failed_terminal_does_not():
+    root, _, _, search, _ = setup()
+    complete = child(root, 0)
+    complete.terminal = True
+    failed = child(root, 1)
+    failed.terminal = True
+    failed.reject("physical_failure")
+    selected, ranked = search._final_select(root)
+    assert selected is complete and ranked == (complete,)
+    assert selected.info["descendant_depth_satisfied"]
+
+
+def test_depth_is_capped_at_search_horizon():
+    root, _, _, search, _ = setup(depth=9)
+    search.config = replace(search.config, max_depth=1)
+    candidate = child(root, 0, reward=3)
+    selected, _ = search._final_select(root)
+    assert selected is candidate
+    assert selected.info["descendant_depth_satisfied"]
+
+
+def test_all_transitions_use_one_fidelity_once_and_final_selection_is_pure():
+    root, generator, evaluator, search, request = setup()
+    result = search.search(root, replace(request, iterations=12))
+    calls = [(parents, x) for _, batch in evaluator.calls for parents, x in batch]
+    def count(node):
+        return sum(int(c.evaluated) + count(c) for c in node.children)
+    assert len(calls) == count(root) == result.evaluated_candidates
+    assert {fidelity for fidelity, _ in evaluator.calls} == {EvaluationFidelity.LONG}
+    assert result.final_validation_attempts == result.descendant_validation_attempts == 0
+    before = len(evaluator.calls), len(generator.calls)
+    search._final_select(root)
+    assert (len(evaluator.calls), len(generator.calls)) == before
+
+
+def test_root_physics_failure_cannot_be_selected_by_depth_fallback():
+    root, _, evaluator, search, request = setup(evaluator=Evaluator(fail_all=True))
+    result = search.search(root, request)
+    assert result.selected is None
+    assert result.failed_evaluations > 0
+
+
+def test_depth_filter_rejects_negative_configuration():
+    with pytest.raises(ValueError, match="descendant depth"):
+        FinalSelectionConfig(descendant_depth=-1)

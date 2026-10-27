@@ -129,7 +129,9 @@ class CorePosegenProfile:
                 raise ValueError(f"posegen schedule {key} must be positive")
             schedule[key] = value
         weights = schedule.get("objective_weights", _LEGACY_SCHEDULE_WEIGHTS)
-        if not isinstance(weights, Mapping) or set(weights) != set(_LEGACY_SCHEDULE_WEIGHTS):
+        required_weights = set(_LEGACY_SCHEDULE_WEIGHTS)
+        if (not isinstance(weights, Mapping)
+                or not required_weights <= set(weights) <= required_weights | {"rho"}):
             raise ValueError("posegen schedule objective_weights must specify all scheduled weights")
         resolved_weights = {}
         for name, terms in weights.items():
@@ -139,6 +141,14 @@ class CorePosegenProfile:
             if any(not math.isfinite(value) or value < 0.0 for value in coefficients.values()):
                 raise ValueError(f"posegen schedule {name} coefficients must be finite and non-negative")
             resolved_weights[name] = MappingProxyType(coefficients)
+        if "rho" in resolved_weights:
+            rho = resolved_weights["rho"]
+            # Rho depends only on stage time, never on per-candidate gap feedback.
+            # Positive endpoints keep the entire cosine continuation positive.
+            if (set(rho) - {"constant", "ramp", "anti_ramp"}
+                    or rho.get("constant", 0.0) + rho.get("anti_ramp", 0.0) <= 0.0
+                    or rho.get("constant", 0.0) + rho.get("ramp", 0.0) <= 0.0):
+                raise ValueError("posegen schedule rho needs positive endpoints using constant/ramp/anti_ramp")
         schedule["objective_weights"] = MappingProxyType(resolved_weights)
         object.__setattr__(self, "schedule", MappingProxyType(schedule))
         object.__setattr__(self, "target_friction", float(self.target_friction))

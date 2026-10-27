@@ -15,7 +15,7 @@ class ExcavatorPlanningCoordinator:
         self.application = application
         self.inventory = inventory
         self.planner = planner
-        self.backend = placement_backend or application.build_core_backend(inventory, EvaluationFidelity.SHORT)
+        self.backend = placement_backend or application.build_core_backend(inventory, EvaluationFidelity.LONG)
         self.backend.reset(inventory.object_ids)
         self.progress = progress
         self.context_sha256 = context_sha256

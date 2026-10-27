@@ -69,7 +69,6 @@ class TabletopApplication(StackingSearchApplication):
     solver_profiles: SolverProfileFiles
     environment_profile: EnvironmentProfile
     simulation_profile: CoreSimulationProfile
-    short_simulation_profile: CoreSimulationProfile
     posegen_profile: CorePosegenProfile
     mcts_profile: TabletopMCTSProfile
     inventory_profile: TabletopInventoryProfile
@@ -115,10 +114,6 @@ class TabletopApplication(StackingSearchApplication):
             solver_profiles=profiles,
             environment_profile=environment_profile,
             simulation_profile=load_simulation_profile(profiles.simulation),
-            short_simulation_profile=load_simulation_profile(
-                profiles.simulation,
-                fidelity="short",
-            ),
             posegen_profile=load_posegen_profile(profiles.posegen),
             mcts_profile=load_mcts_profile(mcts_profile_path),
             inventory_profile=load_inventory_profile(
@@ -227,7 +222,7 @@ class TabletopApplication(StackingSearchApplication):
         )
         placement_backend = CorePlacementBackend.from_profile(
             inventory.models,
-            self.short_simulation_profile,
+            self.simulation_profile,
             place_stability=self.environment_profile.place_stability,
             core_module=core_module,
         )

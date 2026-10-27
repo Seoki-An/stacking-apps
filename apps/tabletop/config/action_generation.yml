@@ -34,7 +34,7 @@ planar:
   contact_gap_tolerance: 0.02
   # The only proposal-score weights. Edit these named values for ablations.
   score:
-    height: -3.0
+    height: -4.0
     support_likelihood: 2.0
     fill_area: 2.0
     target_boundary: 1.5
