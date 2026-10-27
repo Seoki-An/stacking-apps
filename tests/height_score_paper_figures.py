@@ -35,16 +35,22 @@ from stacking_common.visualization.sampling import initial_pose_score_view
 
 PANELS = (
     ("scene_height", "Scene height", "Height (m)"),
-    ("score", "Total placement score", "Score"),
+    ("height", "Height score", "Weighted contribution"),
     ("support_likelihood", "Support score", "Weighted contribution"),
+    ("score", "Total placement score", "Score"),
     ("fill_area", "Filling score", "Weighted contribution"),
     ("target_boundary", "Target boundary score", "Weighted contribution"),
-    ("height", "Height score", "Weighted contribution"),
 )
 
 MAP_STYLE = dict(background="white", masked="black", target="#f4d35e", target_interior="#808080",
                  initial_xy="magenta", text="#252525", colormap="viridis",
-                 bottom_colormap="Greys", bottom_opacity=.5)
+                 bottom_colormap="Greys", bottom_opacity=.5,
+                 individual_font_scaling="match overview font size relative to plot dimensions",
+                 overview_size_inches=[3.5, 2.3], overview_axis_label_size=4.5,
+                 overview_tick_label_size=3.5, overview_dpi=600,
+                 overview_padding_inches=.003, overview_spacing=.005,
+                 bottom_overlay_rendering="alpha composited into vector cell colors",
+                 pdf_content="vector heatmap cells, overlays, axes, and text")
 
 
 def rasterize_bottom_height(points, faces, pose, x, y):
@@ -107,7 +113,28 @@ def candidate_bottom_patch(view, bottom_height):
     return x, y, bottom_height[row_slice, column_slice] - minimum_z, minimum_z
 
 
-def render_candidate_bottom_map(directory, view, bottom_height):
+def match_overview_fonts(fig, ax, reference_plot_inches, *, colorbar=None):
+    """Match overview text/plot proportions after accounting for label margins."""
+    style = MAP_STYLE
+    for _ in range(8):
+        fig.canvas.draw()
+        bounds = ax.get_window_extent()
+        plot_inches = min(bounds.width, bounds.height) / fig.dpi
+        scale = plot_inches / reference_plot_inches
+        label_size = style["overview_axis_label_size"] * scale
+        tick_size = style["overview_tick_label_size"] * scale
+        if abs(ax.xaxis.label.get_fontsize() - label_size) < .01:
+            break
+        ax.xaxis.label.set_fontsize(label_size)
+        ax.yaxis.label.set_fontsize(label_size)
+        ax.tick_params(labelsize=tick_size)
+        if colorbar is not None:
+            ax.set_title(ax.get_title(loc="left"), loc="left", fontsize=5.5 * scale)
+            colorbar.ax.xaxis.label.set_fontsize(label_size)
+            colorbar.ax.tick_params(labelsize=tick_size)
+
+
+def render_candidate_bottom_map(directory, view, bottom_height, reference_plot_inches):
     """Export clean and annotated contact-side maps from the original mesh."""
     import matplotlib
     matplotlib.use("Agg")
@@ -131,20 +158,27 @@ def render_candidate_bottom_map(directory, view, bottom_height):
         try:
             ax.set_facecolor(style["background"])
             pixels = ax.pcolormesh(x, y, np.ma.masked_invalid(heights), shading="nearest",
-                cmap=cmap, vmin=0., vmax=max(float(np.nanmax(heights)), 1e-12), rasterized=True)
+                cmap=cmap, vmin=0., vmax=max(float(np.nanmax(heights)), 1e-12),
+                edgecolors="face", linewidth=.1, rasterized=False)
             ax.set(xlim=(center[0]-half_width, center[0]+half_width),
                    ylim=(center[1]-half_width, center[1]+half_width), aspect="equal",
                    xlabel="X relative to candidate (m)", ylabel="Y relative to candidate (m)")
-            ax.tick_params(colors=style["text"])
-            ax.xaxis.label.set_color(style["text"])
-            ax.yaxis.label.set_color(style["text"])
+            ax.tick_params(colors=style["text"], labelsize=style["overview_tick_label_size"])
+            for label in (ax.xaxis.label, ax.yaxis.label):
+                label.set_color(style["text"])
+                label.set_fontsize(style["overview_axis_label_size"])
             for spine in ax.spines.values():
                 spine.set_color(style["text"])
+            bar = None
             if annotated:
-                ax.set_title("Candidate bottom height", loc="left", fontsize=11, color=style["text"])
+                ax.set_title("Candidate bottom height", loc="left", fontsize=5.5, color=style["text"])
                 bar = fig.colorbar(pixels, ax=ax, orientation="horizontal", fraction=.055,
                                    pad=.12, shrink=.85, aspect=26, format="%.3g")
-                bar.set_label("Elevation above lowest sampled underside point (m)", fontsize=9)
+                bar.set_label("Elevation above lowest sampled underside point (m)", fontsize=4.5)
+                bar.ax.tick_params(labelsize=style["overview_tick_label_size"])
+                if bar.solids is not None:
+                    bar.solids.set_rasterized(False)
+            match_overview_fonts(fig, ax, reference_plot_inches, colorbar=bar)
             name = "candidate_bottom_height" + ("_annotated" if annotated else "")
             for suffix in ("png", "pdf"):
                 path = Path(directory) / f"{name}.{suffix}"
@@ -159,7 +193,10 @@ def render_maps(directory, view, bottom_height):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.collections import PolyCollection
+    from matplotlib.colors import Normalize, to_rgb
     from matplotlib.patches import Rectangle
+    from matplotlib.ticker import FormatStrFormatter
 
     directory = Path(directory)
     weighted = weighted_fields(view)
@@ -176,7 +213,51 @@ def render_maps(directory, view, bottom_height):
     bottom_values = np.ma.masked_invalid(bottom_height)
     lower, upper = view.target_bounds
 
-    def panel(fig, ax, name, title, units, *, annotated=True):
+    def cell_edges(coordinates):
+        midpoints = (coordinates[:-1]+coordinates[1:])/2
+        return np.r_[2*coordinates[0]-midpoints[0], midpoints, 2*coordinates[-1]-midpoints[-1]]
+
+    def bottom_overlay(ax, x, y, values, limits, score_panel, neutral_target):
+        """Composite alpha into vector cell colors, avoiding PDF stitching seams.
+
+        Split at both raster grids and the target rectangle so every polygon
+        retains the original constant field value and bottom-height sample.
+        No interpolation, bitmap, or convex geometry is introduced.
+        """
+        field_x, field_y = cell_edges(x), cell_edges(y)
+        bottom_edges_x, bottom_edges_y = cell_edges(bottom_x), cell_edges(bottom_y)
+        edges_x = np.unique(np.r_[field_x, bottom_edges_x, lower[0], upper[0]])
+        edges_y = np.unique(np.r_[field_y, bottom_edges_y, lower[1], upper[1]])
+        xx, yy = np.meshgrid((edges_x[:-1]+edges_x[1:])/2, (edges_y[:-1]+edges_y[1:])/2)
+        row = np.searchsorted(bottom_edges_y, yy, side="right")-1
+        column = np.searchsorted(bottom_edges_x, xx, side="right")-1
+        inside_bottom = (row >= 0) & (row < len(bottom_y)) & (column >= 0) & (column < len(bottom_x))
+        bottom = bottom_height[np.clip(row, 0, len(bottom_y)-1), np.clip(column, 0, len(bottom_x)-1)]
+        visible = inside_bottom & np.isfinite(bottom)
+        in_target = (xx >= lower[0]) & (xx <= upper[0]) & (yy >= lower[1]) & (yy <= upper[1])
+        background = np.empty((*xx.shape, 3))
+        background[:] = to_rgb(style["masked"] if score_panel else style["background"])
+        if neutral_target:
+            background[in_target] = to_rgb(style["target_interior"])
+        row = np.searchsorted(field_y, yy, side="right")-1
+        column = np.searchsorted(field_x, xx, side="right")-1
+        inside_field = (row >= 0) & (row < len(y)) & (column >= 0) & (column < len(x))
+        field = np.ma.filled(values, np.nan)[np.clip(row, 0, len(y)-1), np.clip(column, 0, len(x)-1)]
+        known = inside_field & np.isfinite(field)
+        if score_panel:
+            known &= in_target
+        background[known] = cmap(Normalize(*limits)(field[known]))[:, :3]
+        gray = bottom_cmap(Normalize(float(bottom_values.min()), float(bottom_values.max()))(bottom))[:, :, :3]
+        blended = style["bottom_opacity"]*gray + (1-style["bottom_opacity"])*background
+        row, column = np.nonzero(visible)
+        left, right = edges_x[column], edges_x[column+1]
+        bottom_edge, top = edges_y[row], edges_y[row+1]
+        polygons = np.stack((np.column_stack((left, bottom_edge)), np.column_stack((right, bottom_edge)),
+                             np.column_stack((right, top)), np.column_stack((left, top))), axis=1)
+        ax.add_collection(PolyCollection(polygons, facecolors=blended[visible], edgecolors="face",
+                                         linewidth=.1, antialiaseds=False, rasterized=False))
+
+    def panel(ax, name, *, overview=False):
         score_panel = name != "scene_height"
         neutral_target = score_panel and not name.endswith("_masked")
         field_name = name.removesuffix("_masked")
@@ -199,43 +280,52 @@ def render_maps(directory, view, bottom_height):
         if neutral_target:
             ax.add_patch(Rectangle(lower, *(upper-lower), facecolor=style["target_interior"],
                                    edgecolor="none", zorder=0))
+        # Matching hairline strokes close PDF viewer seams between vector cells.
         pixels = ax.pcolormesh(x, y, values, shading="nearest", cmap=cmap,
-                              vmin=limits[0], vmax=limits[1], rasterized=True)
+                              vmin=limits[0], vmax=limits[1], edgecolors="face",
+                              linewidth=.1, rasterized=False)
         if score_panel:
             pixels.set_clip_path(Rectangle(lower, *(upper-lower), transform=ax.transData))
-        ax.pcolormesh(bottom_x, bottom_y, bottom_values, shading="nearest", cmap=bottom_cmap,
-                      alpha=style["bottom_opacity"], rasterized=True)
+        bottom_overlay(ax, x, y, values, limits, score_panel, neutral_target)
         ax.add_patch(Rectangle((lower[0], lower[1]), upper[0]-lower[0], upper[1]-lower[1],
-                               fill=False, edgecolor=style["target"], linewidth=1.1))
-        ax.plot(view.initial_xy[0], view.initial_xy[1], "o", markersize=5,
+                               fill=False, edgecolor=style["target"], linewidth=.65 if overview else 1.1))
+        ax.plot(view.initial_xy[0], view.initial_xy[1], "o", markersize=2.5 if overview else 5,
                 color=style["initial_xy"], markeredgewidth=0)
-        ax.set(xlim=view.scene_xlim, ylim=view.scene_ylim,
-               xlabel="X (m)", ylabel="Y (m)", aspect="equal")
-        ax.tick_params(colors=style["text"])
-        ax.xaxis.label.set_color(style["text"])
-        ax.yaxis.label.set_color(style["text"])
+        ax.set(xlim=view.scene_xlim, ylim=view.scene_ylim, aspect="equal")
+        if overview:
+            ax.set_xticks(np.linspace(*view.scene_xlim, 3))
+            ax.set_yticks(np.linspace(*view.scene_ylim, 3))
+            ax.xaxis.set_major_formatter(FormatStrFormatter("%g"))
+            ax.yaxis.set_major_formatter(FormatStrFormatter("%g"))
+            ax.tick_params(colors=style["text"], labelsize=style["overview_tick_label_size"],
+                           width=.5, length=1, pad=.5)
+            ax.label_outer()
+        else:
+            ax.set_xlabel("X (m)", fontsize=style["overview_axis_label_size"], color=style["text"])
+            ax.set_ylabel("Y (m)", fontsize=style["overview_axis_label_size"], color=style["text"])
+            ax.tick_params(colors=style["text"], labelsize=style["overview_tick_label_size"])
         for spine in ax.spines.values():
             spine.set_color(style["text"])
-        if annotated:
-            if field_name in view.weights:
-                title += f" ($w={view.weights[field_name]:g}$)"
-            ax.set_title(title, loc="left", fontsize=11, pad=9, color=style["text"])
-            bar = fig.colorbar(pixels, ax=ax, orientation="horizontal", ticks=np.linspace(*limits, 3),
-                               fraction=.055, pad=.12, shrink=.85, aspect=26, format="%.3g")
-            bar.set_label(units, fontsize=9, color=style["text"])
-            bar.ax.tick_params(labelsize=8, colors=style["text"])
-            bar.outline.set_edgecolor(style["text"])
+            spine.set_linewidth(.5 if overview else .8)
 
-    overview, axes = plt.subplots(2, 3, figsize=(13.5, 11.3), layout="constrained",
-                                  facecolor=style["background"])
+    overview, axes = plt.subplots(2, 3, figsize=style["overview_size_inches"], layout="compressed",
+                                  sharex=True, sharey=True, facecolor=style["background"])
+    overview.get_layout_engine().set(w_pad=style["overview_padding_inches"],
+        h_pad=style["overview_padding_inches"],
+        wspace=style["overview_spacing"], hspace=style["overview_spacing"])
+    overview.supxlabel("X (m)", fontsize=style["overview_axis_label_size"], color=style["text"])
+    overview.supylabel("Y (m)", fontsize=style["overview_axis_label_size"], color=style["text"])
     paths = []
     try:
         for ax, (name, title, units) in zip(axes.flat, PANELS):
-            panel(overview, ax, name, title, units)
+            panel(ax, name, overview=True)
         for suffix in ("png", "pdf"):
             path = directory / f"height_score_overview.{suffix}"
-            overview.savefig(path, dpi=300, facecolor=style["background"], bbox_inches="tight", pad_inches=.15)
+            overview.savefig(path, dpi=style["overview_dpi"], facecolor=style["background"])
             paths.append(path)
+        overview.canvas.draw()
+        bounds = axes.flat[0].get_window_extent()
+        reference_plot_inches = min(bounds.width, bounds.height) / overview.dpi
     finally:
         plt.close(overview)
     individual_panels = PANELS + tuple((name+"_masked", title, units)
@@ -243,14 +333,15 @@ def render_maps(directory, view, bottom_height):
     for name, title, units in individual_panels:
         fig, ax = plt.subplots(figsize=(6, 6), layout="constrained", facecolor=style["background"])
         try:
-            panel(fig, ax, name, title, units, annotated=False)
+            panel(ax, name)
+            match_overview_fonts(fig, ax, reference_plot_inches)
             for suffix in ("png", "pdf"):
                 path = directory / f"{name}.{suffix}"
                 fig.savefig(path, dpi=300, facecolor=style["background"], bbox_inches="tight", pad_inches=.15)
                 paths.append(path)
         finally:
             plt.close(fig)
-    paths.extend(render_candidate_bottom_map(directory, view, bottom_height))
+    paths.extend(render_candidate_bottom_map(directory, view, bottom_height, reference_plot_inches))
     return paths
 
 
@@ -303,6 +394,9 @@ def main():
                       for i in state.placed_object_indices},
         frame="stack", array_order="row Y, column X", display_axes="horizontal X, vertical Y",
         figure_style=MAP_STYLE,
+        overview=dict(panel_order=[[panel[0] for panel in PANELS[:3]], [panel[0] for panel in PANELS[3:]]],
+            titles=False, colorbars=False, shared_axes=True,
+            size_inches=MAP_STYLE["overview_size_inches"]),
         candidate_bottom_map=bottom_metadata,
         candidate_bottom_figure=dict(files="candidate_bottom_height[_annotated].png/pdf",
             definition="original mesh lower surface minus its lowest finite scene-grid sample",

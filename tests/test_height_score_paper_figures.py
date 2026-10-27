@@ -3,10 +3,46 @@
 import numpy as np
 from types import SimpleNamespace
 
-from height_score_paper_figures import candidate_bottom_patch, rasterize_bottom_height
+from height_score_paper_figures import candidate_bottom_patch, rasterize_bottom_height, render_maps
 from height_score_boundary import boundary_display_map, extended_score_fields
 from stacking_common.visualization.sampling import initial_pose_score_view
 from test_initial_pose_score_view import config, scene
+
+
+def test_vector_overlay_preserves_alpha_blend_at_score_and_target_boundaries(tmp_path, monkeypatch):
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.figure import Figure
+    from matplotlib import colormaps
+
+    score = np.array([[0., 1.], [2., 3.]])
+    bottom = np.full((3, 3), np.nan)
+    bottom[1, 1] = .2  # One bottom cell crosses both score axes and the target boundary.
+    view = SimpleNamespace(x=np.array([-.5, .5]), y=np.array([-.5, .5]),
+        fields={"score": score, "support_likelihood": score.copy()}, weights={"support_likelihood": 1.},
+        valid=np.ones((2, 2), dtype=bool), scene_height=np.zeros((3, 3)),
+        scene_xlim=np.array([-1.2, 1.2]), scene_ylim=np.array([-1.2, 1.2]),
+        initial_xy=np.array([0., 0.]), target_bounds=(np.array([-.4, -.4]), np.array([.4, .4])))
+    captured = []
+
+    def save(fig, path, **kwargs):
+        if path.name == "height_score_overview.pdf":
+            captured.append(fig.axes[3].collections[-1])  # Total score, bottom-left panel.
+
+    monkeypatch.setattr(Figure, "savefig", save)
+    render_maps(tmp_path, view, bottom)
+    overlay = captured[0]
+    assert not overlay.get_rasterized()
+    colors = overlay.get_facecolors()
+    np.testing.assert_allclose(colors[:, 3], 1.)
+    for point, expected in (
+            ((-.2, -.2), .5*np.ones(3)+.5*np.array(colormaps["viridis"](0.))[:3]),
+            ((.2, .2), .5*np.ones(3)+.5*np.array(colormaps["viridis"](1.))[:3]),
+            ((-.5, -.5), np.full(3, .5))):  # Outside target: white overlay over black.
+        matches = [i for i, path in enumerate(overlay.get_paths()) if path.contains_point(point)]
+        assert len(matches) == 1
+        np.testing.assert_allclose(colors[matches[0], :3], expected)
+    np.testing.assert_array_equal(view.fields["score"], score)
 
 
 def test_candidate_bottom_patch_preserves_metric_coordinates_holes_and_height_differences():

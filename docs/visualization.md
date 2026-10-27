@@ -29,6 +29,35 @@ the designed action pose in the legacy debug record, not a guarantee that it is
 the first pose of structural simulation. New contracts should use explicit
 `action_pose`, `simulation_start_pose`, and `final_pose` names.
 
+## Inventory paper figures
+
+For long placement-only planning examples using the full 49-stone excavator
+inventory, see [the target-shape batch runner](excavator-target-shape-examples.md).
+
+Render the inventory's original PLY stone meshes from directly above:
+
+```bash
+python tests/inventory_paper_figures.py --output .analysis/inventory-paper
+```
+
+The default excavator inventory is read from `apps/excavator/config/inventory.yml`.
+Use `--inventory apps/tabletop/config/inventory.yml` for tabletop, or
+`--object-ids 1 2 3 4` to select a subset from the chosen inventory. Outputs are
+2400×2400 PNG/PDF pages containing up to 16 stones on invisible 4×4 grids.
+The background is white, meshes are opaque gray, and no ground plane, axes,
+grid lines, or titles are drawn. Add `--show-labels` to identify the stones.
+Use a new output directory; X-only VTK builds may require `xvfb-run -a`.
+
+Like the legacy `stacking-planner/scripts/test/compare_stone_sizes.py`, the
+example sorts by original bounding-box volume and aligns principal axes:
+largest vertex variance along X, second along Y, smallest along Z. The
+aligned bounds are centered in each cell and the underside starts at Z=0.
+Only rigid transforms are applied, preserving original meshes and physical
+size differences. Stones read left to right, then top to bottom. All pages
+share cell spacing (1.5 times the largest aligned extent) and an orthographic
+camera scale, including partial pages. `inventory_layout.json` records source
+hashes, IDs, page/row/column, transforms, extents, spacing, and rendering settings.
+
 ## Standalone pose-optimization paper figures
 
 The offline experiment in `tests/posegen_paper_figures.py` exports paired,
@@ -143,9 +172,16 @@ the current YAML, determine these figures.
 The physical height map remains in meters and includes the whole target area.
 Figures follow the Operations Console's **XY score maps** conventions with a
 white background and dark text: X is horizontal and Y is vertical, every panel
-uses the full scene's bounds. The overview retains titles and horizontal color
-bars with three tick labels; individual PNG/PDF maps omit titles and color bars
-for composition in the paper, while retaining coordinate axes and overlays.
+uses the full scene's bounds. The overview omits titles and color bars, using
+shared X/Y labels (4.5 pt) and outer tick labels (3.5 pt) for a 3.5 × 2.3 inch
+single-column figure. Its top row contains scene height, height score, and
+support score; its bottom row contains total score, filling score, and target
+boundary score. Standalone PNG/PDF maps also omit titles and color bars,
+with larger fonts scaled to match the overview's text-to-plot proportions.
+The scale uses the shorter plot dimension after layout, including label margins,
+and also applies to the individual candidate bottom-height maps.
+Overview panels use compressed
+layout with 0.003 inch padding and 0.005 relative spacing between panels.
 Solid yellow outlines show the target base, and a magenta point marks the
 candidate's initial XY position. Its original reconstructed PLY mesh is
 overlaid as a 50%-opaque grayscale bottom-height map, with lower points white
@@ -161,7 +197,15 @@ the eligibility mask, scene heights and candidate bottom heights in meters
 (world Z, with NaN outside the mesh). The JSON sidecar
 retains source/context/model hashes, recorded settings, poses, weights and
 coordinate conventions, and the PLY source hash and bottom-map color limits.
-PNGs use 300 dpi; PDF labels and target outlines remain vector.
+Overview PNGs use 600 dpi (2100 × 1380 pixels); their PDFs retain an exact
+3.5 inch width. All height/score-map PDFs, including the individual candidate
+bottom maps, are fully vector: heatmap cells, transparent overlays, target
+outlines, axes, text, and the annotated bottom map's color bar are drawn as
+vector objects. The bottom overlay's transparency is composited into vector
+cell colors, splitting cells at both grids and the target boundary. This
+preserves the overlay's appearance without PDF transparency stitching seams
+or interpolating the data. Standalone PNGs use 300 dpi. All score limits and numerical
+arrays remain unchanged.
 
 The separate `candidate_bottom_height.png/.pdf` shows the candidate's contact-side
 height map, cropped to its sampled footprint on a white background. It uses the
@@ -175,6 +219,26 @@ The clean figure has no title or color bar; `candidate_bottom_height_annotated`
 adds both for inspecting the height scale. NPZ exports retain the cropped
 `candidate_bottom_x`, `candidate_bottom_y`, `candidate_bottom_relative_height`,
 and absolute `candidate_bottom_minimum_z`, while the JSON records these conventions.
+
+To illustrate the complete proposal workflow in one figure:
+
+```bash
+MPLCONFIGDIR=/tmp/stacking-paper-mpl python tests/proposal_paper_figure.py \
+    --run .stacks/excavator_plan_for_visual2.stack --step 23 \
+    --output .analysis/proposal-paper
+```
+
+`proposal_pipeline.png/.pdf` arranges scene height, the fixed-orientation proposal
+score, and the recorded sampled initial pose from left to right. Magenta marks
+the sampled XY position, the original-mesh footprint, and the candidate stone.
+The pre-placement scene and initial pose are preserved, including the actual
+vertical clearance. Masked score cells use the colormap's minimum purple without
+extrapolating scores. The figure uses a white background, serif captions, XY
+direction arrows, and color strips without numeric ticks. The PDF keeps the
+maps and annotations as vectors and embeds the original-mesh 3D rendering as a
+bitmap. JSON and NPZ files retain source hashes, mesh hashes, poses, scoring
+settings, masks, values, and color limits. The script overwrites its own exports
+when rerun in the same output directory.
 
 ## Source behavior
 
