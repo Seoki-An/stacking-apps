@@ -19,9 +19,11 @@ reward:
   # Velocity disturbances from the nominal settled scene; poses stay unchanged.
   place_stability:
     enabled: true
-    n_noise: 4
+    n_noise: 8
+    # Movable contact neighborhood: 0=candidate only, N=contact links, null=all stones.
+    contact_hops: 2
     # Provisional disturbance magnitudes; calibrate to release velocity measurements.
-    linear_velocity_std: [0.05, 0.05, 0.05]  # World XYZ, m/s (signed Gaussian).
+    linear_velocity_std: [0.1, 0.1, 0.05]  # World XYZ, m/s (signed Gaussian).
     angular_velocity_std_deg: 5.0  # Body XYZ, deg/s, isotropic Gaussian.
     rotation_weight: 0.1
     # Require recovery (energy settling or bounded rocking) in every trial.

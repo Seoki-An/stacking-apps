@@ -103,3 +103,28 @@ legacy staged backend compatibility. The CPU backend test explicitly checks that
 settling precedes structure and that settled poses, with reset velocities, start
 the structural phase. No full-inventory speed/stability benchmark or robot
 execution was performed.
+
+## Robustness contact neighborhood
+
+Both platform `environment.yml` profiles now default to
+`reward.place_stability.contact_hops: 2`. During velocity-disturbance trials,
+keep the candidate and stones within two links of its final nominal contact
+graph movable; freeze the remaining stones while retaining their geometry.
+Ground/static bodies do not connect neighborhoods. The graph is undirected,
+includes the final structural simulation's reported contacts, and is selected
+once per placement rather than updated during a disturbance.
+
+Set `contact_hops: 0` for candidate-only motion, any non-negative integer for
+that contact-link depth, or `contact_hops: null` for full-scene motion. Older
+profiles and saved contexts without the field retain full-scene behavior.
+Nominal settling and structural simulation, disturbance magnitudes, trial
+count, and rejection thresholds are unchanged. CPU and CUDA use the same
+neighborhood selection. Saved placement diagnostics include
+`place_robustness_contact_hops`.
+
+This is a local robustness approximation: frozen boundary stones can alter
+load redistribution and excursion scores, and newly formed contacts do not
+activate them. In an 87-placement replay with eight perturbations, two links
+matched full-scene acceptance decisions and reduced robustness time by 56%
+(total placement-evaluation time by 35%). This is not an end-to-end MCTS
+speedup or a guarantee of equivalent structural robustness on other scenes.

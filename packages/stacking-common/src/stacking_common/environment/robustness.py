@@ -18,6 +18,7 @@ class PlaceStabilityConfig:
     reject_failed_trials: bool = False
     settling_position_tolerance: float = 0.0
     settling_rotation_tolerance_deg: float = 0.0
+    contact_hops: int | None = None
 
     def __post_init__(self):
         if not isinstance(self.enabled, bool):
@@ -28,6 +29,9 @@ class PlaceStabilityConfig:
             raise ValueError('place_stability.n_noise must be a non-negative integer')
         if type(self.seed) is not int or self.seed < 0:
             raise ValueError('place_stability.seed must be a non-negative integer')
+        if self.contact_hops is not None and (
+                type(self.contact_hops) is not int or self.contact_hops < 0):
+            raise ValueError('place_stability.contact_hops must be null or a non-negative integer')
         std = np.asarray(self.linear_velocity_std, dtype=float)
         if std.ndim == 0:
             std = np.repeat(std, 3)
@@ -137,8 +141,36 @@ def trial_outcome(initial, poses, config, phase, *, energy_settled):
     return peak, 'not_settled'
 
 
-def disturbance_scene(backend, snapshot, action, linear, angular):
-    """Keep nominal poses/mobility, reset residual motion, kick only the new stone.
+def robustness_dynamic_entities(backend, snapshot, action, contacts):
+    """Select movable stones using the final nominal, undirected contact graph.
+
+    Static bodies (including ground) cannot connect neighborhoods. The selected
+    set stays fixed throughout a trial; distant bodies retain collision geometry.
+    A missing setting preserves full-scene behavior for older saved profiles.
+    """
+    dynamic = {body.id for body in snapshot.bodies
+               if body.mobility == backend.core.Mobility.DYNAMIC}
+    hops = backend.place_stability.contact_hops
+    if hops is None:
+        return dynamic
+    adjacency = {entity: set() for entity in dynamic}
+    for contact in contacts:
+        first, second = int(contact['entity_first']), int(contact['entity_second'])
+        if first in adjacency and second in adjacency:
+            adjacency[first].add(second)
+            adjacency[second].add(first)
+    active = {backend.scene_builder.entity_id(action.object_index)} & dynamic
+    frontier = active.copy()
+    for _ in range(hops):
+        if not frontier:
+            break
+        frontier = set().union(*(adjacency[entity] for entity in frontier)) - active
+        active.update(frontier)
+    return active
+
+
+def disturbance_scene(backend, snapshot, action, linear, angular, dynamic_entities=None):
+    """Keep nominal poses, freeze distant stones, and kick only the new stone.
 
     Native linear velocity is in world axes; angular velocity is in body axes.
     No geometric clearance correction or displacement is applied.
@@ -148,7 +180,11 @@ def disturbance_scene(backend, snapshot, action, linear, angular):
     bodies = [backend.core.BodyInstance(
         body.id, body.model, body.pose,
         linear=linear if body.id == entity else zero,
-        angular=angular if body.id == entity else zero, mobility=body.mobility,
+        angular=angular if body.id == entity else zero,
+        mobility=(backend.core.Mobility.STATIC
+                  if dynamic_entities is not None
+                  and body.mobility == backend.core.Mobility.DYNAMIC
+                  and body.id not in dynamic_entities else body.mobility),
     ) for body in snapshot.bodies]
     return backend.core.SceneSnapshot(snapshot.frame_id, bodies)
 
@@ -174,11 +210,12 @@ def scene_trial_outcome(initial, histories, config, phase, *, energy_settled):
     return peak, None
 
 
-def evaluate_place_stability(backend, state, action, snapshot):
+def evaluate_place_stability(backend, state, action, snapshot, contacts=()):
     config = backend.place_stability
     if not config.active:
         return 0., [], []
-    outcomes = [_simulate_velocity_disturbance(backend, state, action, snapshot, linear, angular)
+    dynamic = robustness_dynamic_entities(backend, snapshot, action, contacts)
+    outcomes = [_simulate_velocity_disturbance(backend, state, action, snapshot, linear, angular, dynamic)
                 for linear, angular in config.velocity_disturbances(
                     step=len(state.placed_object_indices) + 1,
                     object_index=action.object_index, object_id=action.object_id)]
@@ -186,8 +223,8 @@ def evaluate_place_stability(backend, state, action, snapshot):
     return max(values), values, reasons
 
 
-def _simulate_velocity_disturbance(backend, state, action, snapshot, linear, angular):
-    scene = disturbance_scene(backend, snapshot, action, linear, angular)
+def _simulate_velocity_disturbance(backend, state, action, snapshot, linear, angular, dynamic_entities):
+    scene = disturbance_scene(backend, snapshot, action, linear, angular, dynamic_entities)
     simulator = backend._new_simulator()
     phase = disturbance_phase(backend, state)
     bodies = [body for body in scene.bodies if body.mobility == backend.core.Mobility.DYNAMIC]

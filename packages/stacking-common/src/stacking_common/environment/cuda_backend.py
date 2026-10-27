@@ -9,7 +9,7 @@ import numpy as np
 from stacking_common.domain import StackObjectTrajectory
 
 from .core_backend import CorePlacementBackend, _StructuralSimulation
-from .robustness import disturbance_scene, disturbance_phase, scene_trial_outcome
+from .robustness import disturbance_scene, disturbance_phase, scene_trial_outcome, robustness_dynamic_entities
 from .transition import PlacementResult
 
 
@@ -173,7 +173,7 @@ class CudaPlacementBackend(CorePlacementBackend):
         valid = [(i, simulation) for i, simulation in simulations.items()
                  if self._robustness_eligible(states[i], actions[i], simulation)]
         robustness_started = time.perf_counter()
-        robustness = self._robustness([(states[i], actions[i], simulation.snapshot)
+        robustness = self._robustness([(states[i], actions[i], simulation.snapshot, simulation.contacts)
                                       for i, simulation in valid])
         robustness_wall = time.perf_counter() - robustness_started
         robust_by_id = {i: value for (i, _), value in zip(valid, robustness)}
@@ -287,12 +287,13 @@ class CudaPlacementBackend(CorePlacementBackend):
         problems, trials = [], []
         displacements = [[float('inf')] * config.n_noise for _ in jobs]
         reasons = [[None] * config.n_noise for _ in jobs]
-        for i, (state, action, snapshot) in enumerate(jobs):
+        for i, (state, action, snapshot, contacts) in enumerate(jobs):
             phase_config = disturbance_phase(self, state)
+            dynamic = robustness_dynamic_entities(self, snapshot, action, contacts)
             for number, (linear, angular) in enumerate(config.velocity_disturbances(
                     step=len(state.placed_object_indices) + 1,
                     object_index=action.object_index, object_id=action.object_id)):
-                scene = disturbance_scene(self, snapshot, action, linear, angular)
+                scene = disturbance_scene(self, snapshot, action, linear, angular, dynamic)
                 initial = {body.id: np.asarray(body.pose) for body in scene.bodies
                            if body.mobility == self.core.Mobility.DYNAMIC}
                 phase = self._robustness_phase(phase_config, initial)

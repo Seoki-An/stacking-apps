@@ -20,12 +20,13 @@ def pose(z=.2):
 
 
 @pytest.mark.parametrize('platform,count,std,weight', [
-    ('excavator', 4, [.05, .05, .05], .1),
-    ('tabletop', 4, [.02, .02, .02], .01),
+    ('excavator', 8, [.1, .1, .05], .1),
+    ('tabletop', 8, [.02, .02, .02], .01),
 ])
 def test_platform_profiles_reproduce_seeded_velocity_disturbances(platform, count, std, weight):
     config = load_environment_profile(ROOT / f'apps/{platform}/config/environment.yml').place_stability
     assert config.active and config.n_noise == count
+    assert config.contact_hops == 2
     assert config.rotation_weight == weight
     np.testing.assert_array_equal(config.linear_velocity_std, std)
     rng = np.random.default_rng(1009 * 2 + 6361 + 9176 * 20)
@@ -39,7 +40,8 @@ def test_platform_profiles_reproduce_seeded_velocity_disturbances(platform, coun
 @pytest.mark.parametrize('changes', [dict(reject_failed_trials='true'), dict(enabled='true'),
     dict(n_noise=-1), dict(n_noise=1.2), dict(seed=-1), dict(linear_velocity_std=[1, 2]),
     dict(linear_velocity_std=[0, -1, 0]), dict(angular_velocity_std_deg=np.inf),
-    dict(rotation_weight=-1), dict(fail_displacement=-1)])
+    dict(rotation_weight=-1), dict(fail_displacement=-1),
+    dict(contact_hops=-1), dict(contact_hops=True), dict(contact_hops=1.5), dict(contact_hops="2")])
 def test_invalid_settings_are_rejected(changes):
     with pytest.raises(ValueError):
         PlaceStabilityConfig(**changes)
@@ -65,9 +67,11 @@ def test_worst_trial_preserves_nominal_snapshot_and_state(monkeypatch, failed_tr
     backend = NS(place_stability=PlaceStabilityConfig(True, 3, (.05, .05, .05), 5.))
     state = State([10], [], {}, [], [])
     action = Action(0, pose(.3), pose(.4), object_id=10)
-    snapshot = object()
+    snapshot = NS(bodies=[])
+    backend.core = NS(Mobility=NS(DYNAMIC="dynamic"))
     calls = []
-    def simulate(b, s, a, nominal, linear, angular):
+    def simulate(b, s, a, nominal, linear, angular, dynamic):
+        assert dynamic == set()
         assert b is backend and s is state and a is action and nominal is snapshot
         calls.append((linear, angular))
         if failed_trial and len(calls) == 2:
@@ -250,13 +254,60 @@ def test_robustness_receives_final_structural_snapshot(monkeypatch):
     def structural(*args):
         result = original(*args)
         assert result.settled
-        snapshots.append(result.snapshot)
+        snapshots.append((result.snapshot, result.contacts))
         return result
-    def evaluate(b, state, action, snapshot):
-        assert snapshot is snapshots[0]
+    def evaluate(b, state, action, snapshot, contacts):
+        assert snapshot is snapshots[0][0]
+        assert contacts is snapshots[0][1]
         return .01, [.01], [None]
     monkeypatch.setattr(backend, '_simulate_structural', structural)
     monkeypatch.setattr(module, 'evaluate_place_stability', evaluate)
     result = backend.place(State([10], [], {}, [], []), Action(0, pose(), pose(), object_id=10))
     assert result.diagnostics['place_robustness_evaluated']
     assert result.diagnostics['place_robustness_model'] == 'velocity_disturbance'
+
+
+@pytest.mark.parametrize('hops,expected', [
+    (None, {1, 2, 3, 4, 5}), (0, {1}), (1, {1, 2}),
+    (2, {1, 2, 3}), (3, {1, 2, 3, 4}), (100, {1, 2, 3, 4}),
+])
+def test_contact_neighborhood_excludes_ground_and_disconnected_stones(hops, expected):
+    from stacking_common.environment.robustness import robustness_dynamic_entities
+    backend = NS(place_stability=PlaceStabilityConfig(contact_hops=hops),
+                 core=NS(Mobility=NS(DYNAMIC='dynamic')),
+                 scene_builder=NS(entity_id=lambda index: index + 1))
+    scene = NS(bodies=[NS(id=i, mobility='dynamic' if i else 'static') for i in range(6)])
+    # Reversed edges and a cycle; the floor must not join disconnected stone 5.
+    contacts = [dict(entity_first=a, entity_second=b)
+                for a, b in [(2, 1), (2, 3), (4, 3), (3, 2), (0, 1), (0, 5)]]
+    assert robustness_dynamic_entities(backend, scene, NS(object_index=0), contacts) == expected
+    if hops is not None:
+        assert robustness_dynamic_entities(backend, scene, NS(object_index=0), []) == {1}
+
+
+def test_old_robustness_profiles_preserve_full_scene_mobility():
+    assert PlaceStabilityConfig.from_mapping({'enabled': True, 'n_noise': 4}).contact_hops is None
+    assert PlaceStabilityConfig.from_mapping({'contact_hops': None}).contact_hops is None
+
+
+def test_local_trial_freezes_only_distant_stones_without_changing_nominal_scene():
+    from stacking_common.environment.robustness import disturbance_scene, robustness_dynamic_entities
+    backend = make_backend(PlaceStabilityConfig(True, 2, contact_hops=2))
+    backend.reset([10])
+    core = backend.core
+    snapshot = core.SceneSnapshot(0, [core.BodyInstance(i, backend.models[10], pose(i * .2),
+        linear=np.ones(3), angular=np.ones(3),
+        mobility=core.Mobility.DYNAMIC if i else core.Mobility.STATIC) for i in range(5)])
+    contacts = [dict(entity_first=i, entity_second=i + 1) for i in range(4)]
+    action = Action(0, pose(), pose(), object_id=10)
+    dynamic = robustness_dynamic_entities(backend, snapshot, action, contacts)
+    assert dynamic == {1, 2, 3}
+    v, w = np.array([.1, -.2, .3]), np.array([-.3, .2, .1])
+    scene = disturbance_scene(backend, snapshot, action, v, w, dynamic)
+    for before, after in zip(snapshot.bodies, scene.bodies):
+        assert after.mobility == (core.Mobility.DYNAMIC if before.id in dynamic else core.Mobility.STATIC)
+        assert before.mobility == (core.Mobility.DYNAMIC if before.id else core.Mobility.STATIC)
+        np.testing.assert_array_equal(before.pose, after.pose)
+        np.testing.assert_array_equal(before.linear, np.ones(3))
+        np.testing.assert_array_equal(after.linear, v if before.id == 1 else np.zeros(3))
+        np.testing.assert_array_equal(after.angular, w if before.id == 1 else np.zeros(3))

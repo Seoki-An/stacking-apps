@@ -128,12 +128,12 @@ def test_falling_disturbance_trial_exceeds_excursion_limit_on_cpu_and_cuda(backe
         backend.place_stability = policy
         backend.simulation_config = physics
     snapshot = cpu._scene(state(), action, [0], dynamic_indices={0})
-    peak, reason = _simulate_velocity_disturbance(cpu, state(), action, snapshot, np.zeros(3), np.zeros(3))
+    peak, reason = _simulate_velocity_disturbance(cpu, state(), action, snapshot, np.zeros(3), np.zeros(3), {1})
     assert reason == 'excursion_limit' and peak > .02
     # Robustness normally starts from the final structural snapshot. This
     # deliberately raised snapshot exercises a known falling release instead.
     snapshot = gpu._scene(state(), action, [0], dynamic_indices={0})
-    maximum, displacements, reasons = gpu._robustness([(state(), action, snapshot)])[0]
+    maximum, displacements, reasons = gpu._robustness([(state(), action, snapshot, ())])[0]
     assert reasons == ['excursion_limit'] and maximum > .02
     assert policy.failed(maximum, reasons)
 
@@ -320,7 +320,7 @@ def test_support_motion_is_checked_on_cpu_and_cuda(backends):
         core.BodyInstance(2, cpu.models[20], action.pose, mobility=core.Mobility.STATIC),
     ])
     expected = evaluate_place_stability(cpu, source, action, snapshot)
-    actual = gpu._robustness([(source, action, snapshot)])[0]
+    actual = gpu._robustness([(source, action, snapshot, ())])[0]
     for maximum, values, reasons in (actual, expected):
         assert maximum > .02 and reasons == ['excursion_limit']
 
@@ -339,3 +339,53 @@ def test_cuda_nominal_failure_skips_disturbances(backends, monkeypatch):
     result = gpu.place(state(), Action(0, pose(), pose(), object_id=10))
     assert result.diagnostics['rejection_reason'] == 'target_motion_limit'
     assert not result.diagnostics['place_robustness_evaluated']
+
+
+@pytest.mark.parametrize('hops,expected', [(None, {1, 2, 3, 4, 5}), (0, {1}), (2, {1, 2, 3})])
+def test_cpu_cuda_trials_use_same_contact_neighborhood(backends, monkeypatch, hops, expected):
+    import stacking_common.environment.robustness as robustness
+    import stacking_common.environment.cuda_backend as cuda
+    cpu, gpu = backends
+    source = state()
+    action = Action(0, pose(), pose(), object_id=10)
+    snapshot = core.SceneSnapshot(0, [
+        core.BodyInstance(i, cpu.models[10], pose(x=float(i))) for i in range(1, 6)])
+    contacts = [dict(entity_first=i, entity_second=i + 1) for i in range(1, 4)]
+    observed = []
+    original = robustness.disturbance_scene
+    def capture(*args):
+        scene = original(*args)
+        observed.append({b.id for b in scene.bodies if b.mobility == core.Mobility.DYNAMIC})
+        return scene
+    monkeypatch.setattr(robustness, 'disturbance_scene', capture)
+    monkeypatch.setattr(cuda, 'disturbance_scene', capture)
+    for backend in (cpu, gpu):
+        backend.place_stability = PlaceStabilityConfig(True, 2, contact_hops=hops)
+    cpu_result = robustness.evaluate_place_stability(cpu, source, action, snapshot, contacts)
+    gpu_result = gpu._robustness([(source, action, snapshot, contacts)])[0]
+    assert observed == [expected] * 4
+    assert cpu_result[2] == gpu_result[2] == [None, None]
+    assert cpu_result[0] == pytest.approx(gpu_result[0], abs=2e-7)
+    assert all(b.mobility == core.Mobility.DYNAMIC for b in snapshot.bodies)
+
+
+def test_cuda_robustness_receives_final_nominal_contacts(backends, monkeypatch):
+    _, gpu = backends
+    gpu.place_stability = PlaceStabilityConfig(True, 1, contact_hops=2)
+    structural, evaluate = gpu._structural_result, gpu._robustness
+    results, received = [], []
+    def capture_structural(*args):
+        result = structural(*args)
+        results.append(result)
+        return result
+    def capture_robustness(jobs):
+        assert len(jobs) == 1
+        assert jobs[0][2] is results[0].snapshot
+        assert jobs[0][3] is results[0].contacts
+        received.extend(jobs)
+        return evaluate(jobs)
+    monkeypatch.setattr(gpu, '_structural_result', capture_structural)
+    monkeypatch.setattr(gpu, '_robustness', capture_robustness)
+    result = gpu.place(state(), Action(0, pose(), pose(), object_id=10))
+    assert len(received) == 1
+    assert result.diagnostics['place_robustness_contact_hops'] == 2

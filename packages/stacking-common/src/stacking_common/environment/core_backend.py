@@ -514,7 +514,7 @@ class CorePlacementBackend:
         )
         robustness_started = time.perf_counter()
         if robustness is None:
-            robustness = (evaluate_place_stability(self, state, action, snapshot)
+            robustness = (evaluate_place_stability(self, state, action, snapshot, structural_result.contacts)
                           if rejection_reason is None and structural_result.settled
                           else (0., [], []))
         displacement, trials, trial_failure_reasons = robustness
@@ -524,6 +524,7 @@ class CorePlacementBackend:
         diagnostics.update({
             'place_robustness_enabled': self.place_stability.active,
             'place_robustness_model': 'velocity_disturbance',
+            'place_robustness_contact_hops': self.place_stability.contact_hops,
             'place_robustness_evaluated': bool(trials),
             'place_robustness_trial_displacements': trials,
             'place_robustness_trial_failure_reasons': [
