@@ -1267,3 +1267,28 @@ def test_cem_quota_preserves_unlimited_setting_and_handles_no_remaining_stones()
     state = State([10], [0], {}, [], [])
     assert cem._object_limit(state, 32) == 0
     assert cem._elite_parents([], state) == []
+
+
+@pytest.mark.parametrize("gap,accepted", [
+    (0., True), (1e-7, True), (1e-4, True), (1.01e-4, False),
+    (.0047039, False), (.0043180, False),  # Step 28's overlapping solved poses.
+])
+def test_excavator_profile_rejects_penetrated_solved_candidates(gap, accepted):
+    from pathlib import Path
+    from stacking_common.profiles.action import load_action_generation_profile
+
+    profile = load_action_generation_profile(
+        Path(__file__).resolve().parents[1] / "apps/excavator/config/action_generation.yml",
+        max_poses_per_object=1, banned_object_ids=(),
+    )
+    inventory = _inventory()
+    generator = PlacementActionGenerator(inventory, profile.generator,
+        _PlanarSampler(), _Initializer(), _PoseSolver())
+    candidate, reason = generator._finish_candidate(
+        _state(inventory), 0, PlanarPlacement(_pose()),
+        InitializedPlacement(_pose(), 0.),
+        PlacementSolveResult(_pose(), c_feq=0., c_gap=gap),
+    )
+    assert (candidate is not None) is accepted
+    if not accepted:
+        assert reason == "posegen_gap"

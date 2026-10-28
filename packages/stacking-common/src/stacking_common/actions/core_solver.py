@@ -38,7 +38,7 @@ _CONFIG_FIELDS = {
             "eps_gap", "eps_comp", "eps_cone", "eps_target", "k_comp",
             "k_wrench", "k_gap", "k_gap_c", "k_target", "k_potential",
             "k_xy", "k_box", "k_reg", "k_lower", "w_box", "gravity",
-            "ground_height",
+            "ground_height", "k_robust", "robust_load",
         }
     ),
     "force_solver": frozenset(

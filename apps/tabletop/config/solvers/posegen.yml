@@ -17,7 +17,8 @@ schedule:
   max_iters_final: 75
   # Tabletop schedule with the shared lower-support placement preference.
   objective_weights:
-    k_wrench: {ramp: 5.0}
+    # Wrench ramp multiplies diag(1, 1, 1, 10, 10, 10).
+    k_wrench: {ramp: 1.0}
     k_comp: {ramp: 100.0}
     k_gap_c: {constant: 40.0, ramp: 200.0, gap_feedback: 100000.0}
     k_gap: {sine: 20.0}
@@ -61,6 +62,9 @@ objective:
   eps_cone: 0.01
   eps_target: 0.002
   k_comp: 0.0
+  # Disturbance cost fraction at every stage; 0 disables extra load cases.
+  k_robust: 0.8
+  robust_load: 0.2  # Horizontal pushes of 20% candidate weight along +/-x, +/-y.
   k_wrench:
     - [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     - [0.0, 1.0, 0.0, 0.0, 0.0, 0.0]

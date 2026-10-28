@@ -202,6 +202,7 @@ class MCTSSearchResult(Generic[ObservationT]):
 @dataclass
 class _SearchCounters:
     generation_deadline: float | None = None
+    completed_iterations: int = 0
     expansion_calls: int = 0
     generated_candidates: int = 0
     evaluated_candidates: int = 0
@@ -300,7 +301,6 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                for child in root.children):
             root.clear_children()
         self._apply_execution_rejections(root, request, counters)
-        completed = 0
         selected, ranked_candidates = None, ()
         fallback = FloorFillFallbackResult()
         backend_failure = None
@@ -327,39 +327,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             counters.root_lookahead_eligible = len(
                 self._root_lookahead_eligible_children(root)
             )
-            while completed < request.iterations:
-                if (
-                    iteration_deadline is not None
-                    and time.monotonic() >= iteration_deadline
-                ):
-                    break
-                coverage = self._root_lookahead_candidates(root)
-                if not coverage:
-                    consumed = self._run_descendant_frontier_batch(
-                        root,
-                        request,
-                        counters,
-                        request.iterations - completed,
-                    )
-                    if consumed > 0:
-                        completed += consumed
-                    else:
-                        if (
-                            iteration_deadline is not None
-                            and time.monotonic() >= iteration_deadline
-                        ):
-                            break
-                        self._run_iteration(root, request, counters)
-                        completed += 1
-                else:
-                    consumed = self._run_root_lookahead_batch(
-                        coverage[: request.iterations - completed],
-                        request,
-                        counters,
-                    )
-                    if consumed <= 0:
-                        break
-                    completed += consumed
+            self._run_search_iterations(root, request, counters)
 
             selected, ranked_candidates = self._final_select(root)
             excluded_actions = [
@@ -409,17 +377,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     accepted_after - accepted_before,
                     0,
                 )
-                while True:
-                    if deadline is not None and time.monotonic() >= deadline:
-                        break
-                    coverage = self._root_lookahead_candidates(root)
-                    if not coverage:
-                        break
-                    self._run_root_lookahead_batch(
-                        coverage,
-                        request,
-                        counters,
-                    )
+                self._run_search_iterations(root, request, counters)
                 excluded_actions.extend(retired)
                 excluded_actions.extend(
                     child.action
@@ -442,7 +400,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         return MCTSSearchResult(
             root=root,
             selected=selected,
-            completed_iterations=completed,
+            completed_iterations=counters.completed_iterations,
             expansion_calls=counters.expansion_calls,
             generated_candidates=counters.generated_candidates,
             evaluated_candidates=counters.evaluated_candidates,
@@ -452,8 +410,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             floor_fill_fallback=fallback,
             backend_failure=backend_failure,
             timed_out=backend_failure is None and (
-                completed < request.iterations
-                or counters.root_validation_timed_out
+                counters.root_validation_timed_out
                 or deadline_exceeded
             ),
             short_simulation_batches=counters.short_simulation_batches,
@@ -513,6 +470,49 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             ),
         )
 
+    def _run_search_iterations(
+        self, root: MCTSNode, request: MCTSSearchRequest, counters: _SearchCounters,
+    ) -> None:
+        """Search each admitted pool using the remaining shared budget."""
+        while counters.completed_iterations < request.iterations:
+            # Root admission has finished. An empty/rejected pool has no
+            # evidence to back up; leave its budget for retries or fallback.
+            if not root.selectable_children():
+                break
+            if (
+                counters.generation_deadline is not None
+                and time.monotonic() >= counters.generation_deadline
+            ):
+                break
+            coverage = self._root_lookahead_candidates(root)
+            if not coverage:
+                consumed = self._run_descendant_frontier_batch(
+                    root,
+                    request,
+                    counters,
+                    request.iterations - counters.completed_iterations,
+                )
+                if consumed > 0:
+                    counters.completed_iterations += consumed
+                else:
+                    if (
+                        counters.generation_deadline is not None
+                        and time.monotonic() >= counters.generation_deadline
+                    ):
+                        break
+                    if not self._run_iteration(root, request, counters):
+                        break
+                    counters.completed_iterations += 1
+            else:
+                consumed = self._run_root_lookahead_batch(
+                    coverage[: request.iterations - counters.completed_iterations],
+                    request,
+                    counters,
+                )
+                if consumed <= 0:
+                    break
+                counters.completed_iterations += consumed
+
     def _run_floor_fill_fallback(self, root, request, counters, deadline):
         """Retry corner seeds or floor filling within the original deadline.
 
@@ -558,11 +558,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 accepted += (counters.root_validation_attempts - counters.root_validation_failures
                              - accepted_before)
                 counters.root_lookahead_eligible += len(self._root_lookahead_eligible_children(root))
-                while deadline is None or time.monotonic() < deadline:
-                    coverage = self._root_lookahead_candidates(root)
-                    if not coverage:
-                        break
-                    self._run_root_lookahead_batch(coverage, request, counters)
+                self._run_search_iterations(root, request, counters)
                 excluded.extend(child.action for child in root.children if child.action is not None)
                 selected, ranked = self._final_select(root)
                 if selected is not None:
@@ -664,21 +660,20 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         evaluated_before = counters.evaluated_candidates
         evaluation_limit = self.config.evaluation_batch_size
         selected_children = list(children[:evaluation_limit])
-        attempted = len(selected_children)
         for child in selected_children:
             child.info["root_lookahead_attempted"] = True
             counters.root_lookahead_attempts += 1
 
-        self._run_continuation_batch(selected_children, request, counters)
+        completed = self._run_continuation_batch(selected_children, request, counters)
         counters.root_lookahead_generated += (
             counters.generated_candidates - generated_before
         )
         counters.root_lookahead_evaluated += (
             counters.evaluated_candidates - evaluated_before
         )
-        return attempted
+        return completed
 
-    def _run_continuation_batch(self, children, request, counters) -> None:
+    def _run_continuation_batch(self, children, request, counters) -> int:
         """Expand and evaluate one level beneath independent parent nodes."""
         selected_children = list(children)
         evaluation_limit = self.config.evaluation_batch_size
@@ -695,6 +690,12 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             request,
             new_candidate_targets=targets,
         )
+        # A native solve may finish after the deadline. Keep its pending
+        # candidates, but do not launch another simulation batch or back up
+        # unevaluated placements after the search budget is spent.
+        if (counters.generation_deadline is not None
+                and time.monotonic() >= counters.generation_deadline):
+            return 0
 
         selected_nodes = []
         for child in selected_children:
@@ -734,6 +735,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 self._back_up(child)
             else:
                 self._back_up(selected)
+        return len(selected_children)
 
     def _run_descendant_frontier_batch(
         self,
@@ -806,6 +808,12 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             list(targets), counters, request.deeper_sampling_priority, request,
             new_candidate_targets=targets,
         )
+        # A native solve may finish after the deadline. Keep its pending
+        # candidates, but do not launch another simulation batch or back up
+        # unevaluated placements after the search budget is spent.
+        if (counters.generation_deadline is not None
+                and time.monotonic() >= counters.generation_deadline):
+            return 0
 
         selected_nodes = []
         selected_set = set()
@@ -941,7 +949,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             bootstrap *= self.config.discount
         backpropagate(node, self.config, bootstrap_value=bootstrap)
 
-    def _run_iteration(self, root, request, counters) -> None:
+    def _run_iteration(self, root, request, counters) -> bool:
         node = root
         while True:
             if node.terminal or node.failed:
@@ -953,6 +961,9 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     else request.deeper_sampling_priority
                 )
                 self._expand(node, counters, priority, request)
+            if (counters.generation_deadline is not None
+                    and time.monotonic() >= counters.generation_deadline):
+                return False
             child = select_child(
                 node, self.config, epsilon=request.epsilon, rng=self.rng
             )
@@ -974,6 +985,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             node = child
 
         self._back_up(node)
+        return True
 
     def _expand(self, node, counters, sampling_priority, request) -> None:
         self._expand_many(

@@ -19,7 +19,7 @@ reward:
   # Velocity disturbances from the nominal settled scene; poses stay unchanged.
   place_stability:
     enabled: true
-    n_noise: 8
+    n_noise: 4
     # Movable contact neighborhood: 0=candidate only, N=contact links, null=all stones.
     contact_hops: 2
     # Provisional disturbance magnitudes; calibrate to release velocity measurements.

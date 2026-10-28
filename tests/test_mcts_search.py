@@ -1286,6 +1286,47 @@ def test_floor_fallback_finds_valid_placement_after_strict_exhaustion(reject_flo
         assert result.root_retry.rounds == 2
 
 
+@pytest.mark.parametrize("recovery", ["root_retry", "floor_fallback"])
+def test_recovered_root_resumes_deep_search_with_remaining_budget(recovery):
+    class Generator(_FloorFallbackGenerator):
+        def begin_retry(self, excluded_actions):
+            super().begin_retry(excluded_actions)
+            if recovery == "root_retry":
+                self.relaxed = True
+
+    generator = Generator(reject_floor=recovery == "floor_fallback")
+    evaluator = _FloorFallbackEvaluator()
+    state = _state()
+    state.object_ids = [10 * (i + 1) for i in range(8)]
+    search = MonteCarloTreeSearch(
+        _root_policy_config(max_depth=5, max_children=4, root_max_children=4,
+            generation_batch_size=16, evaluation_batch_size=16,
+            expansion_attempt_multiplier=3., rejected_root_retry_rounds=3,
+            exploration_constant=1.,
+            widening=ProgressiveWideningConfig(coefficient=2.)),
+        generator, _ObjectPriorityScorer(), evaluator, _ZeroEstimator(),
+        root_action_generator=generator,
+    )
+    result = search.search(MCTSNode(state=state, observation=()),
+                           MCTSSearchRequest(iterations=128))
+    from stacking_common.workflows.mcts_reporting import tree_statistics
+    assert tree_statistics(result.root)["max_depth"] == 5
+    assert any(len(child.children) > 2 for child in result.root.evaluated_children())
+    assert result.completed_iterations == 128
+    assert result.floor_fill_fallback.attempted is (recovery == "floor_fallback")
+    assert not result.timed_out
+
+
+def test_empty_search_does_not_spend_iterations_or_claim_a_timeout():
+    result = _floor_fallback_search(
+        _FloorFallbackGenerator(reject_floor=True),
+        _FloorFallbackEvaluator(fail_relaxed=True), depth=3,
+    ).search(MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=128))
+    assert result.selected is None
+    assert result.completed_iterations == 0
+    assert not result.timed_out
+
+
 def test_floor_fallback_does_not_run_when_strict_search_succeeds():
     generator = _FloorFallbackGenerator()
     result = _floor_fallback_search(generator, _FloorFallbackEvaluator(strict_succeeds=True)).search(
@@ -1470,3 +1511,30 @@ def test_empty_root_retries_ordinary_sampling_after_corner_validation_failure(ge
     assert result.floor_fill_fallback.attempted and result.floor_fill_fallback.selected
     assert all(priority == 'lower_floor_first' for _, priority in generator.calls)
     assert not generator.relaxed
+
+
+@pytest.mark.parametrize("lookahead,batch_size", [(True, 2), (False, 2), (False, 1)])
+def test_generation_past_deadline_does_not_start_descendant_simulation(monkeypatch, lookahead, batch_size):
+    from dataclasses import replace
+    clock = [0.]
+    monkeypatch.setattr('stacking_common.search.mcts.search.time.monotonic', lambda: clock[0])
+
+    class SlowDescendants(_BatchRemainingObjectGenerator):
+        def generate(self, state, observation, request):
+            result = super().generate(state, observation, request)
+            if state.placed_object_indices:
+                clock[0] = 10.
+            return result
+
+    search = MonteCarloTreeSearch(
+        replace(_config(), root_lookahead=lookahead, evaluation_batch_size=batch_size),
+        SlowDescendants(), _ObjectPriorityScorer(), _DeterministicEvaluator(), _ZeroEstimator())
+    result = search.search(MCTSNode(state=_state(), observation=()),
+        MCTSSearchRequest(iterations=8, max_time_seconds=10.))
+    assert result.timed_out
+    assert result.completed_iterations == 0
+    assert result.evaluated_candidates == 2  # Only the admitted root pool.
+    assert result.selected is not None and result.selected.evaluated
+    pending = [node for child in result.root.children for node in child.children]
+    assert pending
+    assert all(not node.evaluated and node.visits == 0 for node in pending)

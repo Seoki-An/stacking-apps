@@ -123,15 +123,16 @@ These are stricter starting settings, to be evaluated on representative scenes;
 more rejections or longer settling can reduce search throughput.
 
 `generation.root_sampling_priority` and `deeper_sampling_priority` remain
-`lower_floor_first`. The scored sampler and strict floor filter now share the
-same `floor` policy. The excavator uses `coverage_mode: projected_footprint`:
+`lower_floor_first`. Floor policy guides initial XY proposals; the default
+`filtering.strict_floor_first: false` disables solved-pose, MCTS settled-pose,
+and final fixed-scene floor rejection. The excavator uses `coverage_mode: projected_footprint`:
 coverage is the union of the layer stones' full XY footprints, clipped to the
 target base and estimated on a coarse **16×16 cell-center grid**. Overlapping
 footprints count once. The placement search still uses its 32×32 grid.
 
 Layer geometry and sampling controls are configured together under
 `planar.floor`; the separate `floor_fill` block has been removed.
-Sampling and solved-pose connectivity require at least one neighboring occupied
+Sampling connectivity requires at least one neighboring occupied
 cell; `minimum_contact_cells` has been removed. Sampling connectivity applies
 whenever the active floor has occupancy, and
 `footprint_scale` sets its rectangular footprint size. The configurable
@@ -150,17 +151,18 @@ completed layers' support heights and coverage values.
 The sampler prioritizes proposals whose predicted contact height is at most the
 active floor's support height plus the bottom tolerance. It retains Boltzmann and
 spatial-diversity sampling within that pool, then fills unused slots from higher
-candidates. `filtering.strict_floor_first: true` rejects solved placements above
-the active layer, including CEM mutations. The motion coordinator checks the same
-policy again after fixed-scene settling. Physics and individual-stone containment
-remain independent acceptance checks.
+candidates. Solved and settled placements may move above the active layer.
+Pose feasibility, penetration, physics, and individual-stone containment remain
+acceptance checks. Opting into `filtering.strict_floor_first: true` restores
+active-floor rejection after pose solving, MCTS simulation, and fixed-scene settling.
 
 For `excavator_plan4.stack` after ten placements, the previous bottom-slice estimate
 was 56.5%; the coarse projected estimate is 68.75%, allowing immediate advancement
 at the historical 60% threshold (the current profile uses 75%). A native search from that scene found seven valid candidates out of twelve
 and selected a settled stone-3 placement above the ground layer in about 17 seconds.
-A different recorded scene at roughly 55% projected coverage still rejects higher
-placements. Strict filling can still exhaust search below the coverage threshold.
+With strict filtering enabled, a different recorded scene at roughly 55%
+projected coverage rejects higher placements and can exhaust search. The current
+sampler-only default does not impose that rejection after solving or simulation.
 
 The shared policy defaults to bottom-slice coverage for existing callers such as
 tabletop. The standalone scored sampler retains the legacy calculation when no
@@ -1721,14 +1723,20 @@ scoring (about 8 s) and waits on reward workers. See the
 
 ### Floor-fill fallback after search exhaustion
 
-Excavator search first uses the configured floor-fill threshold and ordinary
+This recovery path applies only when `filtering.strict_floor_first` is enabled.
+The current excavator default uses floor guidance only in the initial XY sampler.
+
+With strict filtering enabled, excavator search first uses the configured floor-fill threshold and ordinary
 root retries. If no candidate remains selectable, its scored action generator
 allows an initial root pool and up to `rejected_root_retry_rounds` further pools
 without the active-floor rejection, lower-floor sampling priority, or
 floor-gap restriction. The connectivity mask remains active on sampled seeds.
 Later pools exclude earlier candidates. This
-fallback shares the original search deadline and existing candidate/validation
-limits.
+fallback shares the original search deadline, remaining iteration budget, and
+existing candidate/validation limits. After admitting a retry or fallback pool,
+search resumes ordinary descendant expansion and progressive widening; it does
+not stop after the first lookahead level. Empty rejected pools do not consume
+backup iterations.
 It does not reduce the configured coverage threshold globally.
 
 Pose-solve feasibility, target containment, simulation, noisy-placement
@@ -2084,7 +2092,8 @@ parallel scheduling, inventory, and simulation profiles also influence results.
 Initial height comes from `model_<id>_mesh.ply`, with hull fallback when absent.
 Both footprints receive 0.12 m padding and the pose receives 0.15 m clearance.
 PLY assets used by planning are included in saved-context hashes. The build gate
-checks XY target overlap, gap residual <= 0.005, and equilibrium residual < 1.0;
+checks XY target overlap, summed penetration residual <= 0.0001 m (0.1 mm),
+and equilibrium residual < 1.0;
 native convergence flags are diagnostic rather than an additional rejection.
 Volumetric containment remains part of simulation/reward evaluation. Placed
 stones farther than 0.5 m from the target's XY rectangle become posegen boundary
@@ -2109,8 +2118,15 @@ coefficients times the named bases: `constant = 1`,
 `gap_feedback = t * previous_c_gap`. The wrench coefficient multiplies
 `diag(1, 1, 1, 10, 10, 10)`. Scheduled weights override the corresponding
 `objective` values at each solve stage. The excavator target weight decreases
-from 5 to 0; complementarity increases from 0 to 10. Tabletop retains its
-existing schedule in its own profile. Profiles without explicit schedule
+from 5 to 0; complementarity increases from 0 to 10. Both platform profiles
+use a wrench ramp coefficient of 1. Excavator sets `objective.k_robust: 0.0`,
+skipping disturbance force solves; tabletop retains `objective.k_robust: 0.8`.
+Both retain `objective.robust_load: 0.2` throughout CPU and CUDA continuation.
+When enabled at 0.8, the force cost combines 20% nominal cost with 80% of
+the mean cost for four horizontal disturbance loads (+/-x and +/-y) of 20%
+of candidate weight, each with independent component-wide contact forces.
+These posegen controls do not disable simulation-based robustness trials. Tabletop owns its
+remaining schedule in its profile. Profiles without explicit schedule
 weights retain the previous shared schedule for compatibility.
 
 Posegen force-solver tolerances are 0.001 absolute and 0.0001 relative, matching

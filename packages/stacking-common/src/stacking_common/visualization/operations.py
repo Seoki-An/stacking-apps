@@ -445,7 +445,7 @@ class OperationsController:
         )
         replay_object_ids = (
             {value.object_id for value in overlays}
-            if self.pose_mode is CandidatePoseMode.TRAJECTORY
+            if self.pose_mode in (CandidatePoseMode.TRAJECTORY, CandidatePoseMode.FINAL)
             else set()
         )
         placed = tuple(
@@ -611,6 +611,8 @@ class OperationsController:
             return self._trajectory_overlays(active)
         if self.pose_mode is CandidatePoseMode.BEST_SEQUENCE:
             return self._sequence_overlays(active)
+        if self.pose_mode is CandidatePoseMode.FINAL:
+            return self._final_overlays(active)
         candidates = self._visible_candidates(step, active)
         candidate_colors = _candidate_score_colors(
             step.candidates,
@@ -684,6 +686,24 @@ class OperationsController:
                 candidate.timeline.poses_at(frame) if time is None
                 else candidate.timeline.poses_at_time(time)
             )
+        )
+
+    @staticmethod
+    def _final_overlays(
+        candidate: MCTSCandidateDiagnostic | None,
+    ) -> tuple[RenderObject, ...]:
+        if candidate is None or candidate.final_pose is None:
+            return ()
+        # Final poses belong to this candidate's simulated scene. Mixing its
+        # final pose with the original neighbours can create false overlaps.
+        poses = (candidate.timeline.poses_at(candidate.timeline.frame_count - 1)
+                 if candidate.timeline.frame_count else ())
+        objects = {value.object_id: value for value in poses}
+        objects[candidate.object_id] = SceneObjectPose(candidate.object_id, candidate.final_pose)
+        return tuple(
+            _render_object(value, f"final/{candidate.candidate_id}/{value.object_id}",
+                           "final", selected=value.object_id == candidate.object_id)
+            for value in objects.values()
         )
 
     @staticmethod

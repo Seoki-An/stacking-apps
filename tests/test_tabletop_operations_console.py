@@ -241,6 +241,43 @@ def test_replay_replaces_tracked_stones_but_keeps_untracked_scene_objects() -> N
     assert [value.object_id for value in controller.frame().placed_objects] == [11, 99]
 
 
+@pytest.mark.parametrize("render_mode", list(CandidateRenderMode))
+def test_final_view_uses_active_candidates_simulated_neighbours(render_mode):
+    artifact = _artifact()
+    step = artifact.steps[0]
+    untracked = replace(step.scene.objects[0], object_id=99)
+    step = replace(step, scene=replace(step.scene, objects=step.scene.objects + (untracked,)))
+    controller = OperationsController(replace(artifact, steps=(step,)))
+    controller.set_render_mode(render_mode)
+    controller.set_pose_mode(CandidatePoseMode.FINAL)
+    candidate = controller.active_candidate
+    frame = controller.frame()
+    by_id = {value.object_id: value.pose for value in frame.objects}
+    assert len(by_id) == len(frame.objects)
+    assert [value.object_id for value in frame.placed_objects] == [99]
+    for track in candidate.timeline.tracks:
+        if track.object_id != candidate.object_id:
+            np.testing.assert_allclose(by_id[track.object_id], track.poses[-1])
+    np.testing.assert_allclose(by_id[candidate.object_id], candidate.final_pose)
+    np.testing.assert_allclose(by_id[99], untracked.pose)
+    controller.set_pose_mode(CandidatePoseMode.SOLVED)
+    assert [value.object_id for value in controller.frame().placed_objects] == [11, 99]
+
+
+def test_final_view_without_timeline_preserves_untracked_scene():
+    from stacking_common.visualization import SceneTimeline
+    artifact = _artifact()
+    step = artifact.steps[0]
+    candidate = replace(step.candidates[0], timeline=SceneTimeline(()))
+    step = replace(step, candidates=(candidate,))
+    controller = OperationsController(replace(artifact, steps=(step,)))
+    controller.set_pose_mode(CandidatePoseMode.FINAL)
+    frame = controller.frame()
+    assert len(frame.overlays) == 1
+    np.testing.assert_allclose(frame.overlays[0].pose, candidate.final_pose)
+    assert len(frame.placed_objects) == len(step.scene.objects)
+
+
 def test_zero_candidate_step_renders_state_without_timeline() -> None:
     controller = OperationsController(_artifact())
     controller.select_step(1)

@@ -257,9 +257,9 @@ def test_expired_generation_budget_does_not_start_another_batch(monkeypatch):
     root = tree(pending=False)
     engine = MonteCarloTreeSearch(config(), SlowEmptyGenerator(), Scorer(), Evaluator(), ZeroEstimator())
     result = engine.search(root, MCTSSearchRequest(iterations=20, reset_statistics=False, max_time_seconds=1))
-    assert result.completed_iterations == 1
+    assert result.completed_iterations == 0
     assert result.timed_out
-    assert root.visits == 21
+    assert root.visits == 20  # No backup after generation exhausts the deadline.
 
 
 def test_cached_sibling_is_evaluated_once_without_an_extra_backup():

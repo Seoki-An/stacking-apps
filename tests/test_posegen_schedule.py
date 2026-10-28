@@ -1,4 +1,4 @@
-"""Native configurations checked against recorded legacy Python schedule output."""
+"""Current platform defaults and historical native schedule compatibility."""
 
 from dataclasses import replace
 import json
@@ -21,7 +21,22 @@ REFERENCE = json.loads((ROOT / "tests/fixtures/legacy_planner/posegen_schedule.j
 @pytest.mark.parametrize("platform", ["excavator", "tabletop"])
 def test_native_schedule_matches_legacy_stages(platform):
     profile = load_posegen_profile(ROOT / f"apps/{platform}/config/solvers/posegen.yml")
+    # Reconstruct the historical profile explicitly; current defaults have
+    # intentionally changed since the legacy outputs were recorded.
+    weights = dict(profile.schedule["objective_weights"])
+    if platform == "excavator":
+        weights.update(k_wrench={"ramp": 1.0},
+                       k_gap_c={"constant": 40.0, "ramp": 150.0, "gap_feedback": 1e5},
+                       k_gap={"sine": 10.0}, k_xy={"anti_ramp": 1.0},
+                       k_lower={"anti_ramp": 5.0})
+    else:
+        weights.update(k_wrench={"ramp": 5.0}, k_lower={"anti_ramp": 0.0})
+    objective = {k: v for k, v in profile.objective.items()
+                 if k not in ("k_robust", "robust_load")}
+    profile = replace(profile, objective=objective,
+                      schedule={**profile.schedule, "objective_weights": weights})
     solver = SimpleNamespace(profile=profile, core=core)
+    assert profile.native_config(core).objective.k_robust == 0.
     for stage in REFERENCE[platform]["stages"]:
         config = CorePlacementPoseSolver._scheduled_config(
             solver, stage["time"], stage["c_gap"], final=stage["time"] == 1.)
@@ -33,12 +48,31 @@ def test_native_schedule_matches_legacy_stages(platform):
         assert config.force_solver.tol_rel == .0001
 
 
+@pytest.mark.parametrize("platform", ["excavator", "tabletop"])
+@pytest.mark.parametrize("solver_type", [CorePlacementPoseSolver, CudaPlacementPoseSolver])
+def test_current_platform_wrench_and_robustness_defaults_survive_schedule(platform, solver_type):
+    profile = load_posegen_profile(ROOT / f"apps/{platform}/config/solvers/posegen.yml")
+    solver = SimpleNamespace(profile=profile, core=core)
+    for stage in REFERENCE["excavator"]["stages"]:
+        config = solver_type._scheduled_config(
+            solver, stage["time"], stage["c_gap"], final=stage["time"] == 1.)
+        np.testing.assert_allclose(config.objective.k_wrench,
+                                   np.asarray(stage["objective"]["k_wrench"]), atol=1e-12)
+        assert config.objective.k_robust == pytest.approx(0. if platform == "excavator" else .8)
+        assert config.objective.robust_load == pytest.approx(.2)
+
+
 def test_old_profile_without_weights_preserves_previous_schedule():
     profile = load_posegen_profile(ROOT / "apps/tabletop/config/solvers/posegen.yml")
     schedule = dict(profile.schedule)
     schedule.pop("objective_weights")
     restored = replace(profile, schedule=schedule)
-    assert restored.schedule == profile.schedule
+    solver = SimpleNamespace(profile=restored, core=core)
+    for stage in REFERENCE["tabletop"]["stages"]:
+        config = CorePlacementPoseSolver._scheduled_config(
+            solver, stage["time"], stage["c_gap"], final=stage["time"] == 1.)
+        for name, value in stage["objective"].items():
+            np.testing.assert_allclose(getattr(config.objective, name), value, atol=1e-12)
 
 
 @pytest.mark.parametrize("solver_type", [CorePlacementPoseSolver, CudaPlacementPoseSolver])

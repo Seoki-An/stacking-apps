@@ -1273,7 +1273,7 @@ combination of these bases and a constant. The inspected profiles give:
 
 | Objective coefficient | Excavator | Tabletop |
 |---|---|---|
-| Wrench matrix $K_w(t)$ | $r(t)\,\operatorname{diag}(1,1,1,10,10,10)$ | $5r(t)\,\operatorname{diag}(1,1,1,10,10,10)$ |
+| Wrench matrix $K_w(t)$ | $r(t)\,\operatorname{diag}(1,1,1,10,10,10)$ | $r(t)\,\operatorname{diag}(1,1,1,10,10,10)$ |
 | Complementarity `k_comp` | $10r(t)$ | $100r(t)$ |
 | Contact-gap `k_gap_c` | $60+150r(t)+10^5g(t)$ | $40+200r(t)+10^5g(t)$ |
 | Gap `k_gap` | $5v(t)$ | $20v(t)$ |
@@ -1288,6 +1288,16 @@ including the base `k_wrench` matrix. Unscheduled fields retain their profile
 values. For example, `k_box` is 20.0 for excavator and 0.1 for tabletop, with
 `w_box` 2.0 and 1.0 respectively. These are native refinement weights; they do
 not enter the planar proposal score $S$.
+
+Both platform profiles use a wrench ramp coefficient of 1. Excavator disables
+posegen disturbance solves with `objective.k_robust: 0.0`; tabletop retains
+`objective.k_robust: 0.8`. Both retain `objective.robust_load: 0.2` at every
+stage on CPU and CUDA. With `k_robust: 0.8`, the force objective is 20% nominal cost plus 80% of the mean
+cost for four independent load cases, applying horizontal pushes of 20% of
+the candidate's weight along +x, -x, +y and -y. Each case solves contact forces
+throughout the contact component. These constant profile values survive the
+schedule; they do not change the simulation's velocity-kick stability checks.
+Set `k_robust: 0.0` to disable the extra load cases.
 
 The first three stages allow 50 trust-region iterations each; the final stage
 allows 75. The adapter sets the stage tolerance to
@@ -1310,10 +1320,10 @@ Action construction applies the following current checks:
 |---|---|---|
 | Invalid native result | Rejected | Rejected |
 | Solver convergence flag | Not required by the generic filter | Not required by the generic filter |
-| Gap residual | $c_{\mathrm{gap}}\le0.005$ | $c_{\mathrm{gap}}\le0.003$ |
+| Gap residual | $c_{\mathrm{gap}}\le0.0001$ | $c_{\mathrm{gap}}\le0.003$ |
 | Legacy-form equilibrium metric | $c_{\mathrm{feq}}<1$ | $c_{\mathrm{feq}}<1$ |
 | Target gate | Solved object's XY AABB overlaps nominal target rectangle | Estimated volumetric containment at least 0.5 |
-| Strict floor filter | Enabled, with the conditional search fallback | Enabled, with the conditional search fallback |
+| Strict floor filter | Disabled; floor guidance only in initial XY sampling | Enabled, with the conditional search fallback |
 | Scan-relative orientation filter | Disabled in current PCA mode | Enabled |
 
 Native posegen uses masses normalized by the mean mass $\bar m_{\mathcal B}$

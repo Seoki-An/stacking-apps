@@ -30,6 +30,9 @@ objective:
   ground_height: 0.0
   k_box: 20.0
   k_comp: 0.0
+  # Disturbance cost fraction at every stage; 0 disables extra load cases.
+  k_robust: 0.0
+  robust_load: 0.2  # Horizontal pushes of 20% candidate weight along +/-x, +/-y.
   k_gap: 0.0
   k_gap_c: 80.0
   k_lower: 0.0
@@ -63,6 +66,7 @@ schedule:
   objective_weights:
     # Fixed within each stage: 0.01 -> 0.00875 -> 0.00625 -> 0.005.
     rho: {constant: 0.005, anti_ramp: 0.005}
+    # Wrench ramp multiplies diag(1, 1, 1, 10, 10, 10).
     k_wrench: {ramp: 1.0}
     k_comp: {ramp: 10.0}
     k_gap_c: {constant: 60.0, ramp: 150.0, gap_feedback: 100000.0}

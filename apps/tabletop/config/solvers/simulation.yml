@@ -67,7 +67,7 @@ phases:
   structural:
     energy_threshold: 0.000001
     velocity_integral_threshold: 0.05
-    min_time: 3.0
+    min_time: 2.0
     max_time: 10.0
     extra_steps: 85
     final_extra_steps: 200

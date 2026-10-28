@@ -96,14 +96,21 @@ def test_cuda_schedule_propagates_pose_and_per_request_gap(monkeypatch):
     assert all(r.diagnostics['posegen_result_backend'] == 'cuda' for r in results)
 
 
-def test_cuda_continuation_passes_stage_fixed_rho_to_native(monkeypatch):
+@pytest.mark.parametrize("robust_weight", [0., .8])
+def test_cuda_continuation_passes_rho_and_robust_weight_to_native(monkeypatch, robust_weight):
     solver, calls, _ = adapter(monkeypatch)
+    solver.profile = replace(solver.profile, objective={**solver.profile.objective, "k_robust": robust_weight})
     solver.core.PosegenConfig = core.PosegenConfig
     solver._scheduled_config = CorePlacementPoseSolver._scheduled_config.__get__(solver)
     solver.solve_batch(None, requests())
     assert len(calls) == 4
-    for items, expected in zip(calls, [.01, .00875, .00625, .005]):
+    for items, expected, wrench in zip(calls, [.01, .00875, .00625, .005], [0., .25, .75, 1.]):
         assert [item.config.objective.rho for item in items] == pytest.approx([expected] * 2)
+        for item in items:
+            assert item.config.objective.k_robust == pytest.approx(robust_weight)
+            assert item.config.objective.robust_load == pytest.approx(.2)
+            np.testing.assert_allclose(item.config.objective.k_wrench,
+                                       wrench * np.diag([1., 1., 1., 10., 10., 10.]), atol=1e-12)
 
 
 @pytest.mark.parametrize('status', [s for s in Status if s not in (Status.converged, Status.precision_limit, Status.iteration_limit, Status.capacity_overflow)])
