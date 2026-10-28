@@ -1,5 +1,6 @@
 """Rendering contracts for canonical scenes, timelines, and debug data."""
 
+from .tree import MCTSTreeNode
 from .contracts import (
     CameraView,
     ContactMarker,
@@ -35,6 +36,7 @@ __all__ = [
     "MCTSCandidateDiagnostic",
     "MCTSDebugArtifact",
     "MCTSDebugStep",
+    "MCTSTreeNode",
     "PoseTrack",
     "SceneMotionDiagnostic",
     "SceneObjectPose",

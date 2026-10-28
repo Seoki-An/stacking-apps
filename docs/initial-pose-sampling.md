@@ -1545,12 +1545,12 @@ Both platforms enable `reward.weights.surface_flatness: 2.0` in
 `environment.yml`. This is an initial tuning value. A missing weight defaults
 to zero for older profiles; zero disables all surface computation and caches.
 The initial pose sampler and CEM prior are unchanged. The additional term
-scores the settled state during MCTS reward evaluation:
+scores the change from the parent surface to the settled surface:
 
 $$
 h_{\mathrm{ref}}=\sqrt[3]{\bar V},\qquad
-R_{\mathrm{flat}}(s)=-w_{\mathrm{flat}}
-\frac{\max_j h_j(s)-\frac{1}{M}\sum_j h_j(s)}{h_{\mathrm{ref}}}.
+\rho(s)=\frac{\max_j h_j(s)-\frac{1}{M}\sum_j h_j(s)}{h_{\mathrm{ref}}},
+\qquad R_{\mathrm{flat}}(s,a,s')=w_{\mathrm{flat}}\,[\rho(s)-\rho(s')].
 $$
 
 The heights are the scene's upper surface sampled at the centers of a fixed
@@ -1560,13 +1560,25 @@ floor cells in the mean. Geometry outside that footprint contributes nothing.
 Heights above the target are not clipped. The reference length is fixed from
 the initial inventory, like the overlap reward normalization.
 
-The max-minus-mean difference is a penalty, so smaller relief earns a higher
-reward. It encourages filling below the existing peak and penalizes raising
-that peak. It is not variance: scenes with equal maxima and means receive
-equal penalties despite potentially different height distributions. It also
+Reducing relief earns a positive reward; increasing it earns a negative reward.
+Unchanged relief earns zero, so inherited unevenness is not penalized again at
+every placement. The empty parent has zero relief, so the first isolated stone
+can still earn a negative flatness contribution. Beginning a higher layer can
+also be penalized until later placements level it. Uniformly translating both
+complete surface profiles in height does not change this term; empty cells remain
+anchored to the floor. This is a difference of relief, not height variance. It also
 cannot detect cavities hidden below a bridging stone, and the coarse grid
 can miss small peaks or holes. Existing containment, overlap, and physical
-validation terms remain necessary; an empty surface alone has zero penalty.
+validation terms remain necessary.
+
+Before simulation, the environment measures the parent surface and stores its
+maximum and mean as scalar diagnostics on a copy of the candidate action. This
+baseline survives scene motion, nominal geometry preparation, later validation,
+and checkpoint serialization; caller-owned actions and parent states are not
+mutated. Direct evaluation of old or manually constructed states without this
+baseline uses the current poses with the newest stone omitted, and labels that
+fallback in diagnostics. Previously saved reward numbers are not rewritten;
+start a new run when comparing this shaping rule with the old absolute penalty.
 
 Each reward worker retains bounded caches of 128 object-pose projections and
 64 scene envelopes (about 1.5 MiB of grid arrays at capacity). A child whose
@@ -1580,7 +1592,11 @@ This path does not materialize the deferred 128-by-128 observation.
 Diagnostics record `surface_height_max`, `surface_height_mean`,
 `surface_height_relief`, `surface_height_reference`, `surface_flatness`, and
 `surface_flatness_reward`. Heights are in metres; the last two are the
-dimensionless negative score and its weighted contribution. When disabled,
+dimensionless signed improvement and its weighted contribution. Diagnostics also
+record `surface_previous_height_max`, `surface_previous_height_mean`,
+`surface_previous_height_relief`, `surface_height_relief_change` (after minus
+before), and `surface_baseline_source` (`parent_state` or
+`current_poses_without_candidate`). When disabled,
 only the zero score and zero contribution are reported.
 
 Reproduce the CPU microbenchmark with:

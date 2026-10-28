@@ -39,7 +39,7 @@ reward:
     object_containment: 2.0
     # Added target volume / initial inventory mean stone volume; average full stone = 1.
     target_overlap_increment: 1.0
-    # Penalize (surface max - mean) / mean-stone volume^(1/3), including empty floor.
+    # Reward reduction in (surface max - mean) / mean-stone volume^(1/3), including empty floor.
     surface_flatness: 2.0
     place_stability: 2.0
     large_object_lower: 0.0

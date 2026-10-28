@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from pathlib import Path
+from stacking_common.visualization.tree import MCTSTreeNode
 from typing import Mapping
 
 from stacking_common.visualization.contracts import (
@@ -162,6 +164,7 @@ def _encode_step(value: MCTSDebugStep) -> dict[str, object]:
         "selected_candidate_id": value.selected_candidate_id,
         "rejected_expansions": dict(value.rejected_expansions),
         "candidates": [_encode_candidate(item) for item in value.candidates],
+        "tree_nodes": [asdict(node) for node in value.tree_nodes],
     }
 
 
@@ -186,6 +189,8 @@ def _decode_step(values: Mapping[str, object], frame_id: str) -> MCTSDebugStep:
             else _decode_score_field(_mapping(raw_score, "score field"))
         ),
         selected_candidate_id=values.get("selected_candidate_id"),
+        tree_nodes=tuple(MCTSTreeNode(**dict(_mapping(node, "tree node")))
+                         for node in _sequence(values.get("tree_nodes", []), "tree nodes")),
         rejected_expansions=dict(
             _mapping(values.get("rejected_expansions", {}), "rejected expansions")
         ),

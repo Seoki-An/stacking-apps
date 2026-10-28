@@ -282,6 +282,21 @@ Candidate pose modes are explicitly named `initial`, `solved`, `action`,
 and render-mode ordering preserves the legacy selected-last behavior for the
 transparent all-candidate view.
 
+Select **Search Inspector → MCTS tree…** in either operations console to see the
+branching search tree for the selected step. The non-modal diagram follows step
+changes and refreshed runs. Wheel to zoom, drag to pan, or select **Fit tree**;
+hover or click a node to inspect its depth, object, visits, mean value, reward,
+prior, and rejection reason. Node size represents visits, color distinguishes
+evaluated/failed/pending nodes, and a gold outline marks the selected root action.
+
+New runs store a lightweight final retained-tree snapshot inside each step of
+the same `.stack` file: parent links and scalar diagnostics, without duplicating
+meshes, states, or trajectories. It is not a history of every expansion:
+pruned branches and generation failures that never created nodes are absent.
+Older files without snapshots show an explicitly labeled **partial tree** of
+their recorded root candidates; deeper branches cannot be reconstructed from
+aggregate search totals.
+
 Both operations consoles provide **Transparent stones** in the **Rendering**
 toolbar. It caps every stone mesh at 35% opacity, including placed stones,
 candidates, and moving replay stones; overlays already more transparent keep

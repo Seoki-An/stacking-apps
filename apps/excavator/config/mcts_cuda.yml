@@ -3,7 +3,7 @@
 # Native-only controls and CLI override precedence: docs/excavator-planning.md.
 units: si
 tree:
-  max_depth: 4
+  max_depth: 5
   iterations: 1024
   max_search_time: 240.0
   max_children: 16
@@ -11,11 +11,11 @@ tree:
   exploration_constant: 1.0
   discount: 0.9
   failure_reward: -1.0
-  initial_depth1_steps: 0  # No initial depth-1-only phase.
+  initial_depth1_steps: 10  # Depth 1 until 10 objects have been placed.
   root_lookahead: true
 widening:
   enabled: true
-  coefficient: 3.0
+  coefficient: 2.0
   exponent: 0.5
 generation:
   rejected_root_retry_rounds: 3  # Fresh root pools after physical rejection.
@@ -23,7 +23,7 @@ generation:
   expansion_retry_batches: 3
   min_feasible_children: 3
   attempt_multiplier: 3.0
-  evaluation_batch_size: 256  # Stream 128-placement chunks; native robustness capacity is 512.
+  evaluation_batch_size: 256  # Stream 256-placement chunks; native robustness capacity is 512.
   # Sample the unfilled active floor before higher placements at every depth.
   root_sampling_priority: lower_floor_first
   deeper_sampling_priority: lower_floor_first
@@ -45,7 +45,7 @@ parallel:
   simulation_backend: cuda  # cpu or cuda
   # CPU reward/observation workers overlap the next CUDA placement chunk.
   enabled: true
-  workers: 4
+  workers: 12
 root_cem:
   population: 96
   elite: 32

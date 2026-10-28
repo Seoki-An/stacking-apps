@@ -12,6 +12,7 @@ import numpy as np
 
 from stacking_common.domain import ContactPoint, State
 from stacking_common.search.mcts import MCTSNode
+from .tree import MCTSTreeNode, project_tree, validate_tree
 
 from .contracts import (
     CameraView,
@@ -223,6 +224,7 @@ class MCTSDebugStep:
     state_only: bool = False
     failure_reason: str | None = None
     rejected_expansions: Mapping[str, int] = field(default_factory=dict)
+    tree_nodes: tuple[MCTSTreeNode, ...] = ()
 
     def __post_init__(self) -> None:
         step = int(self.step)
@@ -282,6 +284,7 @@ class MCTSDebugStep:
         object.__setattr__(self, "state_only", bool(self.state_only))
         object.__setattr__(self, "failure_reason", failure_reason)
         object.__setattr__(self, "rejected_expansions", MappingProxyType(rejected))
+        object.__setattr__(self, "tree_nodes", validate_tree(self.tree_nodes))
 
     def render_candidates(
         self, mode: CandidateRenderMode
@@ -373,6 +376,7 @@ def project_mcts_step(
         state_only=state_only,
         failure_reason=failure_reason,
         rejected_expansions=root.rejected_expansions,
+        tree_nodes=project_tree(root, selected, candidates),
     )
 
 

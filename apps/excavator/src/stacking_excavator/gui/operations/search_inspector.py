@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QDialog,
     QFormLayout,
     QGroupBox,
     QLabel,
@@ -41,6 +42,7 @@ class SearchInspector(QWidget):
     ) -> None:
         super().__init__(parent)
         self.controller = controller
+        self._tree_dialog = None
         self._score_dialog = None
         self._updating = False
         self._timeline_render_timer = QTimer(self)
@@ -108,6 +110,10 @@ class SearchInspector(QWidget):
             lambda: self.video_requested.emit(float(self.video_fps.value()))
         )
         form.addRow("Step", self.step_selector)
+        self.tree_button = QPushButton("MCTS tree…")
+        self.tree_button.setEnabled(False)
+        self.tree_button.clicked.connect(self._show_tree)
+        form.addRow("Search tree", self.tree_button)
         form.addRow("Candidate", self.candidate_selector)
         self.candidate_failure_reason = QLabel()
         self.candidate_failure_reason.setWordWrap(True)
@@ -255,8 +261,25 @@ class SearchInspector(QWidget):
                 widget.setEnabled(enabled)
             self.summary.setText(self._summary())
             self.failure_details.setPlainText(self.controller.search_diagnostics)
+            self.tree_button.setEnabled(step is not None)
+            if self._tree_dialog is not None:
+                self._tree_view.set_step(step)
         finally:
             self._updating = False
+
+    def _show_tree(self):
+        from stacking_common.rendering.mcts_tree import MCTSTreeView
+
+        if self._tree_dialog is None:
+            self._tree_dialog = QDialog(self)
+            self._tree_dialog.setWindowTitle("MCTS search tree")
+            self._tree_dialog.resize(1100, 700)
+            self._tree_view = MCTSTreeView(self._tree_dialog)
+            layout = QVBoxLayout(self._tree_dialog)
+            layout.addWidget(self._tree_view)
+        self._tree_view.set_step(self.controller.current_step)
+        self._tree_dialog.show()
+        self._tree_dialog.raise_()
 
     @staticmethod
     def _candidate_failure_text(candidate) -> str:

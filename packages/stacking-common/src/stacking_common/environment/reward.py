@@ -103,6 +103,7 @@ class PreparedRewardGeometry:
     target_overlap: float
     containment: float
     surface: tuple[float, float] | None
+    previous_surface: tuple[float, float] | None
 
 
 class StackingReward:
@@ -142,6 +143,22 @@ class StackingReward:
             self._surface = (SurfaceFlatness(inventory, ground_z=ground_z) if self._composite
                              else SurfaceFlatness(inventory))
 
+    def prepare_reward_action(self, parent: State, action):
+        """Carry the true pre-placement surface through physics and revalidation.
+
+        Only scalar diagnostics are copied into the candidate. The caller's
+        action and parent remain unchanged, and no trajectory capture is needed.
+        """
+        if self._surface is None:
+            return action
+        maximum, mean = self._surface.measure(parent)
+        candidate = action.copy()
+        candidate.diagnostics.update(
+            surface_previous_height_max=maximum,
+            surface_previous_height_mean=mean,
+        )
+        return candidate
+
     def prepare_geometry(self, sequence, object_poses) -> PreparedRewardGeometry:
         """Prepare expensive terms from nominal poses; no provisional reward is returned."""
         inventory = self.inventory
@@ -175,9 +192,11 @@ class StackingReward:
         else:
             placed_overlap = containment * placed_object.volume / self.target_volume
             target_overlap = previous_overlap + placed_overlap
+        previous_surface = (self._surface.measure_poses(sequence[:-1], object_poses)
+                            if self._surface is not None else None)
         surface = (self._surface.measure_poses(sequence, object_poses)
                    if self._surface is not None else None)
-        return PreparedRewardGeometry(previous_overlap, target_overlap, containment, surface)
+        return PreparedRewardGeometry(previous_overlap, target_overlap, containment, surface, previous_surface)
 
     def compute(self, state: State) -> tuple[float, dict[str, object]]:
         return self.compute_prepared(state, None)
@@ -254,14 +273,29 @@ class StackingReward:
         surface_info = {}
         if self._surface is not None:
             maximum, mean = geometry.surface
+            previous_maximum, previous_mean = geometry.previous_surface
+            baseline_recorded = "surface_previous_height_max" in action.diagnostics
+            if baseline_recorded:
+                previous_maximum = float(action.diagnostics["surface_previous_height_max"])
+                previous_mean = float(action.diagnostics["surface_previous_height_mean"])
+                if (not np.isfinite([previous_maximum, previous_mean]).all()
+                        or previous_mean < 0.
+                        or previous_mean > previous_maximum + 1e-12 * max(1., abs(previous_maximum))):
+                    raise ValueError("invalid pre-placement surface baseline")
             reference = float(np.cbrt(self.mean_object_volume))
             relief = max(maximum - mean, 0.)
-            flatness = -relief / reference
+            previous_relief = max(previous_maximum - previous_mean, 0.)
+            flatness = (previous_relief - relief) / reference
             surface_info = {
                 "surface_height_max": maximum,
                 "surface_height_mean": mean,
                 "surface_height_relief": relief,
                 "surface_height_reference": reference,
+                "surface_previous_height_max": previous_maximum,
+                "surface_previous_height_mean": previous_mean,
+                "surface_previous_height_relief": previous_relief,
+                "surface_height_relief_change": relief - previous_relief,
+                "surface_baseline_source": "parent_state" if baseline_recorded else "current_poses_without_candidate",
             }
         reward = (
             weights.stability * stability

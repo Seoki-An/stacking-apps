@@ -1,5 +1,10 @@
 # Reward Design: Appendix 상세 정의 초안
 
+> Implementation update (2026-10-28): the surface term now rewards the reduction
+> in normalized relief, `weight × (roughness_before − roughness_after)`, rather
+> than penalizing absolute relief. The dated draft below describes the earlier
+> rule; see [the current specification](initial-pose-sampling.md#mcts-surface-flatness-reward).
+
 [논문 본문 초안](reward-design.md)의 feature를 현재 코드와 대응시킨다.
 **확인일: 2026-10-21.** 본문의 $\phi$는 보상 feature, $\psi$는 비음수 penalty이며,
 아래 값은 excavator/tabletop repository 기본값이다.

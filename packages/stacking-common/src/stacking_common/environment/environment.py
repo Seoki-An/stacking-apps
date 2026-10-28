@@ -49,6 +49,9 @@ class StackingEnvironment(Generic[observation_t]):
         )
 
     def step(self, action: Action) -> StepResult[observation_t]:
+        prepare = getattr(self.reward_evaluator, "prepare_reward_action", None)
+        if callable(prepare):
+            action = prepare(self.snapshot(), action)
         state = self.transition.step(action)
         return self._step_result(state)
 
@@ -71,6 +74,14 @@ class StackingEnvironment(Generic[observation_t]):
         if len(states) != len(actions):
             raise ValueError("environment batch states and actions must align")
         backend = getattr(self.transition, "backend", None)
+        if callable(getattr(backend, "place_batch", None)) or callable(
+                getattr(backend, "place_batch_with_preparation", None)):
+            def prepare_action(evaluators, item):
+                parent, action = item
+                prepare = getattr(evaluators[1], "prepare_reward_action", None)
+                return prepare(parent, action) if callable(prepare) else action
+
+            actions = self._map_evaluators(tuple(zip(states, actions)), prepare_action, start_index=0)
         if (self.result_workers > 1
                 and callable(getattr(backend, "place_batch_with_preparation", None))
                 and callable(getattr(self.transition, "iter_prepared_step_batches", None))

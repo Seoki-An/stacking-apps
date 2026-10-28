@@ -69,7 +69,7 @@
 units: si
 
 tree:
-  max_depth: 4
+  max_depth: 5
   iterations: 1024
   max_search_time: 240.0
   max_children: 16
@@ -77,12 +77,12 @@ tree:
   exploration_constant: 1.0
   discount: 0.9
   failure_reward: -1.0
-  initial_depth1_steps: 0  # Use lookahead from the first placement.
+  initial_depth1_steps: 10  # Depth 1 until 10 objects have been placed.
   root_lookahead: true
 
 widening:
   enabled: true
-  coefficient: 3.0
+  coefficient: 2.0
   exponent: 0.5
 
 generation:
@@ -112,7 +112,7 @@ parallel:
   posegen_backend: cuda  # cpu or cuda
   simulation_backend: cuda  # cpu or cuda
   enabled: true
-  workers: 4
+  workers: 12
 
 root_cem:
   population: 96

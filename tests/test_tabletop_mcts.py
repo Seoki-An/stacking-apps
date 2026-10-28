@@ -38,7 +38,7 @@ def test_tabletop_cpu_and_cuda_profiles_preserve_platform_settings() -> None:
             assert cuda[section] == cpu[section]
     assert cuda["parallel"]["enabled"] == cpu["parallel"]["enabled"]
     assert cpu["parallel"]["workers"] == 12
-    assert cuda["parallel"]["workers"] == 4
+    assert cuda["parallel"]["workers"] == 12
 
     assert (
         TabletopApplication.from_repository(ROOT).mcts_profile
@@ -90,7 +90,7 @@ def test_tabletop_composition_loads_and_builds_native_mcts_path() -> None:
     assert search.root_action_generator.generator is search.action_generator
     assert application.default_mcts_request().iterations == 1024
     assert application.mcts_profile.tree.generation_batch_size == 32
-    assert application.mcts_profile.tree.initial_depth1_steps == 0
+    assert application.mcts_profile.tree.initial_depth1_steps == 10
     assert application.action_generation_profile.planar.yaw_angles == (0.0, np.pi)
     assert application.mcts_profile.tree.root_lookahead
     assert application.mcts_profile.tree.rejected_root_retry_rounds == 3
