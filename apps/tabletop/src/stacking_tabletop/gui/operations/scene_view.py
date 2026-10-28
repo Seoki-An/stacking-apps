@@ -251,7 +251,7 @@ class OperationsSceneView(QtInteractor):
         opacity = stone_opacity(value.opacity, self._transparent_stones)
         mesh = self._object_mesh(value.object_id) if mesh_paths is None else self._recorded_object_mesh(mesh_paths[value.object_id])
         color = value.color or _COLORS[value.object_id % len(_COLORS)]
-        if value.layer in {"placed", "trajectory"}:
+        if value.layer in {"placed", "trajectory", "final"}:
             color = _LEGACY_SCENE_STONE
         actor = self.add_mesh(
             mesh,
