@@ -63,6 +63,8 @@ def main():
                         help='CUDA branches per streamed physics/result chunk.')
     parser.add_argument('--eager-observations', action='store_true',
                         help='Build all search observations as a step-3 control.')
+    parser.add_argument('--serial-geometry', action='store_true',
+                        help='Disable nominal geometry/robustness overlap for a matched control.')
     parser.add_argument('--serial-results', action='store_true',
                         help='Disable result overlap while preserving CUDA chunk boundaries.')
     parser.add_argument('--root-candidates', type=int,
@@ -94,10 +96,10 @@ def main():
         StackingEnvironment.result_batch_size = args.result_batch_size
     original_step_results = StackingEnvironment._step_results
 
-    def measure_step_results(environment, states, *, start_index=0):
+    def measure_step_results(environment, states, *, start_index=0, **kwargs):
         started_results = time.perf_counter()
         try:
-            return original_step_results(environment, states, start_index=start_index)
+            return original_step_results(environment, states, start_index=start_index, **kwargs)
         finally:
             finished = time.perf_counter()
             result_batches.append(dict(jobs=len(states), workers=environment.result_workers,
@@ -114,9 +116,24 @@ def main():
                 start_index += len(states)
             return tuple(results)
         StackingEnvironment._pipelined_step_results = serial_step_results
+    geometry_batches = []
+    original_prepare = StackingEnvironment._prepare_geometries
+
+    def measure_prepare(environment, parents, candidates, poses, *, start_index):
+        started = time.perf_counter()
+        try:
+            return original_prepare(environment, parents, candidates, poses, start_index=start_index)
+        finally:
+            ended = time.perf_counter()
+            geometry_batches.append(dict(jobs=len(parents), workers=environment.result_workers,
+                                         start=started, end=ended, seconds=ended - started))
+
+    StackingEnvironment._prepare_geometries = measure_prepare
     cuda_calls = []
     if args.backend == 'cuda':
         from stacking_common.environment import cuda_backend
+        if args.serial_geometry or args.serial_results:
+            cuda_backend.CudaPlacementBackend.place_batch_with_preparation = None
         class MeasuredCudaBackend(cuda_backend.CudaPlacementBackend):
             batch_size = args.cuda_batch_size or cuda_backend.CudaPlacementBackend.batch_size
             placement_batch_size = args.placement_batch_size or cuda_backend.CudaPlacementBackend.placement_batch_size
@@ -144,7 +161,8 @@ def main():
                     cuda_calls.append(dict(
                         stage=self.benchmark_stage, jobs=len(problems),
                         simulated_steps=sum(p.steps for out in outputs for p in out.phases),
-                        returned_samples=sum(len(out.samples) for out in outputs),
+                        returned_samples=sum(out.sample_count if hasattr(out, "sample_count") else len(out.samples)
+                                             for out in outputs),
                         chunks=[min(self.batch_size, len(problems) - i)
                                 for i in range(0, len(problems), self.batch_size)],
                         start=started_run, end=finished, seconds=finished - started_run))
@@ -194,13 +212,16 @@ def main():
         load_before = os.getloadavg()
         cuda_calls.clear()
         result_batches.clear()
+        geometry_batches.clear()
         started_search = time.perf_counter()
         result = search.search(root, request)
         elapsed = time.perf_counter() - started_search
         # Each stream is sequential; pairwise interval intersections cannot double count.
         overlap = sum(max(0., min(cpu['end'], gpu['end']) - max(cpu['start'], gpu['start']))
                       for cpu in result_batches for gpu in cuda_calls)
-        for interval in [*result_batches, *cuda_calls]:
+        geometry_overlap = sum(max(0., min(cpu['end'], gpu['end']) - max(cpu['start'], gpu['start']))
+                               for cpu in geometry_batches for gpu in cuda_calls)
+        for interval in [*result_batches, *geometry_batches, *cuda_calls]:
             interval['start'] -= started_search
             interval['end'] -= started_search
         row = search_statistics(result, elapsed, search, step=len(state.placed_object_indices) + 1)
@@ -214,12 +235,14 @@ def main():
                    benchmark_overrides={name: getattr(args, name) for name in (
                        'evaluation_batch_size', 'cuda_batch_size', 'root_candidates',
                        'iterations', 'generation_batch_size', 'posegen_batch_size', 'workers',
-                       'placement_batch_size', 'result_batch_size', 'serial_results',
+                       'placement_batch_size', 'result_batch_size', 'serial_results', 'serial_geometry',
                        'eager_observations')},
                    config_path=str(args.config.resolve()) if args.config else None,
                    cuda_simulation_calls=cuda_calls,
                    result_processing_batches=result_batches,
-                   result_cuda_overlap_seconds=overlap, tree_sha256=tree_digest(root),
+                   result_cuda_overlap_seconds=overlap,
+                   geometry_preparation_batches=geometry_batches,
+                   geometry_cuda_overlap_seconds=geometry_overlap, tree_sha256=tree_digest(root),
                    benchmark_script_sha256=digest(__file__),
                    state_sha256=digest(args.state) if args.state else None,
                    load_before=load_before, load_after=os.getloadavg(),

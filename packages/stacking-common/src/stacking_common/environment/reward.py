@@ -95,6 +95,16 @@ class RewardConfig:
             )
 
 
+@dataclass(frozen=True)
+class PreparedRewardGeometry:
+    """Owned scalar geometry terms for one nominal placement, independent of robustness."""
+
+    previous_overlap: float
+    target_overlap: float
+    containment: float
+    surface: tuple[float, float] | None
+
+
 class StackingReward:
     """Evaluate one placed object using explicit platform-tuned weights."""
 
@@ -132,7 +142,48 @@ class StackingReward:
             self._surface = (SurfaceFlatness(inventory, ground_z=ground_z) if self._composite
                              else SurfaceFlatness(inventory))
 
+    def prepare_geometry(self, sequence, object_poses) -> PreparedRewardGeometry:
+        """Prepare expensive terms from nominal poses; no provisional reward is returned."""
+        inventory = self.inventory
+        objects = inventory.objects
+        overlap_evaluator = self.overlap_evaluator
+        placed_index = sequence[-1]
+        previous_overlap = 0.0
+        previous_placements = []
+        for index in sequence[:-1]:
+            stack_object = objects[index]
+            pose = object_poses.get(
+                stack_object.object_id,
+                inventory.initial_pose(stack_object.object_id),
+            )
+            if self._composite:
+                previous_placements.append((stack_object, pose))
+            else:
+                previous_overlap += float(overlap_evaluator.target_coverage(stack_object, pose))
+
+        placed_object = objects[placed_index]
+        placed_pose = object_poses.get(
+            placed_object.object_id,
+            inventory.initial_pose(placed_object.object_id),
+        )
+        containment = float(
+            overlap_evaluator.object_containment(placed_object, placed_pose)
+        )
+        if self._composite:
+            previous_overlap = overlap_evaluator.scene_coverage(previous_placements)
+            target_overlap = overlap_evaluator.scene_coverage([*previous_placements, (placed_object, placed_pose)])
+        else:
+            placed_overlap = containment * placed_object.volume / self.target_volume
+            target_overlap = previous_overlap + placed_overlap
+        surface = (self._surface.measure_poses(sequence, object_poses)
+                   if self._surface is not None else None)
+        return PreparedRewardGeometry(previous_overlap, target_overlap, containment, surface)
+
     def compute(self, state: State) -> tuple[float, dict[str, object]]:
+        return self.compute_prepared(state, None)
+
+    def compute_prepared(self, state: State, geometry: PreparedRewardGeometry | None):
+        """Finalize with the actual validation result and unchanged reward arithmetic."""
         if not state.placed_object_indices or not state.action_history:
             raise ValueError("reward requires one completed placement")
 
@@ -141,7 +192,6 @@ class StackingReward:
         inventory_ids = [int(stack_object.object_id) for stack_object in objects]
         if state.object_ids != inventory_ids:
             raise ValueError("state inventory does not match reward inventory")
-        overlap_evaluator = self.overlap_evaluator
         sequence = state.placed_object_indices
         action = state.action_history[-1]
         placed_index = sequence[-1]
@@ -164,33 +214,14 @@ class StackingReward:
             displacement = self.config.max_displacement
             clipped = True
 
-        previous_overlap = 0.0
-        previous_placements = []
-        for index in sequence[:-1]:
-            stack_object = objects[index]
-            pose = state.object_poses.get(
-                stack_object.object_id,
-                inventory.initial_pose(stack_object.object_id),
-            )
-            if self._composite:
-                previous_placements.append((stack_object, pose))
-            else:
-                previous_overlap += float(overlap_evaluator.target_coverage(stack_object, pose))
-
+        if geometry is None:
+            geometry = self.prepare_geometry(sequence, state.object_poses)
+        previous_overlap = geometry.previous_overlap
+        target_overlap = geometry.target_overlap
+        containment = geometry.containment
         placed_object = objects[placed_index]
         placed_pose = state.object_poses.get(
-            placed_object.object_id,
-            inventory.initial_pose(placed_object.object_id),
-        )
-        containment = float(
-            overlap_evaluator.object_containment(placed_object, placed_pose)
-        )
-        if self._composite:
-            previous_overlap = overlap_evaluator.scene_coverage(previous_placements)
-            target_overlap = overlap_evaluator.scene_coverage([*previous_placements, (placed_object, placed_pose)])
-        else:
-            placed_overlap = containment * placed_object.volume / self.target_volume
-            target_overlap = previous_overlap + placed_overlap
+            placed_object.object_id, inventory.initial_pose(placed_object.object_id))
         overlap_delta = target_overlap - previous_overlap
         overlap_increment = max(overlap_delta, 0.0)
         normalized_overlap_increment = overlap_increment * self.target_overlap_increment_scale
@@ -222,7 +253,7 @@ class StackingReward:
         flatness = 0.0
         surface_info = {}
         if self._surface is not None:
-            maximum, mean = self._surface.measure(state)
+            maximum, mean = geometry.surface
             reference = float(np.cbrt(self.mean_object_volume))
             relief = max(maximum - mean, 0.)
             flatness = -relief / reference

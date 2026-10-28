@@ -128,3 +128,63 @@ activate them. In an 87-placement replay with eight perturbations, two links
 matched full-scene acceptance decisions and reduced robustness time by 56%
 (total placement-evaluation time by 35%). This is not an end-to-end MCTS
 speedup or a guarantee of equivalent structural robustness on other scenes.
+
+CUDA robustness uses native `CudaSimulationPhase.sampled_entities` when
+available to record only monitored movable bodies. Collision geometry and
+full final snapshots remain intact, and every integration timestep is retained
+for peak-excursion and recovery checks. Nominal phases still request full
+histories. The existing 1.5 GiB history allowance uses the compact body count,
+allowing more trials per native call without increasing the memory budget.
+Older native builds retain the full-history path and its original chunk limit.
+
+Native selective sample snapshots contain only requested entities; querying an
+omitted entity's history raises an error instead of inventing a stationary
+trajectory. Omitting `sampled_entities` preserves full-history behavior.
+
+Convex voxel containment uses a plane-major matrix layout so NumPy can reduce
+whole rows of query points into the containment mask. This changes only CPU
+evaluation layout; voxel locations, plane inequalities and tolerances remain
+unchanged. A saved step-30 CUDA search with seed 0 and 512 iterations retained
+the exact tree hash and selected placement, while CPU result processing fell
+from 16.36 to 13.58 seconds and total search time from 141.06 to 137.73 seconds.
+Step 20 likewise retained its exact tree hash, with total time falling from
+79.54 to 77.74 seconds. These are single-seed saved-state comparisons, not a
+whole-sequence speed guarantee.
+Reducing CUDA placement chunks from 128 to 64 did not improve total time in
+that case, so the existing chunk size is retained.
+
+## Overlapping evaluation on CPU and GPU
+
+CUDA batch evaluation with multiple result workers now prepares containment,
+target coverage and surface-flatness terms on the CPU while the GPU runs the
+same robustness trials. Nominal trajectory extraction also runs beside those
+trials. A lightweight structural summary provides the unchanged eligibility
+checks before robustness starts.
+
+Prepared geometry contains only scalar values for each placement. It does not
+publish a provisional reward or depend on keeping a whole batch in the voxel
+cache. Final reward arithmetic, robustness clipping, rejection and MCTS backup
+wait for completed physics and preparation. Preparation and finalization use
+the same evaluator assignment in input order, with one coordinator protecting
+worker-owned caches. Both native and CPU work drain on failures before an
+evaluator or workspace is reused or closed.
+
+This uses the existing CUDA backend and CPU worker setting; no solver or YAML
+option was added. One result worker (including disabled parallel search), CPU
+backends, and custom reward evaluators without preparation support retain the
+ordinary path. Native job sizes, disturbances, simulation tolerances and search
+policy are unchanged.
+
+The benchmark script records `geometry_preparation_batches` and
+`geometry_cuda_overlap_seconds` separately from final result processing. Its
+`--serial-geometry` option provides a matched control with the previous scheduling;
+`--serial-results` disables both forms of evaluation overlap. Stage intervals
+can overlap and must not be summed as independent wall time.
+
+In matched saved-state CUDA benchmarks (seed 0, 512 iterations, four result
+workers), step 20 improved from 79.65 to 72.09 seconds and step 30 from 137.37
+to 123.56 seconds. Geometry preparation overlapped native simulation for 9.07
+and 13.67 seconds respectively. Both pairs retained identical complete search
+tree hashes, selected placements, evaluation counts and rejection counts.
+These are individual saved-state comparisons, not a whole-sequence speedup
+promise.

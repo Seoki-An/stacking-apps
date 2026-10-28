@@ -130,10 +130,13 @@ class ConvexGeometry:
         values = np.asarray(points, dtype=float)
         if values.ndim != 2 or values.shape[1] != 3:
             raise ValueError("query points must have shape (N, 3)")
+        # Put query points on the contiguous axis. Voxel queries greatly
+        # outnumber faces, so the reduction combines whole plane rows into the
+        # output mask instead of separately reducing each point's short row.
         return np.all(
-            values @ self._face_normals.T
-            <= self._plane_offsets + float(tolerance),
-            axis=1,
+            self._face_normals @ values.T
+            <= (self._plane_offsets + float(tolerance))[:, None],
+            axis=0,
         )
 
     def vertex_surface_samples(

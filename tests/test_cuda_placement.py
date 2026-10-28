@@ -389,3 +389,97 @@ def test_cuda_robustness_receives_final_nominal_contacts(backends, monkeypatch):
     result = gpu.place(state(), Action(0, pose(), pose(), object_id=10))
     assert len(received) == 1
     assert result.diagnostics['place_robustness_contact_hops'] == 2
+
+
+def test_only_robustness_requests_compact_histories(backends):
+    _, gpu = backends
+    if not hasattr(core.CudaSimulationPhase, 'sampled_entities'):
+        pytest.skip('requires selective native histories')
+    nominal = gpu._phase(gpu.config.structural, [0, 1], final_object=False)
+    assert nominal.sampled_entities is None
+    trial = gpu._robustness_phase(gpu.config.structural, {1: pose()})
+    assert trial.sampled_entities == trial.monitored == [1]
+    gpu._compact_robustness_history = False
+    assert gpu._robustness_phase(gpu.config.structural, {1: pose()}).sampled_entities is None
+
+
+def test_compact_and_full_history_paths_have_identical_trial_results(backends):
+    _, gpu = backends
+    if not hasattr(core.CudaSimulationPhase, 'sampled_entities'):
+        pytest.skip('requires selective native histories')
+    gpu.place_stability = PlaceStabilityConfig(True, 8, (.001, .001, .001),
+                                               contact_hops=0)
+    action = Action(0, pose(), pose(), object_id=10)
+    compact = gpu.place(state(), action)
+    gpu._compact_robustness_history = False
+    full = gpu.place(state(), action)
+    assert compact.failed == full.failed
+    for name in ('place_robustness_trial_displacements', 'place_robustness_trial_outcomes'):
+        assert compact.diagnostics[name] == full.diagnostics[name]
+    for entity in full.object_poses:
+        np.testing.assert_array_equal(compact.object_poses[entity], full.object_poses[entity])
+
+
+@pytest.mark.parametrize('backends', [False, True], indirect=True,
+                         ids=['unified', 'legacy_staged'])
+def test_prepared_cuda_placements_match_serial_physics_and_all_samples(backends):
+    _, gpu = backends
+    gpu.place_stability = PlaceStabilityConfig(True, 2, (.001, .001, .001), contact_hops=2)
+    parents = (state(), state(True))
+    actions = (Action(0, pose(), pose(), object_id=10),
+               Action(1, pose(x=.5), pose(x=.5), object_id=20))
+    expected = gpu.place_batch(parents, actions)
+    nominal = []
+    actual = gpu.place_batch_with_preparation(parents, actions,
+                                             lambda start, poses: nominal.extend(poses))
+    assert len(nominal) == len(actual)
+    for reference, result, poses in zip(expected, actual, nominal):
+        assert (result.failed, result.settled) == (reference.failed, reference.settled)
+        assert result.place_robustness_displacement == reference.place_robustness_displacement
+        assert {k: v for k, v in result.diagnostics.items() if 'wall_seconds' not in k} == \
+               {k: v for k, v in reference.diagnostics.items() if 'wall_seconds' not in k}
+        for oid, value in result.object_poses.items():
+            np.testing.assert_array_equal(value, reference.object_poses[oid])
+            np.testing.assert_array_equal(value, poses[oid])
+        for oid, trajectory in result.trajectories.items():
+            other = reference.trajectories[oid]
+            np.testing.assert_array_equal(trajectory.poses, other.poses)
+            np.testing.assert_array_equal(trajectory.times, other.times)
+            assert trajectory.energy == other.energy
+            assert trajectory.vel_integral == other.vel_integral
+            assert trajectory.settle_path_length == other.settle_path_length
+
+
+def test_cuda_preparation_failure_drains_native_worker(backends, monkeypatch):
+    from threading import Event
+    from concurrent.futures import ThreadPoolExecutor
+
+    _, gpu = backends
+    entered, release, finished = Event(), Event(), Event()
+    original = gpu._robustness
+
+    def blocked(jobs):
+        entered.set()
+        assert release.wait(3)
+        try:
+            return original(jobs)
+        finally:
+            finished.set()
+
+    def broken(*_):
+        assert entered.wait(3)
+        raise ValueError('preparation failed')
+
+    monkeypatch.setattr(gpu, '_robustness', blocked)
+    with ThreadPoolExecutor(max_workers=1) as caller:
+        task = caller.submit(gpu.place_batch_with_preparation, (state(),),
+                             (Action(0, pose(), pose(), object_id=10),), broken)
+        try:
+            assert entered.wait(3)
+            assert not task.done()
+            release.set()
+            with pytest.raises(ValueError, match='preparation failed'):
+                task.result(timeout=5)
+            assert finished.is_set()
+        finally:
+            release.set()

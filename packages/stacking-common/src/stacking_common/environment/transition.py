@@ -74,7 +74,11 @@ class SimulationTransition:
         return tuple(state for batch in self.iter_step_batches(states, actions)
                      for state in batch)
 
-    def iter_step_batches(self, states, actions):
+    def iter_prepared_step_batches(self, states, actions, prepare_nominal):
+        """Expose nominal preparation only when the backend supports it."""
+        return self.iter_step_batches(states, actions, prepare_nominal=prepare_nominal)
+
+    def iter_step_batches(self, states, actions, *, prepare_nominal=None):
         """Yield owned branch states while keeping physics on the caller.
 
         Validate the entire request before starting any physical work. A backend
@@ -98,7 +102,13 @@ class SimulationTransition:
         for start in range(0, len(prepared), chunk_size):
             parents = states[start:start + chunk_size]
             candidates = prepared[start:start + chunk_size]
-            results = self.backend.place_batch(parents, candidates)
+            if prepare_nominal is None:
+                results = self.backend.place_batch(parents, candidates)
+            else:
+                def prepare(offset, poses):
+                    prepare_nominal(start + offset, parents[offset:offset + len(poses)],
+                                    candidates[offset:offset + len(poses)], poses)
+                results = self.backend.place_batch_with_preparation(parents, candidates, prepare)
             if len(results) != len(candidates):
                 raise RuntimeError("placement batch returned the wrong number of results")
             # Each child is newly built and owned by the caller. The transition

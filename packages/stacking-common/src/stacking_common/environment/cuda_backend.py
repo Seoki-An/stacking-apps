@@ -1,5 +1,6 @@
 """Batched resident GPU placement simulation using the platform physics profiles."""
 
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import replace
 import math
 import time
@@ -41,7 +42,9 @@ class CudaPlacementBackend(CorePlacementBackend):
         cap.geometries = max(cap.geometries, geometries)
         cap.pairs = max(cap.pairs, geometries * (geometries - 1) // 2)
         self._sample_body_capacity = cap.bodies
+        self._compact_robustness_history = hasattr(self.core.CudaSimulationPhase, 'sampled_entities')
         self.cuda_simulator = self.core.CudaSimulator(cap)
+        self._robustness_executor = None
 
     def _new_simulator(self):
         return None
@@ -54,6 +57,9 @@ class CudaPlacementBackend(CorePlacementBackend):
             raise ValueError('state inventory does not match the backend')
 
     def close(self):
+        if self._robustness_executor is not None:
+            self._robustness_executor.shutdown(wait=True)
+            self._robustness_executor = None
         self.cuda_simulator = None
         super().close()
 
@@ -137,16 +143,29 @@ class CudaPlacementBackend(CorePlacementBackend):
         return self.place_batch((state,), (action,))[0]
 
     def place_batch(self, states, actions):
+        return self._place_batch(states, actions)
+
+    def place_batch_with_preparation(self, states, actions, prepare_nominal):
+        """Notify the caller of nominal poses while robustness remains private."""
+        return self._place_batch(states, actions, prepare_nominal)
+
+    def _place_batch(self, states, actions, prepare_nominal=None):
         if len(states) != len(actions):
             raise ValueError('placement batch states and actions must align')
         for state, action in zip(states, actions):
             self._validate_job(state, action)
         results = []
         for start in range(0, len(states), self.batch_size):
-            results.extend(self._place_chunk(states[start:start + self.batch_size], actions[start:start + self.batch_size]))
+            chunk_states = states[start:start + self.batch_size]
+            chunk_actions = actions[start:start + self.batch_size]
+            if prepare_nominal is None:
+                results.extend(self._place_chunk(chunk_states, chunk_actions))
+            else:
+                results.extend(self._place_chunk(chunk_states, chunk_actions,
+                    prepare_nominal=lambda poses, start=start: prepare_nominal(start, poses)))
         return tuple(results)
 
-    def _place_chunk(self, states, actions):
+    def _place_chunk(self, states, actions, *, prepare_nominal=None):
         started = time.perf_counter()
         settled = self._settling(states, actions)
         settling_wall = time.perf_counter() - started
@@ -166,15 +185,38 @@ class CudaPlacementBackend(CorePlacementBackend):
         structural_started = time.perf_counter()
         outputs = self._run(problems)
         structural_wall = time.perf_counter() - structural_started
-        simulations = {p.request_id: self._structural_result(
+        summarize = self._structural_summary if prepare_nominal is not None else self._structural_result
+        simulations = {p.request_id: summarize(
             contexts[p.request_id][2], contexts[p.request_id][0], actions[p.request_id],
             settled[p.request_id], out)
             for p, out in zip(problems, outputs) if out.snapshot is not None}
         valid = [(i, simulation) for i, simulation in simulations.items()
                  if self._robustness_eligible(states[i], actions[i], simulation)]
         robustness_started = time.perf_counter()
-        robustness = self._robustness([(states[i], actions[i], simulation.snapshot, simulation.contacts)
-                                      for i, simulation in valid])
+        jobs = [(states[i], actions[i], simulation.snapshot, simulation.contacts)
+                for i, simulation in valid]
+        if prepare_nominal is None:
+            robustness = self._robustness(jobs)
+        else:
+            if self._robustness_executor is None:
+                self._robustness_executor = ThreadPoolExecutor(
+                    max_workers=1, thread_name_prefix="stacking-robustness")
+            future = self._robustness_executor.submit(self._robustness, jobs)
+            try:
+                poses = [None] * len(states)
+                for i, simulation in simulations.items():
+                    poses[i] = {self.object_ids[index]: simulation.snapshot.body_pose(
+                        self.scene_builder.entity_id(index)) for index in contexts[i][0]}
+                prepare_nominal(poses)
+                for problem, out in zip(problems, outputs):
+                    i = problem.request_id
+                    if i in simulations:
+                        self._populate_trajectories(contexts[i][2], contexts[i][0], actions[i],
+                                                    settled[i], out, simulations[i])
+                robustness = future.result()
+            finally:
+                # No native work may outlive its inputs, including on CPU errors.
+                wait((future,))
         robustness_wall = time.perf_counter() - robustness_started
         robust_by_id = {i: value for (i, _), value in zip(valid, robustness)}
         for problem, out in zip(problems, outputs):
@@ -201,11 +243,11 @@ class CudaPlacementBackend(CorePlacementBackend):
         return results
 
     def _structural_result(self, scene, indices, action, settling, out):
-        trajectories = {self.object_ids[i]: StackObjectTrajectory(self.object_ids[i]) for i in indices}
-        trajectories[action.object_id] = self._settle_trajectory(action, settling)
-        for i in indices:
-            if i != action.object_index:
-                trajectories[self.object_ids[i]].add_pose(scene.body_pose(self.scene_builder.entity_id(i)), time=0.)
+        simulation = self._structural_summary(scene, indices, action, settling, out)
+        self._populate_trajectories(scene, indices, action, settling, out, simulation)
+        return simulation
+
+    def _structural_summary(self, scene, indices, action, settling, out):
         elapsed = 0.
         times = {}
         names = ('short', 'long_extension') if self.config.short_gate else ('structural',)
@@ -216,6 +258,28 @@ class CudaPlacementBackend(CorePlacementBackend):
         for name in names:
             times.setdefault(name, 0.)
         times['total'] = elapsed
+        last = out.phases[-1]
+        integrals = {}
+        for i in indices:
+            entity, object_id = self.scene_builder.entity_id(i), self.object_ids[i]
+            integrals[object_id] = last.motion_integrals.get(entity, 0.)
+        config = self.config.short_gate if self.config.short_gate and len(out.phases) == 1 else self.config.structural
+        required_quiet = (config.final_extra_steps if len(indices) == len(self.object_ids)
+                          and config.final_extra_steps is not None else config.extra_steps)
+        is_settled = last.quiet_steps >= required_quiet and elapsed > config.min_time
+        simulation = _StructuralSimulation(
+            out.snapshot, {}, is_settled,
+            out.contacts, out.status == self.core.CudaSimulationStatus.motion_limit,
+            integrals, elapsed, last.quiet_steps, times, config.velocity_integral_threshold,
+        )
+        return simulation
+
+    def _populate_trajectories(self, scene, indices, action, settling, out, simulation):
+        trajectories = {self.object_ids[i]: StackObjectTrajectory(self.object_ids[i]) for i in indices}
+        trajectories[action.object_id] = self._settle_trajectory(action, settling)
+        for i in indices:
+            if i != action.object_index:
+                trajectories[self.object_ids[i]].add_pose(scene.body_pose(self.scene_builder.entity_id(i)), time=0.)
         if hasattr(out, 'sample_poses'):
             sample_times, selected = [0.], []
             for index, sample_time in enumerate(out.sample_times):
@@ -238,26 +302,13 @@ class CudaPlacementBackend(CorePlacementBackend):
                     trajectory = trajectories[self.object_ids[i]]
                     if sample.time > trajectory.times[-1]:
                         trajectory.add_pose(sample.snapshot.body_pose(self.scene_builder.entity_id(i)), time=sample.time)
-        last = out.phases[-1]
-        integrals = {}
         for i in indices:
             entity, object_id = self.scene_builder.entity_id(i), self.object_ids[i]
-            integral = last.motion_integrals.get(entity, 0.)
-            integrals[object_id] = integral
-            trajectories[object_id].vel_integral = integral
-            linear = out.snapshot.body_linear_velocity(entity)
-            angular = out.snapshot.body_angular_velocity(entity)
-            trajectories[object_id].energy = self._normalized_energy(object_id, linear, angular)
-        # If the short phase failed, the long phase was never entered.
-        config = self.config.short_gate if self.config.short_gate and len(out.phases) == 1 else self.config.structural
-        required_quiet = (config.final_extra_steps if len(indices) == len(self.object_ids)
-                          and config.final_extra_steps is not None else config.extra_steps)
-        is_settled = last.quiet_steps >= required_quiet and elapsed > config.min_time
-        return _StructuralSimulation(
-            out.snapshot, trajectories, is_settled,
-            out.contacts, out.status == self.core.CudaSimulationStatus.motion_limit,
-            integrals, elapsed, last.quiet_steps, times, config.velocity_integral_threshold,
-        )
+            trajectories[object_id].vel_integral = simulation.velocity_integrals[object_id]
+            trajectories[object_id].energy = self._normalized_energy(
+                object_id, out.snapshot.body_linear_velocity(entity),
+                out.snapshot.body_angular_velocity(entity))
+        simulation.trajectories.update(trajectories)
 
     def settle_fixed(self, state, action):
         self._validate_job(state, action)
@@ -299,13 +350,15 @@ class CudaPlacementBackend(CorePlacementBackend):
                 phase = self._robustness_phase(phase_config, initial)
                 problems.append(self._problem(len(problems), scene, self.simulation_config, [phase]))
                 trials.append((i, number, initial, phase_config))
-        # Bound downloads of every integration step across all scene bodies.
-        # 320 bytes per body slot is conservative: Python keeps only real scene
-        # bodies, so 1.5 GiB (176 long-fidelity trials) added about 70 MiB of
-        # peak memory and needs fewer, cheaper native calls than 512 MiB.
+        # Keep every timestep, but compact-capable native builds store only
+        # monitored bodies. Older builds still allocate full-capacity histories.
+        # The allowance covers device histories, downloads and host conversion.
         steps = max((p.phases[0].steps + 1 for p in problems), default=1)
+        sample_bodies = max((len(p.phases[0].sampled_entities)
+                            if self._compact_robustness_history and p.phases[0].sampled_entities
+                            else self._sample_body_capacity for p in problems), default=1)
         chunk_size = max(1, min(self.batch_size,
-            (1536 * 1024**2) // (steps * self._sample_body_capacity * 320)))
+            (1536 * 1024**2) // (steps * sample_bodies * 320)))
         for start in range(0, len(problems), chunk_size):
             outputs = self._run(problems[start:start + chunk_size])
             for context, out in zip(trials[start:start + chunk_size], outputs, strict=True):
@@ -320,6 +373,8 @@ class CudaPlacementBackend(CorePlacementBackend):
         # CudaRobustnessStopping API only monitors one body, missing support motion.
         phase = self._phase(config, [], final_object=False)
         phase.monitored = list(entities)
+        if self._compact_robustness_history and entities:
+            phase.sampled_entities = list(entities)
         phase.motion_limit = 0.  # Intentional disturbances use peak excursion instead.
         return phase
 

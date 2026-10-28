@@ -93,6 +93,40 @@ def test_convex_geometry_calculates_volume_planes_and_samples() -> None:
     assert np.allclose(np.linalg.norm(normals[mask], axis=1), 1.0)
 
 
+@pytest.mark.parametrize("tolerance", [0., 1e-9, 1e-4, -1e-9])
+@pytest.mark.parametrize("layout", ["C", "F", "strided"])
+@pytest.mark.parametrize("irregular", [False, True])
+def test_contains_preserves_point_major_results_at_plane_boundaries(tolerance, layout, irregular):
+    from scipy.spatial import ConvexHull
+    from scipy.spatial.transform import Rotation
+
+    cube = cube_geometry()
+    rotation = Rotation.from_euler("xyz", [23., -37., 61.], degrees=True).as_matrix()
+    geometry = ConvexGeometry(cube.points @ rotation.T, cube.faces)
+    if irregular:
+        vertices = np.random.default_rng(21).normal(size=(60, 3)) * [.2, .5, .1]
+        geometry = ConvexGeometry(vertices, ConvexHull(vertices).simplices)
+    centers, normals, _ = geometry.face_data()
+    boundary = centers + tolerance * normals
+    points = np.concatenate([
+        np.random.default_rng(12).uniform(-1., 1., (4096, 3)),
+        geometry.points, boundary,
+        np.nextafter(boundary, np.inf), np.nextafter(boundary, -np.inf),
+    ])
+    if layout == "strided":
+        buffer = np.zeros((len(points), 6))
+        buffer[:, ::2] = points
+        points = buffer[:, ::2]
+    else:
+        points = np.array(points, order=layout)
+    for query in (points, points[:1], points[:0]):
+        expected = np.all(
+            query @ geometry._face_normals.T <= geometry._plane_offsets + tolerance,
+            axis=1,
+        )
+        np.testing.assert_array_equal(geometry.contains(query, tolerance), expected)
+
+
 def test_stack_object_keeps_native_model_and_geometry_separate() -> None:
     stack_object_value = stack_object(10)
 

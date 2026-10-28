@@ -77,10 +77,14 @@ class SurfaceFlatness:
         return self._remember(self._objects, key, surface, 128)
 
     def measure(self, state):
+        return self.measure_poses(state.placed_object_indices, state.object_poses)
+
+    def measure_poses(self, placed_indices, object_poses):
+        """Measure nominal geometry before physical acceptance is finalized."""
         keys = []
-        for index in state.placed_object_indices:
+        for index in placed_indices:
             oid = self.inventory.objects[index].object_id
-            pose = state.object_poses.get(oid)
+            pose = object_poses.get(oid)
             if pose is None:
                 pose = self.inventory.initial_pose(oid)
             pose = np.asarray(pose, dtype=np.float64)
