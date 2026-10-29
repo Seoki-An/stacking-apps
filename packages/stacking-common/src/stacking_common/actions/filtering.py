@@ -14,30 +14,6 @@ from .types import (
 )
 
 
-class ActiveFloorFilter:
-    """Apply the same floor policy as final validation, before simulation."""
-
-    def __init__(self, policy, *, relaxed: bool = False) -> None:
-        self.policy = policy
-        self.relaxed = relaxed
-
-    def prepare_scene(self, inventory, state):
-        return self.policy.context_details(state)
-
-    def evaluate(self, inventory, state, object_index, initial, solved, *, scene_context=None):
-        action = Action(object_index, solved.pose, initial.pose,
-                        object_id=inventory[object_index].object_id)
-        reason, diagnostics = self.policy.active_floor_rejection(state, action, context=scene_context)
-        if self.relaxed:
-            return PlacementFilterDecision.accept(
-                **diagnostics, floor_fill_fallback=True,
-                floor_fill_bypassed_reason=reason,
-            )
-        if reason is not None:
-            return PlacementFilterDecision.reject(f"active_floor_{reason}", **diagnostics)
-        return PlacementFilterDecision.accept(**diagnostics)
-
-
 class ScanOrientationFilter:
     """Preserve legacy scan-relative tilt checks and the lower-fill exception."""
 
@@ -56,9 +32,8 @@ class ScanOrientationFilter:
         orientation_ok = not (too_tilted or flipped)
 
         action = Action(object_index, solved.pose, initial.pose, object_id=object_id)
-        # Floor rejection is a separate optional filter. Here even disconnected
-        # lower-fill poses qualify, as in legacy's scan-orientation exception.
-        _, floor = self.floor_policy.active_floor_rejection(state, action)
+        # Lower-fill overlap is an exception to the optional scan tilt check.
+        floor = self.floor_policy.pose_diagnostics(state, action)
         lower_fill = (
             floor["fixed_scene_active_layer_fill_score"] > 0.0
             and not floor["fixed_scene_active_layer_above"]

@@ -11,7 +11,10 @@ The temporary unified continuation-repair experiment has been backed up to
 The empty-floor overlap proposal mask is also removed for single and composite
 targets: a zero overlap does not exclude an XY proposal. `fill_area` still rewards
 empty-floor coverage. Target geometry and connectivity admission and root exhaustion fallback remain. Strict solved/settled
-floor checks are optional and currently disabled in the excavator action profile. Final selection
+floor rejection and its configuration have been removed from both platforms.
+Active-floor tracking, XY connectivity, lower-floor-first ordering and fill/height
+scores remain. There is no floor-relaxation retry; empty-scene corner-seed
+fallback remains independent of floor tracking. Final selection
 uses existing evidence and the descendant-depth filter; it does not repair paths.
 No height reward or simulation settings were changed by this removal.
 

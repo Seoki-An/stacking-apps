@@ -1,13 +1,9 @@
-"""Tabletop physical limits for shared active-floor placement checks."""
-
-import numpy as np
+"""Tabletop floor geometry and released-pose support tolerance."""
 
 from stacking_common.actions.floor import ActiveFloorPolicy
 
 
 class TabletopPlacementSafety(ActiveFloorPolicy):
-    """Use the resolved tabletop floor profile for search and execution."""
+    """Track sampling layers and expose the physical release tolerance."""
 
     support_tolerance = 0.02
-    resettle_floor_translation_tolerance = 0.001
-    resettle_floor_rotation_tolerance = np.deg2rad(0.5)

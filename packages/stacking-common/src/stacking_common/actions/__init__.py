@@ -16,7 +16,6 @@ from .contracts import (
     ObjectOrientationProvider,
 )
 from .filtering import (
-    ActiveFloorFilter,
     PosegenFeasibilityFilter,
     ScanOrientationFilter,
     TargetContainmentFilter,
@@ -37,7 +36,6 @@ from .types import (
 )
 
 __all__ = [
-    "ActiveFloorFilter",
     "ActiveFloorPolicy",
     "CEMRootActionGenerator",
     "CEMRootConfig",

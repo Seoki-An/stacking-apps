@@ -19,11 +19,6 @@ class ActionGenerationProfile:
 
     generator: PlacementActionGeneratorConfig
     planar: PlanarSamplingConfig
-    strict_floor_first: bool = False
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.strict_floor_first, bool):
-            raise TypeError("strict_floor_first must be boolean")
 
 
 def load_action_generation_profile(
@@ -46,6 +41,7 @@ def load_action_generation_profile(
         raise ValueError("action-generation profile units must be 'si'")
     initialization = _mapping(values, "initialization")
     filtering = _mapping(values, "filtering")
+    # Older YAML may contain strict_floor_first; it no longer enables rejection.
     planar = _mapping(values, "planar")
     orientation = _mapping(values, "orientation")
     stone_sampling = values.get("stone_sampling", {})
@@ -54,7 +50,6 @@ def load_action_generation_profile(
     if "yaw_angles_degrees" in planar:
         raise ValueError("move planar.yaw_angles_degrees to orientation.yaw_angles_degrees")
     return ActionGenerationProfile(
-        strict_floor_first=filtering.get("strict_floor_first", False),
         generator=PlacementActionGeneratorConfig(
             stone_volume_exponent=float(stone_sampling.get("volume_exponent", 0.0)),
             max_poses_per_object=max_poses_per_object,

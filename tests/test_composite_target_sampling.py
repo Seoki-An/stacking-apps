@@ -8,7 +8,7 @@ import pytest
 from scipy.spatial.transform import Rotation
 
 from stacking_common.actions import (
-    ActiveFloorFilter, CEMRootActionGenerator, CEMRootConfig, MappingOrientationProvider,
+    CEMRootActionGenerator, CEMRootConfig, MappingOrientationProvider,
     MeshHeightInitializer, PlacementActionGeneratorConfig, PlacementSolveResult,
     PlanarPlacement, PlanarSamplingConfig,
 )
@@ -75,12 +75,11 @@ def test_separated_regions_seed_independently_and_reject_gap():
     inv = inventory()
     floor = policy(inv)
     current = state(inv, [pose(-3.7, -.7)])
-    reason, info = floor.active_floor_rejection(current, action(inv, 1, pose(3., 0.)))
-    assert reason is None
+    info = floor.pose_diagnostics(current, action(inv, 1, pose(3., 0.)))
     assert info["target_region_id"] == ("east",)
     assert info["fixed_scene_active_layer_occupancy"] == 0.
-    assert floor.active_floor_rejection(current, action(inv, 1, pose(-2.3, .6)))[0] == "disconnected_active_layer"
-    assert floor.active_floor_rejection(current, action(inv, 1, pose(0.)))[0] == "outside_target_region"
+    assert floor.pose_diagnostics(current, action(inv, 1, pose(-2.3, .6)))["fixed_scene_active_layer_contact_cells"] == 0
+    assert floor.pose_diagnostics(current, action(inv, 1, pose(0.)))["fixed_scene_active_layer_fill_score"] == 0
 
 
 def test_regions_advance_their_own_layers():
@@ -90,8 +89,8 @@ def test_regions_advance_their_own_layers():
     layers = {item["region_id"]: item for item in floor.context_details(current)["regions"]}
     assert layers[("west",)]["support_z"] == .5
     assert layers[("east",)]["support_z"] == 0.
-    assert floor.active_floor_rejection(current, action(inv, 1, pose(3.)))[0] is None
-    assert floor.active_floor_rejection(current, action(inv, 1, pose(3., z=.5)))[0] == "above_active_layer"
+    assert not floor.pose_diagnostics(current, action(inv, 1, pose(3.)))["fixed_scene_active_layer_above"]
+    assert floor.pose_diagnostics(current, action(inv, 1, pose(3., z=.5)))["fixed_scene_active_layer_above"]
 
 
 def test_l_shape_coverage_excludes_notch_and_shared_pieces_do_not_make_extra_floors():
@@ -275,8 +274,7 @@ def generator(inv):
     sample = sampler(inv)
     return ScoredPlacementActionGenerator(inventory=inv,
         config=PlacementActionGeneratorConfig(8, 0., 0., None),
-        planar_sampler=sample, initializer=MeshHeightInitializer(0., 0.), pose_solver=Solver(),
-        filters=(ActiveFloorFilter(sample.floor_policy),))
+        planar_sampler=sample, initializer=MeshHeightInitializer(0., 0.), pose_solver=Solver())
 
 
 def test_generation_budget_does_not_discard_region_balanced_prefix():
@@ -300,13 +298,12 @@ def test_solved_pose_metadata_replaces_parent_region_and_gap_is_rejected():
             assert reason is None and candidate.diagnostics["target_region_id"] == expected
 
 
-def test_floor_fallback_cannot_bypass_actual_target_overlap():
+def test_solved_target_overlap_still_rejects_after_floor_filter_removal():
     inv = inventory()
     gen = generator(inv)
     parent = PlanarPlacement(pose(-3.))
     gen.pose_solver = SimpleNamespace(solve=lambda *args: PlacementSolveResult(pose(0.), 0., 0.))
-    with gen.floor_fill_fallback():
-        candidate, reason = gen.build_candidate(state(inv), 0, parent)
+    candidate, reason = gen.build_candidate(state(inv), 0, parent)
     assert candidate is None and reason == "final_pose_outside_target"
 
 

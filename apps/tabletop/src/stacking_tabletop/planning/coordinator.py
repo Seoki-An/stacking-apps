@@ -30,7 +30,6 @@ class TabletopPlanningCoordinator:
         planner: PlacementPlanner,
         *,
         placement_backend=None,
-        safety: TabletopPlacementSafety | None = None,
         world_T_stack: FrameTransform | None = None,
         progress: Callable[[str, Mapping[str, object]], None] | None = None,
         context_sha256: str | None = None,
@@ -43,7 +42,6 @@ class TabletopPlanningCoordinator:
         self.problem_builder = problem_builder
         self.planner = planner
         self.placement_backend = placement_backend
-        self.safety = safety
         self.world_T_stack = world_T_stack
         self.progress = progress
         self.context_sha256 = context_sha256
@@ -151,14 +149,6 @@ class TabletopPlanningCoordinator:
     ) -> tuple[Action, PlacementPlanningResult | None, dict[str, object]]:
         diagnostics: dict[str, object] = {}
         prepared = action.copy()
-        floor_reason_before = None
-        if self.safety is not None:
-            floor_reason_before, _ = self.safety.active_floor_rejection(
-                state, prepared
-            )
-            diagnostics["fixed_scene_active_floor_before_resettle_reason"] = (
-                floor_reason_before
-            )
         if self.placement_backend is not None:
             fixed_state = state.copy()
             fixed_state.pose_identified_object_ids.update(
@@ -202,38 +192,6 @@ class TabletopPlanningCoordinator:
             )
             prepared.pose = settled_pose.copy()
 
-        if self.safety is not None:
-            reason, active_floor = self.safety.active_floor_rejection(
-                state, prepared
-            )
-            diagnostics.update(active_floor)
-            relaxed = bool(action.diagnostics.get("floor_fill_fallback", False))
-            if relaxed:
-                diagnostics.update(
-                    floor_fill_fallback=True,
-                    floor_fill_bypassed_reason=(
-                        reason
-                        or floor_reason_before
-                        or action.diagnostics.get("floor_fill_bypassed_reason")
-                    ),
-                )
-            classification_tolerated = bool(
-                reason is not None
-                and floor_reason_before is None
-                and diagnostics.get("fixed_scene_resettle_position_delta", 0.0)
-                <= self.safety.resettle_floor_translation_tolerance
-                and diagnostics.get("fixed_scene_resettle_rotation_delta", 0.0)
-                <= self.safety.resettle_floor_rotation_tolerance
-            )
-            if classification_tolerated:
-                diagnostics.update(
-                    fixed_scene_active_floor_tolerance_applied=True,
-                    fixed_scene_active_floor_after_resettle_reason=reason,
-                )
-            if reason is not None and not relaxed and not classification_tolerated:
-                return prepared, self._infeasible(
-                    f"active_floor_{reason}", diagnostics
-                ), diagnostics
         return prepared, None, diagnostics
 
     @staticmethod
@@ -273,11 +231,7 @@ class TabletopPlanningCoordinator:
         )
         diagnostics = dict(result.diagnostics)
         diagnostics["place_support_gap"] = gap
-        tolerance = (
-            TabletopPlacementSafety.support_tolerance
-            if self.safety is None
-            else self.safety.support_tolerance
-        )
+        tolerance = TabletopPlacementSafety.support_tolerance
         diagnostics["place_support_tolerance"] = tolerance
         if placement.failed or gap > tolerance:
             return PlacementPlanningResult(

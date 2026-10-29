@@ -289,14 +289,14 @@ Tabletop explicitly configures `projected_footprint`, 0.02 m bottom tolerance,
 0.65 fill ratio, and a 16-cell grid. The lower threshold advances the commissioned
 six-stone scene after its valid 67.6%-coverage three-stone base; exhaustive
 sampling found no collision-free fourth base placement. Its search and planning
-floor checks read the same YAML values. Sampling and solved-pose connectivity both require at least
+floor tracking reads the same YAML values. Sampling connectivity requires at least
 one neighboring occupied cell; `minimum_contact_cells` is no longer configurable. Sampling connectivity starts whenever
 the active floor contains occupied cells; the configurable `connected_after`
 delay has been removed. An empty active floor allows a seed placement.
 `footprint_scale` sizes the sampling rectangle.
 The U-shape pocket filter and its settings have been removed; these footprint
 and connectivity controls remain active.
-`filtering.strict_floor_first` still controls the additional solved-pose check.
+Strict solved-pose floor rejection and its configuration have been removed.
 
 The old `floor_fill` block and duplicate `lower_floor_*` keys are rejected in
 new profiles. Saved split configurations remain supported by the score viewer.
@@ -860,69 +860,21 @@ solver now uses `k_lower: {anti_ramp: 10.0}`; structural simulation uses
 `limit_surface_6d` with `patch_eps: 0.00003`. These physical changes require
 tabletop saved-scene validation before claiming improved placement performance.
 
-## 6. Active-floor policy
+## 6. Floor guidance and sampling recovery
 
-Excavator's main composition shares one `ActiveFloorPolicy` between proposal
-sampling and filtering. Its current settings are:
+Active-floor tracking advances through layers when projected occupancy reaches
+`planar.floor.fill_ratio` (currently 0.75 on both platforms). XY connectivity
+requires overlap with the occupied active-floor neighborhood; an empty layer
+allows a seed. `lower_floor_first` prioritizes the lower contact-height pool,
+then fills remaining slots from higher candidates. Fill-area and height scores
+rank eligible proposals. Zero empty-floor overlap does not reject a proposal.
 
-| Setting | Excavator | Tabletop |
-|---|---:|---:|
-| Occupancy representation | Projected union of convex-component footprints | Same |
-| Occupancy grid | 16 × 16 cell-center samples | Same |
-| Floor completion fraction | 0.75 | 0.65 |
-| Bottom-height tolerance | 0.20 m | 0.02 m |
-| Connectivity rule (fixed) | At least one neighboring occupied cell | Same |
-| Strict action-build floor filter | Enabled | Enabled |
-
-Starting at the target base, the policy collects stones whose bottom is within
-the current layer tolerance. If their union covers the required fraction, it
-advances the support height to the highest top among those stones and repeats
-with remaining stones. The first insufficiently filled layer is active.
-There is no configurable layer cap: every completed layer consumes at least
-one stone, and detection stops when no stones remain or no stones belong to
-the current layer. Removing `max_layers` also avoids misclassifying occupied
-layers above the old cutoff as empty.
-
-For either platform's `lower_floor_first` sampling, candidates whose estimated
-contact height is at most active support height plus the platform's bottom
-tolerance are selected before higher candidates: 0.20 m for excavator and
-0.02 m for tabletop. The strict filter separately checks the bottom
-height and connectivity of the **solved** pose. These checks act on different
-quantities and should be described separately.
-
-After a placed footprint exists, either platform's strict scored proposal
-construction requires some open footprint area and at least one cell touching
-dilated occupancy. No U-shaped-pocket rejection is applied.
-
-Before rejecting a physically validated root for a missing required continuation,
-the search tries to repair its descendant path with relaxed floor admission.
-This happens once per root candidate, after ordinary path repair, within the
-existing deadline and bounded repair budget. The root pose and its physical
-validation are preserved; existing descendants and physical failures remain
-attached. Exhausted descendant generation is reopened for the changed admission
-rule. Newly generated descendants still require physical validation. Diagnostic
-fields `floor_fill_continuation_attempted` and `floor_fill_continuation_recovered`
-record this repair on the root candidate. When a repaired branch is promoted for
-the next placement, its relaxed immediate continuations are rebuilt under the
-strict policy.
-
-If root selection still fails with a strict floor filter present, the search
-tries a new root under relaxed floor-fill admission. Both this fallback and
-descendant repair retain the fill-area score and any requested
-`lower_floor_first` sampling priority. Native pose feasibility and subsequent
-physical evaluation still apply, and sampled seeds still obey the connectivity
-mask. Thus the
-complete search policy permits an explicit floor-fill
-fallback, rather than guaranteeing that every selected action satisfies the
-strict lower-floor preference.
-
-The current excavator retry limit allows an initial relaxed root pool and up
-to three further retry pools, subject to the original deadline and pool
-availability. Relaxation is conditional on a final-validation request and
-available time.
-
-The excavator completion threshold is `planar.floor.fill_ratio: 0.75`.
-The old unused 0.6 fallback threshold has been removed from the profile.
+There is no strict rejection of a solved or settled pose based on its floor.
+Pose feasibility, containment, simulation and robustness validation remain.
+There is no continuation repair or floor-relaxation retry. Only the independent
+empty-scene corner-seed fallback remains: if corner proposals fail, retry ordinary
+proposals within the original deadline and budget. Promoted descendants are not
+cleared because of historical floor-fallback tags.
 
 ## 7. Tabletop proposal strategy
 
@@ -953,10 +905,9 @@ contexts still produce different candidate banks and rankings. Tabletop's
 previous six-term sampler and its different feature definitions are recorded
 in Section 7.3 for historical comparisons.
 
-Both platforms enable `strict_floor_first: true` and prefer the lower
-contact-height pool through `lower_floor_first`. Both apply the strict
-solved-pose floor filter using their own physical floor settings.
-The conditional relaxed root fallback is described in Section 6.
+Both platforms prefer the lower contact-height pool through `lower_floor_first`.
+Floor guidance affects proposals and scores, not solved-pose rejection.
+The independent corner-seed fallback is described in Section 6.
 
 The shared strategy subsequently initializes Z and invokes native placement
 optimization, which can move the initial XY coordinates.
@@ -1895,7 +1846,7 @@ The native references assume the sibling `stacking-core` checkout.
 | Root population | [cem.py](../packages/stacking-common/src/stacking_common/actions/cem.py): `CEMRootActionGenerator`, `_duplicate` |
 | Root prior score | [policies.py](../packages/stacking-common/src/stacking_common/search/policies.py): `PlacementPriorScorer` |
 | Containment estimate | [overlap.py](../packages/stacking-common/src/stacking_common/environment/overlap.py): `VoxelOverlapEvaluator`; [object.py](../packages/stacking-common/src/stacking_common/domain/object.py): `StackObject.volume`, `contains_local_points` |
-| Floor-fill fallback | [search.py](../packages/stacking-common/src/stacking_common/search/mcts/search.py): `_run_floor_fill_fallback` |
+| Empty-scene corner fallback | [search.py](../packages/stacking-common/src/stacking_common/search/mcts/search.py): `_run_corner_seed_fallback` |
 | Height-map domain | [heightmap.py](../packages/stacking-common/src/stacking_common/visualization/heightmap.py): `HeightMapRenderer` |
 | Excavator parameters | [action_generation.yml](../apps/excavator/config/action_generation.yml), [environment.yml](../apps/excavator/config/environment.yml), [inventory.yml](../apps/excavator/config/inventory.yml), [mcts_cuda.yml](../apps/excavator/config/mcts_cuda.yml), [posegen.yml](../apps/excavator/config/solvers/posegen.yml) |
 | Tabletop parameters | [action_generation.yml](../apps/tabletop/config/action_generation.yml), [environment.yml](../apps/tabletop/config/environment.yml), [inventory.yml](../apps/tabletop/config/inventory.yml), [mcts_cpu.yml](../apps/tabletop/config/mcts_cpu.yml), [mcts_cuda.yml](../apps/tabletop/config/mcts_cuda.yml), [posegen.yml](../apps/tabletop/config/solvers/posegen.yml) |

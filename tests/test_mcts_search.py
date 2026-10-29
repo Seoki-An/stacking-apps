@@ -526,56 +526,21 @@ def test_environment_evaluator_rejects_unsettled_simulation() -> None:
     assert result.rejection_reason == "simulation_unsettled"
 
 
-@pytest.mark.parametrize("fallback", [False, True])
-def test_environment_evaluator_rechecks_active_floor_after_settling(fallback) -> None:
+def test_environment_evaluator_accepts_settled_pose_without_floor_reclassification():
     class SettledTransition(_Transition):
         def step(self, action):
             state = super().step(action)
             state.object_poses[action.object_id] = action.pose.copy()
-            state.object_poses[action.object_id][0] += 0.02
+            state.object_poses[action.object_id][2] += 0.2
             self.state = state.copy()
             return state
+    environment = StackingEnvironment(SettledTransition(), _ObservationBuilder(), _RewardEvaluator())
+    evaluator = StackingEnvironmentEvaluator({EvaluationFidelity.LONG: environment})
+    result = evaluator.evaluate(_state(), _action(0), EvaluationFidelity.LONG)
+    assert not result.failed
+    assert result.rejection_reason is None
+    assert 'settled_active_floor_checked' not in result.diagnostics
 
-    class FloorPolicy:
-        def active_floor_rejection(self, state, action):
-            assert not state.placed_object_indices
-            assert action.pose[0] == pytest.approx(0.02)
-            return "disconnected_active_layer", {"settled_floor_x": action.pose[0]}
-
-    environment = StackingEnvironment(
-        SettledTransition(),
-        _ObservationBuilder(),
-        _RewardEvaluator(),
-    )
-    evaluator = StackingEnvironmentEvaluator(
-        {EvaluationFidelity.LONG: environment},
-        settled_floor_policy=FloorPolicy(),
-    )
-    action = _action(
-        0,
-        diagnostics=(
-            {
-                "floor_fill_fallback": True,
-                "floor_fill_bypassed_reason": "disconnected_active_layer",
-            }
-            if fallback
-            else None
-        ),
-    )
-
-    result = evaluator.evaluate(_state(), action, EvaluationFidelity.LONG)
-
-    assert result.diagnostics["settled_active_floor_checked"]
-    assert result.diagnostics["settled_floor_x"] == pytest.approx(0.02)
-    assert result.failed is (not fallback)
-    assert result.rejection_reason == (
-        None if fallback else "active_floor_disconnected_active_layer"
-    )
-    if fallback:
-        assert result.diagnostics["floor_fill_fallback"]
-        assert result.diagnostics["floor_fill_bypassed_reason"] == (
-            "disconnected_active_layer"
-        )
 
 
 class _BatchEvaluator(_DeterministicEvaluator):
@@ -1190,7 +1155,7 @@ class _BatchedLongEvaluator:
         return tuple(self._result(s, a, fidelity) for s, a in zip(states, actions))
 
 
-class _FloorFallbackGenerator(_RemainingObjectGenerator):
+class _CornerFallbackGenerator(_RemainingObjectGenerator):
     def __init__(self, *, reject_floor=False):
         self.relaxed = False
         self.reject_floor = reject_floor
@@ -1200,7 +1165,7 @@ class _FloorFallbackGenerator(_RemainingObjectGenerator):
     def begin_retry(self, excluded_actions):
         self.retries += 1
 
-    def floor_fill_fallback(self):
+    def corner_seed_fallback(self):
         from contextlib import contextmanager
 
         @contextmanager
@@ -1224,7 +1189,7 @@ class _FloorFallbackGenerator(_RemainingObjectGenerator):
         return result
 
 
-class _FloorFallbackEvaluator:
+class _CornerFallbackEvaluator:
     def __init__(self, *, strict_succeeds=False, fail_relaxed=False, fail_descendants=False, clock=None):
         self.strict_succeeds = strict_succeeds
         self.fail_relaxed = fail_relaxed
@@ -1248,7 +1213,7 @@ class _FloorFallbackEvaluator:
             failed=failed, rejection_reason='target_motion_limit' if failed else None)
 
 
-def _floor_fallback_search(generator, evaluator, *, depth=1):
+def _corner_fallback_search(generator, evaluator, *, depth=1):
     return MonteCarloTreeSearch(
         _root_policy_config(max_depth=depth, root_lookahead=True, rejected_root_retry_rounds=2,
             final_selection=FinalSelectionConfig(max_weight=.5,
@@ -1260,11 +1225,11 @@ def _floor_fallback_search(generator, evaluator, *, depth=1):
 
 
 @pytest.mark.parametrize('reject_floor', [False, True])
-def test_floor_fallback_finds_valid_placement_after_strict_exhaustion(reject_floor):
+def test_corner_fallback_finds_valid_placement_after_seed_exhaustion(reject_floor):
     from stacking_common.workflows.mcts_reporting import search_statistics
-    generator = _FloorFallbackGenerator(reject_floor=reject_floor)
-    evaluator = _FloorFallbackEvaluator()
-    search = _floor_fallback_search(generator, evaluator)
+    generator = _CornerFallbackGenerator(reject_floor=reject_floor)
+    evaluator = _CornerFallbackEvaluator()
+    search = _corner_fallback_search(generator, evaluator)
     result = search.search(
         MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
             root_sampling_priority='lower_floor_first', deeper_sampling_priority='lower_floor_first',
@@ -1280,7 +1245,7 @@ def test_floor_fallback_finds_valid_placement_after_strict_exhaustion(reject_flo
     saved = search_statistics(result, 0., search, step=1)
     assert saved['floor_fill_fallback'] == {
         'attempted': True, 'pools': 1, 'generated': 2, 'accepted': 2, 'selected': True,
-        'policy': 'floor_fill',
+        'policy': 'corner_seed',
     }
     if not reject_floor:
         assert result.root_retry.rounds == 2
@@ -1288,14 +1253,14 @@ def test_floor_fallback_finds_valid_placement_after_strict_exhaustion(reject_flo
 
 @pytest.mark.parametrize("recovery", ["root_retry", "floor_fallback"])
 def test_recovered_root_resumes_deep_search_with_remaining_budget(recovery):
-    class Generator(_FloorFallbackGenerator):
+    class Generator(_CornerFallbackGenerator):
         def begin_retry(self, excluded_actions):
             super().begin_retry(excluded_actions)
             if recovery == "root_retry":
                 self.relaxed = True
 
     generator = Generator(reject_floor=recovery == "floor_fallback")
-    evaluator = _FloorFallbackEvaluator()
+    evaluator = _CornerFallbackEvaluator()
     state = _state()
     state.object_ids = [10 * (i + 1) for i in range(8)]
     search = MonteCarloTreeSearch(
@@ -1318,18 +1283,18 @@ def test_recovered_root_resumes_deep_search_with_remaining_budget(recovery):
 
 
 def test_empty_search_does_not_spend_iterations_or_claim_a_timeout():
-    result = _floor_fallback_search(
-        _FloorFallbackGenerator(reject_floor=True),
-        _FloorFallbackEvaluator(fail_relaxed=True), depth=3,
+    result = _corner_fallback_search(
+        _CornerFallbackGenerator(reject_floor=True),
+        _CornerFallbackEvaluator(fail_relaxed=True), depth=3,
     ).search(MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=128))
     assert result.selected is None
     assert result.completed_iterations == 0
     assert not result.timed_out
 
 
-def test_floor_fallback_does_not_run_when_strict_search_succeeds():
-    generator = _FloorFallbackGenerator()
-    result = _floor_fallback_search(generator, _FloorFallbackEvaluator(strict_succeeds=True)).search(
+def test_corner_fallback_does_not_run_when_strict_search_succeeds():
+    generator = _CornerFallbackGenerator()
+    result = _corner_fallback_search(generator, _CornerFallbackEvaluator(strict_succeeds=True)).search(
         MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
             ))
     assert result.selected is not None
@@ -1338,8 +1303,8 @@ def test_floor_fallback_does_not_run_when_strict_search_succeeds():
 
 
 @pytest.mark.parametrize('fail_descendants', [False, True])
-def test_floor_root_survives_when_only_its_continuation_needs_relaxation(fail_descendants):
-    class Generator(_FloorFallbackGenerator):
+def test_root_survives_missing_continuations_without_sampling_relaxation(fail_descendants):
+    class Generator(_CornerFallbackGenerator):
         roots = []
 
         def generate(self, state, observation, request):
@@ -1351,9 +1316,9 @@ def test_floor_root_survives_when_only_its_continuation_needs_relaxation(fail_de
             return super().generate(state, observation, request)
 
     generator = Generator()
-    evaluator = _FloorFallbackEvaluator(strict_succeeds=True,
+    evaluator = _CornerFallbackEvaluator(strict_succeeds=True,
                                        fail_descendants=fail_descendants)
-    search = _floor_fallback_search(generator, evaluator, depth=3)
+    search = _corner_fallback_search(generator, evaluator, depth=3)
     root = MCTSNode(state=State([10, 20, 30, 40], [], {}, [], []), observation=())
     result = search.search(root, MCTSSearchRequest(iterations=1,
         root_sampling_priority='lower_floor_first', deeper_sampling_priority='lower_floor_first',
@@ -1369,11 +1334,11 @@ def test_floor_root_survives_when_only_its_continuation_needs_relaxation(fail_de
 
 
 @pytest.mark.parametrize('fail_descendants', [False, True])
-def test_floor_fallback_preserves_physics_but_relaxes_missing_continuations(fail_descendants):
-    generator = _FloorFallbackGenerator()
-    evaluator = _FloorFallbackEvaluator(fail_relaxed=not fail_descendants,
+def test_corner_fallback_preserves_physics_and_descendant_depth_fallback(fail_descendants):
+    generator = _CornerFallbackGenerator()
+    evaluator = _CornerFallbackEvaluator(fail_relaxed=not fail_descendants,
                                        fail_descendants=fail_descendants)
-    result = _floor_fallback_search(generator, evaluator, depth=3 if fail_descendants else 1).search(
+    result = _corner_fallback_search(generator, evaluator, depth=3 if fail_descendants else 1).search(
         MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
             ))
     assert result.floor_fill_fallback.attempted
@@ -1392,11 +1357,11 @@ def test_floor_fallback_preserves_physics_but_relaxes_missing_continuations(fail
         assert result.floor_fill_fallback.accepted == 0
 
 
-def test_floor_fallback_respects_search_deadline(monkeypatch):
+def test_corner_fallback_respects_search_deadline(monkeypatch):
     clock = [0.]
     monkeypatch.setattr('stacking_common.search.mcts.search.time.monotonic', lambda: clock[0])
-    generator = _FloorFallbackGenerator()
-    result = _floor_fallback_search(generator, _FloorFallbackEvaluator(clock=clock)).search(
+    generator = _CornerFallbackGenerator()
+    result = _corner_fallback_search(generator, _CornerFallbackEvaluator(clock=clock)).search(
         MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
             max_time_seconds=10., ))
     assert result.selected is None and result.timed_out
@@ -1404,24 +1369,37 @@ def test_floor_fallback_respects_search_deadline(monkeypatch):
     assert not any(relaxed for relaxed, _ in generator.calls)
 
 
-def test_next_placement_rebuilds_relaxed_continuations_under_strict_policy():
-    generator = _FloorFallbackGenerator()
-    evaluator = _FloorFallbackEvaluator()
-    search = _floor_fallback_search(generator, evaluator, depth=3)
+def test_promoted_corner_fallback_keeps_evaluated_descendants():
+    generator = _CornerFallbackGenerator()
+    evaluator = _CornerFallbackEvaluator()
+    search = _corner_fallback_search(generator, evaluator, depth=3)
     state = State([10, 20, 30, 40], [], {}, [], [])
-    request = MCTSSearchRequest(iterations=1, )
-    first = search.search(MCTSNode(state=state, observation=()), request)
+    first = search.search(MCTSNode(state=state, observation=()), MCTSSearchRequest(iterations=1))
     assert first.selected is not None and first.selected.children
     retained = tuple(first.selected.children)
-    calls_before = len(generator.calls)
-    second = search.search(first.selected, request)
-    assert generator.calls[calls_before][0] is False
-    assert all(child.parent is None for child in retained)
-    assert second.floor_fill_fallback.attempted
+    second = search.search(first.selected, MCTSSearchRequest(iterations=1))
+    assert all(child.parent is second.root for child in retained)
+    assert not second.floor_fill_fallback.attempted
 
 
-def test_floor_fallback_retries_fresh_pools_until_one_qualifies():
-    class Generator(_FloorFallbackGenerator):
+def test_nonempty_root_does_not_invoke_floor_or_corner_relaxation():
+    class Generator(_RemainingObjectGenerator):
+        def corner_seed_fallback(self):
+            pytest.fail('corner fallback only applies to the empty scene')
+        def floor_fill_fallback(self):
+            pytest.fail('floor relaxation has been removed')
+    state = _state()
+    state.placed_object_indices = [0]
+    state.object_poses[10] = np.array([0., 0., 0., 0., 0., 0., 1.])
+    result = _corner_fallback_search(Generator(), _CornerFallbackEvaluator()).search(
+        MCTSNode(state=state, observation=()), MCTSSearchRequest(iterations=1))
+    assert result.selected is None
+    assert not result.floor_fill_fallback.attempted
+
+
+
+def test_corner_fallback_retries_fresh_pools_until_one_qualifies():
+    class Generator(_CornerFallbackGenerator):
         relaxed_pools = 0
         excluded = None
 
@@ -1437,7 +1415,7 @@ def test_floor_fallback_retries_fresh_pools_until_one_qualifies():
                 candidate.action.diagnostics['relaxed_pool'] = self.relaxed_pools
             return result
 
-    class Evaluator(_FloorFallbackEvaluator):
+    class Evaluator(_CornerFallbackEvaluator):
         def evaluate(self, state, action, fidelity):
             result = super().evaluate(state, action, fidelity)
             if action.diagnostics.get('relaxed_pool') != 1:
@@ -1448,7 +1426,7 @@ def test_floor_fallback_retries_fresh_pools_until_one_qualifies():
                                         rejection_reason='target_motion_limit')
 
     generator = Generator()
-    result = _floor_fallback_search(generator, Evaluator()).search(
+    result = _corner_fallback_search(generator, Evaluator()).search(
         MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
             ))
     assert result.selected is not None
@@ -1471,7 +1449,7 @@ def test_backend_capacity_failure_stops_search_without_retry_or_floor_fallback(f
                 self.failures += 1
                 raise BackendCapacityError('posegen', 'bodies', 33, 32, request_id=4, stage=0)
             return super().generate(state, observation, request)
-        def floor_fill_fallback(self):
+        def corner_seed_fallback(self):
             pytest.fail('capacity exhaustion must not retry with relaxed floor rules')
 
     generator = Generator()
@@ -1496,13 +1474,8 @@ def test_backend_capacity_failure_stops_search_without_retry_or_floor_fallback(f
 
 @pytest.mark.parametrize('generation_failure', [False, True])
 def test_empty_root_retries_ordinary_sampling_after_corner_validation_failure(generation_failure):
-    class CornerGenerator(_FloorFallbackGenerator):
-        def corner_seed_fallback(self):
-            return super().floor_fill_fallback()
-        def floor_fill_fallback(self):
-            pytest.fail('empty-root fallback must not relax the floor policy')
-    generator = CornerGenerator(reject_floor=generation_failure)
-    result = _floor_fallback_search(generator, _FloorFallbackEvaluator()).search(
+    generator = _CornerFallbackGenerator(reject_floor=generation_failure)
+    result = _corner_fallback_search(generator, _CornerFallbackEvaluator()).search(
         MCTSNode(state=_state(), observation=()), MCTSSearchRequest(iterations=1,
             root_sampling_priority='lower_floor_first', deeper_sampling_priority='lower_floor_first',
             ))

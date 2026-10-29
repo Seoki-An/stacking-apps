@@ -3,7 +3,6 @@
 from collections.abc import Callable, Mapping, Sequence
 
 from stacking_common.actions import (
-    ActiveFloorFilter,
     CEMRootActionGenerator,
     CorePlacementPoseSolver,
     MeshHeightInitializer,
@@ -145,11 +144,6 @@ class StackingSearchApplication:
             if environments is not None or worker_count == 1 or cuda_simulation:
                 transition_evaluator = StackingEnvironmentEvaluator(
                     environments or self.build_search_environments(inventory),
-                    settled_floor_policy=(
-                        self.build_floor_policy(inventory)
-                        if self.action_generation_profile.strict_floor_first
-                        else None
-                    ),
                 )
             else:
                 transition_evaluator = self.build_parallel_transition_evaluator(
@@ -232,11 +226,6 @@ class StackingSearchApplication:
             [
                 StackingEnvironmentEvaluator(
                     self.build_search_environments(inventory),
-                    settled_floor_policy=(
-                        self.build_floor_policy(inventory)
-                        if self.action_generation_profile.strict_floor_first
-                        else None
-                    ),
                 )
                 for _ in range(worker_count)
             ],
@@ -340,7 +329,6 @@ class StackingSearchApplication:
             pose_solver=pose_solver,
             worker_pose_solvers=worker_pose_solvers,
             filters=(
-                *((ActiveFloorFilter(floor_policy),) if profile.strict_floor_first else ()),
                 *self.build_orientation_filters(floor_policy),
                 *filters,
             ),

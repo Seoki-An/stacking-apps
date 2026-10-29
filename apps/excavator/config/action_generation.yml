@@ -9,8 +9,6 @@ initialization:
   xy_padding: 0.12
 filtering:
   # Shared filter policy; physical gap limits are platform-specific.
-  # Optional solved/settled floor-order check; disabled for the current comparison.
-  strict_floor_first: false
   require_solver_convergence: false
   reject_equilibrium_at_threshold: true
   posegen_equilibrium_threshold: 1.0

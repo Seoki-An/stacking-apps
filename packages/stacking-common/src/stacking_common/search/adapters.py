@@ -90,8 +90,6 @@ class StackingEnvironmentEvaluator(Generic[ObservationT]):
             EvaluationFidelity,
             StackingEnvironment[ObservationT],
         ],
-        *,
-        settled_floor_policy=None,
     ) -> None:
         normalized = {
             EvaluationFidelity(fidelity): environment
@@ -100,7 +98,6 @@ class StackingEnvironmentEvaluator(Generic[ObservationT]):
         if not normalized:
             raise ValueError("at least one search evaluation environment is required")
         self.environments = normalized
-        self.settled_floor_policy = settled_floor_policy
         self.worker_count = 1
         for environment in normalized.values():
             transition = getattr(environment, "transition", None)
@@ -139,26 +136,6 @@ class StackingEnvironmentEvaluator(Generic[ObservationT]):
         rejection_reason = _transition_rejection_reason(
             result.state, diagnostics
         )
-        if rejection_reason is None and self.settled_floor_policy is not None:
-            settled_pose = result.state.object_poses.get(action.object_id)
-            if settled_pose is not None:
-                settled_action = action.copy()
-                settled_action.pose = np.asarray(settled_pose, dtype=float).copy()
-                floor_reason, floor_diagnostics = (
-                    self.settled_floor_policy.active_floor_rejection(
-                        parent_state, settled_action
-                    )
-                )
-                diagnostics.update(floor_diagnostics)
-                diagnostics["settled_active_floor_checked"] = True
-                if action.diagnostics.get("floor_fill_fallback", False):
-                    diagnostics["floor_fill_fallback"] = True
-                    diagnostics["floor_fill_bypassed_reason"] = (
-                        floor_reason
-                        or action.diagnostics.get("floor_fill_bypassed_reason")
-                    )
-                elif floor_reason is not None:
-                    rejection_reason = f"active_floor_{floor_reason}"
         failed = bool(result.state.failed or rejection_reason is not None)
         return TransitionEvaluation(
             state=result.state,

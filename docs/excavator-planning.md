@@ -123,9 +123,9 @@ These are stricter starting settings, to be evaluated on representative scenes;
 more rejections or longer settling can reduce search throughput.
 
 `generation.root_sampling_priority` and `deeper_sampling_priority` remain
-`lower_floor_first`. Floor policy guides initial XY proposals; the default
-`filtering.strict_floor_first: false` disables solved-pose, MCTS settled-pose,
-and final fixed-scene floor rejection. The excavator uses `coverage_mode: projected_footprint`:
+`lower_floor_first`. Floor policy guides initial XY proposals. Strict solved-pose, MCTS settled-pose,
+and final fixed-scene floor rejection have been removed, along with the
+`strict_floor_first` option. The excavator uses `coverage_mode: projected_footprint`:
 coverage is the union of the layer stones' full XY footprints, clipped to the
 target base and estimated on a coarse **16×16 cell-center grid**. Overlapping
 footprints count once. The placement search still uses its 32×32 grid.
@@ -153,8 +153,8 @@ active floor's support height plus the bottom tolerance. It retains Boltzmann an
 spatial-diversity sampling within that pool, then fills unused slots from higher
 candidates. Solved and settled placements may move above the active layer.
 Pose feasibility, penetration, physics, and individual-stone containment remain
-acceptance checks. Opting into `filtering.strict_floor_first: true` restores
-active-floor rejection after pose solving, MCTS simulation, and fixed-scene settling.
+acceptance checks. Solved height and active-layer connectivity do not introduce
+additional rejection after optimization or simulation.
 
 For `excavator_plan4.stack` after ten placements, the previous bottom-slice estimate
 was 56.5%; the coarse projected estimate is 68.75%, allowing immediate advancement
@@ -168,7 +168,7 @@ The shared policy defaults to bottom-slice coverage for existing callers such as
 tabletop. The standalone scored sampler retains the legacy calculation when no
 floor policy is supplied; the legacy capture test supplies its original 32×32
 occupancy settings. The unused legacy `lower_floor_fill_reject_stacked` key has
-been removed; `strict_floor_first` controls enforcement. Start a new run to use
+been removed, as has strict-floor enforcement. Start a new run to use
 the changed profile, since resume validates the original saved settings.
 
 CEM retains at most two candidates per stone, uses 50% fresh proposals in each
@@ -1721,37 +1721,16 @@ scoring (about 8 s) and waits on reward workers. See the
 [benchmark data](benchmarks/excavator-mcts-shared-diagnostics-20261021.json).
 
 
-### Floor-fill fallback after search exhaustion
+### Sampling fallback after search exhaustion
 
-This recovery path applies only when `filtering.strict_floor_first` is enabled.
-The current excavator default uses floor guidance only in the initial XY sampler.
+Strict-floor rejection and its relaxation retry have been removed. When the
+empty scene's corner-seeded search fails, MCTS may retry ordinary proposals
+within the same deadline and remaining iteration budget. Connectivity, target
+containment and physical validation are unchanged. Existing placed scenes do
+not use this corner fallback. Evaluated descendants remain eligible for reuse.
 
-With strict filtering enabled, excavator search first uses the configured floor-fill threshold and ordinary
-root retries. If no candidate remains selectable, its scored action generator
-allows an initial root pool and up to `rejected_root_retry_rounds` further pools
-without the active-floor rejection, lower-floor sampling priority, or
-floor-gap restriction. The connectivity mask remains active on sampled seeds.
-Later pools exclude earlier candidates. This
-fallback shares the original search deadline, remaining iteration budget, and
-existing candidate/validation limits. After admitting a retry or fallback pool,
-search resumes ordinary descendant expansion and progressive widening; it does
-not stop after the first lookahead level. Empty rejected pools do not consume
-backup iterations.
-It does not reduce the configured coverage threshold globally.
-
-Pose-solve feasibility, target containment, simulation, noisy-placement
-robustness, execution exclusions, and required descendant validation still
-apply. A fallback cannot turn a physically rejected pose into a selectable one.
-Generated actions carry `floor_fill_fallback` so the excavator's final
-fixed-scene check also permits the relaxed floor decision while still requiring
-successful settling and motion planning. The next placement starts strict;
-promoted continuations generated during fallback are rebuilt.
-
-Saved search statistics include `floor_fill_fallback` with `attempted`,
-`pools`, `generated`, `accepted` (immediate root validation), and `selected`. Action
-diagnostics also record `floor_fill_bypassed_reason`. The fallback is available
-with both CPU and CUDA simulation and is inactive when the strict floor filter
-is disabled.
+Saved statistics retain the historical `floor_fill_fallback` field name for
+compatibility; new fallback records use `policy: corner_seed`.
 
 
 ## Run

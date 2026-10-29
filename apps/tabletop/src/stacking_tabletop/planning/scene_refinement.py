@@ -28,7 +28,6 @@ from stacking_tabletop.execution.saved_plan import validate_command
 from .adapter import TabletopMotionPlannerAdapter
 from .coordinator import TabletopPlanningCoordinator
 from .native import TabletopNativePlanningBackend
-from .safety import TabletopPlacementSafety
 from .scene_identification import prepare_saved_stack_candidate
 
 
@@ -196,12 +195,6 @@ def _coordinator(saved, repository, checkpoint, inventory, progress):
     solver = NativeSolverProfile(**dict(profiles['native_solver']))
     simulation = _recorded_simulation(profiles['simulation_profile'])
     robustness = PlaceStabilityConfig(**dict(profiles['environment_profile']['place_stability']))
-    action_profile = profiles['action_generation_profile']
-    safety = None
-    if action_profile['strict_floor_first']:
-        from stacking_common.actions.floor import floor_policy_settings
-        safety = TabletopPlacementSafety(
-            inventory, **floor_policy_settings(action_profile['sampling_settings']['floor']))
     backend = TabletopNativePlanningBackend(inventory, saved.planning, solver, repository)
     placement = CorePlacementBackend.from_profile(
         inventory.models, simulation, place_stability=robustness)
@@ -217,7 +210,7 @@ def _coordinator(saved, repository, checkpoint, inventory, progress):
 
     return TabletopPlanningCoordinator(
         inventory, problem, TabletopMotionPlannerAdapter(backend.solve),
-        placement_backend=placement, safety=safety,
+        placement_backend=placement,
         world_T_stack=saved.planning.world_T_stack, progress=progress,
         context_sha256=saved.context.sha256,
     )

@@ -164,8 +164,6 @@ def test_pick_scene_rejects_malformed_inputs(tmp_path, value):
 def test_fixed_scene_failure_and_unlifted_commit(application, inventory, failed):
     # This fixture tests pose bookkeeping with disconnected synthetic stones;
     # strict floor rejection is covered by test_excavator_floor_first.
-    application = replace(application, action_generation_profile=replace(
-        application.action_generation_profile, strict_floor_first=False))
     state = State([55, 50], [0], {55: pose(.2, .3, .4)}, [], [])
     action = Action(1, pose(.5, .6, .8), pose(), object_id=50)
     calls = []

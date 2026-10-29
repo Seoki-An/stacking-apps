@@ -1,4 +1,4 @@
-"""Platform-neutral active-floor geometry shared by sampling and validation."""
+"""Platform-neutral active-floor geometry used by sampling and orientation diagnostics."""
 
 from __future__ import annotations
 
@@ -10,14 +10,14 @@ from .target_regions import TargetRegions, ground_height
 
 
 def floor_policy_settings(settings) -> dict:
-    """Extract layer geometry and solved-pose limits from the unified floor block."""
+    """Extract layer geometry from the unified floor block."""
     return {key: settings[key] for key in (
         "coverage_mode", "bottom_tolerance", "fill_ratio", "grid_size",
     )}
 
 
 class ActiveFloorPolicy:
-    """Enforce lower-floor filling with limits supplied by the platform."""
+    """Track occupied layers and measure candidate floor overlap."""
 
     def __init__(
         self, inventory: ObjectInventory, *, bottom_tolerance: float,
@@ -50,24 +50,24 @@ class ActiveFloorPolicy:
         self._entries: dict = {}
         self._masks: dict = {}
 
-    def active_floor_rejection(
+    def pose_diagnostics(
         self,
         state: State,
         action: Action,
         *, context: dict[str, object] | None = None,
-    ) -> tuple[str | None, dict[str, object]]:
-        """Reject a settled pose above or disconnected from an unfilled layer."""
+    ) -> dict[str, object]:
+        """Describe candidate overlap without rejecting its solved pose."""
 
         if context is None:
             context = self.context_details(state)
         if self.target_regions is not None:
-            return self._composite_rejection(action, context)
-        reason, diagnostics = self._reject_at_layer(
+            return self._composite_diagnostics(action, context)
+        diagnostics = self._layer_diagnostics(
             action, context["support_z"], context["occupied"],
             neighbors=context["occupied_neighbor"], grid=(context["xx"], context["yy"]))
         diagnostics["fixed_scene_active_layer_coverage_mode"] = self.coverage_mode
         diagnostics["fixed_scene_completed_layers"] = context["completed_layers"]
-        return reason, diagnostics
+        return diagnostics
 
     def context(self, state: State) -> tuple[float, np.ndarray]:
         """Find the first layer below the configured coverage threshold."""
@@ -77,7 +77,7 @@ class ActiveFloorPolicy:
         return context["support_z"], context["occupied"]
 
     def context_details(self, state: State) -> dict[str, object]:
-        """Share the active layer's geometry between sampling and validation."""
+        """Share active-layer geometry with sampling and orientation diagnostics."""
         if self.target_regions is not None:
             return self._composite_context(state)
         entries = [
@@ -118,7 +118,7 @@ class ActiveFloorPolicy:
             "completed_layers": completed_layers,
         }
 
-    def _reject_at_layer(self, action, support_z, occupied, *, neighbors=None, grid=None, valid=None):
+    def _layer_diagnostics(self, action, support_z, occupied, *, neighbors=None, grid=None, valid=None):
         candidate = self._entry(action.object_index, action.pose)
         above = float(candidate["bottom"]) > support_z + self.bottom_tolerance
         candidate_cells = (self._mask(candidate, support_z, grid=grid) if valid is None else
@@ -150,22 +150,7 @@ class ActiveFloorPolicy:
             "fixed_scene_active_layer_occupancy": (float(np.mean(occupied)) if valid is None else
                                                     float(np.count_nonzero(occupied) / max(np.count_nonzero(valid), 1))),
         }
-        if valid is not None and cell_count == 0:
-            diagnostics["active_floor_reject_reason"] = "outside_active_region"
-            return "outside_active_region", diagnostics
-        if above:
-            diagnostics["active_floor_reject_reason"] = "above_active_layer"
-            return "above_active_layer", diagnostics
-        if (
-            np.any(occupied)
-            and fill_score > 0.0
-            and contact == 0
-        ):
-            diagnostics["active_floor_reject_reason"] = (
-                "disconnected_active_layer"
-            )
-            return "disconnected_active_layer", diagnostics
-        return None, diagnostics
+        return diagnostics
 
     def _composite_context(self, state):
         entries = [self._entry(index, state.object_poses[state.object_ids[index]])
@@ -214,22 +199,22 @@ class ActiveFloorPolicy:
             mask |= _volume_columns(normals, offsets, xx, yy)[0]
         return mask
 
-    def _composite_rejection(self, action, context):
+    def _composite_diagnostics(self, action, context):
         metadata = self.target_regions.pose_metadata(self.inventory, action.object_index, action.pose)
         candidate = self._entry(action.object_index, action.pose)
         regions = [region for region in context["regions"] if region["region_id"] in metadata["target_region_ids"]]
         if not regions:
-            return "outside_target_region", {**metadata,
+            return {**metadata,
                 "fixed_scene_active_layer_fill_score": 0., "fixed_scene_active_layer_above": False}
         # Resolve the placement's region from geometry, not a stale CEM label.
         region = max(regions, key=lambda item: np.count_nonzero(
             self._projected_mask(candidate, item["xx"], item["yy"]) & item["valid"]))
-        reason, diagnostics = self._reject_at_layer(action, region["support_z"], region["occupied"],
+        diagnostics = self._layer_diagnostics(action, region["support_z"], region["occupied"],
             neighbors=region["occupied_neighbor"], grid=(region["xx"], region["yy"]), valid=region["valid"])
         diagnostics.update(metadata, target_region_id=region["region_id"],
             fixed_scene_active_layer_coverage_mode=self.coverage_mode,
             fixed_scene_completed_layers=region["completed_layers"])
-        return reason, diagnostics
+        return diagnostics
 
     def _entry(self, object_index: int, pose: np.ndarray) -> dict[str, object]:
         pose = np.asarray(pose, dtype=float)

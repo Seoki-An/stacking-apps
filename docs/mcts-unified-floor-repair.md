@@ -3,9 +3,9 @@
 **Current status (2026-10-29):** continuation repair and the empty-floor overlap
 admission mask have been removed at the user’s request. The implementation below
 is historical. Its code/config snapshot is at
-`/tmp/mcts-before-remove-floor-mask-repair-20261029-115556`. Strict floor checks,
-root exhaustion fallback, fill-area scoring, descendant-depth selection and
-unified simulation remain. Height reward still uses relief improvement.
+`/tmp/mcts-before-remove-floor-mask-repair-20261029-115556`. Strict floor rejection has also been removed.
+XY connectivity, active-floor tracking, fill-area scoring, descendant-depth
+selection and unified simulation remain. Height reward still uses relief improvement.
 
 This temporary excavator experiment restores floor admission and bounded
 continuation search without restoring SHORT/LONG simulation, authoritative

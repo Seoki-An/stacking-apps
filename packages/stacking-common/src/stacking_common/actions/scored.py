@@ -21,7 +21,6 @@ from . import _scored_floor as floor
 from ._support_maps import bottom_height_kernel
 from .types import PlanarPlacement, PlacementFilterDecision
 from .generator import PlacementActionGenerator
-from .filtering import ActiveFloorFilter
 from stacking_common.domain import CompositeTargetGeometry
 from stacking_common.search.types import ActionGenerationResult
 
@@ -331,22 +330,6 @@ class ScoredPlacementActionGenerator(PlacementActionGenerator):
             yield True
         finally:
             self.planar_sampler.relax_corner_seed = previous
-
-    @contextmanager
-    def floor_fill_fallback(self):
-        """Temporarily admit every floor after a strict root search exhausts."""
-        filters = self.filters
-        if not any(isinstance(item, ActiveFloorFilter) for item in filters):
-            yield False
-            return
-        self.filters = tuple(
-            ActiveFloorFilter(item.policy, relaxed=True)
-            if isinstance(item, ActiveFloorFilter) else item for item in filters
-        )
-        try:
-            yield True
-        finally:
-            self.filters = filters
 
     def generate_batch(self, states, observations, requests):
         if not (len(states) == len(observations) == len(requests)):

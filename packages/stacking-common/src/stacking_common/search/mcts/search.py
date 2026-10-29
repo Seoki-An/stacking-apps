@@ -138,7 +138,7 @@ class FloorFillFallbackResult:
     accepted: int = 0
     selected: bool = False
 
-    policy: str = "floor_fill"
+    policy: str = "corner_seed"
 
 
 @dataclass(frozen=True)
@@ -295,11 +295,6 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         iteration_deadline = deadline
         counters = _SearchCounters(generation_deadline=iteration_deadline)
         root.detach()
-        # Relaxation applies to one placement only. Rebuild any promoted
-        # fallback continuations under the normal floor policy next time.
-        if any(child.action is not None and child.action.diagnostics.get("floor_fill_fallback")
-               for child in root.children):
-            root.clear_children()
         self._apply_execution_rejections(root, request, counters)
         selected, ranked_candidates = None, ()
         fallback = FloorFillFallbackResult()
@@ -386,7 +381,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 )
                 selected, ranked_candidates = self._final_select(root)
             if selected is None:
-                selected, ranked_candidates, fallback = self._run_floor_fill_fallback(
+                selected, ranked_candidates, fallback = self._run_corner_seed_fallback(
                     root, request, counters, deadline
                 )
         except BackendCapacityError as error:
@@ -513,25 +508,22 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     break
                 counters.completed_iterations += consumed
 
-    def _run_floor_fill_fallback(self, root, request, counters, deadline):
-        """Retry corner seeds or floor filling within the original deadline.
+    def _run_corner_seed_fallback(self, root, request, counters, deadline):
+        """Retry empty-scene corner seeds within the original deadline.
 
         After the first pool, up to rejected_root_retry_rounds fresh pools run,
         each excluding earlier candidates, until one yields a selection.
         """
         empty = root.state is not None and not root.state.placed_object_indices
-        corner_relax = getattr(self.action_generator, "corner_seed_fallback", None)
-        policy = "corner_seed" if empty and callable(corner_relax) else "floor_fill"
-        relax = (corner_relax if policy == "corner_seed" else
-                 getattr(self.action_generator, "floor_fill_fallback", None))
-        if (not callable(relax)
+        relax = getattr(self.action_generator, "corner_seed_fallback", None)
+        policy = "corner_seed"
+        if (not empty or not callable(relax)
                 or (deadline is not None and time.monotonic() >= deadline)):
             return None, (), FloorFillFallbackResult()
         with relax() as enabled:
             if not enabled:
                 return None, (), FloorFillFallbackResult()
-            # Rebuild the root under the fallback proposal policy. Floor retries
-            # may also recover roots that lacked a strict-floor continuation.
+            # Rebuild the empty root with ordinary proposals instead of corner seeds.
             root.clear_children()
             begin_retry = getattr(self.root_action_generator, "begin_retry", None)
             counters.generation_deadline = deadline

@@ -8,7 +8,6 @@ from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation
 
 from stacking_common.actions import (
-    ActiveFloorFilter,
     CEMRootActionGenerator,
     CEMRootConfig,
     InitializedPlacement,
@@ -148,21 +147,15 @@ def test_cem_expired_deadline_does_not_start_native_work(monkeypatch):
     assert cem.last_statistics.timed_out
 
 
-def test_early_floor_filter_matches_final_validation_for_floating_and_disconnected_poses():
-    inventory = _inventory()
-    state = _state(inventory, placed=(0,))
-    policy = _tabletop_floor_policy(inventory)
-    early = ActiveFloorFilter(policy)
+def test_floor_diagnostics_describe_height_without_rejecting():
     from stacking_common.domain import Action
-    for pose, expected in [(_pose(z=0.08), "above_active_layer"),
-                           (_pose(x=0.1, z=0.02), "disconnected_active_layer")]:
-        initial = InitializedPlacement(pose, 0.0, ())
-        solved = PlacementSolveResult(pose, c_feq=0.0, c_gap=0.0)
-        decision = early.evaluate(inventory, state, 1, initial, solved)
-        reason, _ = policy.active_floor_rejection(state, Action(1, pose, pose, object_id=20))
-        assert reason == expected
-        assert not decision.accepted
-        assert decision.reason == f"active_floor_{expected}"
+    inventory = _inventory()
+    policy = _tabletop_floor_policy(inventory)
+    state = _state(inventory, placed=(0,))
+    info = policy.pose_diagnostics(state, Action(1, _pose(z=.08), _pose(), object_id=20))
+    assert info['fixed_scene_active_layer_above']
+    assert 'active_floor_reject_reason' not in info
+
 
 
 def test_filled_floor_advances_to_next_layer_without_lowering_threshold():
@@ -179,13 +172,12 @@ def test_filled_floor_advances_to_next_layer_without_lowering_threshold():
     assert not np.any(occupied)
     assert policy.fill_ratio == 0.90
     pose = _pose(z=0.06)
-    reason, _ = policy.active_floor_rejection(state, Action(1, pose, pose, object_id=20))
-    assert reason is None
+    info = policy.pose_diagnostics(state, Action(1, pose, pose, object_id=20))
+    assert not info["fixed_scene_active_layer_above"]
     assert state.placed_object_indices == [0]
 
 
-@pytest.mark.parametrize("strict_floor_first", [False, True])
-def test_tabletop_generator_captured_step4_floor_gate_is_optional(strict_floor_first):
+def test_tabletop_generator_accepts_recorded_upper_floor_poses():
     import json
     from dataclasses import replace
     from pathlib import Path
@@ -194,9 +186,6 @@ def test_tabletop_generator_captured_step4_floor_gate_is_optional(strict_floor_f
     root = Path(__file__).resolve().parents[1]
     fixture = json.loads((root / "tests/fixtures/planning/active_floor_step4.json").read_text())
     app = TabletopApplication.from_repository(root)
-    assert not app.action_generation_profile.strict_floor_first
-    app = replace(app, action_generation_profile=replace(
-        app.action_generation_profile, strict_floor_first=strict_floor_first))
     ids = fixture["object_ids"]
     inventory = app.load_inventory(ids, {object_id: _pose() for object_id in ids})
     state = State(ids, [ids.index(o["object_id"]) for o in fixture["placed"]],
@@ -218,13 +207,8 @@ def test_tabletop_generator_captured_step4_floor_gate_is_optional(strict_floor_f
         solver.pose = np.array(recorded["pose"])
         candidate, reason = generator.build_candidate(state,
             ids.index(recorded["object_id"]), PlanarPlacement(np.array(recorded["init_pose"])))
-        if strict_floor_first:
-            assert candidate is None
-            assert reason == recorded["reason"] == "active_floor_above_active_layer"
-        else:
-            assert candidate is not None
-            assert reason is None
-    # Floor-aware proposal scoring stays enabled in either mode.
+        assert candidate is not None
+        assert reason is None
     assert isinstance(generator.planar_sampler.floor_policy, TabletopPlacementSafety)
     generator.close()
 
@@ -1157,68 +1141,6 @@ def test_batched_ply_bounds_match_scalar_and_refresh_after_state_changes(tmp_pat
     check()  # A failed batch must not retain prepared bounds either.
 
 
-@pytest.mark.parametrize('coverage_mode', ['bottom_slice', 'projected_footprint'])
-def test_batched_floor_context_matches_scalar_for_mixed_states_and_refreshes(coverage_mode, monkeypatch):
-    inventory = _inventory()
-    policy = _tabletop_floor_policy(inventory)
-    policy.coverage_mode = coverage_mode
-    first = _state(inventory, (0,))
-    second = first.copy()
-    second.object_poses[10][0] = -.1
-    empty = _state(inventory)
-
-    class Initializer:
-        def initialize(self, inventory, state, index, proposal):
-            return InitializedPlacement(proposal.pose, 0.)
-
-    class BatchSolver(_PoseSolver):
-        def solve_batch(self, inventory, requests):
-            return [self.solve(inventory, *request) for request in requests]
-
-    solver = BatchSolver()
-    generator = PlacementActionGenerator(inventory, PlacementActionGeneratorConfig(
-        max_poses_per_object=1, initial_height_clearance=.01, initial_height_xy_padding=0.,
-        posegen_gap_threshold=None,
-    ), _PlanarSampler(), Initializer(), solver, filters=(ActiveFloorFilter(policy),))
-    jobs = [(0, first, 1, PlanarPlacement(_pose(x=.04, z=.02))),
-            (1, second, 1, PlanarPlacement(_pose(x=.04, z=.02))),
-            (2, empty, 1, PlanarPlacement(_pose(x=.04, z=.02))),
-            (0, first, 1, PlanarPlacement(_pose(z=.08))),
-            (1, second, 1, PlanarPlacement(_pose(x=-.06, z=.02))),
-            (0, first, 1, PlanarPlacement(_pose(x=-.10, z=.02)))]
-    calls = []
-    context_details = policy.context_details
-
-    def counted(state):
-        calls.append(state)
-        return context_details(state)
-
-    monkeypatch.setattr(policy, 'context_details', counted)
-
-    def check():
-        expected = [generator._build_candidate_with_solver(solver, state, index, proposal)
-                    for _, state, index, proposal in jobs]
-        calls.clear()
-        actual = generator._build_jobs(jobs)
-        assert [id(state) for state in calls] == [id(first), id(second), id(empty)]
-        for (candidate, reason), (ref, ref_reason) in zip(actual, expected):
-            assert reason == ref_reason
-            assert (candidate is None) == (ref is None)
-            if candidate is not None:
-                np.testing.assert_array_equal(candidate.action.pose, ref.action.pose)
-                assert candidate.diagnostics == ref.diagnostics
-        return actual
-
-    before = check()
-    assert before[0][1] is None
-    assert before[1][1] == 'active_floor_disconnected_active_layer'
-    assert before[3][1] == 'active_floor_above_active_layer'
-    first.object_poses[10][0] = .12
-    after = check()
-    assert after[0][1] == 'active_floor_disconnected_active_layer'
-    # Returning to an old pose still builds a fresh per-batch context.
-    first.object_poses[10][0] = 0.
-    check()
 
 
 @pytest.mark.parametrize('remaining, expected', [(32, 2), (16, 2), (10, 4), (4, 8), (2, 16), (1, 32)])

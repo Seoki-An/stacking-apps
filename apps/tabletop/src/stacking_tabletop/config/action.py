@@ -20,7 +20,6 @@ class TabletopActionGenerationProfile(ActionGenerationProfile):
     sampling_settings: dict = field(kw_only=True)
 
     def __post_init__(self):
-        super().__post_init__()
         if not isinstance(self.pose_from_scan, bool):
             raise TypeError("orientation.pose_from_scan must be boolean")
 
@@ -31,7 +30,7 @@ def load_action_generation_profile(path, *, max_poses_per_object, banned_object_
     orientation = values.get("orientation", {})
     if not isinstance(orientation, dict):
         raise TypeError("orientation must be a mapping")
-    return TabletopActionGenerationProfile(profile.generator, profile.planar, profile.strict_floor_first,
+    return TabletopActionGenerationProfile(profile.generator, profile.planar,
         orientation.get("pose_from_scan", True),
         sampling_settings=resolve_scored_sampling_settings(values["planar"]))
 
