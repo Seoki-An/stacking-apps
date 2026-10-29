@@ -343,6 +343,7 @@ class CorePlacementBackend:
     """Settle and structurally evaluate placements with stacking-core."""
 
     _ground_entity_id = 0
+    early_quiet_stop = False
 
     @classmethod
     def from_profile(
@@ -848,6 +849,8 @@ class CorePlacementBackend:
                 velocity_integrals,
                 elapsed,
                 quiet_steps,
+                **({'stop_if_quiet_impossible': True}
+                   if self.early_quiet_stop and stage_index == len(phases) - 1 else {}),
             )
             stage_times[stage_name] = max(elapsed - stage_start, 0.0)
             velocity_threshold = phase.velocity_integral_threshold
@@ -874,8 +877,22 @@ class CorePlacementBackend:
         velocity_integrals: dict[int, float],
         elapsed: float,
         quiet_steps: int,
+        *,
+        stop_if_quiet_impossible: bool = False,
     ):
         contacts = []
+        # Reproduce the existing floating-point clock, including its last step
+        # strictly beyond max_time. Count the most optimistic quiet remainder.
+        future_quiet = []
+        if stop_if_quiet_impossible:
+            future_elapsed = elapsed
+            while True:
+                future_elapsed += phase.dt
+                future_quiet.append(future_elapsed > phase.min_time)
+                if future_elapsed > phase.max_time:
+                    break
+        remaining_quiet = sum(future_quiet)
+        completed_steps = 0
         while quiet_steps < phase.extra_steps or elapsed <= phase.min_time:
             result = self.simulator.step(scene, phase.dt)
             scene = result.snapshot
@@ -907,11 +924,16 @@ class CorePlacementBackend:
                     quiet_steps += 1
             else:
                 quiet_steps = 0
+            if stop_if_quiet_impossible:
+                remaining_quiet -= future_quiet[completed_steps]
+                completed_steps += 1
             if (
                 elapsed > phase.max_time
                 or max(velocity_integrals.values(), default=0.0)
                 > phase.velocity_integral_threshold
             ):
+                break
+            if stop_if_quiet_impossible and quiet_steps + remaining_quiet < phase.extra_steps:
                 break
 
         settled = quiet_steps >= phase.extra_steps and elapsed > phase.min_time

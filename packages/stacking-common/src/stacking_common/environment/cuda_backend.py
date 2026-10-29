@@ -28,6 +28,10 @@ class CudaPlacementBackend(CorePlacementBackend):
     # placement in about 2-3 GiB of GPU memory.
     batch_size = 512  # Native capacity: four robustness trials per placement chunk.
     placement_batch_size = 128  # Branches simulated per GPU chunk before CPU results.
+    # Stop already-failed robustness trials. Older native builds retain full replay.
+    early_excursion_stop = True
+    # Experimental: no measured benefit on the saved late-stage workloads.
+    early_quiet_stop = False
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -180,6 +184,8 @@ class CudaPlacementBackend(CorePlacementBackend):
             phases = [self._phase(config, indices, final_object=len(indices) == len(self.object_ids),
                                   continuation=j > 0) for j, config in enumerate(
                 ([self.config.short_gate] if self.config.short_gate else []) + [self.config.structural])]
+            if self.early_quiet_stop and hasattr(phases[-1], 'stop_if_quiet_impossible'):
+                phases[-1].stop_if_quiet_impossible = True
             problems.append(self._problem(i, scene, self.simulation_config, phases))
             contexts[i] = (indices, frozen, scene)
         structural_started = time.perf_counter()
@@ -376,10 +382,16 @@ class CudaPlacementBackend(CorePlacementBackend):
         if self._compact_robustness_history and entities:
             phase.sampled_entities = list(entities)
         phase.motion_limit = 0.  # Intentional disturbances use peak excursion instead.
+        if (self.early_excursion_stop and hasattr(self.core, 'CudaExcursionStopping')
+                and self.place_stability.fail_displacement is not None):
+            stop = self.core.CudaExcursionStopping()
+            stop.limit = self.place_stability.fail_displacement
+            stop.rotation_weight = self.place_stability.rotation_weight
+            phase.excursion = stop
         return phase
 
     def _robustness_outcome(self, initial, config, out):
-        if out.snapshot is None or out.status.name not in ('quiet', 'complete'):
+        if out.snapshot is None or out.status.name not in ('quiet', 'complete', 'excursion_limit'):
             return float('inf'), 'simulation_cuda_' + out.status.name
         histories = {entity: (out.sample_poses(entity) if hasattr(out, 'sample_poses') else
                      np.array([s.snapshot.body_pose(entity) for s in out.samples]))

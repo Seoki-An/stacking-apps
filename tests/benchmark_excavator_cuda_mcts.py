@@ -32,15 +32,17 @@ def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def tree_digest(node):
+def tree_digest(node, *, accepted_only=False):
     """Hash ordered decisions and backed-up values, excluding timing diagnostics."""
     def values(item):
         return dict(
             action=None if item.action is None else [item.action.object_id, item.action.pose.tolist()],
-            poses=None if item.state is None else {
+            poses=None if item.state is None or (accepted_only and item.failed) else {
                 str(key): value.tolist() for key, value in sorted(item.state.object_poses.items())},
-            prior=item.prior, reward=item.reward, visits=item.visits, value_sum=item.value_sum,
-            failed=item.failed, terminal=item.terminal, rejection_reason=item.rejection_reason,
+            prior=item.prior, reward=None if accepted_only and item.failed else item.reward,
+            visits=item.visits, value_sum=item.value_sum,
+            failed=item.failed, terminal=item.terminal,
+            rejection_reason=None if accepted_only and item.failed else item.rejection_reason,
             children=[values(child) for child in item.children])
     return hashlib.sha256(json.dumps(values(node), sort_keys=True).encode()).hexdigest()
 
@@ -56,6 +58,8 @@ def main():
     parser.add_argument('--generation-batch-size', type=int)
     parser.add_argument('--posegen-batch-size', type=int)
     parser.add_argument('--state', type=Path)
+    parser.add_argument('--early-stops', choices=('none', 'excursion', 'quiet', 'both'), default='none',
+                        help='Process-local simulation shortcut experiment.')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--evaluation-batch-size', type=int)
     parser.add_argument('--cuda-batch-size', type=int)
@@ -135,6 +139,8 @@ def main():
         if args.serial_geometry or args.serial_results:
             cuda_backend.CudaPlacementBackend.place_batch_with_preparation = None
         class MeasuredCudaBackend(cuda_backend.CudaPlacementBackend):
+            early_excursion_stop = args.early_stops in ('excursion', 'both')
+            early_quiet_stop = args.early_stops in ('quiet', 'both')
             batch_size = args.cuda_batch_size or cuda_backend.CudaPlacementBackend.batch_size
             placement_batch_size = args.placement_batch_size or cuda_backend.CudaPlacementBackend.placement_batch_size
             benchmark_stage = 'structural'
@@ -160,6 +166,7 @@ def main():
                 if problems:
                     cuda_calls.append(dict(
                         stage=self.benchmark_stage, jobs=len(problems),
+                        statuses=[out.status.name for out in outputs],
                         simulated_steps=sum(p.steps for out in outputs for p in out.phases),
                         returned_samples=sum(out.sample_count if hasattr(out, "sample_count") else len(out.samples)
                                              for out in outputs),
@@ -236,13 +243,14 @@ def main():
                        'evaluation_batch_size', 'cuda_batch_size', 'root_candidates',
                        'iterations', 'generation_batch_size', 'posegen_batch_size', 'workers',
                        'placement_batch_size', 'result_batch_size', 'serial_results', 'serial_geometry',
-                       'eager_observations')},
+                       'eager_observations', 'early_stops')},
                    config_path=str(args.config.resolve()) if args.config else None,
                    cuda_simulation_calls=cuda_calls,
                    result_processing_batches=result_batches,
                    result_cuda_overlap_seconds=overlap,
                    geometry_preparation_batches=geometry_batches,
                    geometry_cuda_overlap_seconds=geometry_overlap, tree_sha256=tree_digest(root),
+                   accepted_tree_sha256=tree_digest(root, accepted_only=True),
                    benchmark_script_sha256=digest(__file__),
                    state_sha256=digest(args.state) if args.state else None,
                    load_before=load_before, load_after=os.getloadavg(),
