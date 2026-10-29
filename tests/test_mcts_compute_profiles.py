@@ -99,7 +99,6 @@ def test_new_profiles_have_one_full_simulation_after_settling():
         for backend in ("cpu", "cuda"):
             mcts = load_mcts_profile(config / f"mcts_{backend}.yml")
             assert mcts.request.evaluation_fidelity is EvaluationFidelity.LONG
-            assert mcts.tree.final_selection.max_weight == 0.5
 
 
 def test_short_structural_runtime_configuration_is_not_silently_ignored(tmp_path):

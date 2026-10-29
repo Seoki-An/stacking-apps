@@ -9,7 +9,7 @@ class FinalSelectionConfig:
     """Choose a root from mean evidence and evaluated descendant returns."""
 
     max_weight: float = 0.5
-    descendant_depth: int = 1
+    descendant_depth: int = 1  # Path-score horizon, not an eligibility requirement.
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.max_weight) or not 0.0 <= self.max_weight <= 1.0:
@@ -50,7 +50,7 @@ class MCTSConfig:
     discount: float
     root_max_children: int | None = None
     expansion_attempt_multiplier: float = 1.0
-    failure_reward: float = -1.0
+    failure_reward: float = -1.0  # Per-step penalty over the remaining failure horizon.
     generation_batch_size: int = 1
     expansion_retry_batches: int = 1
     min_feasible_children: int = 1

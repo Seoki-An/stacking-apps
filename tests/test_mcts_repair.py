@@ -113,7 +113,7 @@ def setup(*, evaluator=None, depth=2, rounds=3, batch_size=4):
 
 
 @pytest.mark.parametrize("weight", [0.0, 0.5, 1.0])
-def test_depth_filter_is_identical_for_all_weights(weight):
+def test_missing_depth_never_excludes_feasible_roots_for_any_weight(weight):
     root, generator, evaluator, search, request = setup()
     search.config = replace(search.config, final_selection=FinalSelectionConfig(
         max_weight=weight, descendant_depth=2))
@@ -124,8 +124,11 @@ def test_depth_filter_is_identical_for_all_weights(weight):
     pending = shallow.add_candidate(action(4))
     pending.add_candidate(action(5))  # Unevaluated paths never satisfy the filter.
     selected, ranked = search._final_select(root)
-    assert selected is complete and ranked == (complete,)
-    assert shallow.selectable  # A depth filter is not a physical rejection.
+    assert selected is shallow and ranked == (shallow, complete)
+    assert shallow.selectable
+    assert shallow.info['final_selection_score'] == 100
+    assert shallow.info['final_selection_used_mean_fallback']
+    assert not complete.info['final_selection_used_mean_fallback']
     assert not generator.calls and not evaluator.calls
 
 

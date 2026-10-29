@@ -2,7 +2,7 @@
 
 > Historical staged-simulation description. The runtime strategy changed on
 > 2026-10-27: see [Unified MCTS simulation](mcts-unified-simulation.md) for the
-> current single simulation, depth filter, and subtree reuse behavior.
+> current single simulation, final selection, and subtree reuse behavior.
 
 This document describes the shared MCTS implementation and the excavator CPU
 and CUDA profiles as of 2026-10-21, including continuation repair. MCTS searches
@@ -347,11 +347,20 @@ Sources: [CPU profile](../apps/excavator/config/mcts_cpu.yml) and
 
 CEM generates and ranks root proposals, then combines mutations of elites with
 fresh proposals. Both profiles use a fresh fraction of `0.5` and a baseline
-`max_per_object` of two. With `N` unplaced inventory objects, the effective cap
+`max_per_object` of two. With `N` unplaced inventory objects excluding configured
+bans and object-wide execution rejections, the effective cap
 is `max(max_per_object, ceil(keep / N))`; elite-parent selection uses `elite`
 instead of `keep`. Thus fewer remaining stones can contribute more distinct
 poses without increasing the total pool or elite budget. An unset cap remains
 unlimited; insufficient feasible poses can still leave the pool underfilled.
+CEM removes known execution/retry exclusions before ranking each round's pool.
+It then ranks candidates, keeps the highest-scoring representative of nearby
+duplicates (stable first occurrence on ties), and applies the population cap.
+Thus improved mutations can replace their parents, and rejected candidates
+cannot occupy population or elite slots. Scored fresh sampling also skips
+object-wide execution rejections before allocating proposals. Build acceptance
+counts remain physical-generation statistics; eligibility exclusions are
+reported separately in CEM's rejection counts.
 Root and deeper sampling use `lower_floor_first`.
 These proposal scores are priors; physical simulation still decides whether a
 placement is acceptable. More precisely, the default tree prior logit combines
@@ -421,9 +430,26 @@ The excavator CPU profile sets mean reward to 2.5; excavator CUDA and both
 tabletop profiles use 1.0. All use horizon 4. The implementation
 preserves its legacy discount convention: initialize backup with `discount * B`,
 then at each node apply `G = reward + discount * G`. Thus the leaf receives
-`reward_leaf + discount^2 * B`. Terminal and failed leaves have no bootstrap.
-A failed node contributes `failure_reward` toward ancestor returns but records
-a zero-valued visit at the failed node itself.
+`reward_leaf + discount^2 * B`. Terminal and failed leaves have no success bootstrap.
+
+Failure is instead an absorbing per-step penalty over the remaining search
+horizon, including the failed placement:
+
+```text
+h = min(max(max_depth - failed_node_depth, 0), stones_left_after_attempt)
+G_fail = failure_reward * sum(discount^j for j = 0, ..., h)
+```
+
+The available inventory is taken from the parent state and excludes the attempted
+stone once, regardless of whether the failed transition appended it. Depth is
+relative to the current root and uses the effective search depth (including the
+initial depth-one schedule). Ordinary backup discounts `G_fail` once per ancestor
+edge; the success heuristic's extra legacy pre-discount does not apply. Failed
+nodes remain unselectable and retain their zero-valued visit sample. With depth
+four, discount 0.9 and per-step reward -1, failures at depths 1–4 contribute
+-3.439, -2.71, -1.9 and -1 respectively before ancestor discounting, assuming enough
+stones remain. This horizon scaling does not guarantee that failure scores below
+every feasible multi-step return; the per-step magnitude still needs calibration.
 
 Visit counts, unique nodes, and transition evaluations are different quantities.
 Repeated selections can consume iterations without generating a new node;

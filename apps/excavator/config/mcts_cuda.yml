@@ -10,7 +10,7 @@ tree:
   root_max_children: 32
   exploration_constant: 1.0
   discount: 0.9
-  failure_reward: -1.0
+  failure_reward: -1.0  # Per-step failure penalty, discounted over the remaining horizon.
   initial_depth1_steps: 0
   root_lookahead: true
 widening:
@@ -28,9 +28,9 @@ generation:
   root_sampling_priority: lower_floor_first
   deeper_sampling_priority: lower_floor_first
 final_selection:
-  max_weight: 0.5
-  descendant_depth: 2
-  # Prefer sufficient depth; if none qualify, rank feasible roots by mean.
+  max_weight: 0.0
+  # Path-score horizon only; missing descendants do not exclude a candidate.
+  descendant_depth: 4
 parallel:
   # Per-scene body/geometry minima cover the full inventory plus target.
   # Batch is the independent number of parallel pose-generation jobs.

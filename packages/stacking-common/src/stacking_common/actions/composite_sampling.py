@@ -13,7 +13,7 @@ from . import _scored_floor as floor
 from ._support_maps import bottom_height_kernel, support_likelihood_maps_by_kernel
 from .target_regions import CachedAnchorContainment, SamplingRegion
 from .types import PlanarPlacement
-from .connectivity import footprints_within_gap, projected_footprint
+from .connectivity import bounded_distance_penalty, footprints_within_gap, projected_footprint
 
 
 class _CandidateRows(Sequence):
@@ -184,7 +184,7 @@ class CompositePlanarSampler:
         score_grid = np.full(shape, np.nan)
         mask = np.zeros(shape, dtype=bool)
         previous_entry = None
-        if (owner.connectivity_enabled and owner.settings.get("connectivity", "active_floor") == "previous_action"
+        if (owner.connectivity_enabled and owner.settings.get("connectivity", "active_floor") in ("previous_action", "previous_action_soft")
                 and self._state.placed_object_indices):
             index = self._state.placed_object_indices[-1]
             previous_entry = floor.floor_entry(owner.stones[index],
@@ -218,7 +218,14 @@ class CompositePlanarSampler:
             connected = (contacts > 0) if layer["occupied"].any() else np.ones(len(indices), dtype=bool)
             if not owner.connectivity_enabled:
                 connected[:] = True
-            if previous_entry is not None:
+            distance_penalty = np.zeros(len(indices))
+            if owner.settings.get("connectivity") == "previous_action_soft":
+                connected[:] = True
+                if previous_entry is not None:
+                    distance_penalty = bounded_distance_penalty(
+                        previous_entry["xy_polygon"], projected_footprint(rotated), anchors,
+                        float(owner.settings["contact_gap_tolerance"]), owner.connectivity_length)
+            elif previous_entry is not None:
                 connected = footprints_within_gap(previous_entry["xy_polygon"],
                     projected_footprint(rotated), anchors,
                     float(owner.settings["contact_gap_tolerance"]) + 1e-9)
@@ -241,6 +248,7 @@ class CompositePlanarSampler:
                       + float(score_cfg.get("fill_area", 0.)) * unfilled / max(int(unfilled.max()), 1)
                       + float(score_cfg.get("target_boundary", 0.)) * boundary
                       + float(score_cfg.get("planar_bias", score_cfg.get("excavator_distance", .25))) * np.minimum(bias, 1.))
+            scores -= float(score_cfg.get("previous_action_distance", 1.)) * distance_penalty[keep]
             full = containment(xy[indices], rotated, placement[indices],
                                inset_scale=max(scale, 1.), margin=margin).any(axis=1)
             chunks.append(dict(xy=xy[indices], score=scores,

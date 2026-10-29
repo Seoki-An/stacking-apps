@@ -15,50 +15,45 @@ floor rejection and its configuration have been removed from both platforms.
 Active-floor tracking, XY connectivity, lower-floor-first ordering and fill/height
 scores remain. There is no floor-relaxation retry; empty-scene corner-seed
 fallback remains independent of floor tracking. Final selection
-uses existing evidence and the descendant-depth filter; it does not repair paths.
+uses existing evidence without a descendant-depth eligibility filter; it does not repair paths.
 No height reward or simulation settings were changed by this removal.
 
-### Previous-action connectivity experiment
+### Soft previous-action distance (2026-10-30)
 
-`planar.connectivity` in `action_generation.yml` defaults to `active_floor` when
-omitted; the excavator profile explicitly selects `previous_action`.
-The optional `previous_action` mode replaces the active-layer connectivity mask
-with the XY projection of the last placed stone, using its current state pose.
-The Euclidean gap between the actual convex XY projections of the two stones
-must not exceed `planar.contact_gap_tolerance` (0.10 m in the excavator profile).
-The calculation uses the candidate's rotation and full footprint, independently
-of grid size and `footprint_scale`. Overlapping projections have zero gap. This
-replaces the earlier coarse-grid neighborhood, which admitted large XY gaps.
-It remains an XY proximity rule, not proof of physical 3D contact.
-Score-map construction first rejects anchors whose XY bounding-box distance
-already exceeds the gap limit. Remaining anchors use the exact polygon distance;
-bounding-box overlap alone never establishes connectivity. Solved/simulated
-distance diagnostics retain the full exact calculation.
-The first placement is unrestricted by connectivity; later empty layers do not
-disable this mask. Region fallback grids also retain it.
+Both platform profiles select `planar.connectivity: previous_action_soft`.
+At every depth, each orientation-specific proposal score receives the penalty
 
-The same test applies to CEM initial-pose mutations before initialization,
-solved poses after pose optimization, and evaluated search edges after
-simulation (`previous_action_disconnected`). The post-simulation check uses
-both stones' resulting poses and records `previous_action_xy_gap` and its limit.
-Descendants retain this strict rule. At the root, the excavator profile sets
-`planar.root_global_fraction: 0.3`: 70% of initial proposals use the connected
-map and 30% use the unrestricted target map. Fractional allocations carry across
-stones, and unused connected slots can be filled globally. Global proposals may
-also happen to be connected.
+```text
+d = exact gap between convex XY footprints of candidate and previous stone
+excess = max(d - contact_gap_tolerance, 0)
+length = cube_root(mean inventory stone volume)
+score -= score.previous_action_distance * excess / (length + excess)
+```
 
-Root CEM reserves this fraction of population, elite and returned candidate slots
-for feasible disconnected poses when available; the remaining slots favor
-connected poses. Classification uses the optimized pose. Existing scores and
-per-object caps still apply, and empty groups give their slots to the other group.
-Root edges are exempt only from connectivity rejection, including after simulation;
-all physical checks remain. No connectivity bonus is added to the reward.
-The exemption follows the current search root after tree promotion, so a jump
-starts a new local continuation rather than permitting jumps deeper in the tree.
+The length is fixed for the inventory, not recomputed from the remaining stones.
+The weight defaults to 1.0 and is non-negative. Overlapping/nearby footprints
+receive zero penalty; distant footprints approach the bounded maximum penalty.
+The first placement has no previous-action penalty. This is an XY sampling
+preference, not physical contact evidence or an additional reward. The viewer's
+aggregate score maps and CEM proposal scores include it. The GUI's
+`Previous-action distance penalty` layer shows the raw dimensionless cost;
+`Weighted contribution` multiplies it by the negative recorded weight. Old
+hard-connectivity runs show zero contribution. Lower-floor-first
+ordering and existing elite/Boltzmann sampling remain, so admitting a distant
+anchor does not guarantee it will be sampled in a finite budget.
 
-Setting the fraction to zero, or omitting it, restores strict connectivity at
-every depth. It has no effect in `active_floor` mode. Previously saved trees are
-not retroactively revalidated: start a fresh run after changing this policy.
+Single and composite targets use the same penalty, including regional fallback
+grids. Fresh seeds, CEM mutations, optimized poses and simulated transitions are
+not rejected for previous-action distance in this mode. Target containment,
+pose optimization acceptance and all physical validation remain unchanged.
+There is no connected/global root quota; roots and descendants share the policy.
+
+For recorded configurations, `previous_action` retains the old hard metric gap
+checks and optional `root_global_fraction` mixture. `active_floor` retains the
+old grid-adjacency admission rule and remains the default when the mode is
+omitted. The root fraction has no effect in soft mode. Saved trees retain their
+old failed edges and backed-up statistics; start a fresh run for this comparison.
+Old `.stack` files remain readable.
 
 ## Evaluation and search
 
@@ -106,15 +101,17 @@ PathReturn(n, d):
     Return r(n) + gamma * max(tails)
 ```
 
-Filter roots to those with an available path return G. There is one selection
-formula: `(1 - max_weight) * mean_return + max_weight * G`. The only settings
-are `max_weight` and `descendant_depth`; there is no mode selector.
-Weight zero uses mean return, weight one uses the best path return, and values
-between them blend both. Eligibility is identical for every weight.
-No simulator is called during ranking. If all roots lack the requested depth,
-preserve the previous exhaustion behavior: rank physically feasible roots by mean
-return and record `descendant_depth_fallback=true`. Never mark a depth-filtered
-candidate as physically failed, and never revive a physical failure.
+Rank **every physically feasible root**. For a candidate with a complete path
+return G, use `(1 - max_weight) * mean_return + max_weight * G`. For a candidate
+without that path, use its mean return and record `descendant_depth_fallback=true`
+and `final_selection_used_mean_fallback=true`, even when other roots have paths.
+The mean retains the existing backed-up failure penalties. Missing evidence is
+not a physical failure, and failed candidates remain excluded.
+
+`descendant_depth` is only the path-score horizon, capped by the search horizon.
+Weight zero therefore ranks all feasible roots solely by mean return. Weight one
+uses a complete path where available and mean otherwise. No path repair, extra
+simulation, or additional eligibility setting is introduced.
 
 ## Configuration and reuse
 
@@ -256,3 +253,21 @@ but contain this same dimensionless E. Admission compares E with the configured
 equilibrium threshold; reward and prior use min(E, 1). The normalized diagnostic
 is also retained. Old saved actions without that diagnostic keep their explicit
 legacy reward/prior fallback; new native results without residuals are invalid.
+
+## Surface flatness: restored max-minus-mean (2026-10-30)
+
+Following the user's preference for the wall in `simple_mcts_test19.stack`
+over `simple_mcts_test20.stack`, the variance experiment has been reverted.
+The active reward again uses the reduction in surface max-minus-mean height:
+
+```text
+L = mean(inventory stone volume)^(1/3)
+relief = maximum surface height - area-weighted mean surface height
+flatness_reward = surface_flatness_weight * (relief_before - relief_after) / L
+```
+
+The surface includes empty target-floor cells and retains the true pre-simulation
+parent baseline. Existing weights remain unchanged (excavator 8, tabletop 4).
+Soft previous-action distance scoring, its GUI layer, and removal of the hard
+descendant-depth eligibility gate remain in place. Saved runs keep their original
+reward values; start a fresh search rather than reuse variance-backed tree values.

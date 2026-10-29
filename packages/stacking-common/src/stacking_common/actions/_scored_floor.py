@@ -335,6 +335,7 @@ def score_xy_debug_map(
     fill_area_map = np.full(shape, np.nan, dtype=float)
     target_boundary_map = np.full(shape, np.nan, dtype=float)
     planar_bias_map = np.full(shape, np.nan, dtype=float)
+    distance_penalty_map = np.full(shape, np.nan, dtype=float)
     placement_height_map = np.full(shape, np.nan, dtype=float)
     orientation_index_map = np.full(shape, -1, dtype=int)
     if not np.any(valid):
@@ -353,6 +354,11 @@ def score_xy_debug_map(
     w_height = float(score_cfg.get("height", -1.5))
     w_support_likelihood = float(score_cfg.get("support_likelihood", 2.0))
     w_fill_area = float(score_cfg.get("fill_area", 0.0))
+    # The profile stores a positive penalty magnitude; diagnostics expose the
+    # signed weight so the GUI's weighted terms sum to the total score.
+    w_distance = (-float(score_cfg.get("previous_action_distance", 1.))
+                  if inventory.cfg.action.planar.get("connectivity") == "previous_action_soft"
+                  else 0.)
     w_target_boundary = float(score_cfg.get("target_boundary", 0.0))
     # Older .stack contexts recorded these settings under excavator-specific names.
     w_planar_bias = float(score_cfg.get("planar_bias", score_cfg.get("excavator_distance", 0.25)))
@@ -378,6 +384,7 @@ def score_xy_debug_map(
     cell_xy = xy_grid[grid_index[:, 0], grid_index[:, 1]]
     count = len(grid_index)
     connected = np.ones(count, dtype=bool)
+    distance_penalty = np.zeros(count, dtype=float)
     unfilled_cells = np.zeros(count, dtype=int)
     max_unfilled_cells = 1
     if has_occupied:
@@ -416,6 +423,22 @@ def score_xy_debug_map(
                 float(inventory.cfg.action.planar["contact_gap_tolerance"]) + 1e-9)
         connectivity_mask[:] = False
         np.logical_or.at(connectivity_mask, (rows, columns), connected)
+    if inventory.cfg.action.planar.get("connectivity") == "previous_action_soft":
+        # No floor or last-stone admission mask: distance is a score only.
+        connected[:] = True
+        connectivity_mask = valid.copy()
+        if state.stone_seq:
+            from .connectivity import bounded_distance_penalty
+            stone, stone_id = state_stone(inventory, state, state.stone_seq[-1])
+            entry = floor_entry(stone, state.stone_poses[stone_id], include_volumes=False)
+            if footprint_polygons is None:
+                raise ValueError("soft connectivity requires actual footprint polygons")
+            for orientation, polygon in enumerate(footprint_polygons):
+                selected = orientations == orientation
+                distance_penalty[selected] = bounded_distance_penalty(
+                    entry["xy_polygon"], polygon, cell_xy[selected],
+                    float(inventory.cfg.action.planar["contact_gap_tolerance"]),
+                    float(inventory.cfg.action.planar["connectivity_length"]))
     planar_bias = planar_bias_grid(
         inventory, xy_grid, planar_bias_xy, planar_bias_axis,
     )[grid_index[:, 0], grid_index[:, 1]]
@@ -488,6 +511,7 @@ def score_xy_debug_map(
         + w_fill_area * fill_area
         + w_target_boundary * item_boundary
         + w_planar_bias * planar_bias[cells]
+        + w_distance * distance_penalty[cells]
     )
 
     # Prefer an eligible orientation when a cell has both connected and
@@ -503,10 +527,11 @@ def score_xy_debug_map(
     fill_area_map[rows, columns] = fill_area[winners]
     target_boundary_map[rows, columns] = item_boundary[winners]
     planar_bias_map[rows, columns] = planar_bias[cells[winners]]
+    distance_penalty_map[rows, columns] = distance_penalty[cells[winners]]
     placement_height_map[rows, columns] = item_placement[winners]
     orientation_index_map[rows, columns] = item_orientation[winners]
 
-    # Scores are independent of connectivity. Apply the hard mask before
+    # Legacy hard modes still mask; soft connectivity only affects scores.
     # constructing the pool used by every elite/Boltzmann draw.
     admitted_scores = candidate_scores[connected[cells]]
     candidate_score_min = float(np.min(admitted_scores)) if len(admitted_scores) else 0.
@@ -548,6 +573,7 @@ def score_xy_debug_map(
         "fill_area": fill_area_map,
         "target_boundary": target_boundary_map,
         "planar_bias": planar_bias_map,
+        "previous_action_distance": distance_penalty_map,
         "placement_height": placement_height_map,
         "orientation_index": orientation_index_map,
         "weights": {
@@ -556,6 +582,7 @@ def score_xy_debug_map(
             "fill_area": w_fill_area,
             "target_boundary": w_target_boundary,
             "planar_bias": w_planar_bias,
+            "previous_action_distance": w_distance,
         },
         "h_min": h_min,
         "h_span": h_span,

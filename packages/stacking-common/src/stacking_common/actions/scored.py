@@ -58,11 +58,16 @@ class ScoredPlanarPoseSampler:
         self.orientation_provider = orientation_provider
         self.connectivity_enabled = connectivity_enabled
         self.settings = settings
-        if settings.get("connectivity", "active_floor") not in ("active_floor", "previous_action"):
-            raise ValueError("planar.connectivity must be active_floor or previous_action")
+        if settings.get("connectivity", "active_floor") not in ("active_floor", "previous_action", "previous_action_soft"):
+            raise ValueError("planar.connectivity must be active_floor, previous_action, or previous_action_soft")
         self.seed = seed
         self.rng = np.random.RandomState(seed)
         self.stones = [_StoneView(obj, inventory.initial_pose(obj.object_id)) for obj in inventory]
+        # Fixed across states/orientations, so exhausting the inventory cannot
+        # silently change the distance preference's physical scale.
+        self.connectivity_length = max(float(np.cbrt(np.mean(
+            [obj.volume for obj in inventory]))), 1e-12) if self.stones else 1.
+
         composite = isinstance(inventory.target, CompositeTargetGeometry)
         self.target_wall = None if composite else SimpleNamespace(width=inventory.target.width, length=inventory.target.length,
             height=inventory.target.height, origin=inventory.target.origin,
@@ -88,6 +93,7 @@ class ScoredPlanarPoseSampler:
         planar = {
             **self.settings,
             "connectivity_enabled": self.connectivity_enabled,
+            "connectivity_length": self.connectivity_length,
             "score_map_size": list(reversed(self.config.grid_shape)),
             "floor": {**self.settings["floor"],
                            "boundary_inset_radius_scale": self.config.target_anchor_inset_scale},

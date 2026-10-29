@@ -237,8 +237,9 @@ def test_failed_node_uses_failure_reward_but_records_zero_for_itself() -> None:
     value = backpropagate(child, _config(discount=0.5), bootstrap_value=0.0)
 
     assert child.mean_value == 0.0
-    assert root.mean_value == pytest.approx(-0.5)
-    assert value == pytest.approx(-0.5)
+    # Failed placement plus two remaining stones: -1 - .5 - .25.
+    assert root.mean_value == pytest.approx(-0.875)
+    assert value == pytest.approx(-0.875)
 
 
 def test_preserved_subtree_detaches_and_resets_search_statistics() -> None:

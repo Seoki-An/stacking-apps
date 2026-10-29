@@ -13,7 +13,7 @@ shapes:
       width_negative: 5.0
       length_positive: 5.0
       length_negative: 5.0
-  tapered_tower:
+  tall_wall:
     # stacking-planner agent/configs/ablation.yml: environment.target.
     width: 2.0
     length: 4.0
@@ -25,6 +25,18 @@ shapes:
       width_negative: 1.0
       length_positive: 1.0
       length_negative: 1.0
+  tapered_tower:
+    # stacking-planner agent/configs/ablation.yml: environment.target.
+    width: 3.0
+    length: 3.0
+    height: 5.0
+    origin: [0.0, 0.0, 0.0]
+    support_overlap: 0.02
+    taper_degrees:
+      width_positive: 5.0
+      width_negative: 5.0
+      length_positive: 5.0
+      length_negative: 5.0
   one_sided_wall:
     width: 1.6
     length: 4.5

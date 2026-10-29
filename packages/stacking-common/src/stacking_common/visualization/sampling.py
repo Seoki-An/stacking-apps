@@ -89,7 +89,7 @@ def initial_pose_score_view(inventory, state, object_id, initial_pose, *, planar
     data = sampler.score_map(state, observation, index)
     fields = {'score': data['scores'].copy()}
     for name in ('height', 'support_likelihood', 'fill_area',
-                 'target_boundary', 'planar_bias', 'placement_height'):
+                 'target_boundary', 'planar_bias', 'previous_action_distance', 'placement_height'):
         source = 'height_term' if name == 'height' else name
         fields[name] = np.asarray(data.get(source, np.full(config.grid_shape, np.nan))).copy()
     valid = data['candidate_mask'] & np.isfinite(fields['score'])

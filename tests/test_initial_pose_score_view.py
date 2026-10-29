@@ -43,7 +43,11 @@ def config():
 
 
 @pytest.mark.parametrize('placed', [False, True])
-def test_view_matches_fixed_orientation_production_maps_and_weighted_sum(config, placed):
+@pytest.mark.parametrize('soft', [False, True])
+def test_view_matches_fixed_orientation_production_maps_and_weighted_sum(config, placed, soft):
+    if soft:
+        config['settings']['connectivity'] = 'previous_action_soft'
+        config['settings']['score']['previous_action_distance'] = 2.5
     inventory, state = scene()
     if not placed:
         state = State(list(inventory.object_ids), [], {}, [], [])
@@ -59,7 +63,15 @@ def test_view_matches_fixed_orientation_production_maps_and_weighted_sum(config,
     data = sampler.score_map(state, observation, 1)
     assert view.valid.any()
     assert set(view.weights) == {'height', 'support_likelihood', 'fill_area',
-                                 'target_boundary', 'planar_bias'}
+                                 'target_boundary', 'planar_bias', 'previous_action_distance'}
+    penalty = view.fields['previous_action_distance'][view.valid]
+    assert np.all((penalty >= 0.) & (penalty < 1.))
+    assert view.weights['previous_action_distance'] == (-2.5 if soft else 0.)
+    if soft and placed:
+        assert penalty.max() > 0. and penalty.min() == 0.
+        assert np.min(penalty * view.weights['previous_action_distance']) < 0.
+    else:
+        np.testing.assert_array_equal(penalty, 0.)
     assert not {'open_area', 'frontier'} & data.keys()
     assert not {'open_area', 'frontier'} & view.fields.keys()
     for name, values in view.fields.items():

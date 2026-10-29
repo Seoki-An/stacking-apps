@@ -15,6 +15,8 @@ filtering:
   # candidate contacts; 3 mm admits the commissioned single-object solves.
   posegen_gap_threshold: 0.003
 planar:
+  # Bounded footprint-distance preference at every depth; disconnected poses remain eligible.
+  connectivity: previous_action_soft
   # Shared composite proposal grid; empty regional pools retry locally. Floor grids stay separate.
   grid_shape: [32, 32]
   # Proposal inset: smaller values admit edge seeds; solved containment still applies.
@@ -32,6 +34,8 @@ planar:
   contact_gap_tolerance: 0.02
   # The only proposal-score weights. Edit these named values for ablations.
   score:
+    # Maximum distance penalty; length scale is cube root of mean inventory volume.
+    previous_action_distance: 1.0
     height: -3.0
     support_likelihood: 2.0
     fill_area: 4.0

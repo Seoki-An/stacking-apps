@@ -15,11 +15,8 @@ filtering:
   # Sum of candidate-contact penetrations; allow only 0.1 mm numerical residual.
   posegen_gap_threshold: 0.0001
 planar:
-  # previous_action: actual XY footprint gap to the last stone <= contact_gap_tolerance.
-  # active_floor: adjacent to the occupied layer, with the original grid-based mask.
-  connectivity: previous_action
-  # Root: connected/global proposal mixture; descendants stay connected. 0 disables root jumps.
-  root_global_fraction: 0.3
+  # Bounded footprint-distance preference at every depth; disconnected poses remain eligible.
+  connectivity: previous_action_soft
   # Shared composite proposal grid; empty regional pools retry locally. Floor grids stay separate.
   grid_shape: [32, 32]
   # Proposal boundary inset: smaller values allow seeds closer to the edge; solved containment still applies.
@@ -37,6 +34,8 @@ planar:
   contact_gap_tolerance: 0.10
   # The only proposal-score weights. Edit these named values for ablations.
   score:
+    # Maximum distance penalty; length scale is cube root of mean inventory volume.
+    previous_action_distance: 1.0
     height: -3.0
     support_likelihood: 2.0
     fill_area: 4.0

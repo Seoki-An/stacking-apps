@@ -73,6 +73,14 @@ def footprints_within_gap(previous, candidate, translations, max_gap):
     return accepted
 
 
+def bounded_distance_penalty(previous, candidate, translations, gap, length):
+    """Dimensionless soft cost: zero within gap, approaching one at infinity."""
+    if not np.isfinite(length) or length <= 0.:
+        raise ValueError("distance penalty length must be finite and positive")
+    excess = np.maximum(footprint_distances(previous, candidate, translations) - gap, 0.)
+    return excess / (length + excess)
+
+
 class PreviousActionConnectivity:
     """Check actual projected footprints before and after physical evaluation."""
 

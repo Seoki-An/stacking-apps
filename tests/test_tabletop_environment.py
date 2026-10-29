@@ -243,7 +243,8 @@ def test_simulation_profile_builds_native_config_and_backend() -> None:
     )
     # Exercise explicit solver values independently of operator profile tuning.
     profile = replace(profile, solver_tol_abs=1e-5, solver_tol_rel=1e-6,
-                      solver_beta_init=0.1, solver_beta_update_interval=50)
+                      solver_beta_init=0.1, solver_beta_update_interval=50,
+                      solver_max_iters=3000)
     native = profile.native_config()
 
     assert np.allclose(native.gravity, [0.0, 0.0, -9.81])

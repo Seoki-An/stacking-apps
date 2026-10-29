@@ -8,7 +8,7 @@
 # - max_children/root_max_children: child limits; integer > 0.
 # - exploration_constant: PUCT exploration strength; number >= 0.
 # - discount: reward discount; number in [0, 1].
-# - failure_reward: reward assigned to a failed transition; finite number.
+# - failure_reward: per-step failure penalty, discounted over the remaining horizon.
 # - initial_depth1_steps: root-only warmup placements; 0 enables early lookahead.
 # - root_lookahead: cover each validated root with one descendant; true | false.
 #
@@ -29,8 +29,8 @@
 # - rejected_root_retry_rounds: diversified all-rejected retries; integer >= 0.
 #
 # final_selection
-# - max_weight: descendant share; 0 uses mean only, 1 uses path return only.
-# - descendant_depth: evaluated edges required below a root candidate (capped by horizon).
+# - max_weight: descendant share; missing paths always use mean return.
+# - descendant_depth: path-score horizon below a root candidate; missing paths use mean (no eligibility filter).
 #
 # parallel
 # - enabled: parallel pose generation and simulation; true | false.

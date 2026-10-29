@@ -1408,12 +1408,10 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             counters.root_validation_failures += sum(child.failed for child in batch)
 
     def _final_select(self, root):
-        """Filter and rank existing evidence; never simulate or extend a path.
+        """Rank every feasible root; missing descendant evidence is not a veto.
 
-        Depth counts edges below a root candidate, capped by the search horizon.
-        A successful terminal node satisfies the remaining horizon. If no root
-        has sufficient depth, retain the physically feasible roots and use mean
-        return, as the search-exhaustion fallback.
+        Depth is the horizon for the optional path-return component. A candidate
+        without a complete path uses its mean, including backed-up failures.
         """
         children = root.evaluated_children()
         if not children:
@@ -1425,14 +1423,12 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             )
             for child in children
         }
-        eligible = [child for child in children
-                    if paths[child] is not None and math.isfinite(paths[child])]
-        fallback = not eligible
         weight = self.config.final_selection.max_weight
         scored = []
-        for child in eligible or children:
+        for child in children:
             mean = float(child.mean_value)
             path = paths[child]
+            fallback = path is None or not math.isfinite(path)
             score = mean if fallback else (1.0 - weight) * mean + weight * path
             child.info.update(
                 descendant_depth_satisfied=not fallback,

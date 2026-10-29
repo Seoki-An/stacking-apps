@@ -103,8 +103,11 @@ def resolve_scored_sampling_settings(planar: Mapping[str, object]) -> dict:
         raise ValueError(f"obsolete planar.floor settings: {sorted(obsolete)}")
     score = dict(_mapping(planar, "score"))
     connectivity = planar.get("connectivity", "active_floor")
-    if connectivity not in ("active_floor", "previous_action"):
-        raise ValueError("planar.connectivity must be active_floor or previous_action")
+    if connectivity not in ("active_floor", "previous_action", "previous_action_soft"):
+        raise ValueError("planar.connectivity must be active_floor, previous_action, or previous_action_soft")
+    distance_weight = float(score.get("previous_action_distance", 1.))
+    if not np.isfinite(distance_weight) or distance_weight < 0.:
+        raise ValueError("planar.score.previous_action_distance must be finite and non-negative")
     root_fraction = float(planar.get("root_global_fraction", 0.))
     if not np.isfinite(root_fraction) or not 0. <= root_fraction <= 1.:
         raise ValueError("planar.root_global_fraction must be between zero and one")
