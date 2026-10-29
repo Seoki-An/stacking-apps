@@ -308,7 +308,6 @@ def test_floor_fallback_cannot_bypass_actual_target_overlap():
     with gen.floor_fill_fallback():
         candidate, reason = gen.build_candidate(state(inv), 0, parent)
     assert candidate is None and reason == "final_pose_outside_target"
-    assert not gen.planar_sampler.relax_floor_fill
 
 
 def cem(gen, **kwargs):
@@ -414,3 +413,24 @@ def test_raster_support_does_not_reject_a_tilted_stone_below_ground(ground_z):
     assert scores["candidates"]
     for candidate in scores["candidates"]:
         assert candidate["placement_height"] + rotated[:, 2].min() == pytest.approx(ground_z)
+
+
+def test_composite_covered_anchors_remain_available_without_empty_floor_overlap(monkeypatch):
+    inv = inventory()
+    floor = policy(inv)
+    current = state(inv, [pose(-3., z=.125)])
+    context = floor.context_details(current)
+    for layer in context['regions']:
+        layer['occupied'] = layer['valid'].copy()
+        layer['occupied_neighbor'] = layer['valid'].copy()
+        layer['empty'] = False
+    monkeypatch.setattr(floor, 'context_details', lambda state: context)
+    sample = sampler(inv, floor_policy=floor)
+    sample.settings['score'] = dict(height=0., support_likelihood=0.,
+                                   fill_area=2., target_boundary=0., planar_bias=0.)
+    result = sample.score_map(current, None, 1)
+    assert result['candidates']
+    for region in result['regions'].values():
+        assert region['candidate_mask'].any()
+        np.testing.assert_array_equal(region['scores'][region['candidate_mask']], 0.)
+    assert {tuple(item['target_region_id']) for item in result['candidates']} == {('west',), ('east',)}

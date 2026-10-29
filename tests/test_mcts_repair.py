@@ -1,4 +1,4 @@
-"""Final selection uses existing full-simulation evidence without path repair."""
+"""Pure final ranking without continuation repair or final revalidation."""
 
 import numpy as np
 import pytest
@@ -10,7 +10,6 @@ from stacking_common.search import (
     MCTSConfig, MCTSNode, MCTSSearchRequest, MonteCarloTreeSearch,
     ProgressiveWideningConfig, TransitionEvaluation,
 )
-from stacking_common.search.mcts.search import _SearchCounters
 
 
 def action(index, x=0.0):
@@ -60,7 +59,7 @@ class Evaluator:
         return self.evaluate_batch([state], [action], fidelity)[0]
 
     def evaluate_batch(self, states, actions, fidelity):
-        # Repair screens new children at short fidelity; both use one rule.
+        # Every new transition uses the same physical acceptance rule.
         self.calls.append((fidelity, tuple((tuple(s.placed_object_indices), a.pose[0])
                                            for s, a in zip(states, actions))))
         results = []

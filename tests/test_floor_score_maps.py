@@ -151,7 +151,7 @@ def test_score_map_keeps_candidate_order_height_fallback_and_orientation_ties(al
     np.testing.assert_array_equal(result["orientation_index"], [[1, 0], [1, 0]])
 
 
-def test_floor_fallback_preserves_fill_scores_while_admitting_covered_cells():
+def test_covered_cells_are_admitted_but_empty_connected_cells_score_higher():
     from stacking_common.actions._support_maps import BottomHeightKernel
     wall = SimpleNamespace(origin=np.zeros(3), width=2., length=2., height=2.,
         taper=dict.fromkeys(("width_negative", "width_positive",
@@ -172,16 +172,13 @@ def test_floor_fallback_preserves_fill_scores_while_admitting_covered_cells():
                   active_floor=dict(occupied=occupied, xx=xx, yy=yy),
                   support_kernels=[BottomHeightKernel(np.array([0]), np.array([0]), np.array([0.]))],
                   footprint_bounds=np.array([[[-.1, -.1], [.1, .1]]]))
-    strict = floor.score_xy_debug_map(inventory, None, None, **kwargs)
-    relaxed = floor.score_xy_debug_map(inventory, None, None, relax_floor_fill=True, **kwargs)
-    assert relaxed['candidate_mask'][:, 0].all()
-    assert not strict['candidate_mask'][:, 0].any()
-    assert strict['candidate_mask'][:, 1].all()
-    assert not relaxed['candidate_mask'][:, 2].any()  # Connectivity still required.
-    np.testing.assert_array_equal(relaxed['fill_area'][:, 1], 1.)
-    np.testing.assert_array_equal(relaxed['fill_area'][:, 0], 0.)
-    mask = strict['candidate_mask']
-    np.testing.assert_array_equal(strict['scores'][mask], relaxed['scores'][mask])
+    result = floor.score_xy_debug_map(inventory, None, None, **kwargs)
+    assert result['candidate_mask'][:, 0].all()  # Covered cells remain eligible.
+    assert result['candidate_mask'][:, 1].all()
+    assert not result['candidate_mask'][:, 2].any()  # Disconnected cells do not.
+    np.testing.assert_array_equal(result['fill_area'][:, 0], 0.)
+    np.testing.assert_array_equal(result['fill_area'][:, 1], 1.)
+    assert np.all(result['scores'][:, 1] > result['scores'][:, 0])
 
 
 def test_shifted_samples_match_per_offset_slices():

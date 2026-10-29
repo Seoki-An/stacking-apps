@@ -146,8 +146,7 @@ def test_score_view_reads_historical_split_floor_settings(config, u_shape_filter
         np.testing.assert_array_equal(current.fields[name], previous.fields[name])
 
 
-@pytest.mark.parametrize('relaxed', [False, True])
-def test_connectivity_mask_excludes_high_scoring_disconnected_seeds(config, relaxed):
+def test_connectivity_mask_excludes_high_scoring_disconnected_seeds(config):
     inventory, state = scene()
     # Favor the empty space farthest from the existing stone: filtering must
     # dominate this score, including elite selection and relaxed floor retries.
@@ -161,7 +160,6 @@ def test_connectivity_mask_excludes_high_scoring_disconnected_seeds(config, rela
     renderer = HeightMapRenderer(inventory, config['height_map_resolution'], config['height_map_margin'])
     observation = SimpleNamespace(scene_height_map=renderer.render(state),
         height_map_xlim=renderer.xlim, height_map_ylim=renderer.ylim)
-    sampler.relax_floor_fill = relaxed
     data = sampler.score_map(state, observation, 1)
     admitted = data['candidate_mask']
     disconnected = np.isfinite(data['scores']) & ~data['connectivity_mask']

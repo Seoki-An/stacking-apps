@@ -56,8 +56,7 @@ def test_target_masks_follow_rotated_vertices_and_origin(config, rotation, offse
     assert next(iter(sampler._footprint_bounds.values())) is saved_bounds
 
 
-@pytest.mark.parametrize('relaxed', [False, True])
-def test_orientation_specific_connectivity_and_fill_match_explicit_rectangles(config, relaxed):
+def test_orientation_specific_connectivity_and_fill_match_explicit_rectangles(config):
     settings = config['settings']
     settings['floor']['footprint_scale'] = .85
     sampler, state, obs, points = make_scene(settings, offset=(.07, -.03, 0.), inset=.6)
@@ -66,7 +65,6 @@ def test_orientation_specific_connectivity_and_fill_match_explicit_rectangles(co
     occupied = ((xx > .22) & (yy < .08)) | ((xx < -.3) & (yy > .15))
     layer = dict(xx=xx, yy=yy, occupied=occupied, support_z=0., bottom_tol=.02)
     sampler.floor_policy = SimpleNamespace(context_details=lambda state: layer)
-    sampler.relax_floor_fill = relaxed
     result = sampler.score_map(state, obs, 0)
     xy = np.stack(np.meshgrid(result['x_coords'], result['y_coords']), axis=-1)
     neighbors = floor.dilated_mask(occupied)
@@ -85,7 +83,7 @@ def test_orientation_specific_connectivity_and_fill_match_explicit_rectangles(co
                          & (yy >= anchor[1] + .85 * lower[1]) & (yy <= anchor[1] + .85 * upper[1]))
             empty = np.count_nonzero(footprint & ~occupied)
             max_empty = max(max_empty, empty)
-            if np.any(footprint & neighbors) and (relaxed or empty > 0):
+            if np.any(footprint & neighbors):
                 expected[(orientation, row, column)] = empty
                 connected_cells.add((row, column))
         connected_sets.append(connected_cells)
@@ -103,4 +101,4 @@ def test_orientation_specific_connectivity_and_fill_match_explicit_rectangles(co
             key, best = max(choices, key=lambda item: item[1]['score'])
             assert result['scores'][row, column] == best['score']
             assert result['orientation_index'][row, column] == key[0]
-            assert result['fill_area'][row, column] == pytest.approx(0. if relaxed else expected[key] / max_empty)
+            assert result['fill_area'][row, column] == pytest.approx(expected[key] / max_empty)

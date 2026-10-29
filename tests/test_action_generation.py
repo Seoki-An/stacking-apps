@@ -194,7 +194,7 @@ def test_tabletop_generator_captured_step4_floor_gate_is_optional(strict_floor_f
     root = Path(__file__).resolve().parents[1]
     fixture = json.loads((root / "tests/fixtures/planning/active_floor_step4.json").read_text())
     app = TabletopApplication.from_repository(root)
-    assert app.action_generation_profile.strict_floor_first
+    assert not app.action_generation_profile.strict_floor_first
     app = replace(app, action_generation_profile=replace(
         app.action_generation_profile, strict_floor_first=strict_floor_first))
     ids = fixture["object_ids"]
@@ -547,8 +547,7 @@ def test_planar_sampler_uses_measured_orientation_provider() -> None:
     np.testing.assert_allclose(proposal.pose[3:], measured)
 
 
-@pytest.mark.parametrize('relaxed', [False, True])
-def test_lower_floor_sampling_priority_survives_relaxed_admission(relaxed, monkeypatch):
+def test_lower_floor_sampling_priority_survives_relaxed_admission(monkeypatch):
     from pathlib import Path
     from stacking_tabletop import TabletopApplication
 
@@ -559,7 +558,6 @@ def test_lower_floor_sampling_priority_survives_relaxed_admission(relaxed, monke
         MappingOrientationProvider({i: np.array([0., 0., 0., 1.]) for i in inventory.object_ids}),
         app.sampling_settings, floor_policy=_tabletop_floor_policy(inventory),
     )
-    sampler.relax_floor_fill = relaxed
     sampler._active_floor = dict(support_z=0., bottom_tol=.02)
     candidates = [dict(xy=np.array([x, 0.]), height=h, score=s, orientation_index=0)
                   for x, h, s in [(0., 0., 0.), (.1, 1., 100.)]]

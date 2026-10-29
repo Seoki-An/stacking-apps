@@ -1,4 +1,4 @@
-"""Sampler-only defaults and explicit strict-floor behavior on recorded scenes."""
+"""Explicit permissive and strict-floor behavior on recorded scenes."""
 
 from dataclasses import replace
 import json
@@ -47,18 +47,19 @@ def test_explicit_strict_excavator_rejects_recorded_upper_floor_candidates(recor
         assert decision.reason == 'active_floor_above_active_layer'
 
 
-def test_default_excavator_uses_floor_only_for_xy_sampling(recorded_scene, monkeypatch):
+def test_permissive_excavator_uses_floor_only_for_xy_sampling(recorded_scene, monkeypatch):
     from stacking_common.actions import PlanarPlacement
     from stacking_common.search import EvaluationFidelity
 
     _, inventory, state, candidates = recorded_scene
     app = ExcavatorApplication.from_repository(ROOT)
+    app = replace(app, action_generation_profile=replace(
+        app.action_generation_profile, strict_floor_first=False))
     assert not app.action_generation_profile.strict_floor_first
     generator = app.build_action_generator(inventory, SimpleNamespace())
     assert not any(isinstance(f, ActiveFloorFilter) for f in generator.filters)
     sampler = generator.planar_sampler
     assert sampler.floor_policy is not None
-    assert not sampler.relax_floor_fill
     assert all(sampler.settings['floor'][key] == value
                for key, value in app.floor_settings.items())
     assert app.default_mcts_request().root_sampling_priority == 'lower_floor_first'
@@ -201,8 +202,7 @@ def test_fallback_relaxes_floor_filter_and_restores_sampler_cache(recorded_scene
         with generator.floor_fill_fallback() as enabled:
             assert enabled
             relaxed = sampler.score_map(state, observation, index)
-            assert relaxed is not strict
-            assert np.any(relaxed['candidate_mask'] & ~strict['candidate_mask'])
+            assert relaxed is strict  # Only the solved-pose filter changes, not XY scoring.
             candidate, reason = generator._finish_candidate(state, index, proposal, initial, solved)
             assert reason is None
             assert candidate.action.diagnostics['floor_fill_fallback']
@@ -215,7 +215,6 @@ def test_fallback_relaxes_floor_filter_and_restores_sampler_cache(recorded_scene
     except RuntimeError:
         assert raise_inside
     assert generator.filters is original_filters
-    assert not sampler.relax_floor_fill
     restored = sampler.score_map(state, observation, index)
     np.testing.assert_array_equal(restored['candidate_mask'], strict['candidate_mask'])
     np.testing.assert_allclose(restored['scores'], strict['scores'], equal_nan=True)
@@ -228,7 +227,8 @@ def test_fixed_scene_floor_modes_preserve_settling_validation(recorded_scene, ph
     from stacking_common.planning import PlacementPlanningResult, PlanningStatus
     app, inventory, state, candidates = recorded_scene
     if not strict:
-        app = ExcavatorApplication.from_repository(ROOT)
+        app = replace(app, action_generation_profile=replace(
+            app.action_generation_profile, strict_floor_first=False))
     selected = next(c for c in candidates if c['selected'])
     object_id = selected['object_id']
     action = Action(state.object_ids.index(object_id), np.array(selected['pose']),
@@ -262,4 +262,3 @@ def test_no_fallback_when_floor_filter_disabled(recorded_scene):
     generator = app.build_action_generator(inventory, SimpleNamespace())
     with generator.floor_fill_fallback() as enabled:
         assert not enabled
-        assert not generator.planar_sampler.relax_floor_fill

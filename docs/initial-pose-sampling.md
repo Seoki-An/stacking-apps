@@ -429,14 +429,15 @@ $$
 $$
 
 In the following expressions, $R$ is implicit in $n_A,n_U$ and $\mathcal A$.
-When the active floor contains occupied cells and floor filling is not relaxed,
-anchor/orientation pairs with $n_U=0$ are removed at this stage. This is an
-admission rule, not an open-area score.
+Anchor/orientation pairs with $n_U=0$ remain eligible. Empty-floor overlap
+is a score preference, not an admission rule. Target containment/inset and
+connectivity masks remain; solved/settled poses still pass the configured
+active-floor and physical checks.
 
 #### Normalized fill area $F$
 
 Let $\mathcal A_{\mathrm{open}}$ contain base-mask-valid anchor/orientation pairs with
-$n_A>0$ and $n_U>0$, before the later connectivity filter. The normalization is
+any empty-cell count (including zero), before the later connectivity filter. The normalization is
 
 $$
 n_{U,\max}=\max\left(1,

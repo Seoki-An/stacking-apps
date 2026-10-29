@@ -40,7 +40,6 @@ def proposal_snapshot(kind, sampler_class=None, decimals=12):
                                ([pose(*first, z=.1)], True)):
             current = state(inv, poses)
             sample.relax_corner_seed = relaxed
-            sample.relax_floor_fill = relaxed
             score_map = sample.score_map(current, None, 1)
             regions = {key: {"scores": value["scores"], "mask": value["candidate_mask"],
                              "source": value["grid_source"]}

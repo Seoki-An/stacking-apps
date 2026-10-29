@@ -50,7 +50,6 @@ class ScoredPlanarPoseSampler:
 
     def __init__(self, inventory, config, orientation_provider, settings, *, seed=0, floor_policy=None):
         self.floor_policy = floor_policy
-        self.relax_floor_fill = False
         self.relax_corner_seed = False
         self._active_floor = None
         self.inventory = inventory
@@ -131,7 +130,7 @@ class ScoredPlanarPoseSampler:
                   for object_id, pose in sorted(state.object_poses.items())),
             height.shape, height.dtype.str, height.tobytes(),
             tuple(observation.height_map_xlim), tuple(observation.height_map_ylim),
-            self.config, repr(self.settings), self.relax_floor_fill,
+            self.config, repr(self.settings),
         )
         if context != self._score_context:
             self._scores.clear()
@@ -172,8 +171,7 @@ class ScoredPlanarPoseSampler:
         scores = floor.score_xy_debug_map(view, self.state_view(state), object_index,
             scene_height_map=observation.scene_height_map, support_kernels=self._kernels[key],
             footprint_bounds=self._footprint_bounds[key],
-            active_floor=self._active_floor, state_map_bundle=self._state_map_bundle,
-            relax_floor_fill=self.relax_floor_fill)
+            active_floor=self._active_floor, state_map_bundle=self._state_map_bundle)
         if not state.placed_object_indices:
             # Corner seeds use full footprints even when ordinary sampling
             # permits overhang via target_anchor_inset_scale < 1.
@@ -341,17 +339,14 @@ class ScoredPlacementActionGenerator(PlacementActionGenerator):
         if not any(isinstance(item, ActiveFloorFilter) for item in filters):
             yield False
             return
-        previous = self.planar_sampler.relax_floor_fill
         self.filters = tuple(
             ActiveFloorFilter(item.policy, relaxed=True)
             if isinstance(item, ActiveFloorFilter) else item for item in filters
         )
-        self.planar_sampler.relax_floor_fill = True
         try:
             yield True
         finally:
             self.filters = filters
-            self.planar_sampler.relax_floor_fill = previous
 
     def generate_batch(self, states, observations, requests):
         if not (len(states) == len(observations) == len(requests)):

@@ -78,7 +78,7 @@ class CompositePlanarSampler:
         quaternions = owner.quaternions(state, observation, object_index)
         context = (tuple(state.placed_object_indices),
                    tuple((oid, np.asarray(pose).tobytes()) for oid, pose in sorted(state.object_poses.items())),
-                   owner.config, repr(owner.settings), owner.relax_floor_fill, owner.relax_corner_seed)
+                   owner.config, repr(owner.settings), owner.relax_corner_seed)
         if context != self._context:
             self._context = context
             self._maps.clear()
@@ -202,7 +202,7 @@ class CompositePlanarSampler:
             unfilled = floor.rectangle_cell_counts(layer["valid"] & ~layer["occupied"], rectangles)
             contacts = floor.rectangle_cell_counts(layer["occupied_neighbor"], rectangles)
             connected = (contacts > 0) if layer["occupied"].any() else np.ones(len(indices), dtype=bool)
-            keep = connected & ((unfilled > 0) | owner.relax_floor_fill)
+            keep = connected
             indices, membership, unfilled = indices[keep], membership[keep], unfilled[keep]
             if not len(indices):
                 continue

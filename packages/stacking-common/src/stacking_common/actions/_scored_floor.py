@@ -276,7 +276,6 @@ def score_xy_debug_map(
     active_floor: Optional[dict] = None,
     support_kernels: Optional[list[BottomHeightKernel]] = None,
     state_map_bundle: Optional[StateMapBundle] = None,
-    relax_floor_fill: bool = False,
     footprint_bounds: Optional[np.ndarray] = None,
 ) -> dict:
     if scene_height_map is None:
@@ -374,7 +373,6 @@ def score_xy_debug_map(
     bounds = scaled_bounds[orientations]
     cell_xy = xy_grid[grid_index[:, 0], grid_index[:, 1]]
     count = len(grid_index)
-    keep = np.ones(count, dtype=bool)
     connected = np.ones(count, dtype=bool)
     unfilled_cells = np.zeros(count, dtype=int)
     max_unfilled_cells = 1
@@ -395,15 +393,12 @@ def score_xy_debug_map(
     if has_occupied:
         unfilled_cells = rectangle_cell_counts(~layer["occupied"], rectangles)
         max_unfilled_cells = max(1, int(np.max(unfilled_cells, initial=0)))
-        # Relax only the admission mask. Empty floor remains valuable when
-        # upper placements are needed to continue the search.
-        if not relax_floor_fill:
-            keep = unfilled_cells > 0
+        # Empty-floor overlap contributes a preference, never an admission gate.
     planar_bias = planar_bias_grid(
         inventory, xy_grid, planar_bias_xy, planar_bias_axis,
     )[grid_index[:, 0], grid_index[:, 1]]
 
-    base = np.flatnonzero(keep)
+    base = np.arange(count)
     base_indices = grid_index[base]
     base_xy = cell_xy[base]
     base_xy_items = [xy.copy() for xy in base_xy]

@@ -4,6 +4,17 @@ This supersedes the staged validation and continuation-repair strategy described
 in the earlier MCTS documents. The original code and dirty working files are in
 `.backups/mcts-before-unified-20261027-ojcgBfmv/` (including a verified Git bundle).
 
+## Current floor admission (2026-10-29)
+
+The temporary unified continuation-repair experiment has been backed up to
+`/tmp/mcts-before-remove-floor-mask-repair-20261029-115556` and removed.
+The empty-floor overlap proposal mask is also removed for single and composite
+targets: a zero overlap does not exclude an XY proposal. `fill_area` still rewards
+empty-floor coverage. Target geometry and connectivity admission and root exhaustion fallback remain. Strict solved/settled
+floor checks are optional and currently disabled in the excavator action profile. Final selection
+uses existing evidence and the descendant-depth filter; it does not repair paths.
+No height reward or simulation settings were changed by this removal.
+
 ## Evaluation and search
 
 Every newly evaluated edge uses the same platform simulation profile:

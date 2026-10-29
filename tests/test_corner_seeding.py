@@ -96,7 +96,7 @@ def test_corner_fallback_is_scoped_and_leaves_floor_filters_unchanged(sampler_se
     filters = generator.filters
     with pytest.raises(RuntimeError):
         with generator.corner_seed_fallback() as enabled:
-            assert enabled and not sampler.relax_floor_fill
+            assert enabled
             assert generator.filters is filters
             proposals = sampler.sample(inventory, state, observation, 0, 32, None)
             assert proposals and all(p.diagnostics['sampling_policy'] == 'scored' for p in proposals)
