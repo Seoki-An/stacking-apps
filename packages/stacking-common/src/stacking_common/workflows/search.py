@@ -144,6 +144,8 @@ class StackingSearchApplication:
             if environments is not None or worker_count == 1 or cuda_simulation:
                 transition_evaluator = StackingEnvironmentEvaluator(
                     environments or self.build_search_environments(inventory),
+                    connectivity_check=self.build_connectivity_check(inventory),
+                    allow_root_jumps=self.root_jumps_enabled(),
                 )
             else:
                 transition_evaluator = self.build_parallel_transition_evaluator(
@@ -194,6 +196,14 @@ class StackingSearchApplication:
             )
         else:
             prior = prior_scorer
+        root_generator = generator
+        if self.root_jumps_enabled():
+            root_generator = self.build_action_generator(
+                inventory, solvers[0],
+                orientation_provider=orientation_provider or self.build_orientation_provider(),
+                worker_pose_solvers=solvers[1:],
+                filters=(() if overlap_evaluator is None else self.build_target_filters(inventory, overlap_evaluator)),
+                root=True)
         value = value_estimator or HorizonValueEstimator(
             profile.bootstrap_mean_reward,
             profile.bootstrap_horizon,
@@ -206,7 +216,7 @@ class StackingSearchApplication:
             transition_evaluator,
             value,
             root_action_generator=CEMRootActionGenerator(
-                generator,
+                root_generator,
                 prior,
                 profile.root_cem,
             ),
@@ -226,6 +236,8 @@ class StackingSearchApplication:
             [
                 StackingEnvironmentEvaluator(
                     self.build_search_environments(inventory),
+                    connectivity_check=self.build_connectivity_check(inventory),
+                    allow_root_jumps=self.root_jumps_enabled(),
                 )
                 for _ in range(worker_count)
             ],
@@ -236,6 +248,16 @@ class StackingSearchApplication:
         """Return the immutable platform search budget and fidelity schedule."""
 
         return self.mcts_profile.request
+
+    def build_connectivity_check(self, inventory):
+        if self.sampling_settings.get("connectivity", "active_floor") != "previous_action":
+            return None
+        from stacking_common.actions.connectivity import PreviousActionConnectivity
+        return PreviousActionConnectivity(inventory, self.sampling_settings["contact_gap_tolerance"])
+
+    def root_jumps_enabled(self):
+        return (self.sampling_settings.get("connectivity", "active_floor") == "previous_action"
+                and self.sampling_settings.get("root_global_fraction", 0.) > 0.)
 
     def build_environment(
         self,
@@ -310,15 +332,20 @@ class StackingSearchApplication:
         orientation_provider: ObjectOrientationProvider[Observation] | None = None,
         worker_pose_solvers: Sequence[PlacementPoseSolver] = (),
         filters: Sequence[PlacementFilter] = (),
+        *, root: bool = False,
     ) -> PlacementActionGenerator[Observation]:
         """Build both platforms' scored proposals around the selected solver."""
 
         profile = self.action_generation_profile
         floor_policy = self.build_floor_policy(inventory)
+        sampler = ScoredPlanarPoseSampler
+        if root and self.root_jumps_enabled():
+            from stacking_common.actions.root_sampling import RootMixturePlanarSampler
+            sampler = RootMixturePlanarSampler
         return ScoredPlacementActionGenerator(
             inventory=inventory,
             config=profile.generator,
-            planar_sampler=ScoredPlanarPoseSampler(
+            planar_sampler=sampler(
                 inventory, profile.planar,
                 orientation_provider or self.build_orientation_provider(),
                 self.sampling_settings,

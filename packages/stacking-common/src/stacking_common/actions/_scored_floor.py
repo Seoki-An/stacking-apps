@@ -268,6 +268,8 @@ def neighbor_mask(mask: np.ndarray) -> np.ndarray:
             neighbors |= padded[dx : dx + mask.shape[0], dy : dy + mask.shape[1]]
     return neighbors
 
+
+
 def score_xy_debug_map(
     inventory,
     state,
@@ -278,6 +280,7 @@ def score_xy_debug_map(
     state_map_bundle: Optional[StateMapBundle] = None,
     footprint_bounds: Optional[np.ndarray] = None,
     normalization: Optional[dict] = None,
+    footprint_polygons=None,
 ) -> dict:
     if scene_height_map is None:
         scene_height_map = inventory.get_height_map(state)
@@ -395,6 +398,24 @@ def score_xy_debug_map(
         unfilled_cells = rectangle_cell_counts(~layer["occupied"], rectangles)
         max_unfilled_cells = max(1, int(np.max(unfilled_cells, initial=0)))
         # Empty-floor overlap contributes a preference, never an admission gate.
+    if (not inventory.cfg.action.planar.get("connectivity_enabled", True)):
+        connected[:] = True
+        connectivity_mask = valid.copy()
+    elif (inventory.cfg.action.planar.get("connectivity", "active_floor") == "previous_action"
+            and state.stone_seq):
+        stone, stone_id = state_stone(inventory, state, state.stone_seq[-1])
+        entry = floor_entry(stone, state.stone_poses[stone_id], include_volumes=False)
+        from .connectivity import footprints_within_gap
+        if footprint_polygons is None:
+            raise ValueError("previous_action connectivity requires actual footprint polygons")
+        connected = np.zeros(count, dtype=bool)
+        for orientation, polygon in enumerate(footprint_polygons):
+            selected = orientations == orientation
+            connected[selected] = footprints_within_gap(
+                entry["xy_polygon"], polygon, cell_xy[selected],
+                float(inventory.cfg.action.planar["contact_gap_tolerance"]) + 1e-9)
+        connectivity_mask[:] = False
+        np.logical_or.at(connectivity_mask, (rows, columns), connected)
     planar_bias = planar_bias_grid(
         inventory, xy_grid, planar_bias_xy, planar_bias_axis,
     )[grid_index[:, 0], grid_index[:, 1]]

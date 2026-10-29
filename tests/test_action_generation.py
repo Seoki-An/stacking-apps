@@ -592,6 +592,41 @@ def test_scored_generator_keeps_random_draws_in_small_allocations(monkeypatch, p
     )
 
 
+@pytest.mark.parametrize("exponent", [0., .1])
+@pytest.mark.parametrize("excluded", [{10}, {10, 20}])
+def test_scored_allocation_skips_execution_rejected_objects_before_sampling(exponent, excluded):
+    inventory = _inventory()
+    sampled, solved = [], []
+
+    def sample(inventory, state, observation, index, count, priority):
+        sampled.append(index)
+        return tuple(PlanarPlacement(_pose(x=.001 * i)) for i in range(count))
+
+    def solve(inventory, state, index, initial):
+        solved.append(index)
+        return PlacementSolveResult(initial.pose, 0., 0.)
+
+    generator = ScoredPlacementActionGenerator(
+        inventory=inventory,
+        config=PlacementActionGeneratorConfig(4, .01, 0., None, stone_volume_exponent=exponent),
+        planar_sampler=SimpleNamespace(seed=0, sample=sample),
+        initializer=_Initializer(), pose_solver=SimpleNamespace(solve=solve),
+    )
+    try:
+        result = generator.generate(_state(inventory), None, ActionGenerationRequest(
+            4, execution_rejections=ExecutionRejections(object_ids=excluded)))
+    finally:
+        generator.close()
+    if len(excluded) == 2:
+        assert sampled == solved == []
+        assert result.exhausted and result.attempts == 0
+    else:
+        assert sampled == [1]
+        assert solved == [1] * 4
+        assert len(result.candidates) == result.attempts == 4
+        assert all(c.action.object_id == 20 for c in result.candidates)
+
+
 def test_scan_orientation_yaw_aligns_longest_axis() -> None:
     geometry = _cube(0.04)
     points = geometry.points.copy()

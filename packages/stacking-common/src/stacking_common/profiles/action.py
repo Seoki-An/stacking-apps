@@ -102,6 +102,12 @@ def resolve_scored_sampling_settings(planar: Mapping[str, object]) -> dict:
     if obsolete:
         raise ValueError(f"obsolete planar.floor settings: {sorted(obsolete)}")
     score = dict(_mapping(planar, "score"))
+    connectivity = planar.get("connectivity", "active_floor")
+    if connectivity not in ("active_floor", "previous_action"):
+        raise ValueError("planar.connectivity must be active_floor or previous_action")
+    root_fraction = float(planar.get("root_global_fraction", 0.))
+    if not np.isfinite(root_fraction) or not 0. <= root_fraction <= 1.:
+        raise ValueError("planar.root_global_fraction must be between zero and one")
     obsolete_scores = {"open_area", "frontier"} & score.keys()
     if obsolete_scores:
         raise ValueError(f"obsolete planar.score settings: {sorted(obsolete_scores)}")
@@ -111,6 +117,8 @@ def resolve_scored_sampling_settings(planar: Mapping[str, object]) -> dict:
             "target_mask_margin", "contact_gap_tolerance")},
         "score": score,
         "floor": floor,
+        "connectivity": connectivity,
+        "root_global_fraction": root_fraction,
     }
 
 

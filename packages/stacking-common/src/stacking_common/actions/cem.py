@@ -159,6 +159,47 @@ class CEMRootActionGenerator(Generic[ObservationT]):
         self._retry_round = 0
         self._excluded_actions: tuple[Action, ...] = ()
 
+    def close(self):
+        if getattr(self.generator, "root_global_fraction", 0.) > 0.:
+            self.generator.close()
+
+    def _retain(self, ranked, count, *, object_limit=None, diversify=False):
+        """Reserve root jump slots without changing candidate scores."""
+        fraction = getattr(self.generator, "root_global_fraction", 0.)
+        if fraction <= 0.:
+            return self._limit_per_object(ranked, object_limit)[:count]
+        jump_count = min(count, math.ceil(count * fraction))
+        selected, seen, counts = [], set(), Counter()
+
+        def take(pool, budget):
+            added = 0
+            regions = set()
+            for unique_regions in ((True, False) if diversify else (False,)):
+                for candidate in pool:
+                    if added >= budget:
+                        return
+                    oid = candidate.action.object_id
+                    if id(candidate) in seen or (object_limit is not None and counts[oid] >= object_limit):
+                        continue
+                    region = candidate.diagnostics.get("target_region_id")
+                    region = None if region is None else tuple(region)
+                    if unique_regions and (region is None or region in regions):
+                        continue
+                    selected.append(candidate)
+                    seen.add(id(candidate))
+                    counts[oid] += 1
+                    regions.add(region)
+                    added += 1
+
+        connected = [c for c in ranked if c.diagnostics.get("root_connected", True)]
+        jumps = [c for c in ranked if not c.diagnostics.get("root_connected", True)]
+        # Reserve global alternatives before local candidates consume a shared
+        # per-stone cap. Fill missing slots from whichever pool remains feasible.
+        take(jumps, jump_count)
+        take(connected, count - jump_count)
+        take(ranked, count - len(selected))
+        return [c for c in ranked if id(c) in seen]
+
     def reset_statistics(self) -> None:
         """Clear diagnostics before a new root search."""
 
@@ -199,8 +240,8 @@ class CEMRootActionGenerator(Generic[ObservationT]):
         fresh_offset = self._fresh_start + initial.attempts
         fresh_exhausted = initial.exhausted
         rejection_counts.update(initial.rejection_counts)
-        pool, duplicates = self._deduplicate(initial.candidates)
-        pool = self._rank(state, observation, pool)[: self.config.population]
+        pool, duplicates = self._select_pool(
+            state, observation, initial.candidates, request, rejection_counts)
         initial_rejected = sum(initial.rejection_counts.values())
         if initial.attempts > len(initial.candidates) + initial_rejected:
             unclassified = (
@@ -224,7 +265,8 @@ class CEMRootActionGenerator(Generic[ObservationT]):
             if expired():
                 break
             ranked = self._rank(state, observation, pool)
-            parents = self._elite_parents(ranked, state)
+            parents = self._elite_parents(
+                ranked, state, excluded_object_ids=request.execution_rejections.object_ids)
             if not parents and fresh_exhausted:
                 break
             fresh_count = self.config.population if not parents else int(
@@ -266,6 +308,7 @@ class CEMRootActionGenerator(Generic[ObservationT]):
                             sampling_priority=request.sampling_priority,
                             attempt_offset=fresh_offset,
                             deadline=request.deadline,
+                            execution_rejections=request.execution_rejections,
                         ),
                     )
                 candidates.extend(fresh.candidates)
@@ -306,8 +349,8 @@ class CEMRootActionGenerator(Generic[ObservationT]):
                         if reason is not None
                     )
             combined = [*ranked, *candidates]
-            pool, duplicates = self._deduplicate(combined)
-            pool = self._rank(state, observation, pool)[: self.config.population]
+            pool, duplicates = self._select_pool(
+                state, observation, combined, request, rejection_counts)
             rejection_counts.update(round_rejections)
             round_statistics.append(
                 CEMRoundStatistics(
@@ -328,47 +371,8 @@ class CEMRootActionGenerator(Generic[ObservationT]):
             )
 
         ranked = self._rank(state, observation, pool)
-        # Exclude downstream failures before the keep/per-object caps, so they
-        # cannot crowd out eligible alternatives. Keep round acceptance counts
-        # separate from this final eligibility filter.
-        eligible = []
-        for candidate in ranked:
-            reason = request.execution_rejections.reason(candidate.action)
-            if reason is None:
-                eligible.append(candidate)
-            else:
-                rejection_counts[reason] += 1
-        ranked = eligible
-        excluded = sum(
-            any(
-                _duplicate(
-                    candidate.action,
-                    action,
-                    self.config.duplicate_xy_threshold,
-                    self.config.duplicate_yaw_threshold,
-                )
-                for action in self._excluded_actions
-            )
-            for candidate in ranked
-        )
-        if excluded:
-            rejection_counts["retry_excluded_duplicate"] += excluded
-            ranked = [
-                candidate
-                for candidate in ranked
-                if not any(
-                    _duplicate(
-                        candidate.action,
-                        action,
-                        self.config.duplicate_xy_threshold,
-                        self.config.duplicate_yaw_threshold,
-                    )
-                    for action in self._excluded_actions
-                )
-            ]
-        ranked = self._limit_per_object(
-            ranked, self._object_limit(state, self.config.keep)
-        )[: self.config.keep]
+        ranked = self._retain(ranked, self.config.keep, object_limit=self._object_limit(
+            state, self.config.keep, request.execution_rejections.object_ids))
         self.last_statistics = CEMStatistics(
             rounds=tuple(round_statistics),
             rejection_counts=rejection_counts,
@@ -379,6 +383,9 @@ class CEMRootActionGenerator(Generic[ObservationT]):
             timed_out=expired(),
         )
         self.statistics_history.append(self.last_statistics)
+        first = self._retain(ranked, request.max_candidates)
+        first_ids = {id(candidate) for candidate in first}
+        ranked = first + [candidate for candidate in ranked if id(candidate) not in first_ids]
         start = min(request.attempt_offset, len(ranked))
         selected = ranked[start : start + request.max_candidates]
         return ActionGenerationResult(
@@ -396,8 +403,34 @@ class CEMRootActionGenerator(Generic[ObservationT]):
                 sampling_priority=request.sampling_priority,
                 attempt_offset=self._fresh_start,
                 deadline=request.deadline,
+                execution_rejections=request.execution_rejections,
             ),
         )
+
+    def _select_pool(self, state, observation, candidates, request, rejection_counts):
+        """Keep the best eligible representative before the population cap.
+
+        Filtering only at the end lets rejected actions consume population and
+        elite slots. Deduplicating before ranking instead favors old parents
+        over better nearby mutations. Build acceptance counts remain separate
+        from these eligibility exclusions, which are counted once per proposal.
+        """
+        eligible = []
+        for candidate in candidates:
+            reason = request.execution_rejections.reason(candidate.action)
+            if reason is None and any(
+                _duplicate(candidate.action, action, self.config.duplicate_xy_threshold,
+                           self.config.duplicate_yaw_threshold)
+                for action in self._excluded_actions
+            ):
+                reason = "retry_excluded_duplicate"
+            if reason is None:
+                eligible.append(candidate)
+            else:
+                rejection_counts[reason] += 1
+        ranked = self._rank(state, observation, eligible)
+        distinct, duplicates = self._deduplicate(ranked)
+        return self._retain(distinct, self.config.population), duplicates
 
     def _mutation_proposal(
         self,
@@ -526,11 +559,14 @@ class CEMRootActionGenerator(Generic[ObservationT]):
             kept.append(candidate)
         return kept, duplicate_count
 
-    def _object_limit(self, state, target_count):
+    def _object_limit(self, state, target_count, excluded_object_ids=()):
         """Keep the configured diversity cap until too few stones remain."""
         if self.config.max_per_object is None:
             return None
-        remaining = len(state.object_ids) - len(state.placed_object_indices)
+        unavailable = set(excluded_object_ids) | set(
+            getattr(getattr(self.generator, "config", None), "banned_object_ids", ()))
+        remaining = sum(index not in state.placed_object_indices and oid not in unavailable
+                        for index, oid in enumerate(state.object_ids))
         if remaining == 0:
             return 0
         return max(self.config.max_per_object, math.ceil(target_count / remaining))
@@ -548,9 +584,11 @@ class CEMRootActionGenerator(Generic[ObservationT]):
             kept.append(candidate)
         return kept
 
-    def _elite_parents(self, ranked, state):
+    def _elite_parents(self, ranked, state, *, excluded_object_ids=()):
         """Keep region diversity in exploration; final ranking is unchanged."""
-        limit = self._object_limit(state, self.config.elite)
+        limit = self._object_limit(state, self.config.elite, excluded_object_ids)
+        if getattr(self.generator, "root_global_fraction", 0.) > 0.:
+            return self._retain(ranked, self.config.elite, object_limit=limit, diversify=True)
         if not any(item.diagnostics.get("target_region_id") is not None for item in ranked):
             return self._limit_per_object(ranked, limit)[:self.config.elite]
         selected, seen, counts = [], set(), {}

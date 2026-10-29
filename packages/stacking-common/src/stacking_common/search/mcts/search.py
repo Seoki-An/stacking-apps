@@ -295,6 +295,9 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         iteration_deadline = deadline
         counters = _SearchCounters(generation_deadline=iteration_deadline)
         root.detach()
+        begin_evaluation = getattr(self.transition_evaluator, "begin_search", None)
+        if callable(begin_evaluation):
+            begin_evaluation(root.state)
         self._apply_execution_rejections(root, request, counters)
         selected, ranked_candidates = None, ()
         fallback = FloorFillFallbackResult()
@@ -515,7 +518,8 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         each excluding earlier candidates, until one yields a selection.
         """
         empty = root.state is not None and not root.state.placed_object_indices
-        relax = getattr(self.action_generator, "corner_seed_fallback", None)
+        root_generator = getattr(self.root_action_generator, "generator", self.action_generator)
+        relax = getattr(root_generator, "corner_seed_fallback", None)
         policy = "corner_seed"
         if (not empty or not callable(relax)
                 or (deadline is not None and time.monotonic() >= deadline)):

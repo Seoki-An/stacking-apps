@@ -18,6 +18,48 @@ fallback remains independent of floor tracking. Final selection
 uses existing evidence and the descendant-depth filter; it does not repair paths.
 No height reward or simulation settings were changed by this removal.
 
+### Previous-action connectivity experiment
+
+`planar.connectivity` in `action_generation.yml` defaults to `active_floor` when
+omitted; the excavator profile explicitly selects `previous_action`.
+The optional `previous_action` mode replaces the active-layer connectivity mask
+with the XY projection of the last placed stone, using its current state pose.
+The Euclidean gap between the actual convex XY projections of the two stones
+must not exceed `planar.contact_gap_tolerance` (0.10 m in the excavator profile).
+The calculation uses the candidate's rotation and full footprint, independently
+of grid size and `footprint_scale`. Overlapping projections have zero gap. This
+replaces the earlier coarse-grid neighborhood, which admitted large XY gaps.
+It remains an XY proximity rule, not proof of physical 3D contact.
+Score-map construction first rejects anchors whose XY bounding-box distance
+already exceeds the gap limit. Remaining anchors use the exact polygon distance;
+bounding-box overlap alone never establishes connectivity. Solved/simulated
+distance diagnostics retain the full exact calculation.
+The first placement is unrestricted by connectivity; later empty layers do not
+disable this mask. Region fallback grids also retain it.
+
+The same test applies to CEM initial-pose mutations before initialization,
+solved poses after pose optimization, and evaluated search edges after
+simulation (`previous_action_disconnected`). The post-simulation check uses
+both stones' resulting poses and records `previous_action_xy_gap` and its limit.
+Descendants retain this strict rule. At the root, the excavator profile sets
+`planar.root_global_fraction: 0.3`: 70% of initial proposals use the connected
+map and 30% use the unrestricted target map. Fractional allocations carry across
+stones, and unused connected slots can be filled globally. Global proposals may
+also happen to be connected.
+
+Root CEM reserves this fraction of population, elite and returned candidate slots
+for feasible disconnected poses when available; the remaining slots favor
+connected poses. Classification uses the optimized pose. Existing scores and
+per-object caps still apply, and empty groups give their slots to the other group.
+Root edges are exempt only from connectivity rejection, including after simulation;
+all physical checks remain. No connectivity bonus is added to the reward.
+The exemption follows the current search root after tree promotion, so a jump
+starts a new local continuation rather than permitting jumps deeper in the tree.
+
+Setting the fraction to zero, or omitting it, restores strict connectivity at
+every depth. It has no effect in `active_floor` mode. Previously saved trees are
+not retroactively revalidated: start a fresh run after changing this policy.
+
 ## Evaluation and search
 
 Every newly evaluated edge uses the same platform simulation profile:

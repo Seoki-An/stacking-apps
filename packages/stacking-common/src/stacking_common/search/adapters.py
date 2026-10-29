@@ -90,6 +90,9 @@ class StackingEnvironmentEvaluator(Generic[ObservationT]):
             EvaluationFidelity,
             StackingEnvironment[ObservationT],
         ],
+        *,
+        connectivity_check=None,
+        allow_root_jumps=False,
     ) -> None:
         normalized = {
             EvaluationFidelity(fidelity): environment
@@ -98,12 +101,18 @@ class StackingEnvironmentEvaluator(Generic[ObservationT]):
         if not normalized:
             raise ValueError("at least one search evaluation environment is required")
         self.environments = normalized
+        self.connectivity_check = connectivity_check
+        self.allow_root_jumps = allow_root_jumps
+        self._search_root = None
         self.worker_count = 1
         for environment in normalized.values():
             transition = getattr(environment, "transition", None)
             backend = getattr(transition, "backend", None)
             self.worker_count = max(self.worker_count, getattr(backend, "batch_size", 1))
         self._initialized: set[EvaluationFidelity] = set()
+
+    def begin_search(self, state):
+        self._search_root = (tuple(state.object_ids), tuple(state.placed_object_indices))
 
     def evaluate(
         self,
@@ -136,6 +145,20 @@ class StackingEnvironmentEvaluator(Generic[ObservationT]):
         rejection_reason = _transition_rejection_reason(
             result.state, diagnostics
         )
+        if (self.connectivity_check is not None and not result.state.failed
+                and rejection_reason is None and parent_state.placed_object_indices):
+            object_id = parent_state.object_ids[action.object_index]
+            decision = self.connectivity_check.check(
+                parent_state, action.object_index, result.state.object_poses[object_id],
+                object_poses=result.state.object_poses)
+            diagnostics.update(decision.diagnostics)
+            diagnostics["previous_action_xy_gap_stage"] = "simulated"
+            root_jump = self.allow_root_jumps and self._search_root == (
+                tuple(parent_state.object_ids), tuple(parent_state.placed_object_indices))
+            diagnostics["root_connectivity_exempt"] = root_jump
+            if not decision.accepted and not root_jump:
+                rejection_reason = decision.reason
+                diagnostics["rejection_reason"] = rejection_reason
         failed = bool(result.state.failed or rejection_reason is not None)
         return TransitionEvaluation(
             state=result.state,
@@ -204,6 +227,12 @@ class ParallelTransitionEvaluator(Generic[ObservationT]):
         self.evaluators = values
         self.worker_count = min(workers, len(values))
         self.executor = ThreadPoolExecutor(max_workers=self.worker_count)
+
+    def begin_search(self, state):
+        for evaluator in self.evaluators:
+            begin = getattr(evaluator, "begin_search", None)
+            if callable(begin):
+                begin(state)
 
     def evaluate(self, state, action, fidelity):
         return self.evaluators[0].evaluate(state, action, fidelity)

@@ -17,6 +17,7 @@ import numpy as np
 from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation
 
+from .connectivity import PreviousActionConnectivity, projected_footprint
 from . import _scored_floor as floor
 from ._support_maps import bottom_height_kernel
 from .types import PlanarPlacement, PlacementFilterDecision
@@ -44,17 +45,21 @@ class _StoneView:
         return np.ptp(self.points, axis=0)
 
 
+
 class ScoredPlanarPoseSampler:
     """Orientation-aware scores, empty-scene corner seeds, and elite/Boltzmann draws."""
 
-    def __init__(self, inventory, config, orientation_provider, settings, *, seed=0, floor_policy=None):
+    def __init__(self, inventory, config, orientation_provider, settings, *, seed=0, floor_policy=None, connectivity_enabled=True):
         self.floor_policy = floor_policy
         self.relax_corner_seed = False
         self._active_floor = None
         self.inventory = inventory
         self.config = config
         self.orientation_provider = orientation_provider
+        self.connectivity_enabled = connectivity_enabled
         self.settings = settings
+        if settings.get("connectivity", "active_floor") not in ("active_floor", "previous_action"):
+            raise ValueError("planar.connectivity must be active_floor or previous_action")
         self.seed = seed
         self.rng = np.random.RandomState(seed)
         self.stones = [_StoneView(obj, inventory.initial_pose(obj.object_id)) for obj in inventory]
@@ -64,6 +69,7 @@ class ScoredPlanarPoseSampler:
             taper=asdict(inventory.target.taper))
         self._kernels = {}
         self._footprint_bounds = {}
+        self._footprint_polygons = {}
         self._quaternions = {}
         self._scores = {}
         self._sampled_scores = {}
@@ -81,6 +87,7 @@ class ScoredPlanarPoseSampler:
     def view(self, state, observation):
         planar = {
             **self.settings,
+            "connectivity_enabled": self.connectivity_enabled,
             "score_map_size": list(reversed(self.config.grid_shape)),
             "floor": {**self.settings["floor"],
                            "boundary_inset_radius_scale": self.config.target_anchor_inset_scale},
@@ -157,6 +164,7 @@ class ScoredPlanarPoseSampler:
                                   for q in quaternions]
             rotations = Rotation.from_quat(quaternions).as_matrix()
             rotated = self.stones[object_index].points @ rotations.transpose(0, 2, 1)
+            self._footprint_polygons[key] = [projected_footprint(points) for points in rotated]
             self._footprint_bounds[key] = np.stack(
                 (rotated[:, :, :2].min(axis=1), rotated[:, :, :2].max(axis=1)), axis=1)
         if self._state_map_bundle is None:
@@ -171,6 +179,7 @@ class ScoredPlanarPoseSampler:
         scores = floor.score_xy_debug_map(view, self.state_view(state), object_index,
             scene_height_map=observation.scene_height_map, support_kernels=self._kernels[key],
             footprint_bounds=self._footprint_bounds[key],
+            footprint_polygons=self._footprint_polygons[key],
             active_floor=self._active_floor, state_map_bundle=self._state_map_bundle)
         if not state.placed_object_indices:
             # Corner seeds use full footprints even when ordinary sampling
@@ -264,7 +273,8 @@ class ScoredPlanarPoseSampler:
             view, self._score_state, object_index,
             scene_height_map=observation.scene_height_map,
             support_kernels=[bottom_height_kernel(points, pose[3:], dx, dy)],
-            footprint_bounds=bounds[None], active_floor=self._active_floor,
+            footprint_bounds=bounds[None], footprint_polygons=[projected_footprint(rotated)],
+            active_floor=self._active_floor,
             state_map_bundle=self._state_map_bundle, normalization=scores["normalization"])
         col = int(np.argmin(np.abs(xs - pose[0])))
         row = int(np.argmin(np.abs(ys - pose[1])))
@@ -276,6 +286,16 @@ class ScoredPlanarPoseSampler:
 
     def region_metadata(self, object_index, pose):
         return {} if self._composite is None else self._composite.metadata(object_index, pose)
+
+    def allows_initial_pose(self, state, object_index, pose):
+        """Apply the optional previous-action mask to continuous CEM seeds too."""
+        if (not self.connectivity_enabled
+                or self.settings.get("connectivity", "active_floor") != "previous_action"
+                or not state.placed_object_indices):
+            return True
+        check = PreviousActionConnectivity(self.inventory, self.settings["contact_gap_tolerance"])
+        return check.check(state, object_index, pose).accepted
+
 
 
 class ScoredPlacementActionGenerator(PlacementActionGenerator):
@@ -290,6 +310,12 @@ class ScoredPlacementActionGenerator(PlacementActionGenerator):
         if isinstance(getattr(self.inventory, "target", None), CompositeTargetGeometry):
             # Mutations can cross gaps even when all fresh seeds are valid.
             self.filters += (TargetXYOverlapFilter(),)
+        if getattr(self.planar_sampler, "settings", {}).get("connectivity") == "previous_action":
+            from .connectivity import RootConnectivityPreference
+            policy = (RootConnectivityPreference if getattr(self.planar_sampler, "root_global_fraction", 0.) > 0.
+                      else PreviousActionConnectivity)
+            self.filters += (policy(self.inventory, self.planar_sampler.settings["contact_gap_tolerance"]),)
+        self.root_global_fraction = getattr(self.planar_sampler, "root_global_fraction", 0.)
         self.rng = random.Random(self.planar_sampler.seed)
         self._sampling_calls = 0
         self._stone_weights = None
@@ -300,6 +326,13 @@ class ScoredPlacementActionGenerator(PlacementActionGenerator):
             if len(volumes):
                 weights = (volumes / volumes.max()) ** self.config.stone_volume_exponent
                 self._stone_weights = np.maximum(weights, np.finfo(float).tiny).tolist()
+
+    def _initialize_candidate(self, state, object_index, proposal, *, scene_contexts=None):
+        allows = getattr(self.planar_sampler, "allows_initial_pose", None)
+        if callable(allows) and not allows(state, object_index, proposal.pose):
+            return None, "previous_action_disconnected"
+        return super()._initialize_candidate(state, object_index, proposal,
+                                             scene_contexts=scene_contexts)
 
     def _proposal_counts(self, available, budget, priority):
         """Allocate fresh proposals, retaining the per-stone attempt cap."""
@@ -354,7 +387,8 @@ class ScoredPlacementActionGenerator(PlacementActionGenerator):
             self._sampling_calls += 1
             available = [i for i, object_id in enumerate(state.object_ids)
                          if i not in state.placed_object_indices
-                         and object_id not in self.config.banned_object_ids]
+                         and object_id not in self.config.banned_object_ids
+                         and object_id not in request.execution_rejections.object_ids]
             exhausted.append(not available)
             priority = request.sampling_priority == "lower_floor_first" and bool(state.placed_object_indices)
             counts = self._proposal_counts(available, request.max_candidates, priority)

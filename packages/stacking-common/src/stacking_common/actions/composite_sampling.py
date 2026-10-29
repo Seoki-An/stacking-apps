@@ -13,6 +13,7 @@ from . import _scored_floor as floor
 from ._support_maps import bottom_height_kernel, support_likelihood_maps_by_kernel
 from .target_regions import CachedAnchorContainment, SamplingRegion
 from .types import PlanarPlacement
+from .connectivity import footprints_within_gap, projected_footprint
 
 
 class _CandidateRows(Sequence):
@@ -182,6 +183,12 @@ class CompositePlanarSampler:
         containment = self._containment[region_id]
         score_grid = np.full(shape, np.nan)
         mask = np.zeros(shape, dtype=bool)
+        previous_entry = None
+        if (owner.connectivity_enabled and owner.settings.get("connectivity", "active_floor") == "previous_action"
+                and self._state.placed_object_indices):
+            index = self._state.placed_object_indices[-1]
+            previous_entry = floor.floor_entry(owner.stones[index],
+                self._state.object_poses[self._state.object_ids[index]], include_volumes=False)
         for orientation, (rotated, height, placement, likelihood) in enumerate(orientations):
             finite = np.isfinite(height) & np.isfinite(placement) & np.isfinite(likelihood)
             indices = np.flatnonzero(finite)
@@ -209,6 +216,12 @@ class CompositePlanarSampler:
             unfilled = floor.rectangle_cell_counts(layer["valid"] & ~layer["occupied"], rectangles)
             contacts = floor.rectangle_cell_counts(layer["occupied_neighbor"], rectangles)
             connected = (contacts > 0) if layer["occupied"].any() else np.ones(len(indices), dtype=bool)
+            if not owner.connectivity_enabled:
+                connected[:] = True
+            if previous_entry is not None:
+                connected = footprints_within_gap(previous_entry["xy_polygon"],
+                    projected_footprint(rotated), anchors,
+                    float(owner.settings["contact_gap_tolerance"]) + 1e-9)
             keep = connected
             indices, membership, unfilled = indices[keep], membership[keep], unfilled[keep]
             if not len(indices):
