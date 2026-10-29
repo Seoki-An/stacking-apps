@@ -104,14 +104,17 @@ def test_fixed_settling_preserves_placed_poses(backends):
     assert result.diagnostics['fixed_scene_resettle_steps'] == 4
 
 
-def test_velocity_disturbance_cpu_cuda_parity(backends):
+@pytest.mark.parametrize('directional', [False, True])
+def test_velocity_disturbance_cpu_cuda_parity(backends, directional):
     cpu, gpu = backends
-    config = PlaceStabilityConfig(enabled=True, n_noise=2, linear_velocity_std=(.001, .001, .001), seed=4)
+    velocities = ({'linear_velocity_magnitude': (.001, .001, .001)} if directional
+                  else {'linear_velocity_std': (.001, .001, .001), 'seed': 4})
+    config = PlaceStabilityConfig(enabled=True, n_noise=4, **velocities)
     cpu.place_stability = gpu.place_stability = config
     action = Action(0, pose(), pose(), object_id=10)
     actual, reference = gpu.place(state(), action), cpu.place(state(), action)
     assert actual.diagnostics['place_robustness_enabled']
-    assert len(actual.diagnostics['place_robustness_trial_displacements']) == 2
+    assert len(actual.diagnostics['place_robustness_trial_displacements']) == 4
     assert actual.diagnostics['place_robustness_trial_failure_reasons'] == reference.diagnostics['place_robustness_trial_failure_reasons']
     assert actual.place_robustness_displacement == pytest.approx(reference.place_robustness_displacement, abs=2e-7)
 

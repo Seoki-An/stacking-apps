@@ -22,18 +22,16 @@ reward:
   # Velocity disturbances from the nominal settled scene; poses stay unchanged.
   place_stability:
     enabled: true
-    n_noise: 4
+    n_noise: 4  # Number of equally spaced XY directions; each also moves downward.
     # Movable contact neighborhood: 0=candidate only, N=contact links, null=all stones.
     contact_hops: 2
     # Provisional disturbance magnitudes; calibrate to release velocity measurements.
-    linear_velocity_std: [0.02, 0.02, 0.02]  # World XYZ, m/s (signed Gaussian).
-    angular_velocity_std_deg: 5.0  # Body XYZ, deg/s, isotropic Gaussian.
+    linear_velocity_magnitude: [0.02, 0.02, 0.02]  # [XY cosine, XY sine, downward Z] m/s; angular velocity is zero.
     rotation_weight: 0.01
     # Reject trials that fail to settle or exceed the peak excursion limit.
     reject_failed_trials: true
     # Translation (m) + rotation_weight * angular displacement (rad).
     fail_displacement: 0.015
-    seed: 0
   weights:
     stability: 2.0
     object_containment: 2.0

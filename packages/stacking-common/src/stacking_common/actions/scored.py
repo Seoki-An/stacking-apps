@@ -349,14 +349,12 @@ class ScoredPlacementActionGenerator(PlacementActionGenerator):
             for index, count in counts.items():
                 if not count or (request.deadline is not None and time.monotonic() >= request.deadline):
                     continue
-                composite = isinstance(self.inventory.target, CompositeTargetGeometry)
+                # Compute the elite/random mixture for the allocated budget.
+                # Oversampling then taking a prefix can retain only elites.
                 proposals = self.planar_sampler.sample(self.inventory, state, observation,
-                    index, count if composite else self.config.max_poses_per_object, request.sampling_priority)
-                count = min(count, len(proposals))
-                corner_seed = bool(proposals and proposals[0].diagnostics.get("sampling_policy") == "corner_seed")
-                chosen = proposals[:count] if priority or corner_seed or composite else self.rng.sample(proposals, count)
-                jobs.extend((batch, state, index, proposal) for proposal in chosen)
-                attempts[batch] += count
+                    index, count, request.sampling_priority)
+                jobs.extend((batch, state, index, proposal) for proposal in proposals)
+                attempts[batch] += len(proposals)
         candidates = [[] for _ in states]
         rejections = [Counter() for _ in states]
         for (batch, *_), (candidate, reason) in zip(jobs, self._build_jobs(jobs)):

@@ -19,28 +19,66 @@ def pose(z=.2):
     return np.array([0., 0., z, 0., 0., 0., 1.])
 
 
-@pytest.mark.parametrize('platform,count,std,weight', [
-    ('excavator', 8, [.1, .1, .05], .1),
-    ('tabletop', 8, [.02, .02, .02], .01),
+@pytest.mark.parametrize('platform,magnitude,weight', [
+    ('excavator', [.15, .15, .05], .1),
+    ('tabletop', [.02, .02, .02], .01),
 ])
-def test_platform_profiles_reproduce_seeded_velocity_disturbances(platform, count, std, weight):
+def test_platform_profiles_cover_signed_xy_with_downward_velocity(platform, magnitude, weight):
     config = load_environment_profile(ROOT / f'apps/{platform}/config/environment.yml').place_stability
-    assert config.active and config.n_noise == count
+    assert config.active and config.n_noise == 4
     assert config.contact_hops == 2
     assert config.rotation_weight == weight
-    np.testing.assert_array_equal(config.linear_velocity_std, std)
+    np.testing.assert_array_equal(config.linear_velocity_magnitude, magnitude)
+    actual = np.array(list(config.velocity_disturbances(step=2, object_index=1, object_id=20)))
+    vx, vy, vz = magnitude
+    np.testing.assert_allclose(actual[:, 0], [[vx, 0, -vz], [0, vy, -vz],
+                                            [-vx, 0, -vz], [0, -vy, -vz]], atol=1e-16)
+    np.testing.assert_array_equal(actual[:, 1], 0.)
+    np.testing.assert_array_equal(actual, list(config.velocity_disturbances(step=30, object_index=45, object_id=55)))
+
+
+@pytest.mark.parametrize('count', [1, 2, 3, 4, 8, 16])
+def test_direction_count_changes_resolution_without_changing_kick_speed(count):
+    config = PlaceStabilityConfig(True, count, linear_velocity_magnitude=(.1, .1, .05))
+    trials = np.array(list(config.velocity_disturbances(step=1, object_index=0, object_id=1)))
+    assert len(trials) == count
+    np.testing.assert_allclose(np.linalg.norm(trials[:, 0, :2], axis=1), .1)
+    np.testing.assert_array_equal(trials[:, 0, 2], -.05)
+    np.testing.assert_array_equal(trials[:, 1], 0.)
+    if count > 1:
+        np.testing.assert_allclose(trials[:, 0, :2].sum(axis=0), 0., atol=1e-15)
+    if count % 2 == 0:
+        np.testing.assert_allclose(trials[count // 2:, 0, :2], -trials[:count // 2, 0, :2], atol=1e-15)
+    assert not list(replace(config, enabled=False).velocity_disturbances(step=1, object_index=0, object_id=1))
+    assert not list(replace(config, n_noise=0).velocity_disturbances(step=1, object_index=0, object_id=1))
+
+
+def test_saved_gaussian_profile_retains_original_draws():
+    config = PlaceStabilityConfig.from_mapping(dict(enabled=True, n_noise=4,
+        linear_velocity_std=[.1, .1, .05], angular_velocity_std_deg=5., seed=0))
     rng = np.random.default_rng(1009 * 2 + 6361 + 9176 * 20)
-    actual = list(config.velocity_disturbances(step=2, object_index=1, object_id=20))
-    for linear, angular in actual:
-        np.testing.assert_array_equal(linear, rng.normal(0., std, size=3))
+    for linear, angular in config.velocity_disturbances(step=2, object_index=1, object_id=20):
+        np.testing.assert_array_equal(linear, rng.normal(0., [.1, .1, .05], size=3))
         np.testing.assert_array_equal(angular, rng.normal(0., np.deg2rad(5.), size=3))
-    np.testing.assert_array_equal(actual, list(config.velocity_disturbances(step=2, object_index=1, object_id=20)))
+
+
+def test_directional_profile_roundtrip_preserves_sampling():
+    from dataclasses import asdict
+    config = PlaceStabilityConfig(True, 8, linear_velocity_magnitude=(.1, .1, .05))
+    restored = PlaceStabilityConfig.from_mapping(asdict(config))
+    assert restored == config
+    np.testing.assert_array_equal(list(config.velocity_disturbances(step=1, object_index=0, object_id=1)),
+                                  list(restored.velocity_disturbances(step=2, object_index=1, object_id=2)))
 
 
 @pytest.mark.parametrize('changes', [dict(reject_failed_trials='true'), dict(enabled='true'),
     dict(n_noise=-1), dict(n_noise=1.2), dict(seed=-1), dict(linear_velocity_std=[1, 2]),
     dict(linear_velocity_std=[0, -1, 0]), dict(angular_velocity_std_deg=np.inf),
     dict(rotation_weight=-1), dict(fail_displacement=-1),
+    dict(linear_velocity_magnitude=[1, 2]), dict(linear_velocity_magnitude=[1, -1, 0]),
+    dict(linear_velocity_magnitude=[1, np.inf, 0]),
+    dict(linear_velocity_magnitude=[1, 1, 0], linear_velocity_std=[1, 1, 1]),
+    dict(linear_velocity_magnitude=[1, 1, 0], angular_velocity_std_deg=5.),
     dict(contact_hops=-1), dict(contact_hops=True), dict(contact_hops=1.5), dict(contact_hops="2")])
 def test_invalid_settings_are_rejected(changes):
     with pytest.raises(ValueError):
@@ -98,14 +136,15 @@ def make_backend(config):
 
 
 def test_native_trial_result_reaches_reward_and_does_not_move_main_scene():
-    config = PlaceStabilityConfig(True, 2, (.001, .001, .001), 5., .01)
+    config = PlaceStabilityConfig(True, 4, rotation_weight=.01,
+                                  linear_velocity_magnitude=(.001, .001, .001))
     backend = make_backend(config)
     transition = SimulationTransition([10], backend)
     transition.reset()
     state = transition.step(Action(0, pose(), pose(.3)))
     displacement = state.action_history[-1].place_robustness_displacement
     assert displacement > 0
-    assert len(state.action_history[-1].diagnostics['place_robustness_trial_displacements']) == 2
+    assert len(state.action_history[-1].diagnostics['place_robustness_trial_displacements']) == 4
     baseline = SimulationTransition([10], make_backend(replace(config, enabled=False)))
     baseline.reset()
     without_trials = baseline.step(Action(0, pose(), pose(.3)))

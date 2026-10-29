@@ -19,6 +19,8 @@ class PlaceStabilityConfig:
     settling_position_tolerance: float = 0.0
     settling_rotation_tolerance_deg: float = 0.0
     contact_hops: int | None = None
+    # Fixed world XYZ amplitudes. None preserves historical Gaussian profiles.
+    linear_velocity_magnitude: tuple[float, float, float] | None = None
 
     def __post_init__(self):
         if not isinstance(self.enabled, bool):
@@ -38,6 +40,14 @@ class PlaceStabilityConfig:
         if std.shape != (3,) or not np.all(np.isfinite(std)) or np.any(std < 0):
             raise ValueError('place_stability.linear_velocity_std must be non-negative XYZ deviations')
         object.__setattr__(self, 'linear_velocity_std', tuple(float(v) for v in std))
+        if self.linear_velocity_magnitude is not None:
+            magnitude = np.asarray(self.linear_velocity_magnitude, dtype=float)
+            if (magnitude.shape != (3,) or not np.all(np.isfinite(magnitude))
+                    or np.any(magnitude < 0)):
+                raise ValueError('place_stability.linear_velocity_magnitude must be non-negative XYZ speeds')
+            if np.any(std != 0) or self.angular_velocity_std_deg != 0:
+                raise ValueError('directional velocities cannot be combined with Gaussian velocity settings')
+            object.__setattr__(self, 'linear_velocity_magnitude', tuple(float(v) for v in magnitude))
         limits = (self.angular_velocity_std_deg, self.rotation_weight,
                   self.settling_position_tolerance, self.settling_rotation_tolerance_deg)
         if self.fail_displacement is not None:
@@ -75,7 +85,19 @@ class PlaceStabilityConfig:
         )
 
     def velocity_disturbances(self, *, step, object_index, object_id):
-        """Seeded world linear (m/s) and body angular (rad/s) velocity samples."""
+        """Circular world XY kicks with downward Z and zero angular velocity.
+
+        Equal XY amplitudes form a circle; unequal ones form an ellipse.
+        Every candidate uses the same directions, starting at +X. Historical
+        profiles without fixed magnitudes retain their seeded Gaussian trials.
+        """
+        if self.linear_velocity_magnitude is not None:
+            vx, vy, vz = self.linear_velocity_magnitude
+            for index in range(self.n_noise if self.active else 0):
+                theta = 2 * np.pi * index / self.n_noise
+                yield (np.array([vx * np.cos(theta), vy * np.sin(theta), -vz]),
+                       np.zeros(3))
+            return
         seed = self.seed + 1009 * step + 6361 * object_index + 9176 * object_id
         rng = np.random.default_rng(seed)
         for _ in range(self.n_noise if self.active else 0):

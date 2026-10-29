@@ -34,7 +34,7 @@ from stacking_common.search import ActionGenerationRequest, ExecutionRejections
 from stacking_common.search import ActionCandidate, ActionGenerationResult
 from stacking_common.domain.geometry import quaternion_matrix
 from stacking_tabletop.planning.safety import TabletopPlacementSafety
-from stacking_common.actions.scored import ScoredPlanarPoseSampler
+from stacking_common.actions.scored import ScoredPlacementActionGenerator, ScoredPlanarPoseSampler
 
 
 def _tabletop_floor_policy(inventory):
@@ -553,6 +553,43 @@ def test_lower_floor_sampling_priority_survives_relaxed_admission(monkeypatch):
     assert first[0].pose[0] == 0.  # Lower pool wins despite the upper seed's score.
     both = sampler.sample(inventory, state, observation, 1, 2, 'lower_floor_first')
     assert [p.pose[0] for p in both] == [0., .1]  # Upper continuations remain available.
+
+
+@pytest.mark.parametrize("priority", [None, "lower_floor_first"])
+def test_scored_generator_keeps_random_draws_in_small_allocations(monkeypatch, priority):
+    inventory = _inventory()
+    sampler = ScoredPlanarPoseSampler(
+        inventory, PlanarSamplingConfig((3, 3), (0.,)),
+        MappingOrientationProvider({oid: _pose()[3:] for oid in inventory.object_ids}),
+        settings={"floor": {"bottom_tolerance": .02}, "score": {"elite_fraction": .25},
+                  "boltzmann_temperature": 1., "contact_gap_tolerance": .01},
+        floor_policy=_tabletop_floor_policy(inventory),
+    )
+    sampler._active_floor = dict(support_z=0., bottom_tol=.02)
+    candidates = [dict(xy=np.array([i * .001, 0.]), height=.1,
+                       score=1. - i * .01, orientation_index=0) for i in range(40)]
+    monkeypatch.setattr(sampler, "score_map", lambda *args: dict(candidates=candidates))
+    # Make the stochastic branch observable without relying on a lucky seed.
+    sampler.rng = SimpleNamespace(choice=lambda count, p: count - 1)
+    generator = ScoredPlacementActionGenerator(
+        inventory=inventory,
+        config=PlacementActionGeneratorConfig(32, .01, 0., None),
+        planar_sampler=sampler, initializer=_Initializer(), pose_solver=_PoseSolver(),
+    )
+    observation = SimpleNamespace(scene_height_map=np.zeros((3, 3)),
+        height_map_xlim=np.array([-.15, .15]), height_map_ylim=np.array([-.15, .15]))
+    try:
+        result = generator.generate(_state(inventory, placed=(0,)), observation,
+                                    ActionGenerationRequest(4, priority))
+    finally:
+        generator.close()
+    assert result.attempts == len(result.candidates) == 4
+    # Four allocated poses must contain one elite and three stochastic draws,
+    # rather than the first four elites of an oversized 32-pose draw.
+    np.testing.assert_allclose(
+        [candidate.action.init_pose[0] for candidate in result.candidates],
+        [0., .039, .038, .037],
+    )
 
 
 def test_scan_orientation_yaw_aligns_longest_axis() -> None:

@@ -11,14 +11,14 @@ filtering:
   # Shared filter policy; physical gap limits are platform-specific.
   require_solver_convergence: false
   reject_equilibrium_at_threshold: true
-  posegen_equilibrium_threshold: 1.0
+  posegen_equilibrium_threshold: 0.1
   # Sum of candidate-contact penetrations; allow only 0.1 mm numerical residual.
   posegen_gap_threshold: 0.0001
 planar:
   # Shared composite proposal grid; empty regional pools retry locally. Floor grids stay separate.
   grid_shape: [32, 32]
   # Proposal boundary inset: smaller values allow seeds closer to the edge; solved containment still applies.
-  target_anchor_inset_scale: 0.5
+  target_anchor_inset_scale: 0.3
   floor:
     # Advance at fill_ratio coverage of the base in top-down projection.
     coverage_mode: projected_footprint

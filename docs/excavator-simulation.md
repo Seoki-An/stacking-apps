@@ -149,29 +149,37 @@ xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 \
 
 Both platforms configure `reward.place_stability` in `config/environment.yml`.
 After a placement passes nominal physical checks **and settles**, each trial
-starts from the final structural snapshot. All poses and static/dynamic roles
-are preserved. Residual velocities are reset; only the newly placed stone gets
-an initial Gaussian linear velocity in world axes and angular velocity in body
-axes. Supporting stones that were dynamic in structural validation remain dynamic.
-Pose-identified and structurally frozen stones remain fixed. Trials do not alter
-the committed scene, action, or nominal trajectories.
+starts from the final structural snapshot. Residual velocities are reset; only
+the newly placed stone receives an initial velocity. Stones within `contact_hops`
+of the candidate remain movable; distant stones retain collision geometry but
+are frozen. Pose-identified and structurally frozen stones remain fixed. Trials
+do not alter the committed scene, action, or nominal trajectories.
 
 | Field under `reward.place_stability` | Excavator | Tabletop |
 | --- | --- | --- |
 | `enabled` | `true` | `true` |
-| `n_noise` | 4 | 4 |
-| `linear_velocity_std` (world XYZ, m/s) | `[0.05, 0.05, 0.05]` | `[0.02, 0.02, 0.02]` |
-| `angular_velocity_std_deg` (each body axis, deg/s) | 5 | 5 |
+| `n_noise` (direction count) | 4 | 4 |
+| `linear_velocity_magnitude` (world XYZ amplitudes, m/s) | `[0.15, 0.15, 0.05]` | `[0.02, 0.02, 0.02]` |
+| `contact_hops` | 2 | 2 |
 | `rotation_weight` (metres/radian) | 0.1 | 0.01 |
 | `reject_failed_trials` | `true` | `true` |
 | `fail_displacement` (metres of combined excursion) | 0.15 | 0.015 |
-| `seed` | 0 | 0 |
 
-Velocity magnitudes are provisional platform settings, not conversions from
-previous pose-noise magnitudes. Calibrate them against measured release motion.
-All axes use signed, independent, zero-mean Gaussian draws; downward velocity
-is allowed without changing the initial geometry. Seeds depend on placement
-step, inventory index, object ID, and configured seed.
+For `N = n_noise` and magnitudes `[vx, vy, vz]`, trial `k = 0, ..., N-1` uses
+`theta = 2*pi*k/N`, world velocity `[vx*cos(theta), vy*sin(theta), -vz]`, and
+zero angular velocity. Equal XY amplitudes give a circle; unequal amplitudes
+give an ellipse. Downward Z is included in every trial, not a separate trial.
+Four directions cover +X, +Y, -X, -Y; eight add the diagonals. Even counts give
+opposing pairs. Increasing the count changes angular resolution, not speed.
+Directions do not depend on the step, object ID, or seed, so all candidates face
+the same disturbances. Rotation caused by contact still contributes to the score.
+
+The magnitudes are provisional platform settings and should be calibrated to
+release velocities. A fixed magnitude is not statistically equivalent to the
+previous Gaussian standard deviation. Historical profiles without
+`linear_velocity_magnitude` retain their seeded Gaussian linear/angular trials
+for replay; new platform profiles use the directional pattern. Mixing fixed
+magnitudes with nonzero Gaussian settings raises a configuration error.
 
 The score is the largest **peak** excursion across trials and dynamic bodies:
 translation from that body's nominal settled position plus `rotation_weight`
