@@ -75,6 +75,7 @@ class CompositePlanarSampler:
 
     def score_map(self, state, observation, object_index):
         owner = self.owner
+        self._state = state
         quaternions = owner.quaternions(state, observation, object_index)
         context = (tuple(state.placed_object_indices),
                    tuple((oid, np.asarray(pose).tobytes()) for oid, pose in sorted(state.object_poses.items())),
@@ -104,6 +105,7 @@ class CompositePlanarSampler:
             maps[layer["region_id"]] = result
             batches.extend(result["candidates"].batches)
         candidates = _CandidateRows(batches)
+        low, span = 0., 1.
         if candidates:
             scores = np.concatenate([columns["score"] for _, _, columns in batches])
             low, span = scores.min(), max(float(np.ptp(scores)), 1e-12)
@@ -112,12 +114,13 @@ class CompositePlanarSampler:
         for _, _, columns in batches:
             for values in columns.values():
                 values.setflags(write=False)
-        result = {"regions": maps, "candidates": candidates}
+        result = {"regions": maps, "candidates": candidates,
+                  "normalization": {"score_min": float(low), "score_span": float(span)}}
         self._maps[key] = result
         self._latest_maps[object_index] = result
         return result
 
-    def _support_maps(self, state, object_index, quaternions, region):
+    def _support_maps(self, state, object_index, quaternions, region, *, cache_geometry=True):
         """Compute the physical surface/support once, before target masking."""
         owner = self.owner
         shape = tuple(max(2, value) for value in owner.config.grid_shape)
@@ -142,16 +145,20 @@ class CompositePlanarSampler:
         orientations = []
         for q in quaternions:
             rotation_key = (object_index, tuple(q))
-            if rotation_key not in self._rotated:
+            rotated = self._rotated.get(rotation_key)
+            if rotated is None:
                 rotated = Rotation.from_quat(q).apply(source)
                 rotated.setflags(write=False)
-                self._rotated[rotation_key] = rotated
-            rotated = self._rotated[rotation_key]
+                if cache_geometry:
+                    self._rotated[rotation_key] = rotated
             kernel_key = (object_index, dx, dy, tuple(q))
-            if kernel_key not in self._kernels:
-                self._kernels[kernel_key] = bottom_height_kernel(source, q, dx, dy)
+            kernel = self._kernels.get(kernel_key)
+            if kernel is None:
+                kernel = bottom_height_kernel(source, q, dx, dy)
+                if cache_geometry:
+                    self._kernels[kernel_key] = kernel
             support = support_likelihood_maps_by_kernel(
-                surface, [self._kernels[kernel_key]], owner.settings["contact_gap_tolerance"])
+                surface, [kernel], owner.settings["contact_gap_tolerance"])
             # Raster kernels may miss the lowest vertex of an irregular stone.
             placement = np.maximum(support.placement_height[0].ravel(),
                                    self.regions.ground_z - rotated[:, 2].min())
@@ -254,29 +261,40 @@ class CompositePlanarSampler:
             return ()
         keys = sorted(pools)
         cursor = self._cursor % len(keys)
-        selected = []
-        while pools and len(selected) < count:
+        # Allocate complete per-region budgets first. Drawing k=1 repeatedly
+        # rounds every positive elite fraction up to an entirely greedy draw.
+        schedule, budgets = [], dict.fromkeys(keys, 0)
+        while pools and len(schedule) < count:
             key = keys[cursor % len(keys)]
             cursor += 1
             if key not in pools:
                 continue
-            pool = pools[key]
-            region_map = scores["regions"][key]
-            columns = region_map["columns"]
-            seeds = pool[columns["seed"][pool]]
-            eligible = seeds if len(seeds) else pool
-            if sampling_priority == "lower_floor_first":
-                lower = eligible[columns["lower_floor"][eligible]]
-                eligible = lower if len(lower) else eligible
-            chosen = floor.sample_scored_indices(self.owner.settings, columns["score"][eligible],
-                                                1, True, rng=self.owner.rng)[0]
-            index = int(eligible[chosen])
-            item = region_map["candidates"][index]
-            selected.append(item)
-            pools[key] = pool[pool != index]
-            if not len(pools[key]):
+            schedule.append(key)
+            budgets[key] += 1
+            if budgets[key] == len(pools[key]):
                 del pools[key]
         self._cursor = cursor % len(keys)
+        chosen_by_region = {}
+        for key, budget in budgets.items():
+            region_map = scores["regions"][key]
+            columns = region_map["columns"]
+            groups = [columns["seed"], ~columns["seed"]]
+            if sampling_priority == "lower_floor_first":
+                groups = [group & lower for group in groups
+                          for lower in (columns["lower_floor"], ~columns["lower_floor"])]
+            chosen = []
+            for group in groups:
+                eligible = np.flatnonzero(group)
+                remaining = min(budget - len(chosen), len(eligible))
+                if remaining <= 0:
+                    continue
+                indices = floor.sample_scored_indices(
+                    self.owner.settings, columns["score"][eligible], remaining, True, rng=self.owner.rng)
+                chosen.extend(eligible[indices].tolist())
+            chosen_by_region[key] = iter(chosen)
+        # Keep the region-balanced output order used by downstream budgets.
+        selected = [scores["regions"][key]["candidates"][next(chosen_by_region[key])]
+                    for key in schedule]
         quaternions = self.owner.quaternions(state, observation, object_index)
         return tuple(PlanarPlacement(np.r_[item["xy"], 0., quaternions[item["orientation_index"]]],
             score=item["score"], diagnostics={
@@ -288,27 +306,46 @@ class CompositePlanarSampler:
 
     def score_at_pose(self, observation, pose, object_index):
         metadata = self.metadata(object_index, pose)
-        scores = self._latest_maps.get(object_index, {"regions": {}})
+        scores = self._latest_maps.get(object_index)
+        if scores is None or not scores["candidates"]:
+            return 0., 0.
+        # Evaluate the actual rotation, including off-bank CEM yaw mutations.
+        # Transient rotations must not grow the persistent geometry caches.
+        shared = None
         nearest = None
-        for region_id, region_map in scores["regions"].items():
-            if region_id not in metadata["target_region_ids"] or not region_map["candidates"]:
+        for layer in self._layers:
+            region_id = layer["region_id"]
+            if region_id not in metadata["target_region_ids"]:
+                continue
+            base_map = scores["regions"][region_id]
+            if base_map["grid_source"] == "region_fallback":
+                support = self._support_maps(self._state, object_index, [pose[3:]], layer["region"],
+                                             cache_geometry=False)
+            else:
+                if shared is None:
+                    shared = self._support_maps(self._state, object_index, [pose[3:]],
+                        SamplingRegion(self.owner.inventory.target), cache_geometry=False)
+                support = shared
+            region_map = self._region_scores(layer, support)
+            xs, ys = region_map["x_coords"], region_map["y_coords"]
+            col, row = int(np.argmin(abs(xs - pose[0]))), int(np.argmin(abs(ys - pose[1])))
+            if not region_map["candidate_mask"][row, col]:
                 continue
             columns = region_map["columns"]
-            # Preserve scalar norm arithmetic and stable first-row tie-breaking.
-            distances = np.fromiter((float(np.linalg.norm(xy - pose[:2]))
-                                     for xy in columns["xy"]), dtype=float)
-            index = int(np.argmin(distances))
-            if nearest is None or distances[index] < nearest[0]:
-                nearest = (distances[index], region_id, region_map, index)
+            cell = np.array([xs[col], ys[row]])
+            index = int(np.flatnonzero(np.all(columns["xy"] == cell, axis=1))[0])
+            rotated = support[-1][0][0]
+            scale = self.owner.config.target_anchor_inset_scale
+            if not self._containment[region_id](
+                    [pose[:2]], rotated, columns["placement_height"][index],
+                    inset_scale=.6 if scale is None else scale,
+                    margin=float(self.owner.settings.get("target_mask_margin", 0.))).any():
+                continue
+            distance = float(np.linalg.norm(cell - pose[:2]))
+            if nearest is None or distance < nearest[0]:
+                nearest = (distance, float(columns["score"][index]))
         if nearest is None:
             return 0., 0.
-        _, region_id, region_map, index = nearest
-        columns = region_map["columns"]
-        rotated = Rotation.from_quat(pose[3:]).apply(self.owner.stones[object_index].points)
-        scale = self.owner.config.target_anchor_inset_scale
-        if not self._containment[region_id](
-                [pose[:2]], rotated, columns["placement_height"][index],
-                inset_scale=.6 if scale is None else scale,
-                margin=float(self.owner.settings.get("target_mask_margin", 0.))).any():
-            return 0., 0.
-        return float(columns["score"][index]), float(columns["normalized_score"][index])
+        raw = nearest[1]
+        reference = scores["normalization"]
+        return raw, float(np.clip((raw - reference["score_min"]) / reference["score_span"], 0., 1.))

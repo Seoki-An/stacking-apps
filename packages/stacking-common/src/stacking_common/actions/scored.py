@@ -140,6 +140,7 @@ class ScoredPlanarPoseSampler:
             self._active_floor = (None if self.floor_policy is None
                                   else self.floor_policy.context_details(state))
         view = self.view(state, observation)
+        self._score_state = self.state_view(state)
         quaternions = self.quaternions(state, observation, object_index)
         rows, columns = self.config.grid_shape
         dx = np.diff(view.xlim)[0] / max(columns - 1, 1)
@@ -250,17 +251,28 @@ class ScoredPlanarPoseSampler:
         candidates = scores.get("candidates", [])
         if not candidates:
             return 0., 0.
-        # Match legacy pose score lookup: sampled poses have exact keys; an
-        # unsampled mutation falls back to the nearest XY score-map cell.
+        # The displayed XY map contains the best rotation at each cell. A CEM
+        # mutation must instead evaluate its own (possibly off-bank) rotation.
+        # Freeze the fresh bank's scales so its normalized score is comparable.
+        view = self.view(self._score_state, observation)
         xs, ys = scores["x_coords"], scores["y_coords"]
+        dx, dy = float(xs[1] - xs[0]), float(ys[1] - ys[0])
+        points = self.stones[object_index].points
+        rotated = Rotation.from_quat(pose[3:]).apply(points)
+        bounds = np.array([rotated[:, :2].min(0), rotated[:, :2].max(0)])
+        scores = floor.score_xy_debug_map(
+            view, self._score_state, object_index,
+            scene_height_map=observation.scene_height_map,
+            support_kernels=[bottom_height_kernel(points, pose[3:], dx, dy)],
+            footprint_bounds=bounds[None], active_floor=self._active_floor,
+            state_map_bundle=self._state_map_bundle, normalization=scores["normalization"])
         col = int(np.argmin(np.abs(xs - pose[0])))
         row = int(np.argmin(np.abs(ys - pose[1])))
         raw = float(scores["scores"][row, col])
-        valid = scores["scores"][scores["candidate_mask"] & np.isfinite(scores["scores"])]
-        if not scores["candidate_mask"][row, col] or not np.isfinite(raw) or not len(valid):
+        if not scores["candidate_mask"][row, col] or not np.isfinite(raw):
             return 0., 0.
-        span = float(valid.max() - valid.min())
-        return raw, (0. if span <= 1e-12 else float((raw - valid.min()) / span))
+        reference = scores["normalization"]
+        return raw, float(np.clip((raw - reference["score_min"]) / reference["score_span"], 0., 1.))
 
     def region_metadata(self, object_index, pose):
         return {} if self._composite is None else self._composite.metadata(object_index, pose)

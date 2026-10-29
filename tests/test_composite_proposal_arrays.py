@@ -1,4 +1,4 @@
-"""Array proposals preserve the pre-optimization scorer and sampling policy."""
+"""Array proposals preserve the scorer and avoid materializing unused rows."""
 
 import hashlib
 import json
@@ -13,10 +13,11 @@ from stacking_common.domain import CompositeTargetGeometry, TargetComponent
 from test_composite_target_sampling import box, inventory, pose, sampler, state, target
 
 
-def proposal_snapshot(kind, sampler_class=None, decimals=12):
+def proposal_snapshot(kind, sampler_class=None, decimals=12, *, banks_only=False):
     """Exercise complete candidate banks, repeated draws, CEM scores and RNG.
 
-    Digests below were captured from commit 2053973 before array conversion.
+    Bank-only digests were captured before the rotation/allocation fixes.
+    Draws and mutation lookups intentionally changed; keep bank parity separate.
     Round only serialization noise; direct old/new comparisons also use None.
     """
     geometry = {
@@ -44,6 +45,9 @@ def proposal_snapshot(kind, sampler_class=None, decimals=12):
             regions = {key: {"scores": value["scores"], "mask": value["candidate_mask"],
                              "source": value["grid_source"]}
                        for key, value in score_map["regions"].items()}
+            if banks_only:
+                results.append((list(score_map["candidates"]), regions))
+                continue
             draws = []
             for priority in (None, "lower_floor_first"):
                 proposals = sample.sample(inv, current, None, 1, 7, priority)
@@ -68,12 +72,12 @@ def proposal_snapshot(kind, sampler_class=None, decimals=12):
 
 
 @pytest.mark.parametrize("kind,expected", [
-    ("separated", "04ce804b49998d820a539a933ecc95c40e78b8c93f6ce78fff71d21cb3f06dec"),
-    ("overlap", "bb97db27f5d3f215a3d622fb7aa96bc24dc688f26b5d65b67cb893ba41c306ba"),
-    ("fallback", "2e7fe74ef8cb30359d2c1d0e65394ffc3d83db856e19e62b341ec1f22344700a"),
+    ("separated", "8ab6b0ccf7d13192c0802c2b103ba9154d3fca04a7f957c1f0728121fbe4fe65"),
+    ("overlap", "0202286bd402669cda604e0a247ef1027dd25421c3282f8c3bdb02bb32f69469"),
+    ("fallback", "9647f910412c9df3207239b5d377485ce0303b485b1c7906c04c1fa649327f56"),
 ])
-def test_proposal_banks_and_draws_match_pre_array_baseline(kind, expected):
-    assert hashlib.sha256(proposal_snapshot(kind)).hexdigest() == expected
+def test_proposal_banks_match_baseline_before_rotation_and_sampling_fixes(kind, expected):
+    assert hashlib.sha256(proposal_snapshot(kind, banks_only=True)).hexdigest() == expected
 
 
 @pytest.mark.parametrize("scale,margin", [(1., 0.), (.9, .01), (.6, -.01)])

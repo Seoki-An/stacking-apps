@@ -154,10 +154,18 @@ Height and position remain live query inputs; inset and margin are cache keys.
 Candidate banks use read-only NumPy columns, preserving orientation/grid order.
 Sampling selects row indices and constructs metadata only for selected rows;
 `score_map()["candidates"]` remains an iterable/indexable diagnostic view whose
-records are materialized on demand. The shared elite/Boltzmann draw logic and
-RNG consumption are unchanged. In particular, composite draws still request
-one row at a time, so any positive elite fraction selects one elite per draw;
-this performance change does not introduce a different exploration policy.
+records are materialized on demand. Composite sampling first allocates the
+requested count across available regions, then applies elite/Boltzmann draws
+to each region's allocation, within corner-seed/lower-floor priority groups.
+It returns the selected rows in region-balanced order. This avoids rounding
+every individual draw up to an elite when `elite_fraction` is positive.
+
+CEM mutation scores evaluate the mutated quaternion's footprint and support,
+including rotations outside the fresh orientation bank. They use the fresh
+bank's score normalization rather than the best-orientation XY display map.
+Single-target mutations also retain that bank's height/fill normalization;
+composite scoring retains its existing physical-height and per-rotation fill
+scales. Mutation lookup does not replace the fresh candidate bank.
 
 Proposals carry `target_component_ids`, `target_region_ids` and a primary
 `target_region_id`. Mutation and accepted optimized poses recompute membership

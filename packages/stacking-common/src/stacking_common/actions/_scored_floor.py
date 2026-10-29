@@ -277,6 +277,7 @@ def score_xy_debug_map(
     support_kernels: Optional[list[BottomHeightKernel]] = None,
     state_map_bundle: Optional[StateMapBundle] = None,
     footprint_bounds: Optional[np.ndarray] = None,
+    normalization: Optional[dict] = None,
 ) -> dict:
     if scene_height_map is None:
         scene_height_map = inventory.get_height_map(state)
@@ -455,6 +456,9 @@ def score_xy_debug_map(
     cells = base[item_base]
     h_min = float(np.min(item_height))
     h_span = max(float(np.max(item_height) - h_min), 1e-6)
+    if normalization is not None:
+        h_min, h_span = normalization["h_min"], normalization["h_span"]
+        max_unfilled_cells = normalization["max_unfilled_cells"]
     height_term = (item_height - h_min) / h_span
     fill_area = unfilled_cells[cells] / max_unfilled_cells
     candidate_scores = (
@@ -486,6 +490,9 @@ def score_xy_debug_map(
     admitted_scores = candidate_scores[connected[cells]]
     candidate_score_min = float(np.min(admitted_scores)) if len(admitted_scores) else 0.
     candidate_score_span = max(float(np.ptp(admitted_scores)), 1e-12) if len(admitted_scores) else 1.
+    if normalization is not None:
+        candidate_score_min = normalization["score_min"]
+        candidate_score_span = normalization["score_span"]
     normalized_scores = np.clip(
         (candidate_scores - candidate_score_min) / candidate_score_span, 0.0, 1.0,
     )
@@ -531,6 +538,10 @@ def score_xy_debug_map(
         },
         "h_min": h_min,
         "h_span": h_span,
+        # Mutated rotations use the same reference as this fresh candidate bank.
+        "normalization": {"h_min": h_min, "h_span": h_span,
+                          "max_unfilled_cells": max_unfilled_cells,
+                          "score_min": candidate_score_min, "score_span": candidate_score_span},
         "candidates": candidates,
     }
 
