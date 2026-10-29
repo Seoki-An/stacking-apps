@@ -202,3 +202,15 @@ and 13.67 seconds respectively. Both pairs retained identical complete search
 tree hashes, selected placements, evaluation counts and rejection counts.
 These are individual saved-state comparisons, not a whole-sequence speedup
 promise.
+
+## Equilibrium residual contract (2026-10-29)
+
+Native pose generation returns per-body residual wrenches through `net_wrench`,
+not aggregate `c_feq` / `c_feq_robust` costs. The Python adapter restores physical
+units and computes `E = max_l (||f_l||_2/(m_l*g) +
+||tau_l||_2/(m_l*g*V_l^(1/3)))` once. New `PlacementSolveResult.c_feq` and
+`Action.c_feq` fields retain their historical names for artifact compatibility
+but contain this same dimensionless E. Admission compares E with the configured
+equilibrium threshold; reward and prior use min(E, 1). The normalized diagnostic
+is also retained. Old saved actions without that diagnostic keep their explicit
+legacy reward/prior fallback; new native results without residuals are invalid.

@@ -59,7 +59,7 @@ def adapter(monkeypatch, failure=None, force_converged=True, failure_stage=2):
             fail = len(calls) == failure_stage and item.request_id == 0
             status = failure if fail and failure else Status.converged
             result = SimpleNamespace(optimal_pose=item.problem[2] + np.array([.01, 0, 0, 0, 0, 0, 0]),
-                                     c_gap=.001 * (item.request_id + 1) * len(calls), c_feq=0.,
+                                     c_gap=.001 * (item.request_id + 1) * len(calls), net_wrench={1: np.zeros(6)},
                                      solver=SimpleNamespace(converged=status == Status.converged, force_solver=SimpleNamespace(
                                          converged=force_converged if fail else True)))
             outputs.append(SimpleNamespace(request_id=item.request_id, status=status,
@@ -240,7 +240,7 @@ def test_native_cuda_excavator_schedule(monkeypatch):
         assert result.rejection_reason and not result.converged
 
 
-@pytest.mark.parametrize('field', ['optimal_pose', 'c_gap', 'c_feq'])
+@pytest.mark.parametrize('field', ['optimal_pose', 'c_gap', 'net_wrench'])
 def test_nonfinite_results_reject_without_cpu(monkeypatch, field):
     solver, _, retries = adapter(monkeypatch)
     original = solver.cuda_generator.solve
@@ -248,7 +248,9 @@ def test_nonfinite_results_reject_without_cpu(monkeypatch, field):
         outputs = original(items)
         for out in outputs:
             if out.request_id == 0:
-                setattr(out.result, field, np.full(7, np.nan) if field == 'optimal_pose' else np.nan)
+                value = ({1: np.full(6, np.nan)} if field == 'net_wrench' else
+                         np.full(7, np.nan) if field == 'optimal_pose' else np.nan)
+                setattr(out.result, field, value)
         return outputs
     solver.cuda_generator.solve = bad
     result = solver.solve_batch(None, requests())[0]

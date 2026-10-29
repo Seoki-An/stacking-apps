@@ -96,6 +96,7 @@ class PosegenFeasibilityFilter:
         del inventory, state, object_index, initial
         diagnostics = {
             "posegen_c_feq": solved.c_feq,
+            "posegen_equilibrium_residual_normalized": solved.c_feq,
             "posegen_equilibrium_threshold": self.equilibrium_threshold,
             "posegen_c_gap": solved.c_gap,
             "posegen_gap_threshold": self.gap_threshold,

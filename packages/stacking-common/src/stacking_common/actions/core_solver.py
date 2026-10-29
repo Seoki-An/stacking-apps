@@ -376,41 +376,40 @@ class CorePlacementPoseSolver:
                 posegen_target_containment="whole_stone_in_one_component",
             )
         converged = bool(stats.converged and stats.force_solver.converged)
-        # Restore newtons; the native c_feq fallback is quadratic in the wrench.
-        wrench_norm = max(
-            (
-                float(np.linalg.norm(np.asarray(wrench, dtype=float), ord=1)) * native_mass_scale
-                for wrench in result.net_wrench.values()
-            ),
-            default=float(result.c_feq) * native_mass_scale**2,
-        )
-        max_mass = max(stack_object.mass for stack_object in self.inventory)
-        if result.net_wrench:
-            # Native entity IDs are inventory indices + 1, not object IDs.
-            # Use each participating body's own weight and volume length scale.
-            residuals = []
-            for entity_id, wrench in result.net_wrench.items():
-                index = int(entity_id) - 1
-                if not 0 <= index < len(self.inventory):
-                    raise ValueError("equilibrium wrench has an unknown body entity ID")
-                body = self.inventory[index]
-                if not (math.isfinite(body.mass) and body.mass > 0.0
-                        and math.isfinite(body.volume) and body.volume > 0.0):
-                    raise ValueError("equilibrium normalization requires positive finite mass and volume")
-                wrench = np.asarray(wrench, dtype=float)
-                if wrench.shape != (6,) or not np.all(np.isfinite(wrench)):
-                    raise ValueError("equilibrium wrench must be a finite six-vector")
-                wrench = wrench * native_mass_scale
-                weight = body.mass * self.gravity
-                length = float(np.cbrt(body.volume))
-                residuals.append(float(np.linalg.norm(wrench[:3]) / weight
-                                       + np.linalg.norm(wrench[3:]) / (weight * length)))
-            diagnostics["posegen_equilibrium_residual_normalized"] = max(residuals)
-        # Feasibility filters use this legacy-form metric (N per kg of the
-        # heaviest object); only reward/prior scoring uses the residual above.
+        # Native results expose residual wrenches, never an aggregate force cost.
+        # Restore physical units, then use one dimensionless residual for
+        # feasibility, reward, and prior scoring. Missing residuals are invalid.
+        if not result.net_wrench:
+            raise ValueError("posegen result must contain residual wrenches")
+        # Native entity IDs are inventory indices + 1, not object IDs.
+        # Use each participating body's own weight and volume length scale.
+        residuals = []
+        for entity_id, wrench in result.net_wrench.items():
+            index = int(entity_id) - 1
+            if not 0 <= index < len(self.inventory):
+                raise ValueError("equilibrium wrench has an unknown body entity ID")
+            body = self.inventory[index]
+            if not (math.isfinite(body.mass) and body.mass > 0.0
+                    and math.isfinite(body.volume) and body.volume > 0.0):
+                raise ValueError("equilibrium normalization requires positive finite mass and volume")
+            wrench = np.asarray(wrench, dtype=float)
+            if wrench.shape != (6,) or not np.all(np.isfinite(wrench)):
+                raise ValueError("equilibrium wrench must be a finite six-vector")
+            wrench = wrench * native_mass_scale
+            weight = body.mass * self.gravity
+            length = float(np.cbrt(body.volume))
+            residuals.append(float(np.linalg.norm(wrench[:3]) / weight
+                                   + np.linalg.norm(wrench[3:]) / (weight * length)))
+        diagnostics["posegen_equilibrium_residual_normalized"] = max(residuals)
+        diagnostics["posegen_residual_wrenches"] = {
+            int(entity): np.asarray(wrench, dtype=float) * native_mass_scale
+            for entity, wrench in result.net_wrench.items()
+        }
+        # Keep the serialized c_feq field, but new actions use the same
+        # normalized residual as reward/prior scoring, not the legacy L1 metric.
         return dict(
             pose=np.asarray(result.optimal_pose, dtype=float),
-            c_feq=wrench_norm / max_mass,
+            c_feq=diagnostics["posegen_equilibrium_residual_normalized"],
             c_gap=float(result.c_gap),
             converged=converged,
             rejection_reason=None if converged else "posegen_nonconvergence",

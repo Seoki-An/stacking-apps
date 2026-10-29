@@ -192,7 +192,7 @@ def plot(toy, rows, path, showcase_x0=0.35):
             + ("stands" if row["stands"] else "topples")
         ax.set_title(f"{'ab'[column]})  {label[mode]}\n"
                      f"cube x {showcase_x0:+.2f} -> {solved.pose[0]:+.2f} m,  "
-                     f"c_feq {solved.c_feq:.2f},  plank tilt after sim {row['plank_tilt']:.0f}°\n"
+                     f"E {solved.c_feq:.2f},  plank tilt after sim {row['plank_tilt']:.0f}°\n"
                      f"{verdict}", loc="left", fontsize=10)
     fig.text(0.06, 0.52, "dashed = posegen output (scene before physics)     "
              "solid = after 3 s simulation     dotted = initial guess", color=ink2, fontsize=9)
@@ -200,7 +200,7 @@ def plot(toy, rows, path, showcase_x0=0.35):
     panels = (("c)  Where posegen puts the cube   (●  stack stands   ✕  stack topples)",
                "posegen output x (m)", lambda r: r["solved"].pose[0]),
               ("d)  What the feasibility filter sees",
-               "c_feq  (max |net wrench| / mass)", lambda r: r["solved"].c_feq))
+               "E  (normalized force + torque residual)", lambda r: r["solved"].c_feq))
     for column, (title, ylabel, value) in enumerate(panels):
         ax = fig.add_subplot(layout[1, column], facecolor=surface)
         for mode in MODES:

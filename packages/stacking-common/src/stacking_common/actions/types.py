@@ -57,6 +57,7 @@ class PlacementSolveResult:
     """Solver-independent result for one initialized placement."""
 
     pose: np.ndarray
+    # Dimensionless max per-body residual; c_feq is the historical field name.
     c_feq: float
     c_gap: float
     converged: bool = True

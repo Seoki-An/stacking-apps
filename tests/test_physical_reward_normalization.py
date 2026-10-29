@@ -60,7 +60,7 @@ def placement_values(objects, wrenches, solver_type=CorePlacementPoseSolver, gra
         contact_force={key: [np.asarray(force) / native_mass_scale for force in forces]
                        for key, forces in (contact_force or {}).items()},
         net_wrench={key: np.asarray(wrench) / native_mass_scale for key, wrench in wrenches.items()},
-        c_feq=.4, c_gap=0., optimal_pose=POSE,
+        c_gap=0., optimal_pose=POSE,
     )
     return solver._placement_values(result, native_mass_scale)
 
@@ -80,11 +80,12 @@ def test_equilibrium_is_invariant_to_scale_density_and_world_rotation(solver_typ
         wrenches[index + 1] = np.r_[force, torque]
     values = placement_values(objects, wrenches, solver_type, gravity)
     assert values["diagnostics"][KEY] == pytest.approx(.4)
-    # Existing feasibility thresholds still receive precisely the legacy metric.
-    assert values["c_feq"] == pytest.approx(
-        max(np.linalg.norm(w, ord=1) for w in wrenches.values()) / max(o.mass for o in objects))
+    # Admission, reward, and prior share the same per-body normalized residual.
+    assert values["c_feq"] == pytest.approx(.4)
     objects.append(NS(object_id=123, mass=1e12, volume=1e6))
-    assert placement_values(objects, wrenches, solver_type, gravity)["diagnostics"][KEY] == pytest.approx(.4)
+    extra = placement_values(objects, wrenches, solver_type, gravity)
+    assert extra["diagnostics"][KEY] == pytest.approx(.4)
+    assert extra["c_feq"] == pytest.approx(.4)
 
 
 def test_native_mass_normalization_is_removed_from_wrenches_and_forces():
@@ -93,9 +94,10 @@ def test_native_mass_normalization_is_removed_from_wrenches_and_forces():
     force = np.array([1., 0., 9.])
     values = placement_values(objects, wrenches, native_mass_scale=40., contact_force={1: [force]})
     np.testing.assert_allclose(values["diagnostics"]["posegen_contact_forces"][1], [force])
-    assert values["c_feq"] == pytest.approx(2.5 / max(o.mass for o in objects))
     assert values["diagnostics"][KEY] == pytest.approx(2. / (objects[0].mass * 9.81)
                                                        + .5 / (objects[0].mass * 9.81))
+    assert values["c_feq"] == pytest.approx(values["diagnostics"][KEY])
+    np.testing.assert_allclose(values["diagnostics"]["posegen_residual_wrenches"][1], wrenches[1])
 
 
 def test_native_mass_scale_is_mean_mass_of_candidate_and_placed_bodies():
@@ -148,8 +150,9 @@ def test_displacement_fallback_and_clipping_precede_normalization(displacement, 
     assert value == -12.
 
 
-def test_missing_wrenches_and_historical_actions_keep_explicit_legacy_scoring():
-    assert KEY not in placement_values(inventory(), {})["diagnostics"]
+def test_missing_wrenches_are_invalid_and_historical_actions_keep_legacy_scoring():
+    with pytest.raises(ValueError, match="residual wrenches"):
+        placement_values(inventory(), {})
     (value, info), prior = score(RewardConfig(2., .5, WEIGHTS), .1)
     assert info["equilibrium_legacy_scaling"] is True
     assert info["stability"] == -.25
@@ -174,3 +177,31 @@ def test_equilibrium_has_physical_reference_values(relative_wrench, expected):
 def test_invalid_displacement_reference_is_rejected(reference):
     with pytest.raises(ValueError, match="displacement reference"):
         RewardConfig(1., .5, WEIGHTS, displacement_reference=reference)
+
+
+@pytest.mark.parametrize("solver_type", [CorePlacementPoseSolver, CudaPlacementPoseSolver])
+@pytest.mark.parametrize("relative,accepted", [(.99, True), (1., False), (1.1, False)])
+def test_admission_reward_and_prior_share_the_residual(solver_type, relative, accepted):
+    from stacking_common.actions import PosegenFeasibilityFilter
+    from stacking_common.actions.types import PlacementSolveResult
+    objects = inventory()
+    body = objects[0]
+    values = placement_values(objects, {1: np.array([relative * body.mass * 9.81, 0., 0., 0., 0., 0.])}, solver_type)
+    solved = PlacementSolveResult(**values)
+    decision = PosegenFeasibilityFilter(1., 1., reject_equilibrium_at_threshold=True).evaluate(
+        objects, None, 0, None, solved)
+    assert decision.accepted is accepted
+    assert decision.diagnostics[KEY] == pytest.approx(relative)
+    (_, info), prior = score(RewardConfig(1., .5, WEIGHTS), 0., values["diagnostics"], values["c_feq"])
+    assert info["stability"] == pytest.approx(-min(relative, 1.))
+    assert prior == pytest.approx(-2. * min(relative, 1.))
+
+
+@pytest.mark.parametrize("wrenches,message", [
+    ({1: np.full(6, np.nan)}, "finite six-vector"),
+    ({1: np.zeros(3)}, "finite six-vector"),
+    ({999: np.zeros(6)}, "unknown body"),
+])
+def test_invalid_residual_wrenches_are_not_replaced_by_a_scalar_cost(wrenches, message):
+    with pytest.raises(ValueError, match=message):
+        placement_values(inventory(), wrenches)

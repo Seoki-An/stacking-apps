@@ -81,6 +81,7 @@ class Action:
     init_pose: np.ndarray
     solved_pose: np.ndarray | None = None
     object_id: int = -1
+    # New posegen actions store the dimensionless equilibrium residual here.
     c_feq: float = 0.0
     c_gap: float = 0.0
     place_robustness_displacement: float = 0.0
