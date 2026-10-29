@@ -19,21 +19,21 @@ def test_profile_records_scored_settings_and_scan_override(tmp_path):
     path = ROOT / 'apps/tabletop/config/action_generation.yml'
     kwargs = dict(max_poses_per_object=8, banned_object_ids=())
     current = load_action_generation_profile(path, **kwargs)
-    assert current.pose_from_scan is True
+    assert current.pose_from_scan is False
     recorded = _values(current)
     settings = recorded.pop('sampling_settings')
+    assert recorded.pop('pose_from_scan') is False
     assert recorded == _values(load_common(path, **kwargs))
     assert settings['contact_gap_tolerance'] == .02
-    assert settings['score']['fill_area'] == 2.
+    assert settings['score']['fill_area'] == 4.
     data = yaml.safe_load(path.read_text())
-    data['orientation']['pose_from_scan'] = False
+    data['orientation']['pose_from_scan'] = True
     alternate = tmp_path / 'action.yml'
     alternate.write_text(yaml.safe_dump(data))
-    off = load_action_generation_profile(alternate, **kwargs)
-    assert off.pose_from_scan is False
-    assert _values(off)['pose_from_scan'] is False
-    assert resolve_pose_from_scan(off.pose_from_scan, None) is False
-    assert _values(off)['sampling_settings'] == settings
+    on = load_action_generation_profile(alternate, **kwargs)
+    assert on.pose_from_scan is True
+    assert resolve_pose_from_scan(on.pose_from_scan, None) is True
+    assert _values(on)['sampling_settings'] == settings
     data['orientation'].pop('pose_from_scan')
     alternate.write_text(yaml.safe_dump(data))
     assert load_action_generation_profile(alternate, **kwargs).pose_from_scan is True
@@ -57,6 +57,7 @@ def test_override_and_resume_precedence(configured):
 
 def test_off_uses_model_orientations_without_replacing_measured_pickup():
     app = TabletopApplication.from_repository(ROOT)
+    app = replace(app, action_generation_profile=replace(app.action_generation_profile, pose_from_scan=True))
     off = replace(app, action_generation_profile=replace(app.action_generation_profile, pose_from_scan=False))
     measured = np.array([.1, -.7, .2, np.sin(.4), 0., 0., np.cos(.4)])
     inventory = off.load_inventory([1], {1: measured})

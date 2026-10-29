@@ -22,7 +22,7 @@ reward:
   # Velocity disturbances from the nominal settled scene; poses stay unchanged.
   place_stability:
     enabled: true
-    n_noise: 8
+    n_noise: 4
     # Movable contact neighborhood: 0=candidate only, N=contact links, null=all stones.
     contact_hops: 2
     # Provisional disturbance magnitudes; calibrate to release velocity measurements.
@@ -40,7 +40,7 @@ reward:
     # Added target volume / initial inventory mean stone volume; average full stone = 1.
     target_overlap_increment: 1.0
     # Reward reduction in (surface max - mean) / mean-stone volume^(1/3), including empty floor.
-    surface_flatness: 2.0
+    surface_flatness: 4.0
     place_stability: 2.0
     large_object_lower: 0.0
-    inward_orientation: 2.0
+    inward_orientation: 0.0

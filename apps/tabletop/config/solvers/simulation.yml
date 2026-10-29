@@ -7,7 +7,7 @@ units: si
 integration:
   dt: 0.01
   gravity: [0.0, 0.0, -9.81]
-  damping: 0.01
+  damping: 0.0
 ground:
   z: 0.0
   friction: 5.0
@@ -30,8 +30,8 @@ physics:
       error_reduction_ratio: 0.2
       detection_margin: 0.05
     solver:
-      constraint_scale_reference: 1.0
-      beta_init: 0.01
+      constraint_scale_reference: 0.001
+      beta_init: 0.1
       beta_update_interval: 50
       max_iters: 2000
       stagnation_window: 0
@@ -46,10 +46,10 @@ physics:
       error_reduction_ratio: 0.2
       detection_margin: 0.01
     solver:
-      constraint_scale_reference: 1.0
-      beta_init: 0.01
+      constraint_scale_reference: 0.001
+      beta_init: 0.1
       beta_update_interval: 50
-      max_iters: 3000
+      max_iters: 2000
       stagnation_window: 0
       tol_abs: 0.000001
       tol_rel: 0.000001
@@ -67,9 +67,9 @@ phases:
   structural:
     energy_threshold: 0.000001
     velocity_integral_threshold: 0.05
-    min_time: 2.0
+    min_time: 1.0
     max_time: 10.0
-    extra_steps: 85
+    extra_steps: 200
     final_extra_steps: 200
 
 # Shared validity checks: contact gap, support count, support-chain Z slack.

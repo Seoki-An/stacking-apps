@@ -9,7 +9,7 @@ initialization:
   xy_padding: 0.12
 filtering:
   # Shared filter policy; physical gap limits are platform-specific.
-  # Floor guidance applies only to initial XY sampling, not solved/settled poses.
+  # Optional solved/settled floor-order check; disabled for the current comparison.
   strict_floor_first: false
   require_solver_convergence: false
   reject_equilibrium_at_threshold: true
@@ -19,7 +19,8 @@ filtering:
 planar:
   # Shared composite proposal grid; empty regional pools retry locally. Floor grids stay separate.
   grid_shape: [32, 32]
-  target_anchor_inset_scale: 0.9
+  # Proposal boundary inset: smaller values allow seeds closer to the edge; solved containment still applies.
+  target_anchor_inset_scale: 0.5
   floor:
     # Advance at fill_ratio coverage of the base in top-down projection.
     coverage_mode: projected_footprint
@@ -34,8 +35,8 @@ planar:
   # The only proposal-score weights. Edit these named values for ablations.
   score:
     height: -3.0
-    support_likelihood: 3.0
-    fill_area: 2.0
+    support_likelihood: 2.0
+    fill_area: 4.0
     target_boundary: 1.5
     planar_bias: 0.0
     planar_bias_axis: xy

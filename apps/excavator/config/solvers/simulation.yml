@@ -45,9 +45,9 @@ phases:
   structural:
     energy_threshold: 0.00001
     velocity_integral_threshold: 0.2
-    min_time: 2.0
+    min_time: 1.0
     max_time: 10.0
-    extra_steps: 85
+    extra_steps: 200
     final_extra_steps: 200
 validation:
   contact_gap_tolerance: 0.02

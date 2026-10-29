@@ -69,15 +69,15 @@
 units: si
 
 tree:
-  max_depth: 5
-  iterations: 1024
+  max_depth: 4
+  iterations: 512
   max_search_time: 240.0
   max_children: 16
   root_max_children: 32
   exploration_constant: 1.0
   discount: 0.9
   failure_reward: -1.0
-  initial_depth1_steps: 10  # Depth 1 until 10 objects have been placed.
+  initial_depth1_steps: 0  # Enable lookahead from the first placement.
   root_lookahead: true
 
 widening:
@@ -135,7 +135,7 @@ bootstrap:
 debug:
   object_ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
   steps: 20
-  iterations: 1024
+  iterations: 512
   max_search_time: 240.0
   transition_backend: simulation
   pose_solver: native

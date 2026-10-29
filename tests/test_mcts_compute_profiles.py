@@ -93,7 +93,7 @@ def test_new_profiles_have_one_full_simulation_after_settling():
         assert profile.placement.short_gate is None
         assert profile.placement.settle_steps == 400
         assert profile.placement.structural.freeze_radius is None
-        assert profile.placement.structural.min_time == 3.0
+        assert profile.placement.structural.min_time == 1.0
         assert profile.placement.structural.max_time == 10.0
         assert profile.placement.structural.final_extra_steps == 200
         for backend in ("cpu", "cuda"):

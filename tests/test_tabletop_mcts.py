@@ -34,8 +34,16 @@ def test_tabletop_cpu_and_cuda_profiles_preserve_platform_settings() -> None:
         if section == "generation":
             assert {k: v for k, v in cuda[section].items() if k != "evaluation_batch_size"} == {
                 k: v for k, v in cpu[section].items() if k != "evaluation_batch_size"}
+        elif section in ("tree", "debug"):
+            different = {"max_depth", "iterations"} if section == "tree" else {"iterations"}
+            assert {k: v for k, v in cuda[section].items() if k not in different} == {
+                k: v for k, v in cpu[section].items() if k not in different}
         elif section != "parallel":
             assert cuda[section] == cpu[section]
+    for backend, values in (("cpu", cpu), ("cuda", cuda)):
+        excavator = yaml.safe_load((ROOT / f"apps/excavator/config/mcts_{backend}.yml").read_text())
+        assert values["tree"] == excavator["tree"]
+        assert values["debug"]["iterations"] == values["tree"]["iterations"]
     assert cuda["parallel"]["enabled"] == cpu["parallel"]["enabled"]
     assert cpu["parallel"]["workers"] == 12
     assert cuda["parallel"]["workers"] == 12
@@ -90,8 +98,8 @@ def test_tabletop_composition_loads_and_builds_native_mcts_path() -> None:
     assert search.root_action_generator.generator is search.action_generator
     assert application.default_mcts_request().iterations == 1024
     assert application.mcts_profile.tree.generation_batch_size == 32
-    assert application.mcts_profile.tree.initial_depth1_steps == 10
-    assert application.action_generation_profile.planar.yaw_angles == (0.0, np.pi)
+    assert application.mcts_profile.tree.initial_depth1_steps == 0
+    assert application.action_generation_profile.planar.yaw_angles == (0.0, np.pi / 2, np.pi, 3 * np.pi / 2)
     assert application.mcts_profile.tree.root_lookahead
     assert application.mcts_profile.tree.rejected_root_retry_rounds == 3
     assert application.mcts_profile.tree.final_selection.max_weight == 0.5

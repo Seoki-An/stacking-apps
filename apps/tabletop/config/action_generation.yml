@@ -2,13 +2,13 @@
 units: si
 stone_sampling:
   # Fresh proposal probability proportional to volume^exponent; 0 restores equal allocation.
-  volume_exponent: 1.0
+  volume_exponent: 0.1
 initialization:
   height_clearance: 0.015
   xy_padding: 0.012
 filtering:
   # Shared filter policy; physical gap limits are platform-specific.
-  strict_floor_first: true
+  strict_floor_first: false
   require_solver_convergence: false
   reject_equilibrium_at_threshold: true
   posegen_equilibrium_threshold: 1.0
@@ -18,14 +18,13 @@ filtering:
 planar:
   # Shared composite proposal grid; empty regional pools retry locally. Floor grids stay separate.
   grid_shape: [32, 32]
-  # Legacy anchor inset; values below 1 permit controlled target overhang.
-  target_anchor_inset_scale: 0.9
+  # Proposal inset: smaller values admit edge seeds; solved containment still applies.
+  target_anchor_inset_scale: 0.5
   floor:
     coverage_mode: projected_footprint
     bottom_tolerance: 0.02
-    # The commissioned six-stone tabletop scene reaches 67.6% after its valid
-    # three-stone base and has no collision-free fourth base placement.
-    fill_ratio: 0.65
+    # Advance the scoring layer at this projected base coverage.
+    fill_ratio: 0.75
     grid_size: 16
     footprint_scale: 0.9
   boltzmann_temperature: 0.3
@@ -34,9 +33,9 @@ planar:
   contact_gap_tolerance: 0.02
   # The only proposal-score weights. Edit these named values for ablations.
   score:
-    height: -4.0
+    height: -3.0
     support_likelihood: 2.0
-    fill_area: 2.0
+    fill_area: 4.0
     target_boundary: 1.5
     planar_bias: 0.0
     planar_bias_axis: xy
@@ -44,6 +43,6 @@ planar:
     elite_fraction: 0.25
 orientation:
   # true: scan-aligned pickup orientation; false: model principal axes with 0/180° rolls.
-  pose_from_scan: true
-  # Retain scan-aligned headings while sharing excavator's XY sampler.
-  yaw_angles_degrees: [0, 180]
+  pose_from_scan: false
+  roll_angles_degrees: [0, 180]
+  yaw_angles_degrees: [0, 90, 180, 270]

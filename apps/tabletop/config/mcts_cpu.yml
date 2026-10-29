@@ -77,7 +77,7 @@ tree:
   exploration_constant: 1.0
   discount: 0.9
   failure_reward: -1.0
-  initial_depth1_steps: 10  # Depth 1 until 10 objects have been placed.
+  initial_depth1_steps: 0  # Enable lookahead from the first placement.
   root_lookahead: true
 
 widening:
