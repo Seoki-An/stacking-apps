@@ -105,7 +105,8 @@ class Action:
         self.place_robustness_displacement = float(
             self.place_robustness_displacement
         )
-        self.diagnostics = copy.deepcopy(self.diagnostics)
+        # Own the top-level dict; nested values are read-only and shared.
+        self.diagnostics = {key: _read_only(value) for key, value in self.diagnostics.items()}
 
     def copy(self) -> "Action":
         """Copy owned values without revalidating an accepted action.

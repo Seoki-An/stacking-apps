@@ -104,9 +104,9 @@ class CudaPlacementPoseSolver(CorePlacementPoseSolver):
                     reason = "solver_nonconvergence"
                 elif not (np.isfinite(native.optimal_pose).all()
                           and np.isfinite(native.c_gap)
-                          and bool(native.net_wrench)
+                          and (wrenches := native.net_wrench)
                           and all(np.asarray(w).shape == (6,) and np.isfinite(w).all()
-                                  for w in native.net_wrench.values())):
+                                  for w in wrenches.values())):
                     reason = "nonfinite_result"
                 if reason is not None:
                     # These are explicitly invalid placeholders, not a usable

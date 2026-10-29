@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import math
 from dataclasses import dataclass, field
 from enum import Enum
@@ -12,6 +11,7 @@ from typing import Generic, Mapping, TypeVar
 import numpy as np
 
 from stacking_common.domain import Action, State
+from stacking_common.domain.action import _read_only
 
 
 ObservationT = TypeVar("ObservationT")
@@ -240,7 +240,7 @@ class TransitionEvaluation(Generic[ObservationT]):
 def _owned_mapping(values: Mapping[str, object]) -> Mapping[str, object]:
     if not isinstance(values, Mapping):
         raise TypeError("search diagnostics must be a mapping")
-    return MappingProxyType(copy.deepcopy(dict(values)))
+    return MappingProxyType({key: _read_only(value) for key, value in values.items()})
 
 
 def _reason(value: object) -> str:

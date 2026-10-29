@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import math
 from dataclasses import dataclass, field
 from types import MappingProxyType
@@ -11,6 +10,7 @@ from typing import Mapping
 import numpy as np
 
 from stacking_common.domain._validation import pose_array
+from stacking_common.domain.action import _read_only
 
 
 @dataclass(frozen=True)
@@ -129,5 +129,6 @@ class PlacementFilterDecision:
 def _owned(values: Mapping[str, object]) -> Mapping[str, object]:
     if not isinstance(values, Mapping):
         raise TypeError("placement diagnostics must be a mapping")
-    return MappingProxyType(copy.deepcopy(dict(values)))
+    # Nested values become read-only and are shared, not deep-copied again.
+    return MappingProxyType({key: _read_only(value) for key, value in values.items()})
 

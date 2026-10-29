@@ -379,12 +379,14 @@ class CorePlacementPoseSolver:
         # Native results expose residual wrenches, never an aggregate force cost.
         # Restore physical units, then use one dimensionless residual for
         # feasibility, reward, and prior scoring. Missing residuals are invalid.
-        if not result.net_wrench:
+        # Each native map property converts on access; read it once.
+        net_wrench = result.net_wrench
+        if not net_wrench:
             raise ValueError("posegen result must contain residual wrenches")
         # Native entity IDs are inventory indices + 1, not object IDs.
         # Use each participating body's own weight and volume length scale.
         residuals = []
-        for entity_id, wrench in result.net_wrench.items():
+        for entity_id, wrench in net_wrench.items():
             index = int(entity_id) - 1
             if not 0 <= index < len(self.inventory):
                 raise ValueError("equilibrium wrench has an unknown body entity ID")
@@ -403,7 +405,7 @@ class CorePlacementPoseSolver:
         diagnostics["posegen_equilibrium_residual_normalized"] = max(residuals)
         diagnostics["posegen_residual_wrenches"] = {
             int(entity): np.asarray(wrench, dtype=float) * native_mass_scale
-            for entity, wrench in result.net_wrench.items()
+            for entity, wrench in net_wrench.items()
         }
         # Keep the serialized c_feq field, but new actions use the same
         # normalized residual as reward/prior scoring, not the legacy L1 metric.
