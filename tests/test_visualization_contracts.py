@@ -59,6 +59,18 @@ def test_scene_timeline_owns_arrays_and_holds_shorter_tracks() -> None:
         timeline.poses_at(2)
 
 
+@pytest.mark.parametrize("row", [0, 1, 2])
+@pytest.mark.parametrize("invalid", ["nan", "infinity", "zero_quaternion", "tiny_quaternion"])
+def test_pose_track_checks_every_row(row, invalid):
+    poses = np.tile([0., 0., 0., 0., 0., 0., 1.], (3, 1))
+    if invalid in {"nan", "infinity"}:
+        poses[row, 0] = np.nan if invalid == "nan" else np.inf
+    else:
+        poses[row, 6] = 0. if invalid == "zero_quaternion" else 1e-13
+    with pytest.raises(ValueError, match="finite|non-zero"):
+        PoseTrack(10, poses)
+
+
 def test_score_field_requires_state_scope_and_axis_aligned_shapes() -> None:
     with pytest.raises(ValueError, match="scoped to one search state"):
         ScoreField("map", [0.0], [0.0], [[1.0]], [[True]], [], "candidate")

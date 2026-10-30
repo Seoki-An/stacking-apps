@@ -8,6 +8,7 @@ implementation details hidden behind this module.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import closing
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -648,6 +649,80 @@ class StackRunStore:
             raise KeyError(name)
         codec, sha256, raw_size, data = row
         return _decode_blob(codec, sha256, raw_size, data, str(name))
+
+
+class StackRunViewReader:
+    """Reuse decoded viewer records across refreshes of one run.
+
+    A refresh reads one committed SQLite snapshot. Only new or changed records
+    decompress arrays and rebuild contracts; file replacement resets the cache.
+    Connections are closed after each read so an idle viewer holds no locks.
+    """
+
+    def __init__(self):
+        self._identity = None
+        self._records = {}
+
+    def load(self, path: str | Path):
+        path = Path(path).resolve()
+        stat = path.stat()
+        identity = (path, stat.st_dev, stat.st_ino)
+        previous = self._records if identity == self._identity else {}
+        records = {}
+        with closing(_open_reader(path)) as connection, connection:
+            connection.execute("BEGIN")
+            rows = connection.execute(
+                "SELECT kind, record_id, payload_json FROM records "
+                "WHERE kind IN ('mcts_header', 'mcts_step', 'placement_plan', 'mcts_search') "
+                "ORDER BY ordinal"
+            ).fetchall()
+            # Compare array descriptors too: JSON alone only contains array names.
+            descriptors = {}
+            for kind, record_id, name, dtype, shape, digest in connection.execute(
+                "SELECT record_kind, record_id, name, dtype, shape_json, sha256 FROM arrays "
+                "WHERE record_kind IN ('mcts_header', 'mcts_step', 'placement_plan', 'mcts_search') "
+                "ORDER BY name"
+            ):
+                descriptors.setdefault((kind, record_id), []).append((name, dtype, shape, digest))
+
+            def read(kind, record_id, payload):
+                key = (kind, record_id)
+                signature = (hashlib.sha256(payload.encode()).digest(),
+                             tuple(descriptors.get(key, ())))
+                cached = previous.get(key)
+                if cached is not None and cached[0] == signature:
+                    value = cached[1]
+                else:
+                    values = _materialize_arrays(json.loads(payload), _arrays(connection, *key))
+                    if kind == "mcts_header":
+                        value = decode_mcts_debug(values)
+                    elif kind == "mcts_step":
+                        value = decode_mcts_step(values, frame_id=header.frame_id)
+                    elif kind == "placement_plan":
+                        value = decode_placement_plan(values)
+                    else:
+                        value = values
+                records[key] = (signature, value)
+                return value
+
+            header_row = next((row for row in rows if row[:2] == ("mcts_header", "main")), None)
+            if header_row is None:
+                raise ValueError("stack run is missing mcts_header/main")
+            header = read(*header_row)
+            if previous.get(("mcts_header", "main"), (None,))[0] != records[("mcts_header", "main")][0]:
+                # Steps are decoded in the header's coordinate frame.
+                previous = {}
+            groups = {"mcts_step": [], "placement_plan": [], "mcts_search": []}
+            for kind, record_id, payload in rows:
+                if kind in groups:
+                    groups[kind].append(read(kind, record_id, payload))
+            artifact = MCTSDebugArtifact(
+                frame_id=header.frame_id, target=header.target, camera=header.camera,
+                steps=tuple(groups["mcts_step"]), schema_version=header.schema_version,
+            )
+        # Failed refreshes leave the previous complete cache usable.
+        self._identity, self._records = identity, records
+        return artifact, tuple(groups["placement_plan"]), tuple(groups["mcts_search"])
 
 
 def _load_context(connection, digest):

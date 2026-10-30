@@ -14,10 +14,10 @@ from stacking_common.planning import compose_poses, inverse_pose
 
 from stacking_common.artifacts import (
     PlacementPlanRecord,
-    StackRunStore,
     decode_legacy_mcts_debug,
     decode_mcts_debug,
 )
+from stacking_common.artifacts.run_document import StackRunViewReader
 from stacking_common.visualization import (
     CameraView,
     CandidatePoseMode,
@@ -133,6 +133,7 @@ class OperationsController:
         trajectory_projector=None,
     ) -> None:
         self.artifact: MCTSDebugArtifact | None = None
+        self._run_reader = StackRunViewReader()
         self.planning_records: tuple[PlacementPlanRecord, ...] = ()
         self.search_statistics: dict[int, Mapping[str, object]] = {}
         self.step_index = 0
@@ -162,9 +163,7 @@ class OperationsController:
 
         path = Path(path)
         if path.suffix.lower() == ".stack":
-            artifact = StackRunStore.load_mcts(path)
-            planning_records = StackRunStore.load_placement_plans(path)
-            search_statistics = StackRunStore.load_mcts_statistics(path)
+            artifact, planning_records, search_statistics = self._run_reader.load(path)
         else:
             values = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(values, dict):
@@ -176,6 +175,7 @@ class OperationsController:
             )
             planning_records = ()
             search_statistics = ()
+            self._run_reader = StackRunViewReader()
         self.set_artifact(artifact, planning_records=planning_records,
                           search_statistics=search_statistics)
         return artifact

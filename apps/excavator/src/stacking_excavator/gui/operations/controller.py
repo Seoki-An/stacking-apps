@@ -38,9 +38,7 @@ class OperationsController(CommonOperationsController):
 
     def load(self, path):
         path = Path(path)
-        artifact = StackRunStore.load_mcts(path)
-        records = StackRunStore.load_placement_plans(path)
-        statistics = StackRunStore.load_mcts_statistics(path)
+        artifact, records, statistics = self._run_reader.load(path)
         metadata = StackRunStore.info(path).metadata
         if metadata.get("platform") != "excavator":
             raise ValueError("Open an excavator .stack run in this console")

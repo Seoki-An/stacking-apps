@@ -172,8 +172,10 @@ class PoseTrack:
             raise ValueError("pose-track object ID must be non-negative")
         if poses.ndim != 2 or poses.shape[1:] != (7,) or len(poses) == 0:
             raise ValueError("pose track must have shape (N, 7), N >= 1")
-        for pose in poses:
-            _validate_pose(pose)
+        if not np.all(np.isfinite(poses)):
+            raise ValueError("pose must contain only finite values")
+        if np.any(np.linalg.norm(poses[:, 3:], axis=1) <= 1e-12):
+            raise ValueError("pose quaternion must have non-zero norm")
         object.__setattr__(self, "object_id", object_id)
         object.__setattr__(self, "poses", _readonly(poses))
         if self.times is not None:

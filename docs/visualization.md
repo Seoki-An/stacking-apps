@@ -397,6 +397,13 @@ preserves the current tab, camera and rendering toggles. It is unavailable
 before a `.stack` is opened, and requests during video export or active tabletop
 execution are blocked.
 
+Refresh reuses decoded search steps, trajectories, and planning attempts when
+their stored contents are unchanged. Only new or changed records are decoded;
+replacing the file clears that cache. Each read uses a committed database
+snapshot and closes its connection afterward, so an idle viewer holds no locks.
+Initial loading also validates trajectory poses in arrays instead of looping
+over individual samples.
+
 Starting planning in either console automatically opens its output `.stack`
 as soon as the committed header is readable (and, for excavator, the recorded
 planning context is available). The viewer may initially have no completed
