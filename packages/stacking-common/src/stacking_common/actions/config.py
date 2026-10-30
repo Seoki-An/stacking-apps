@@ -18,9 +18,11 @@ class PlacementActionGeneratorConfig:
     require_solver_convergence: bool = field(default=True, metadata={"omit_default_from_context": True})
     reject_equilibrium_at_threshold: bool = field(default=False, metadata={"omit_default_from_context": True})
     stone_volume_exponent: float = field(default=0.0, metadata={"omit_default_from_context": True})
+    reject_above_active_layer: bool = field(default=False, metadata={"omit_default_from_context": True})
 
     def __post_init__(self) -> None:
-        for name in ("require_solver_convergence", "reject_equilibrium_at_threshold"):
+        for name in ("require_solver_convergence", "reject_equilibrium_at_threshold",
+                     "reject_above_active_layer"):
             if not isinstance(getattr(self, name), bool):
                 raise TypeError(f"{name} must be boolean")
         if self.max_poses_per_object <= 0:

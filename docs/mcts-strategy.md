@@ -419,18 +419,34 @@ depth, so ordinary tree evaluations stay on the short path, with explicit long
 validation handled separately.
 
 There are no additional rollout actions beyond the selected tree leaf
-(`d_s = 0`). Nonterminal leaves use a fixed expected-reward bootstrap:
+(`d_s = 0`). Nonterminal leaves use a fixed expected-reward bootstrap. As of
+2026-10-30, it is bounded by the remaining exploration depth, with one discount
+per future edge:
 
 ```text
-h = min(bootstrap.horizon, max_depth + 1 - leaf_depth, remaining_objects)
+h = min(bootstrap.horizon, max(0, max_depth - leaf_depth), remaining_objects)
 B = bootstrap.mean_reward * sum(discount^j for j = 0, ..., h - 1)
+V_hat = discount * B
+leaf_return = reward_leaf + V_hat
 ```
 
-The excavator CPU profile sets mean reward to 2.5; excavator CUDA and both
-tabletop profiles use 1.0. All use horizon 4. The implementation
-preserves its legacy discount convention: initialize backup with `discount * B`,
-then at each node apply `G = reward + discount * G`. Thus the leaf receives
-`reward_leaf + discount^2 * B`. Terminal and failed leaves have no success bootstrap.
+The estimator returns B. Backup starts with B directly and applies
+`G = reward + discount * G` at each node. There is no extra pre-discount.
+At maximum exploration depth, h=0 and the leaf return is its immediate reward.
+Terminal and failed leaves do not request a success bootstrap. Depth is relative
+to the current search root, including any configured initial depth-one stage.
+
+This approximates unexpanded future placements with a constant expected reward,
+using `bootstrap.mean_reward` rather than the leaf's empirical reward. It is a
+finite-horizon heuristic, not a guarantee of future feasibility or optimality.
+An optimistic constant may favor shallow, unexplored branches; an overly low
+constant may discourage them. Existing horizon and inventory caps remain.
+
+The GUI mean value averages backed-up returns, including the incoming action's
+reward; it is not V_hat alone. Promoted subtrees retain historical samples, so
+these averages can include samples from earlier, shorter remaining horizons.
+Start a fresh run when comparing the corrected convention against older runs;
+stored rewards and tree statistics are not retroactively rewritten.
 
 Failure is instead an absorbing per-step penalty over the remaining search
 horizon, including the failed placement:
@@ -444,7 +460,7 @@ The available inventory is taken from the parent state and excludes the attempte
 stone once, regardless of whether the failed transition appended it. Depth is
 relative to the current root and uses the effective search depth (including the
 initial depth-one schedule). Ordinary backup discounts `G_fail` once per ancestor
-edge; the success heuristic's extra legacy pre-discount does not apply. Failed
+edge, as for successful returns. Failed
 nodes remain unselectable and retain their zero-valued visit sample. With depth
 four, discount 0.9 and per-step reward -1, failures at depths 1–4 contribute
 -3.439, -2.71, -1.9 and -1 respectively before ancestor discounting, assuming enough

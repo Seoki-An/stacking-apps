@@ -338,6 +338,10 @@ class StackingSearchApplication:
 
         profile = self.action_generation_profile
         floor_policy = self.build_floor_policy(inventory)
+        layer_filters = ()
+        if profile.generator.reject_above_active_layer:
+            from stacking_common.actions.filtering import ActiveLayerAdmissionFilter
+            layer_filters = (ActiveLayerAdmissionFilter(floor_policy),)
         sampler = ScoredPlanarPoseSampler
         if root and self.root_jumps_enabled():
             from stacking_common.actions.root_sampling import RootMixturePlanarSampler
@@ -356,6 +360,7 @@ class StackingSearchApplication:
             pose_solver=pose_solver,
             worker_pose_solvers=worker_pose_solvers,
             filters=(
+                *layer_filters,
                 *self.build_orientation_filters(floor_policy),
                 *filters,
             ),

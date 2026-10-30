@@ -14,6 +14,29 @@ from .types import (
 )
 
 
+class ActiveLayerAdmissionFilter:
+    """Restrict solved proposals to the parent's lowest incomplete layer.
+
+    This is a construction-order restriction, not a physical stability check.
+    Connectivity, empty-area overlap and repair are deliberately independent.
+    """
+
+    def __init__(self, floor_policy) -> None:
+        self.floor_policy = floor_policy
+
+    def prepare_scene(self, inventory, state):
+        return self.floor_policy.context_details(state)
+
+    def evaluate(self, inventory, state, object_index, initial, solved, *, scene_context=None):
+        action = Action(object_index, solved.pose, initial.pose,
+                        object_id=inventory[object_index].object_id)
+        diagnostics = self.floor_policy.pose_diagnostics(state, action, context=scene_context)
+        diagnostics["active_layer_admission_checked"] = True
+        if diagnostics["fixed_scene_active_layer_above"]:
+            return PlacementFilterDecision.reject("above_active_layer", **diagnostics)
+        return PlacementFilterDecision.accept(**diagnostics)
+
+
 class ScanOrientationFilter:
     """Preserve legacy scan-relative tilt checks and the lower-fill exception."""
 

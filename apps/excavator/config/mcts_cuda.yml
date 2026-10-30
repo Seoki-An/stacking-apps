@@ -61,5 +61,5 @@ root_cem:
   height_map_score_weight: 1.0
   seed: 0
 bootstrap:
-  mean_reward: 1.0
+  mean_reward: 0.7
   horizon: 4

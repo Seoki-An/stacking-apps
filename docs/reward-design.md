@@ -1,8 +1,8 @@
 # Reward Design
 
-> Implementation update (2026-10-28): surface flatness now rewards the reduction
-> in relief between parent and settled scenes. This dated paper draft retains
-> the earlier absolute-penalty formula; see the
+> Implementation update (2026-10-30): surface flatness now rewards the reduction
+> in area-weighted height variance, normalized by mean stone volume^(2/3).
+> This dated paper draft retains an earlier formula; see the
 > [current specification](initial-pose-sampling.md#mcts-surface-flatness-reward).
 
 논문 본문용 영문 축약 초안이다. 항별 정의, 가중치, 정규화와 실패 처리는

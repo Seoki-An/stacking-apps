@@ -177,7 +177,7 @@ def test_filled_floor_advances_to_next_layer_without_lowering_threshold():
     assert state.placed_object_indices == [0]
 
 
-def test_tabletop_generator_accepts_recorded_upper_floor_poses():
+def test_tabletop_generator_accepts_recorded_upper_floor_poses_when_gate_disabled():
     import json
     from dataclasses import replace
     from pathlib import Path
@@ -186,6 +186,8 @@ def test_tabletop_generator_accepts_recorded_upper_floor_poses():
     root = Path(__file__).resolve().parents[1]
     fixture = json.loads((root / "tests/fixtures/planning/active_floor_step4.json").read_text())
     app = TabletopApplication.from_repository(root)
+    app = replace(app, action_generation_profile=replace(app.action_generation_profile,
+        generator=replace(app.action_generation_profile.generator, reject_above_active_layer=False)))
     ids = fixture["object_ids"]
     inventory = app.load_inventory(ids, {object_id: _pose() for object_id in ids})
     state = State(ids, [ids.index(o["object_id"]) for o in fixture["placed"]],

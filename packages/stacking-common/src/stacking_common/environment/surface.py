@@ -10,7 +10,7 @@ from stacking_common.visualization.heightmap import _rasterize_triangles
 
 
 class SurfaceFlatness:
-    """Measure max-minus-mean height over the target's floor footprint.
+    """Measure area-weighted height statistics over the target's floor footprint.
 
     Empty cells have zero height. The fixed 32 x 32 cell-center grid measures
     the upper envelope, not internal cavities or individual stone centers.
@@ -77,10 +77,17 @@ class SurfaceFlatness:
         return self._remember(self._objects, key, surface, 128)
 
     def measure(self, state):
-        return self.measure_poses(state.placed_object_indices, state.object_poses)
+        return self.statistics(state)[:2]
 
     def measure_poses(self, placed_indices, object_poses):
-        """Measure nominal geometry before physical acceptance is finalized."""
+        """Retain the max/mean diagnostic API for existing callers."""
+        return self.statistics_poses(placed_indices, object_poses)[:2]
+
+    def statistics(self, state):
+        return self.statistics_poses(state.placed_object_indices, state.object_poses)
+
+    def statistics_poses(self, placed_indices, object_poses):
+        """Return maximum, area-weighted mean and variance (m, m, m²)."""
         keys = []
         for index in placed_indices:
             oid = self.inventory.objects[index].object_id
@@ -95,14 +102,14 @@ class SurfaceFlatness:
         cached = self._scenes.get(key)
         if cached is not None:
             self._scenes.move_to_end(key)
-            _, total, maximum = cached
-            return maximum, total / self._weight_sum
+            _, total, maximum, variance = cached
+            return maximum, total / self._weight_sum, variance
 
         parent = self._scenes.get(key[:-1]) if key else None
         if parent is not None:
             # Exact pose keys ensure this path is used only when all previous
             # stones are unchanged. A sibling never mutates its parent's grid.
-            previous, total, maximum = parent
+            previous, total, maximum, _ = parent
             added = self._object_surface(key[-1])
             increase = np.maximum(added - previous, 0.)
             surface = previous + increase
@@ -115,5 +122,9 @@ class SurfaceFlatness:
             for object_key in key:
                 np.maximum(surface, self._object_surface(object_key), out=surface)
             total, maximum = float((surface * self._weights).sum()), float(surface.max())
-        self._remember(self._scenes, key, (surface, total, maximum), 64)
-        return maximum, total / self._weight_sum
+        mean = total / self._weight_sum
+        # Center first instead of E[h²] - E[h]² to avoid cancellation on tall,
+        # nearly flat structures. The existing grid and area weights are reused.
+        variance = float(np.dot(self._weights, (surface - mean) ** 2) / self._weight_sum)
+        self._remember(self._scenes, key, (surface, total, maximum, variance), 64)
+        return maximum, mean, variance

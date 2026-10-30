@@ -195,11 +195,14 @@ def test_surface_uses_union_footprint_and_area_weights_not_disconnected_gap():
     surface = SurfaceFlatness(inv)
     assert surface.measure(state(inv)) == (0., 0.)
     assert surface.measure(state(inv, [pose(-10.)])) == pytest.approx((1., 1. / 3.))
+    assert surface.statistics(state(inv, [pose(-10.)]))[2] == pytest.approx(2. / 9.)
     current = state(inv, [pose(-10.), pose(10.)])
     assert surface.measure(current) == pytest.approx((2., 5. / 3.))
+    assert surface.statistics(current)[2] == pytest.approx(2. / 9.)
     moved = state(inv, [pose(-10.), pose(10., z=1.)])
     assert surface.measure(moved) == pytest.approx(SurfaceFlatness(inv).measure(moved))
     assert surface.measure(current) == pytest.approx((2., 5. / 3.))
+    assert surface.statistics(current)[2] == pytest.approx(2. / 9.)
 
 
 def test_surface_excludes_l_notch_and_overlapping_component_area():

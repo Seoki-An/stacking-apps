@@ -4,7 +4,7 @@ This supersedes the staged validation and continuation-repair strategy described
 in the earlier MCTS documents. The original code and dirty working files are in
 `.backups/mcts-before-unified-20261027-ojcgBfmv/` (including a verified Git bundle).
 
-## Current floor admission (2026-10-29)
+## Floor admission removal (2026-10-29)
 
 The temporary unified continuation-repair experiment has been backed up to
 `/tmp/mcts-before-remove-floor-mask-repair-20261029-115556` and removed.
@@ -17,6 +17,41 @@ scores remain. There is no floor-relaxation retry; empty-scene corner-seed
 fallback remains independent of floor tracking. Final selection
 uses existing evidence without a descendant-depth eligibility filter; it does not repair paths.
 No height reward or simulation settings were changed by this removal.
+
+### Active-layer admission experiment (2026-10-30)
+
+Both platforms now enable `filtering.reject_above_active_layer` in
+`action_generation.yml`. After pose optimization, the candidate's minimum mesh
+height must be at most the parent active-layer support height plus
+`planar.floor.bottom_tolerance`. The existing floor policy advances once its
+estimated coverage reaches `planar.floor.fill_ratio`; composite regions retain
+their independently tracked layers. The same gate applies at roots and deeper
+nodes, including CEM mutations, before physical evaluation.
+
+This is a construction-order restriction on optimized proposals, not evidence
+of physical instability. Rejections are counted as `above_active_layer` during
+generation. There is no new connectivity/empty-area rejection, relaxation, or
+continuation repair. The existing reward and simulation remain unchanged;
+settled poses are not subjected to an additional layer gate. Acceptance records
+include `active_layer_admission_checked`, the optimized bottom height, and the
+parent layer diagnostics.
+
+Set the flag to `false` for the previous permissive behavior. An omitted flag
+also defaults to false for older profiles. Enabled settings are recorded in the
+action profile, so comparisons must start fresh trees instead of reusing trees
+evaluated under a different admission policy. A strict gate can exhaust the
+search if remaining stones cannot fill the active layer; this is policy/budget
+exhaustion, not a proof that no physically feasible placement exists.
+
+Initial CUDA comparison on `simple_mcts_test23.stack`, with 512 iterations per
+step and the unchanged reward: from checkpoint 8, both variants completed two
+ground placements. Coverage rose from 46.5% to 56.3% with the gate off and 55.9%
+with it on (80.1 s versus 84.1 s). From checkpoint 16, coverage was 69.1%, below
+the existing 75% completion threshold. The gate excluded all 31 physically
+accepted root alternatives from the earlier filter-off control; its own 11
+retained root candidates failed physical validation, exhausting step 17 in
+11.9 s. These short tests establish the gate's behavior and exhaustion risk,
+not an improvement in full-wall construction.
 
 ### Soft previous-action distance (2026-10-30)
 
@@ -254,20 +289,29 @@ equilibrium threshold; reward and prior use min(E, 1). The normalized diagnostic
 is also retained. Old saved actions without that diagnostic keep their explicit
 legacy reward/prior fallback; new native results without residuals are invalid.
 
-## Surface flatness: restored max-minus-mean (2026-10-30)
+## Surface flatness: area-weighted variance (2026-10-30)
 
-Following the user's preference for the wall in `simple_mcts_test19.stack`
-over `simple_mcts_test20.stack`, the variance experiment has been reverted.
-The active reward again uses the reduction in surface max-minus-mean height:
+The reward now measures the reduction in area-weighted surface-height variance:
 
 ```text
 L = mean(inventory stone volume)^(1/3)
-relief = maximum surface height - area-weighted mean surface height
-flatness_reward = surface_flatness_weight * (relief_before - relief_after) / L
+mean_height = sum(cell_area * height) / sum(cell_area)
+variance = sum(cell_area * (height - mean_height)^2) / sum(cell_area)
+flatness_reward = surface_flatness_weight * (variance_before - variance_after) / L^2
 ```
 
 The surface includes empty target-floor cells and retains the true pre-simulation
 parent baseline. Existing weights remain unchanged (excavator 8, tabletop 4).
-Soft previous-action distance scoring, its GUI layer, and removal of the hard
-descendant-depth eligibility gate remain in place. Saved runs keep their original
-reward values; start a fresh search rather than reuse variance-backed tree values.
+The active-layer admission filter remains enabled. No sampling or physical
+validation rules change with this reward update.
+
+A raised patch covering fraction p of an otherwise level surface contributes
+p*(1-p)*height_difference^2 to variance, reducing the abrupt penalty for starting
+a layer with a small stone. This remains a surface measure: it cannot detect
+cavities hidden below stones or guarantee that every layer is filled.
+
+Diagnostics retain maximum/mean/relief for compatibility and add before/after
+variance, normalized variance, and the metric name. Saved runs keep their recorded
+rewards and remain viewable. The reward metric is recorded in new planning
+contexts, preventing context-checked resume from mixing older returns with this
+reward definition. Start a fresh search to test the new reward.

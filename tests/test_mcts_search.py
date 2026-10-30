@@ -237,7 +237,7 @@ class _DepthAwareEstimator:
         return 4.0
 
 
-def test_coordinator_matches_legacy_depth_bounded_bootstrap_discount() -> None:
+def test_coordinator_discounts_depth_bounded_bootstrap_once() -> None:
     estimator = _DepthAwareEstimator()
     search = MonteCarloTreeSearch(
         MCTSConfig(
@@ -260,10 +260,10 @@ def test_coordinator_matches_legacy_depth_bounded_bootstrap_discount() -> None:
     )
 
     child = result.root.children[0]
-    assert estimator.remaining_depths == [2]
-    assert child.mean_value == pytest.approx(5.75)  # Includes root admission.
-    assert result.root.value_sum == pytest.approx(5.75)
-    assert result.root.mean_value == pytest.approx(5.75 / 3)
+    assert estimator.remaining_depths == [1]
+    assert child.mean_value == pytest.approx(6.25)  # Includes root admission.
+    assert result.root.value_sum == pytest.approx(6.25)
+    assert result.root.mean_value == pytest.approx(6.25 / 3)
 
 
 class _OffsetGenerator:

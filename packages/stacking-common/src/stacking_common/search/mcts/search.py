@@ -916,7 +916,8 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
 
     def _back_up(self, node) -> None:
         bootstrap = 0.0
-        if node.evaluated and not node.terminal and not node.failed:
+        if (node.evaluated and not node.terminal and not node.failed
+                and node.depth < self.config.max_depth):
             estimate_at_depth = getattr(
                 self.value_estimator,
                 "estimate_at_depth",
@@ -924,7 +925,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             )
             if callable(estimate_at_depth):
                 remaining_depth = max(
-                    self.config.max_depth + 1 - node.depth,
+                    self.config.max_depth - node.depth,
                     0,
                 )
                 bootstrap = float(
@@ -940,9 +941,8 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 )
             if not math.isfinite(bootstrap):
                 raise ValueError("value estimator returned a non-finite value")
-            # The legacy coordinator discounts its leaf estimate once before
-            # entering the node-by-node discounted backup loop.
-            bootstrap *= self.config.discount
+            # backpropagate discounts the future estimate once at the leaf:
+            # r_leaf + mean_reward * sum(gamma**i, i=1..remaining_depth).
         backpropagate(node, self.config, bootstrap_value=bootstrap)
 
     def _run_iteration(self, root, request, counters) -> bool:

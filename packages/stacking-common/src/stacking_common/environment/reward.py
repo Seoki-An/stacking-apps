@@ -1,6 +1,6 @@
 """Concrete reward calculation migrated from the tabletop environment."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Protocol, Sequence
 
 import numpy as np
@@ -65,6 +65,11 @@ class RewardConfig:
     nonfinite_displacement: float = 2.0
     max_displacement: float | None = None
     displacement_reference: float = 1.0
+    # Recorded in planning contexts so cached returns from older reward
+    # definitions cannot silently be reused. This is not a tuning option.
+    surface_flatness_metric: str = field(
+        default="area_weighted_height_variance", init=False
+    )
 
     def __post_init__(self) -> None:
         if not np.isfinite(self.displacement_reference) or self.displacement_reference <= 0.0:
@@ -102,8 +107,8 @@ class PreparedRewardGeometry:
     previous_overlap: float
     target_overlap: float
     containment: float
-    surface: tuple[float, float] | None
-    previous_surface: tuple[float, float] | None
+    surface: tuple[float, float, float] | None
+    previous_surface: tuple[float, float, float] | None
 
 
 class StackingReward:
@@ -151,11 +156,12 @@ class StackingReward:
         """
         if self._surface is None:
             return action
-        maximum, mean = self._surface.measure(parent)
+        maximum, mean, variance = self._surface.statistics(parent)
         candidate = action.copy()
         candidate.diagnostics.update(
             surface_previous_height_max=maximum,
             surface_previous_height_mean=mean,
+            surface_previous_height_variance=variance,
         )
         return candidate
 
@@ -192,9 +198,9 @@ class StackingReward:
         else:
             placed_overlap = containment * placed_object.volume / self.target_volume
             target_overlap = previous_overlap + placed_overlap
-        previous_surface = (self._surface.measure_poses(sequence[:-1], object_poses)
+        previous_surface = (self._surface.statistics_poses(sequence[:-1], object_poses)
                             if self._surface is not None else None)
-        surface = (self._surface.measure_poses(sequence, object_poses)
+        surface = (self._surface.statistics_poses(sequence, object_poses)
                    if self._surface is not None else None)
         return PreparedRewardGeometry(previous_overlap, target_overlap, containment, surface, previous_surface)
 
@@ -272,21 +278,31 @@ class StackingReward:
         flatness = 0.0
         surface_info = {}
         if self._surface is not None:
-            maximum, mean = geometry.surface
-            previous_maximum, previous_mean = geometry.previous_surface
-            baseline_recorded = "surface_previous_height_max" in action.diagnostics
+            maximum, mean, variance = geometry.surface
+            previous_maximum, previous_mean, previous_variance = geometry.previous_surface
+            # Old actions recorded max/mean only; those cannot reconstruct a
+            # variance. Use the geometric fallback consistently for that case.
+            baseline_recorded = "surface_previous_height_variance" in action.diagnostics
             if baseline_recorded:
                 previous_maximum = float(action.diagnostics["surface_previous_height_max"])
                 previous_mean = float(action.diagnostics["surface_previous_height_mean"])
-                if (not np.isfinite([previous_maximum, previous_mean]).all()
+                previous_variance = float(action.diagnostics["surface_previous_height_variance"])
+                if (not np.isfinite([previous_maximum, previous_mean, previous_variance]).all()
+                        or previous_variance < 0.
                         or previous_mean < 0.
                         or previous_mean > previous_maximum + 1e-12 * max(1., abs(previous_maximum))):
                     raise ValueError("invalid pre-placement surface baseline")
             reference = float(np.cbrt(self.mean_object_volume))
             relief = max(maximum - mean, 0.)
             previous_relief = max(previous_maximum - previous_mean, 0.)
-            flatness = (previous_relief - relief) / reference
+            flatness = (previous_variance - variance) / reference ** 2
             surface_info = {
+                "surface_flatness_metric": self.config.surface_flatness_metric,
+                "surface_height_variance": variance,
+                "surface_previous_height_variance": previous_variance,
+                "surface_height_variance_change": variance - previous_variance,
+                "surface_height_variance_normalized": variance / reference ** 2,
+                "surface_previous_height_variance_normalized": previous_variance / reference ** 2,
                 "surface_height_max": maximum,
                 "surface_height_mean": mean,
                 "surface_height_relief": relief,

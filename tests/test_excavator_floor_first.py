@@ -37,6 +37,8 @@ def test_permissive_excavator_uses_floor_only_for_xy_sampling(recorded_scene, mo
 
     _, inventory, state, candidates = recorded_scene
     app = ExcavatorApplication.from_repository(ROOT)
+    app = replace(app, action_generation_profile=replace(app.action_generation_profile,
+        generator=replace(app.action_generation_profile.generator, reject_above_active_layer=False)))
     generator = app.build_action_generator(inventory, SimpleNamespace())
     assert len(generator.filters) == 1
     assert isinstance(generator.filters[0], PosegenFeasibilityFilter)

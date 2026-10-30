@@ -140,6 +140,7 @@ class ActiveFloorPolicy:
             )
         )
         diagnostics = {
+            "fixed_scene_active_layer_bottom": float(candidate["bottom"]),
             "fixed_scene_active_layer_support_z": support_z,
             "fixed_scene_active_layer_fill_score": float(fill_score),
             "fixed_scene_active_layer_above": bool(above),

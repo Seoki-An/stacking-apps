@@ -151,7 +151,7 @@ class HorizonValueEstimator(Generic[ObservationT]):
         observation: ObservationT,
         remaining_depth: int,
     ) -> float:
-        """Project only through the remaining legacy search-depth budget."""
+        """Estimate future rewards; backup supplies the first-edge discount."""
 
         del observation
         if not isinstance(remaining_depth, int) or remaining_depth < 0:

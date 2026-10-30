@@ -7,6 +7,9 @@ initialization:
   height_clearance: 0.015
   xy_padding: 0.012
 filtering:
+  # Construction order: reject optimized poses above the lowest incomplete layer.
+  # Uses planar.floor coverage/tolerance; false disables this gate for comparisons.
+  reject_above_active_layer: true
   # Shared filter policy; physical gap limits are platform-specific.
   require_solver_convergence: false
   reject_equilibrium_at_threshold: true

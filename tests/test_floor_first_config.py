@@ -1,4 +1,4 @@
-"""Floor tracking guides sampling without solved-pose rejection."""
+"""Floor tracking and the optional optimized-pose layer admission gate."""
 
 from dataclasses import replace
 from pathlib import Path
@@ -30,8 +30,10 @@ def test_old_floor_flag_cannot_enable_rejection(tmp_path, value):
 
 
 
-def test_floor_tracking_is_sampling_only(monkeypatch):
+def test_floor_tracking_is_sampling_only_when_gate_disabled(monkeypatch):
     app = TabletopApplication.from_repository(ROOT)
+    app = replace(app, action_generation_profile=replace(app.action_generation_profile,
+        generator=replace(app.action_generation_profile.generator, reject_above_active_layer=False)))
     inventory = app.load_inventory([1], {1: np.array([0., 0., 0., 0., 0., 0., 1.])})
     containment = TargetContainmentFilter(VoxelOverlapEvaluator(inventory.target, .003), .5)
     generator = app.build_action_generator(inventory, SimpleNamespace(), filters=(containment,))

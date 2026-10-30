@@ -1503,78 +1503,50 @@ increment the mutation seed and exclude earlier root proposals.
 
 ### MCTS surface-flatness reward
 
-Both platforms enable `reward.weights.surface_flatness: 2.0` in
-`environment.yml`. This is an initial tuning value. A missing weight defaults
-to zero for older profiles; zero disables all surface computation and caches.
-The initial pose sampler and CEM prior are unchanged. The additional term
-scores the change from the parent surface to the settled surface:
+The current `reward.weights.surface_flatness` values are 8 for excavator and
+4 for tabletop. A missing weight defaults to zero; zero disables surface
+computation and caches. Initial pose sampling and the CEM prior are unchanged.
+The reward measures improvement in area-weighted height variance:
 
 $$
-h_{\mathrm{ref}}=\sqrt[3]{\bar V},\qquad
-\rho(s)=\frac{\max_j h_j(s)-\frac{1}{M}\sum_j h_j(s)}{h_{\mathrm{ref}}},
-\qquad R_{\mathrm{flat}}(s,a,s')=w_{\mathrm{flat}}\,[\rho(s)-\rho(s')].
+L=\sqrt[3]{\bar V},\qquad
+\mu(s)=\frac{\sum_j A_j h_j(s)}{\sum_j A_j},\qquad
+v(s)=\frac{\sum_j A_j(h_j(s)-\mu(s))^2}{\sum_j A_j},
+\qquad R_{\mathrm{flat}}(s,a,s')=w_{\mathrm{flat}}\frac{v(s)-v(s')}{L^2}.
 $$
 
-The heights are the scene's upper surface sampled at the centers of a fixed
-32-by-32 grid spanning the target's rectangular footprint at floor height.
-They are relative to `target.origin[2]`, floored at zero, and include empty
-floor cells in the mean. Geometry outside that footprint contributes nothing.
-Heights above the target are not clipped. The reference length is fixed from
-the initial inventory, like the overlap reward normalization.
+Here A_j is the represented target-footprint area of a grid cell. Single-target
+cells have equal area; composite targets use union masks and area weights.
+The existing surface grids include empty cells at floor height (zero), exclude
+space outside the target footprint, and do not clip heights above the target.
+L is fixed from the initial inventory's mean stone volume.
 
-Reducing relief earns a positive reward; increasing it earns a negative reward.
-Unchanged relief earns zero, so inherited unevenness is not penalized again at
-every placement. The empty parent has zero relief, so the first isolated stone
-can still earn a negative flatness contribution. Beginning a higher layer can
-also be penalized until later placements level it. Uniformly translating both
-complete surface profiles in height does not change this term; empty cells remain
-anchored to the floor. This is a difference of relief, not height variance. It also
-cannot detect cavities hidden below a bridging stone, and the coarse grid
-can miss small peaks or holes. Existing containment, overlap, and physical
-validation terms remain necessary.
+Reduced variance earns positive reward, increased variance earns negative
+reward, and an unchanged surface earns zero. A raised patch covering fraction
+p of a flat surface adds p*(1-p)*height_difference^2 to variance. Starting a
+higher layer is still penalized, but the penalty scales with its area.
+This surface measure cannot detect cavities beneath bridging stones or ensure
+that every layer is filled. The active-layer admission filter remains separate.
 
-Before simulation, the environment measures the parent surface and stores its
-maximum and mean as scalar diagnostics on a copy of the candidate action. This
-baseline survives scene motion, nominal geometry preparation, later validation,
-and checkpoint serialization; caller-owned actions and parent states are not
-mutated. Direct evaluation of old or manually constructed states without this
-baseline uses the current poses with the newest stone omitted, and labels that
-fallback in diagnostics. Previously saved reward numbers are not rewritten;
-start a new run when comparing this shaping rule with the old absolute penalty.
+Before simulation, the environment stores the parent's maximum, mean and
+variance on a copy of the candidate action. This baseline survives scene
+motion, prepared geometry evaluation, and artifact serialization. Old or manually
+constructed actions lacking a variance baseline use current poses with the
+candidate omitted, explicitly labeled `current_poses_without_candidate`.
+Saved reward numbers are not rewritten. The metric identifier is included in
+new planning contexts; start a fresh search rather than reuse old tree returns.
 
-Each reward worker retains bounded caches of 128 object-pose projections and
-64 scene envelopes (about 1.5 MiB of grid arrays at capacity). A child whose
-earlier stone poses exactly match a cached parent updates the surface sum by
-`sum(max(new_stone_surface - parent_surface, 0))`, and updates the maximum.
-Sibling branches never modify the parent's grid. If any previous stone has
-moved, the envelope is recomposed from the current object projections; exact
-pose keys prevent stale heights when stones move downward or uncover cells.
-This path does not materialize the deferred 128-by-128 observation.
+Bounded caches retain 128 object-pose projections and 64 scene envelopes.
+Exact pose keys prevent stale heights when earlier stones move. Variance is
+computed from centered heights to avoid cancellation on tall, nearly flat
+surfaces. This path does not materialize the deferred 128-by-128 observation.
 
-Diagnostics record `surface_height_max`, `surface_height_mean`,
-`surface_height_relief`, `surface_height_reference`, `surface_flatness`, and
-`surface_flatness_reward`. Heights are in metres; the last two are the
-dimensionless signed improvement and its weighted contribution. Diagnostics also
-record `surface_previous_height_max`, `surface_previous_height_mean`,
-`surface_previous_height_relief`, `surface_height_relief_change` (after minus
-before), and `surface_baseline_source` (`parent_state` or
-`current_poses_without_candidate`). When disabled,
-only the zero score and zero contribution are reported.
-
-Reproduce the CPU microbenchmark with:
-
-```bash
-OPENBLAS_NUM_THREADS=1 python tests/benchmark_surface_flatness.py \
-  --scene .stacks/excavator_plan8.stack:3 \
-  --scene .stacks/excavator_plan8.stack:15 \
-  --scene .stacks/excavator_plan8-resumed.stack:35
-```
-
-On these saved scenes, median surface costs for a fresh placement were
-0.084/0.113/0.174 ms at 3/15/35 stones, respectively. Moving every stone
-required 0.216/1.115/2.680 ms. Cached-state evaluation cost
-0.004/0.017/0.039 ms. These are local component timings with synthetic pose
-perturbations, not complete MCTS timings or a stacking-quality validation.
+Diagnostics include `surface_flatness_metric`, `surface_height_variance`,
+`surface_previous_height_variance`, `surface_height_variance_change` (after
+minus before), and current/previous normalized variance. Variance is in square
+metres; normalization divides by L^2. `surface_flatness` is the dimensionless
+improvement and `surface_flatness_reward` its weighted contribution. Existing
+maximum, mean, relief and baseline-source diagnostics remain available.
 
 ## 11. CPU/CUDA placement and scene-identification initialization
 
