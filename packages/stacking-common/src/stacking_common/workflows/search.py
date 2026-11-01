@@ -146,6 +146,7 @@ class StackingSearchApplication:
                     environments or self.build_search_environments(inventory),
                     connectivity_check=self.build_connectivity_check(inventory),
                     allow_root_jumps=self.root_jumps_enabled(),
+                    initial_xy_displacement_filter=self.build_initial_xy_displacement_filter(inventory),
                 )
             else:
                 transition_evaluator = self.build_parallel_transition_evaluator(
@@ -238,6 +239,7 @@ class StackingSearchApplication:
                     self.build_search_environments(inventory),
                     connectivity_check=self.build_connectivity_check(inventory),
                     allow_root_jumps=self.root_jumps_enabled(),
+                    initial_xy_displacement_filter=self.build_initial_xy_displacement_filter(inventory),
                 )
                 for _ in range(worker_count)
             ],
@@ -254,6 +256,11 @@ class StackingSearchApplication:
             return None
         from stacking_common.actions.connectivity import PreviousActionConnectivity
         return PreviousActionConnectivity(inventory, self.sampling_settings["contact_gap_tolerance"])
+
+    def build_initial_xy_displacement_filter(self, inventory):
+        from stacking_common.actions.filtering import InitialXYDisplacementFilter
+        ratio = self.action_generation_profile.generator.max_initial_xy_displacement_ratio
+        return None if ratio is None else InitialXYDisplacementFilter(inventory, ratio)
 
     def root_jumps_enabled(self):
         return (self.sampling_settings.get("connectivity", "active_floor") == "previous_action"

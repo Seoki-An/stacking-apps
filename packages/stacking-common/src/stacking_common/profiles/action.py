@@ -57,6 +57,7 @@ def load_action_generation_profile(
             require_solver_convergence=filtering.get("require_solver_convergence", True),
             reject_equilibrium_at_threshold=filtering.get("reject_equilibrium_at_threshold", False),
             reject_above_active_layer=filtering.get("reject_above_active_layer", False),
+            max_initial_xy_displacement_ratio=filtering.get("max_initial_xy_displacement_ratio"),
             initial_height_clearance=float(
                 _required(initialization, "height_clearance")
             ),

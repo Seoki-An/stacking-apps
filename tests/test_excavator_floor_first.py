@@ -40,8 +40,10 @@ def test_permissive_excavator_uses_floor_only_for_xy_sampling(recorded_scene, mo
     app = replace(app, action_generation_profile=replace(app.action_generation_profile,
         generator=replace(app.action_generation_profile.generator, reject_above_active_layer=False)))
     generator = app.build_action_generator(inventory, SimpleNamespace())
-    assert len(generator.filters) == 1
+    from stacking_common.actions.filtering import InitialXYDisplacementFilter
+    assert len(generator.filters) == 2
     assert isinstance(generator.filters[0], PosegenFeasibilityFilter)
+    assert isinstance(generator.filters[1], InitialXYDisplacementFilter)
     sampler = generator.planar_sampler
     assert sampler.floor_policy is not None
     assert all(sampler.settings['floor'][key] == value

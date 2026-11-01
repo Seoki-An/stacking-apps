@@ -17,6 +17,7 @@ from .contracts import (
 )
 from .filtering import (
     ActiveLayerAdmissionFilter,
+    InitialXYDisplacementFilter,
     PosegenFeasibilityFilter,
     ScanOrientationFilter,
     TargetContainmentFilter,
@@ -46,6 +47,7 @@ __all__ = [
     "CorePlacementPoseSolver",
     "CorePosegenProfile",
     "InitializedPlacement",
+    "InitialXYDisplacementFilter",
     "InventoryOrientationProvider",
     "MeshHeightInitializer",
     "MappingOrientationProvider",

@@ -41,6 +41,11 @@ def target_case(kind):
 
 def bounded_application(workers=1):
     app = TabletopApplication.from_repository(Path(__file__).resolve().parents[1])
+    # Keep this geometry/physics migration fixture independent of the optional
+    # proposal-locality restriction. Its box solves may travel between seeds.
+    app = replace(app, action_generation_profile=replace(app.action_generation_profile,
+        generator=replace(app.action_generation_profile.generator,
+                          max_initial_xy_displacement_ratio=None)))
     search = app.mcts_profile
     return replace(app, mcts_profile=replace(search,
         tree=replace(search.tree, max_depth=2, max_children=2, root_max_children=4,
@@ -127,8 +132,8 @@ def test_tabletop_cli_composite_with_catalog_stones(kind, monkeypatch, tmp_path)
     spec = importlib.util.spec_from_file_location("composite_native_cli", script)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    # Inject only the small search budget and target. Native assets, solvers,
-    # filtering, physics thresholds, reporting and persistence remain real.
+    # Use the bounded geometry fixture (locality gate disabled), native assets,
+    # solvers, physics thresholds, reporting and persistence.
     monkeypatch.setattr(TabletopApplication, "from_repository", lambda *a, **k: app)
     monkeypatch.setattr(module, "load_mcts_profile", lambda path: app.mcts_profile)
     path = tmp_path / "catalog-composite.stack"
@@ -142,3 +147,24 @@ def test_tabletop_cli_composite_with_catalog_stones(kind, monkeypatch, tmp_path)
     assert len(artifact.steps) == 2
     assert all(step.succeeded for step in artifact.steps)
     assert len(artifact.target.components) == 2
+
+
+def test_native_composite_displacement_gate_reports_exhaustion():
+    """The locality policy can exhaust a pool; do not silently bypass it."""
+    app = bounded_application()
+    app = replace(app, action_generation_profile=replace(app.action_generation_profile,
+        generator=replace(app.action_generation_profile.generator,
+                          max_initial_xy_displacement_ratio=.75)))
+    inventory, _ = inventory_for(target_case('disconnected'), count=3)
+    environment = app.build_environment(inventory, app.build_core_backend(inventory))
+    reset = environment.reset()
+    engine = app.build_mcts(inventory, rng=random.Random(0))
+    try:
+        result = engine.search(MCTSNode(state=reset.state, observation=reset.observation),
+                               app.default_mcts_request())
+        assert result.selected is None
+        assert result.evaluated_candidates == 0
+        assert engine.root_action_generator.last_statistics.rejection_counts['initial_xy_displacement'] > 0
+    finally:
+        engine.close()
+        environment.close()

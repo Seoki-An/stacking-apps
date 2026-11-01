@@ -22,7 +22,7 @@ from .contracts import (
     PlacementPoseSolver,
     PlanarPoseSampler,
 )
-from .filtering import ActiveLayerAdmissionFilter, PosegenFeasibilityFilter
+from .filtering import ActiveLayerAdmissionFilter, InitialXYDisplacementFilter, PosegenFeasibilityFilter
 from .types import PlanarPlacement
 
 
@@ -71,6 +71,8 @@ class PlacementActionGenerator(Generic[ObservationT]):
                 require_solver_convergence=config.require_solver_convergence,
                 reject_equilibrium_at_threshold=config.reject_equilibrium_at_threshold,
             ),
+            *((InitialXYDisplacementFilter(inventory, config.max_initial_xy_displacement_ratio),)
+              if config.max_initial_xy_displacement_ratio is not None else ()),
             *tuple(filters),
         )
 

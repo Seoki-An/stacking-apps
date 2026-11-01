@@ -37,9 +37,11 @@ def test_floor_tracking_is_sampling_only_when_gate_disabled(monkeypatch):
     inventory = app.load_inventory([1], {1: np.array([0., 0., 0., 0., 0., 0., 1.])})
     containment = TargetContainmentFilter(VoxelOverlapEvaluator(inventory.target, .003), .5)
     generator = app.build_action_generator(inventory, SimpleNamespace(), filters=(containment,))
-    assert len(generator.filters) == 2
+    from stacking_common.actions.filtering import InitialXYDisplacementFilter
+    assert len(generator.filters) == 3
     assert isinstance(generator.filters[0], PosegenFeasibilityFilter)
-    assert generator.filters[1] is containment
+    assert isinstance(generator.filters[1], InitialXYDisplacementFilter)
+    assert generator.filters[2] is containment
     assert generator.planar_sampler.floor_policy is not None
     with generator.floor_fill_fallback() as enabled:
         assert not enabled

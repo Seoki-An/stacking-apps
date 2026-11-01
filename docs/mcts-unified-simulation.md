@@ -4,6 +4,42 @@ This supersedes the staged validation and continuation-repair strategy described
 in the earlier MCTS documents. The original code and dirty working files are in
 `.backups/mcts-before-unified-20261027-ojcgBfmv/` (including a verified Git bundle).
 
+## Initial-XY displacement admission (2026-10-31)
+
+Both platforms enable `filtering.max_initial_xy_displacement_ratio: 0.5`
+in `action_generation.yml`. Let `L = volume(candidate)^(1/3)` and let `p0`
+be the initialized pose for this proposal. Accept only when both the optimized
+and simulated endpoints satisfy `norm(p.xy - p0.xy) <= ratio * L`.
+Vertical settling and orientation changes do not enter this gate. A CEM mutation
+uses its own initialized pose, not the original ancestor's seed.
+
+The generator checks optimized poses before physics for fresh proposals and CEM
+mutations at every depth. The search environment adapter checks simulated poses
+for scalar, CPU-worker and CUDA-batch evaluation, retaining the optimized-pose
+check for externally seeded actions. Rejections use `initial_xy_displacement`;
+diagnostics retain the endpoint shifts, normalized maximum, limit and stage.
+Root connectivity exemptions and active-layer fallback do not bypass this gate.
+An omitted or `null` value disables it for old profiles and ablations. This
+changes admission, so use a new search context/tree for comparisons.
+
+This is a proposal-locality heuristic, not a proof of physical instability or
+future stackability. Prior-only penalties did not consistently reduce selected
+drift in two step-14 search seeds. In a fresh-root replay of checkpoint 13 from
+`excavator_plan_for_visual3.stack`, a 0.75 limit rejected the original action but
+selected a closer seed converging within 1.7 mm of the same final placement.
+At 0.5, the replay instead selected object 2 with 0.203 m XY drift, versus the
+unfiltered object 40 with 0.596 m drift. Both filtered runs retained 32 root
+candidates and completed 512 iterations to depth 4; CEM displacement rejections
+were 43/288 and 78/288 respectively. These are local tests, not full-wall quality
+validation. More rejected proposals can increase regeneration cost or exhaust
+a pool; a disconnected synthetic-box regression explicitly covers exhaustion.
+With a second seed, the 0.5 gate selected object 34 with 0.196 m drift instead
+of the unfiltered object 40 with 0.588 m drift, again retaining 32 roots and
+completing 512 iterations. Full replay records and the comparison are saved in
+`/tmp/mcts-xy-prior-search-20261031/filter-comparison.csv`. Filtered runs took
+about 65--68 s versus about 47 s for the controls; some CPU regression work
+overlapped these replays, so this is not a clean timing benchmark.
+
 ## Floor admission removal (2026-10-29)
 
 The temporary unified continuation-repair experiment has been backed up to

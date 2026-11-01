@@ -14,6 +14,45 @@ from .types import (
 )
 
 
+class InitialXYDisplacementFilter:
+    """Keep optimized and simulated endpoints near this proposal's initial XY.
+
+    The length scale is the candidate stone's cube-root volume. This is a
+    proposal-locality restriction, not a structural stability test.
+    """
+
+    def __init__(self, inventory, max_ratio):
+        if isinstance(max_ratio, bool) or not np.isfinite(max_ratio) or max_ratio <= 0:
+            raise ValueError("max initial XY displacement ratio must be finite and positive")
+        volumes = np.asarray([obj.volume for obj in inventory], dtype=float)
+        if np.any(~np.isfinite(volumes)) or np.any(volumes <= 0):
+            raise ValueError("initial XY displacement filtering requires positive finite stone volumes")
+        self.length_scales = np.cbrt(volumes)
+        self.max_ratio = float(max_ratio)
+
+    def check(self, action, final_pose=None):
+        length = float(self.length_scales[action.object_index])
+        solved_shift = float(np.linalg.norm(action.solved_pose[:2] - action.init_pose[:2]))
+        final_shift = (None if final_pose is None else
+                       float(np.linalg.norm(final_pose[:2] - action.init_pose[:2])))
+        shift = solved_shift if final_shift is None else max(solved_shift, final_shift)
+        valid = np.isfinite(solved_shift) and (final_shift is None or np.isfinite(final_shift))
+        diagnostics = {
+            "posegen_initial_xy_displacement": solved_shift,
+            "final_initial_xy_displacement": final_shift,
+            "initial_xy_displacement_ratio": shift / length,
+            "initial_xy_displacement_ratio_limit": self.max_ratio,
+            "initial_xy_displacement_limit": self.max_ratio * length,
+            "initial_xy_displacement_stage": "posegen" if final_pose is None else "simulation",
+        }
+        if not valid or shift > self.max_ratio * length:
+            return PlacementFilterDecision.reject("initial_xy_displacement", **diagnostics)
+        return PlacementFilterDecision.accept(**diagnostics)
+
+    def evaluate(self, inventory, state, object_index, initial, solved):
+        return self.check(Action(object_index, solved.pose, initial.pose))
+
+
 class ActiveLayerAdmissionFilter:
     """Restrict solved proposals to the parent's lowest incomplete layer.
 

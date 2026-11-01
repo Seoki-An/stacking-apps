@@ -19,6 +19,8 @@ class PlacementActionGeneratorConfig:
     reject_equilibrium_at_threshold: bool = field(default=False, metadata={"omit_default_from_context": True})
     stone_volume_exponent: float = field(default=0.0, metadata={"omit_default_from_context": True})
     reject_above_active_layer: bool = field(default=False, metadata={"omit_default_from_context": True})
+    max_initial_xy_displacement_ratio: float | None = field(
+        default=None, metadata={"omit_default_from_context": True})
 
     def __post_init__(self) -> None:
         for name in ("require_solver_convergence", "reject_equilibrium_at_threshold",
@@ -27,6 +29,9 @@ class PlacementActionGeneratorConfig:
                 raise TypeError(f"{name} must be boolean")
         if self.max_poses_per_object <= 0:
             raise ValueError("max poses per object must be positive")
+        ratio = self.max_initial_xy_displacement_ratio
+        if ratio is not None and (isinstance(ratio, bool) or not np.isfinite(ratio) or ratio <= 0):
+            raise ValueError("max initial XY displacement ratio must be finite and positive or None")
         if not np.isfinite(self.stone_volume_exponent) or self.stone_volume_exponent < 0:
             raise ValueError("stone volume exponent must be finite and non-negative")
         for name, value in (

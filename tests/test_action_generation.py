@@ -186,8 +186,10 @@ def test_tabletop_generator_accepts_recorded_upper_floor_poses_when_gate_disable
     root = Path(__file__).resolve().parents[1]
     fixture = json.loads((root / "tests/fixtures/planning/active_floor_step4.json").read_text())
     app = TabletopApplication.from_repository(root)
+    # Isolate floor admission from the newer, independent XY locality gate.
     app = replace(app, action_generation_profile=replace(app.action_generation_profile,
-        generator=replace(app.action_generation_profile.generator, reject_above_active_layer=False)))
+        generator=replace(app.action_generation_profile.generator, reject_above_active_layer=False,
+                          max_initial_xy_displacement_ratio=None)))
     ids = fixture["object_ids"]
     inventory = app.load_inventory(ids, {object_id: _pose() for object_id in ids})
     state = State(ids, [ids.index(o["object_id"]) for o in fixture["placed"]],

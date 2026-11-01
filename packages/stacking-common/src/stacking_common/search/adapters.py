@@ -93,6 +93,7 @@ class StackingEnvironmentEvaluator(Generic[ObservationT]):
         *,
         connectivity_check=None,
         allow_root_jumps=False,
+        initial_xy_displacement_filter=None,
     ) -> None:
         normalized = {
             EvaluationFidelity(fidelity): environment
@@ -103,6 +104,7 @@ class StackingEnvironmentEvaluator(Generic[ObservationT]):
         self.environments = normalized
         self.connectivity_check = connectivity_check
         self.allow_root_jumps = allow_root_jumps
+        self.initial_xy_displacement_filter = initial_xy_displacement_filter
         self._search_root = None
         self.worker_count = 1
         for environment in normalized.values():
@@ -145,6 +147,14 @@ class StackingEnvironmentEvaluator(Generic[ObservationT]):
         rejection_reason = _transition_rejection_reason(
             result.state, diagnostics
         )
+        if self.initial_xy_displacement_filter is not None:
+            object_id = parent_state.object_ids[action.object_index]
+            decision = self.initial_xy_displacement_filter.check(
+                action, result.state.object_poses[object_id])
+            diagnostics.update(decision.diagnostics)
+            if not decision.accepted and rejection_reason is None:
+                rejection_reason = decision.reason
+                diagnostics["rejection_reason"] = rejection_reason
         if (self.connectivity_check is not None and not result.state.failed
                 and rejection_reason is None and parent_state.placed_object_indices):
             object_id = parent_state.object_ids[action.object_index]
