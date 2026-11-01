@@ -1,6 +1,6 @@
 # Excavator combined sibling and descendant proposal bank (retired)
 
-The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.stacks/benchmarks/` inputs and native builds are not included.
 
 **Retired on 2026-10-08.** The combined policy, its CLI options, and the dedicated descendant-collection implementation/tests have been removed from the active project. This report and its measurements are retained as historical evidence. The remaining sibling-only experiment scripts have also been removed; their reports and results remain archived.
 
@@ -91,8 +91,8 @@ New nodes counts generated child nodes, including failed and added bank nodes, e
 
 Thirteen focused tests passed, including shared bank caps, preservation of fresh generation, mandatory long validation, dependency screening and session promotion. All twelve native searches completed 1,024 iterations without timeouts, root retries or floor fallback. Each paired next search uses identical input hashes, profiles, preserved-edge counts, promotion state, revalidation outcomes and fresh generation hashes/pagination. All 32 fresh CEM candidates are returned in each search, bank admission leaves the fresh cursor unchanged, and final-selection capacity grows by the admitted count.
 
-Source, profile, input and pinned native/wrapper hashes remained unchanged during measurement. The [portable results and provenance](benchmarks/excavator-combined-proposal-reuse-20261008.json) contain all preparation audits, trial statistics, admission origins/poses and paired checks. Raw local outputs are in `.benchmarks/combined-reuse-20261008/`.
+Source, profile, input and pinned native/wrapper hashes remained unchanged during measurement. The [portable results and provenance](benchmarks/excavator-combined-proposal-reuse-20261008.json) contain all preparation audits, trial statistics, admission origins/poses and paired checks. Raw local outputs are in `.stacks/benchmarks/combined-reuse-20261008/`.
 
-The measured source files are archived locally under `.benchmarks/combined-reuse-20261008/source_archive/`, with a SHA256 manifest. The preparation and combined-bank commands were retired along with their benchmark scripts. Recorded JSON results and provenance remain unchanged.
+The measured source files are archived locally under `.stacks/benchmarks/combined-reuse-20261008/source_archive/`, with a SHA256 manifest. The preparation and combined-bank commands were retired along with their benchmark scripts. Recorded JSON results and provenance remain unchanged.
 
 Production search and configuration files are unchanged by this experiment. The combined policy is retired; this report preserves its measured results.

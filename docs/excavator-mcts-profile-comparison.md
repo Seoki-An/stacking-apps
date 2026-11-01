@@ -78,7 +78,7 @@ The measured throughput gains therefore reflect both resource use and different 
 python tests/benchmark_excavator_mcts_profiles.py \
   --run .stacks/excavator_plan10_gpu.stack \
   --placed 10 15 20 --seed 0 \
-  --output .benchmarks/excavator-profiles-repeat
+  --output .stacks/benchmarks/excavator-profiles-repeat
 ```
 
 For the additional 25-stone case:
@@ -87,13 +87,13 @@ For the additional 25-stone case:
 python tests/benchmark_excavator_mcts_profiles.py \
   --run .stacks/excavator_plan9_gpu.stack \
   --placed 25 --seed 0 \
-  --output .benchmarks/excavator-profiles-25-repeat
+  --output .stacks/benchmarks/excavator-profiles-25-repeat
 ```
 
 Use a new output directory; existing results are never overwritten. Add `--repeats 3` for repeated timings at the same seed, with backend order alternated between repetitions. Use separate runs with different `--seed` values for search variability.
 
 - [Portable results and provenance](benchmarks/excavator-mcts-profile-comparison-20261007.json) include resolved MCTS profiles, state hashes, source hashes, native module hash and trial metrics.
-- Local raw results, logs, exported states and exact MCTS YAML snapshots are in `.benchmarks/excavator-profiles-20261007/` and `.benchmarks/excavator-profiles-25-20261007/`. Each full trial JSON additionally records all resolved physical profiles and detailed CUDA calls.
+- Local raw results, logs, exported states and exact MCTS YAML snapshots are in `.stacks/benchmarks/excavator-profiles-20261007/` and `.stacks/benchmarks/excavator-profiles-25-20261007/`. Each full trial JSON additionally records all resolved physical profiles and detailed CUDA calls.
 - [Comparison runner](../tests/benchmark_excavator_mcts_profiles.py) reuses the existing isolated search benchmark.
 
 All eight trials were checked for matching per-scene state hashes, identical source hashes and the same native module. The current working tree contains local changes, so the recorded commit IDs alone do not reproduce the source; the hashes identify what was measured.

@@ -1,6 +1,6 @@
 # Excavator additive sibling proposal reuse
 
-The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.stacks/benchmarks/` inputs and native builds are not included.
 
 Adding refreshed sibling proposals alongside the complete fresh CEM pool improved physically successful transition throughput in all four paired trials. Raw new-node throughput was essentially flat at 16 stones and improved modestly at 26 stones. Selected actions and immediate rewards were unchanged. These results support further investigation, not a production performance claim.
 
@@ -82,16 +82,16 @@ export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 export QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/stacking-mpl
 python tests/benchmark_excavator_proposal_reuse.py baseline \
   --config apps/excavator/config/mcts_cuda.yml --seed 0 \
-  --input .benchmarks/proposal-reuse-20261007/15.pkl \
-  --output .benchmarks/additive-repeat/16-baseline-0.json
+  --input .stacks/benchmarks/proposal-reuse-20261007/15.pkl \
+  --output .stacks/benchmarks/additive-repeat/16-baseline-0.json
 python tests/benchmark_excavator_proposal_reuse.py additive_reuse \
   --config apps/excavator/config/mcts_cuda.yml --seed 0 \
-  --input .benchmarks/proposal-reuse-20261007/15.pkl \
-  --output .benchmarks/additive-repeat/16-additive-0.json
+  --input .stacks/benchmarks/proposal-reuse-20261007/15.pkl \
+  --output .stacks/benchmarks/additive-repeat/16-additive-0.json
 ```
 
 Use `25.pkl` for the 26-stone scene and repeat with `--seed 1`. Inputs must be trusted local pickles; existing outputs are not overwritten. See the [earlier experiment](excavator-proposal-reuse.md) for preparation commands.
 
 - [Portable results and provenance](benchmarks/excavator-additive-proposal-reuse-20261007.json)
-- Local raw outputs: `.benchmarks/proposal-reuse-additive-20261007/`
+- Local raw outputs: `.stacks/benchmarks/proposal-reuse-additive-20261007/`
 - Production search and configuration files are unchanged by this experiment.

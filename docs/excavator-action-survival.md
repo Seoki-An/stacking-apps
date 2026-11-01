@@ -1,6 +1,6 @@
 # Excavator action survival after a placement
 
-The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.stacks/benchmarks/` inputs and native builds are not included.
 
 On 2026-10-07, five CUDA searches supplied 17 physically valid, still-available sibling proposals. After committing each search's selected placement in simulation, 11 passed long physical validation at their unchanged poses. Fresh pose and force solves produced 14 passing proposals, including three substantial repairs. Six passed the strict floor policy as well; the other eight required the existing floor fallback.
 
@@ -81,15 +81,15 @@ Use the trusted state exports from the existing profile benchmark:
 ```bash
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
 QT_QPA_PLATFORM=offscreen python tests/benchmark_excavator_action_survival.py \
-  --state .benchmarks/excavator-profiles-20261007/states/15.pkl \
+  --state .stacks/benchmarks/excavator-profiles-20261007/states/15.pkl \
   --config apps/excavator/config/mcts_cuda.yml \
-  --seed 0 --output .benchmarks/action-survival-repeat/15.json
+  --seed 0 --output .stacks/benchmarks/action-survival-repeat/15.json
 ```
 
-Use the 10- or 20-stone exports for those scenes. For 25 stones, use `.benchmarks/excavator-profiles-25-20261007/states/25.pkl`. For the empty case, use the 10-stone export with `--empty`. Existing output files are not overwritten.
+Use the 10- or 20-stone exports for those scenes. For 25 stones, use `.stacks/benchmarks/excavator-profiles-25-20261007/states/25.pkl`. For the empty case, use the 10-stone export with `--empty`. Existing output files are not overwritten.
 
 - `tests/benchmark_excavator_action_survival.py` (removed experimental source)
 - [Portable results, candidate records, profile snapshots and provenance](benchmarks/excavator-action-survival-20261007.json)
-- Local raw outputs: `.benchmarks/action-survival-20261007/`
+- Local raw outputs: `.stacks/benchmarks/action-survival-20261007/`
 
 Only the diagnostic benchmark and this report/results artifact were added. Production search and configuration files were not changed.

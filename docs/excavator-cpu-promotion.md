@@ -1,6 +1,6 @@
 # Excavator CPU root-promotion check
 
-The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.stacks/benchmarks/` inputs and native builds are not included.
 
 The root-promotion bug also affects the native CPU profile. Two saved-scene comparisons on 2026-10-07 reproduce both blocked generation and a skipped CEM pool. The existing shared promotion correction fixes both; no CPU-specific production change or configuration change was needed.
 
@@ -56,20 +56,20 @@ export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 export QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/stacking-mpl
 python tests/benchmark_excavator_proposal_reuse.py prepare \
   --config apps/excavator/config/mcts_cpu.yml \
-  --input .benchmarks/excavator-profiles-20261007/states/15.pkl \
-  --output .benchmarks/cpu-promotion-repeat/15.pkl
+  --input .stacks/benchmarks/excavator-profiles-20261007/states/15.pkl \
+  --output .stacks/benchmarks/cpu-promotion-repeat/15.pkl
 python tests/benchmark_excavator_proposal_reuse.py baseline --legacy-promotion \
   --config apps/excavator/config/mcts_cpu.yml \
-  --input .benchmarks/cpu-promotion-repeat/15.pkl \
-  --output .benchmarks/cpu-promotion-repeat/16-legacy.json
+  --input .stacks/benchmarks/cpu-promotion-repeat/15.pkl \
+  --output .stacks/benchmarks/cpu-promotion-repeat/16-legacy.json
 python tests/benchmark_excavator_proposal_reuse.py baseline \
   --config apps/excavator/config/mcts_cpu.yml \
-  --input .benchmarks/cpu-promotion-repeat/15.pkl \
-  --output .benchmarks/cpu-promotion-repeat/16-fixed.json
+  --input .stacks/benchmarks/cpu-promotion-repeat/15.pkl \
+  --output .stacks/benchmarks/cpu-promotion-repeat/16-fixed.json
 ```
 
-For the 26-stone comparison, prepare from `.benchmarks/excavator-profiles-25-20261007/states/25.pkl`. Only use trusted local pickle inputs. The legacy flag is restricted to baseline diagnostics; production code stays fixed.
+For the 26-stone comparison, prepare from `.stacks/benchmarks/excavator-profiles-25-20261007/states/25.pkl`. Only use trusted local pickle inputs. The legacy flag is restricted to baseline diagnostics; production code stays fixed.
 
 - [Portable results, profile snapshots and source hashes](benchmarks/excavator-cpu-promotion-20261007.json)
-- Local artifacts: `.benchmarks/cpu-promotion-20261007/`
+- Local artifacts: `.stacks/benchmarks/cpu-promotion-20261007/`
 - [Previous CUDA promotion and proposal-reuse comparison](excavator-proposal-reuse.md)

@@ -3,7 +3,7 @@
 Example:
   python tests/benchmark_excavator_mcts_profiles.py \\
     --run .stacks/excavator_plan10_gpu.stack --placed 10 15 20 \\
-    --output .benchmarks/excavator-profiles
+    --output .stacks/benchmarks/excavator-profiles
 
 Expanded nodes means newly generated child nodes, including rejected physical
 placements, excluding repeat validation evaluations. Each trial starts a fresh

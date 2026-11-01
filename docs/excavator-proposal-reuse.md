@@ -1,6 +1,6 @@
 # Excavator sibling proposal reuse comparison
 
-The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.stacks/benchmarks/` inputs and native builds are not included.
 
 Root promotion now resets generation bookkeeping while preserving the selected subtree. Both measured roots previously carried 48 attempts into a fresh CEM pool of only 32 candidates, skipping the entire pool. The corrected searches start from offset zero and admit 23 and 29 fresh root candidates.
 
@@ -35,7 +35,7 @@ The subsequent [competitive CEM seeding experiment](excavator-cem-proposal-reuse
 
 The later [additive admission experiment](excavator-additive-proposal-reuse.md) retains every fresh CEM candidate and appends refreshed siblings in a separate bounded allowance. It measures the policy that avoids displacing fresh candidates entirely.
 
-[Corrected portable results and provenance](benchmarks/excavator-proposal-reuse-promoted-20261007.json) record all four trials. Local raw outputs are in `.benchmarks/proposal-reuse-promoted-20261007/`. The following sections retain the initial experiment for comparison; its measurements must not be treated as results with the fix.
+[Corrected portable results and provenance](benchmarks/excavator-proposal-reuse-promoted-20261007.json) record all four trials. Local raw outputs are in `.stacks/benchmarks/proposal-reuse-promoted-20261007/`. The following sections retain the initial experiment for comparison; its measurements must not be treated as results with the fix.
 
 ## Experiment
 
@@ -111,16 +111,16 @@ The benchmark does not cover observed hardware deviations, motion planning, repe
 export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 export QT_QPA_PLATFORM=offscreen
 python tests/benchmark_excavator_proposal_reuse.py prepare \
-  --input .benchmarks/excavator-profiles-20261007/states/15.pkl \
-  --output .benchmarks/proposal-reuse-repeat/15.pkl
+  --input .stacks/benchmarks/excavator-profiles-20261007/states/15.pkl \
+  --output .stacks/benchmarks/proposal-reuse-repeat/15.pkl
 python tests/benchmark_excavator_proposal_reuse.py baseline \
-  --input .benchmarks/proposal-reuse-repeat/15.pkl \
-  --output .benchmarks/proposal-reuse-repeat/15-baseline.json
+  --input .stacks/benchmarks/proposal-reuse-repeat/15.pkl \
+  --output .stacks/benchmarks/proposal-reuse-repeat/15-baseline.json
 python tests/benchmark_excavator_proposal_reuse.py reuse \
-  --input .benchmarks/proposal-reuse-repeat/15.pkl \
-  --output .benchmarks/proposal-reuse-repeat/15-reuse.json
+  --input .stacks/benchmarks/proposal-reuse-repeat/15.pkl \
+  --output .stacks/benchmarks/proposal-reuse-repeat/15-reuse.json
 ```
 
-Use the 25-stone export from `.benchmarks/excavator-profiles-25-20261007/states/25.pkl` for the other case. Inputs must be trusted local pickles. Existing outputs are not overwritten. Prepared subtrees retain complete states and can be large; setup and loading are excluded from the reported search time.
+Use the 25-stone export from `.stacks/benchmarks/excavator-profiles-25-20261007/states/25.pkl` for the other case. Inputs must be trusted local pickles. Existing outputs are not overwritten. Prepared subtrees retain complete states and can be large; setup and loading are excluded from the reported search time.
 
-[Original portable results](benchmarks/excavator-proposal-reuse-20261007.json) and [corrected results](benchmarks/excavator-proposal-reuse-promoted-20261007.json) contain profile snapshots, source/native hashes, paired artifact hashes, admission counts, search statistics and selected outcomes. Original preparation artifacts and trial outputs are in `.benchmarks/proposal-reuse-20261007/`. The historical reproduction commands shown above used corrected promotion.
+[Original portable results](benchmarks/excavator-proposal-reuse-20261007.json) and [corrected results](benchmarks/excavator-proposal-reuse-promoted-20261007.json) contain profile snapshots, source/native hashes, paired artifact hashes, admission counts, search statistics and selected outcomes. Original preparation artifacts and trial outputs are in `.stacks/benchmarks/proposal-reuse-20261007/`. The historical reproduction commands shown above used corrected promotion.

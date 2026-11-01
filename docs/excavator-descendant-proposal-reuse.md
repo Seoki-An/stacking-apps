@@ -1,8 +1,8 @@
 # Excavator discarded-descendant proposal reuse (archived)
 
-The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.stacks/benchmarks/` inputs and native builds are not included.
 
-**Retired on 2026-10-08 with the combined policy.** The dedicated diagnostic and its tests have been removed from the active project. Measurements remain available here and in the linked JSON artifact; the measured source is archived locally under `.benchmarks/combined-reuse-20261008/source_archive/`.
+**Retired on 2026-10-08 with the combined policy.** The dedicated diagnostic and its tests have been removed from the active project. Measurements remain available here and in the linked JSON artifact; the measured source is archived locally under `.stacks/benchmarks/combined-reuse-20261008/source_archive/`.
 
 Discarded deeper branches supplied additional usable proposals in the two 15→16-stone cases: five and six refreshed proposals passed long validation. The two 25→26-stone cases supplied none outside the already-preserved subtree. This establishes a possible source of extra proposals, not an improvement in next-search throughput or placement quality.
 
@@ -75,6 +75,6 @@ Twelve focused tests passed, covering direct and indirect missing contacts, grou
 
 The runs use the same isolated native binary and compatible Python wrapper as the previous audit. This avoids unrelated changes in the editable `stacking-core` checkout. Exact hashes and all per-candidate outcomes are in the [portable results and provenance](benchmarks/excavator-descendant-proposal-reuse-20261008.json).
 
-The former descendant-diagnostic command is no longer available. Its raw local results remain under `.benchmarks/descendant-reuse-20261008/`.
+The former descendant-diagnostic command is no longer available. Its raw local results remain under `.stacks/benchmarks/descendant-reuse-20261008/`.
 
 Production search and configuration files are unchanged. The results are historical records of the retired experiment.

@@ -1,6 +1,6 @@
 # Excavator competitive CEM proposal reuse
 
-The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.stacks/benchmarks/` inputs and native builds are not included.
 
 Adding refreshed sibling proposals to CEM's initial population did not improve raw expansion throughput in the two measured scenes. At 16 stones it increased physically successful new transitions per second by about 10% across two search seeds. At 26 stones none of the seeds became mutation parents or reached the tree, and search counts were unchanged. The selected next actions and immediate rewards were unchanged in every pair.
 
@@ -82,15 +82,15 @@ Use the trusted pre-promotion artifacts prepared by the previous benchmark:
 export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 export QT_QPA_PLATFORM=offscreen
 python tests/benchmark_excavator_proposal_reuse.py baseline \
-  --input .benchmarks/proposal-reuse-20261007/15.pkl --seed 0 \
-  --output .benchmarks/cem-reuse-repeat/15-baseline-0.json
+  --input .stacks/benchmarks/proposal-reuse-20261007/15.pkl --seed 0 \
+  --output .stacks/benchmarks/cem-reuse-repeat/15-baseline-0.json
 python tests/benchmark_excavator_proposal_reuse.py cem_reuse \
-  --input .benchmarks/proposal-reuse-20261007/15.pkl --seed 0 \
-  --output .benchmarks/cem-reuse-repeat/15-cem_reuse-0.json
+  --input .stacks/benchmarks/proposal-reuse-20261007/15.pkl --seed 0 \
+  --output .stacks/benchmarks/cem-reuse-repeat/15-cem_reuse-0.json
 ```
 
 Use `25.pkl` for the 26-stone scene and repeat with `--seed 1`. The `prepare` mode can recreate predecessor artifacts from trusted state exports; see the [previous report](excavator-proposal-reuse.md#reproduction-and-artifacts). Existing output files are never overwritten.
 
 - `tests/benchmark_excavator_proposal_reuse.py` (removed experimental source)
 - [Portable results, seed diagnostics, profile snapshots and source/native provenance](benchmarks/excavator-cem-proposal-reuse-20261007.json)
-- Local raw outputs: `.benchmarks/proposal-reuse-cem-20261007/`
+- Local raw outputs: `.stacks/benchmarks/proposal-reuse-cem-20261007/`

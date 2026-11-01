@@ -1,6 +1,6 @@
 # Excavator broader additive proposal reuse
 
-The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.benchmarks/` inputs and native builds are not included.
+The experimental scripts have been removed from the active project. Command examples below are historical records, not supported commands. This archive retains reports and JSON evidence; local `.stacks/benchmarks/` inputs and native builds are not included.
 
 The broader policy adds no proposals under the tested CUDA configuration. Across four freshly generated predecessor trees, every one of the 32 root candidates received long validation. There were no short-only passing root siblings to add to the existing long-valid bank. This experiment therefore does not establish a performance improvement from broadening the policy.
 
@@ -60,7 +60,7 @@ Nine focused admission/session tests passed. The broader-bank regression explici
 
 Final checks verified unchanged benchmark/search source hashes, all excavator profile hashes, source-state hashes and the isolated native binary/wrapper hashes. Full audit records, paired equality checks and trial statistics are in the [portable results](benchmarks/excavator-broader-additive-proposal-reuse-20261008.json).
 
-During the batch, the editable `stacking-core` Python wrapper gained CUDA grasp exports absent from the installed binary. One audit attempt stopped at import, before running a search. The remaining runs used an isolated copy of the unchanged native binary and its matching committed wrapper; the checkout and installation were not modified. Native SHA256: `54632cb30be47dba9ee7cf0401edc1eac00bcfa47a6e35a24fa8207297672f0a`; wrapper revision: `51416ec02c6b3ed576159b243f1e49eb457be09f`. The local snapshot and provenance are under `.benchmarks/proposal-reuse-broader-20261008/`.
+During the batch, the editable `stacking-core` Python wrapper gained CUDA grasp exports absent from the installed binary. One audit attempt stopped at import, before running a search. The remaining runs used an isolated copy of the unchanged native binary and its matching committed wrapper; the checkout and installation were not modified. Native SHA256: `54632cb30be47dba9ee7cf0401edc1eac00bcfa47a6e35a24fa8207297672f0a`; wrapper revision: `51416ec02c6b3ed576159b243f1e49eb457be09f`. The local snapshot and provenance are under `.stacks/benchmarks/proposal-reuse-broader-20261008/`.
 
 With a compatible installed native module, reproduce using trusted local saved-state pickles:
 
@@ -68,18 +68,18 @@ With a compatible installed native module, reproduce using trusted local saved-s
 export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 export QT_QPA_PLATFORM=offscreen MPLCONFIGDIR=/tmp/stacking-mpl
 python tests/benchmark_excavator_proposal_reuse.py prepare \
-  --input .benchmarks/excavator-profiles-20261007/states/15.pkl \
-  --output .benchmarks/broader-repeat/prepare-15-0.pkl --seed 0
+  --input .stacks/benchmarks/excavator-profiles-20261007/states/15.pkl \
+  --output .stacks/benchmarks/broader-repeat/prepare-15-0.pkl --seed 0
 python tests/benchmark_excavator_proposal_reuse.py additive_reuse \
-  --input .benchmarks/broader-repeat/prepare-15-0.pkl \
-  --output .benchmarks/broader-repeat/16-long-0.json \
+  --input .stacks/benchmarks/broader-repeat/prepare-15-0.pkl \
+  --output .stacks/benchmarks/broader-repeat/16-long-0.json \
   --seed 0 --bank-policy long
 python tests/benchmark_excavator_proposal_reuse.py additive_reuse \
-  --input .benchmarks/broader-repeat/prepare-15-0.pkl \
-  --output .benchmarks/broader-repeat/16-broader-0.json \
+  --input .stacks/benchmarks/broader-repeat/prepare-15-0.pkl \
+  --output .stacks/benchmarks/broader-repeat/16-broader-0.json \
   --seed 0 --bank-policy broader
 ```
 
-The script defaults to `apps/excavator/config/mcts_cuda.yml`. Repeat preparation with seed 1, and use `.benchmarks/excavator-profiles-25-20261007/states/25.pkl` for the 25-stone source. For the exact local native snapshot, also set `PYTHONPATH=.benchmarks/proposal-reuse-broader-20261008/native_snapshot`.
+The script defaults to `apps/excavator/config/mcts_cuda.yml`. Repeat preparation with seed 1, and use `.stacks/benchmarks/excavator-profiles-25-20261007/states/25.pkl` for the 25-stone source. For the exact local native snapshot, also set `PYTHONPATH=.stacks/benchmarks/proposal-reuse-broader-20261008/native_snapshot`.
 
 Production search and configuration files are unchanged by this experiment. The benchmark-only reuse implementation has been removed.

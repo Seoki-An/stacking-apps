@@ -144,8 +144,8 @@ establish which contact model is physically accurate.
 The [epsilon comparison report](benchmarks/excavator-contact-patch-eps-20261014.json)
 records counts, changed candidate IDs, timings, profiles, CPU candidate 25
 diagnostics, and hashes. Detailed local reports are
-`.benchmarks/contact-patch-eps-20261014.json` and
-`.benchmarks/contact-patch-eps-late-20261014.json`. Input stack hashes were
+`.stacks/benchmarks/contact-patch-eps-20261014.json` and
+`.stacks/benchmarks/contact-patch-eps-late-20261014.json`. Input stack hashes were
 verified unchanged. Reproduce with:
 
 ```bash
@@ -179,7 +179,7 @@ python tests/benchmark_contact_models.py \
 contains input/native/script hashes, profile values, all per-step timing and
 outcome counts, transition counts, and candidate 25 diagnostics. The full
 per-candidate replay is retained locally at
-`.benchmarks/contact-models-20261013.json`; the benchmark command regenerates
+`.stacks/benchmarks/contact-models-20261013.json`; the benchmark command regenerates
 that detailed format. Input `.stack` hashes were verified unchanged.
 
 These results establish a substantial improvement for the saved simulation
