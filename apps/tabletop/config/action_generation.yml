@@ -32,7 +32,7 @@ planar:
     coverage_mode: projected_footprint
     bottom_tolerance: 0.02
     # Advance the scoring layer at this projected base coverage.
-    fill_ratio: 0.75
+    fill_ratio: 0.70
     grid_size: 16
     footprint_scale: 0.9
   boltzmann_temperature: 0.3

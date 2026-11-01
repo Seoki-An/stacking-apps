@@ -2,7 +2,7 @@
 units: si
 stone_sampling:
   # Fresh proposal probability proportional to volume^exponent; 0 restores equal allocation.
-  volume_exponent: 0.1
+  volume_exponent: 0.5
 initialization:
   # Excavator initializes from model_<id>_mesh.ply and pads both XY footprints.
   height_clearance: 0.15
@@ -27,12 +27,12 @@ planar:
   # Shared composite proposal grid; empty regional pools retry locally. Floor grids stay separate.
   grid_shape: [32, 32]
   # Proposal boundary inset: smaller values allow seeds closer to the edge; solved containment still applies.
-  target_anchor_inset_scale: 0.3
+  target_anchor_inset_scale: 0.5
   floor:
     # Advance at fill_ratio coverage of the base in top-down projection.
     coverage_mode: projected_footprint
     bottom_tolerance: 0.2
-    fill_ratio: 0.75
+    fill_ratio: 0.70
     grid_size: 16  # Coarse coverage estimate; 256 cell-center samples.
     footprint_scale: 0.9
   boltzmann_temperature: 0.3
@@ -42,7 +42,7 @@ planar:
   # The only proposal-score weights. Edit these named values for ablations.
   score:
     # Maximum distance penalty; length scale is cube root of mean inventory volume.
-    previous_action_distance: 1.0
+    previous_action_distance: 2.0
     height: -3.0
     support_likelihood: 2.0
     fill_area: 4.0

@@ -29,7 +29,7 @@ def test_tabletop_cpu_and_cuda_profiles_preserve_platform_settings() -> None:
     assert cuda["parallel"]["posegen_backend"] == "cuda"
     assert cuda["parallel"]["simulation_backend"] == "cuda"
     assert cpu["generation"]["evaluation_batch_size"] == 12
-    assert cuda["generation"]["evaluation_batch_size"] == 256
+    assert cuda["generation"]["evaluation_batch_size"] == 128
     for section in cpu:
         if section == "generation":
             assert {k: v for k, v in cuda[section].items() if k != "evaluation_batch_size"} == {
@@ -43,7 +43,13 @@ def test_tabletop_cpu_and_cuda_profiles_preserve_platform_settings() -> None:
     for backend, values in (("cpu", cpu), ("cuda", cuda)):
         excavator = yaml.safe_load((ROOT / f"apps/excavator/config/mcts_{backend}.yml").read_text())
         assert values["tree"] == excavator["tree"]
+        assert values["tree"]["max_depth"] == 6
+        assert values["tree"]["iterations"] == 4096
+        assert values["tree"]["max_search_time"] == 60.0
+        assert values["tree"]["exploration_constant"] == 0.5
+        assert values["bootstrap"]["horizon"] == 6
         assert values["debug"]["iterations"] == values["tree"]["iterations"]
+        assert values["debug"]["max_search_time"] == values["tree"]["max_search_time"]
     assert cuda["parallel"]["enabled"] == cpu["parallel"]["enabled"]
     assert cpu["parallel"]["workers"] == 12
     assert cuda["parallel"]["workers"] == 12
@@ -96,7 +102,7 @@ def test_tabletop_composition_loads_and_builds_native_mcts_path() -> None:
     assert isinstance(search, MonteCarloTreeSearch)
     assert search.action_generator.pose_solver is pose_solver
     assert search.root_action_generator.generator is search.action_generator
-    assert application.default_mcts_request().iterations == 1024
+    assert application.default_mcts_request().iterations == 4096
     assert application.mcts_profile.tree.generation_batch_size == 32
     assert application.mcts_profile.tree.initial_depth1_steps == 0
     assert application.action_generation_profile.planar.yaw_angles == (0.0, np.pi / 2, np.pi, 3 * np.pi / 2)

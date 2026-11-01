@@ -3,12 +3,12 @@
 # Native-only controls and CLI override precedence: docs/excavator-planning.md.
 units: si
 tree:
-  max_depth: 4
-  iterations: 512
-  max_search_time: 240.0
+  max_depth: 6
+  iterations: 4096
+  max_search_time: 60.0
   max_children: 16
   root_max_children: 32
-  exploration_constant: 1.0
+  exploration_constant: 0.5
   discount: 0.9
   failure_reward: -1.0  # Per-step failure penalty, discounted over the remaining horizon.
   initial_depth1_steps: 0
@@ -23,13 +23,13 @@ generation:
   expansion_retry_batches: 3
   min_feasible_children: 3
   attempt_multiplier: 3.0
-  evaluation_batch_size: 256  # Stream 256-placement chunks; native robustness capacity is 512.
+  evaluation_batch_size: 128  # Stream 128-placement chunks; native robustness capacity is 512.
   # Sample the unfilled active floor before higher placements at every depth.
   root_sampling_priority: lower_floor_first
   deeper_sampling_priority: lower_floor_first
 final_selection:
   # Deepest feasible path return uses actual rewards only, including root-only paths.
-  max_weight: 0.0
+  max_weight: 0.5
 parallel:
   # Per-scene body/geometry minima cover the full inventory plus target.
   # Batch is the independent number of parallel pose-generation jobs.
@@ -60,5 +60,5 @@ root_cem:
   height_map_score_weight: 1.0
   seed: 0
 bootstrap:
-  mean_reward: 0.7
-  horizon: 4
+  mean_reward: 0.3
+  horizon: 6

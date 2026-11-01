@@ -2,12 +2,12 @@
 # Native-only controls and CLI override precedence: docs/excavator-planning.md.
 units: si
 tree:
-  max_depth: 5
-  iterations: 1024
-  max_search_time: 240.0
+  max_depth: 6
+  iterations: 4096
+  max_search_time: 60.0
   max_children: 16
   root_max_children: 32
-  exploration_constant: 1.0
+  exploration_constant: 0.5
   discount: 0.9
   failure_reward: -1.0  # Per-step failure penalty, discounted over the remaining horizon.
   initial_depth1_steps: 0
@@ -50,5 +50,5 @@ root_cem:
   height_map_score_weight: 1.0
   seed: 0
 bootstrap:
-  mean_reward: 1.0
-  horizon: 4
+  mean_reward: 0.3
+  horizon: 6
