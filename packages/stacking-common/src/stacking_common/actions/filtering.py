@@ -21,8 +21,9 @@ class ActiveLayerAdmissionFilter:
     Connectivity, empty-area overlap and repair are deliberately independent.
     """
 
-    def __init__(self, floor_policy) -> None:
+    def __init__(self, floor_policy, *, relaxed=False) -> None:
         self.floor_policy = floor_policy
+        self.relaxed = relaxed
 
     def prepare_scene(self, inventory, state):
         return self.floor_policy.context_details(state)
@@ -32,6 +33,12 @@ class ActiveLayerAdmissionFilter:
                         object_id=inventory[object_index].object_id)
         diagnostics = self.floor_policy.pose_diagnostics(state, action, context=scene_context)
         diagnostics["active_layer_admission_checked"] = True
+        if self.relaxed:
+            return PlacementFilterDecision.accept(
+                **diagnostics, floor_fill_fallback=True, active_layer_admission_relaxed=True,
+                floor_fill_bypassed_reason=(
+                    "above_active_layer" if diagnostics["fixed_scene_active_layer_above"] else None),
+            )
         if diagnostics["fixed_scene_active_layer_above"]:
             return PlacementFilterDecision.reject("above_active_layer", **diagnostics)
         return PlacementFilterDecision.accept(**diagnostics)

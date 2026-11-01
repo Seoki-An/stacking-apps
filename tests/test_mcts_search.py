@@ -1380,12 +1380,10 @@ def test_promoted_corner_fallback_keeps_evaluated_descendants():
     assert not second.floor_fill_fallback.attempted
 
 
-def test_nonempty_root_does_not_invoke_floor_or_corner_relaxation():
+def test_nonempty_root_without_floor_fallback_does_not_invoke_corner_relaxation():
     class Generator(_RemainingObjectGenerator):
         def corner_seed_fallback(self):
             pytest.fail('corner fallback only applies to the empty scene')
-        def floor_fill_fallback(self):
-            pytest.fail('floor relaxation has been removed')
     state = _state()
     state.placed_object_indices = [0]
     state.object_poses[10] = np.array([0., 0., 0., 0., 0., 0., 1.])

@@ -209,6 +209,12 @@ class CEMRootActionGenerator(Generic[ObservationT]):
         self._retry_round = 0
         self._excluded_actions = ()
 
+    def restart_proposals(self) -> None:
+        """Restart fresh proposals after a gate change, retaining round history."""
+        self.last_statistics = CEMStatistics()
+        self._fresh_start = 0
+        self._excluded_actions = ()
+
     def begin_retry(self, excluded_actions) -> None:
         """Start a deterministic diversified pool excluding earlier roots."""
 

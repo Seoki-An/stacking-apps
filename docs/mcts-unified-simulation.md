@@ -30,8 +30,8 @@ nodes, including CEM mutations, before physical evaluation.
 
 This is a construction-order restriction on optimized proposals, not evidence
 of physical instability. Rejections are counted as `above_active_layer` during
-generation. There is no new connectivity/empty-area rejection, relaxation, or
-continuation repair. The existing reward and simulation remain unchanged;
+generation. There is no new connectivity/empty-area rejection or continuation
+repair. The existing reward and simulation remain unchanged;
 settled poses are not subjected to an additional layer gate. Acceptance records
 include `active_layer_admission_checked`, the optimized bottom height, and the
 parent layer diagnostics.
@@ -40,8 +40,9 @@ Set the flag to `false` for the previous permissive behavior. An omitted flag
 also defaults to false for older profiles. Enabled settings are recorded in the
 action profile, so comparisons must start fresh trees instead of reusing trees
 evaluated under a different admission policy. A strict gate can exhaust the
-search if remaining stones cannot fill the active layer; this is policy/budget
-exhaustion, not a proof that no physically feasible placement exists.
+strict phase if remaining stones cannot fill the active layer; this is policy/budget
+exhaustion, not a proof that no physically feasible placement exists. The fallback
+below may recover when time remains.
 
 Initial CUDA comparison on `simple_mcts_test23.stack`, with 512 iterations per
 step and the unchanged reward: from checkpoint 8, both variants completed two
@@ -52,6 +53,61 @@ accepted root alternatives from the earlier filter-off control; its own 11
 retained root candidates failed physical validation, exhausting step 17 in
 11.9 s. These short tests establish the gate's behavior and exhaustion risk,
 not an improvement in full-wall construction.
+
+### Active-layer fallback (2026-10-30)
+
+After strict search and ordinary root retries find no selectable action, a
+nonempty scene retries with the active-layer admission gate temporarily bypassed.
+This uses the existing search deadline and remaining iteration budget. It tries
+one fallback root pool plus up to `rejected_root_retry_rounds` additional pools,
+subject to available proposals and time. No extra configuration knob is added.
+
+Both root and descendant generators use the relaxed gate during this retry.
+Pose-generation feasibility, containment, execution exclusions, simulation,
+robustness and reward are unchanged. Existing XY scores stay in use; no old
+empty-floor mask, threshold schedule, or descendant repair is restored.
+CEM restarts its proposal cursor and retains strict/relaxed round statistics.
+An exhausted deadline does not receive an extension for fallback.
+
+Candidates record `floor_fill_fallback`, `active_layer_admission_relaxed`, and
+`floor_fill_bypassed_reason`. Existing search reports and .stack statistics record
+fallback pools, generated candidates, physically accepted candidates, and whether
+selection succeeded under `floor_fill_fallback` with policy `floor_fill`.
+
+The gate is restored even if evaluation raises an exception. Before the next
+search, relaxed descendants are discarded and the committed scene is kept, so
+subtree preservation cannot carry relaxed admission into a strict step.
+Empty-scene corner-seed fallback remains separate and keeps its existing behavior.
+This recovery favors continuation, but may leave an incomplete layer; it is not
+a guarantee of filling all floors.
+
+### Blocked descendant retry (2026-10-30)
+
+A nonterminal descendant below the depth limit gets one extra proposal pool
+when its normal expansion budget is exhausted, it has no feasible/pending
+children, and generation recorded `above_active_layer` rejections. The pool
+bypasses only the active-layer gate. Its size is bounded by the existing
+`generation_batch_size` and node attempt limit, within the search deadline.
+Eligible parents are batched. No coverage threshold or new tuning knob is added.
+
+The retry does not reset the parent's strict attempt/rejection history. It
+restarts the proposal offset once, records `descendant_floor_retry_attempted`,
+and closes further generation at that parent. New children still require the
+ordinary physical evaluation. Their own expansion starts with strict admission.
+The `descendant_floor_retry` statistics report retained retry nodes, proposals,
+evaluated relaxed children and physically accepted children; these are retained
+tree counts, which can include evidence preserved from earlier searches.
+
+Visited shallow leaves with no remaining expansion or selectable continuation
+are excluded from further traversal. Rejected proposal batches do not repeatedly
+back up the same optimistic heuristic. When all branches are blocked, search
+ends before its iteration cap. Completed terminal/depth-limit paths retain normal
+MCTS return backups; successful lookahead is not treated as a blocked branch.
+Exhausting sampling is not marked as a physical failure.
+
+On a subsequent search, branches containing relaxed admissions are cleared and
+statistics reset, while strict branches and the committed scene are retained.
+This also applies to relaxed children deeper than the root's immediate children.
 
 ### Deepest observed-path selection (2026-10-31)
 

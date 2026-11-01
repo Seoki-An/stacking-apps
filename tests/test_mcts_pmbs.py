@@ -204,9 +204,10 @@ def test_rejected_generation_does_not_backup_every_reserved_slot():
 
     root = tree(pending=False)
     result = search(root, generator=EmptyGenerator(), iterations=3)
-    assert result.completed_iterations == 3
-    assert root.visits == 23
-    # The first three placeholder slots collapse to one actual dead-end backup.
+    assert result.completed_iterations == 2
+    assert root.visits == 20
+    assert [branch.visits for branch in root.children] == [10, 10]
+    # Exhausted generation adds no new value evidence to previously visited leaves.
     assert result.descendant_frontier_batches >= 2
     assert all(not branch.children for branch in root.children)
 

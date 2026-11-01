@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import random
 import time
+from contextlib import ExitStack
 from dataclasses import dataclass, field, replace
 from typing import Generic, TypeVar
 
@@ -28,7 +29,7 @@ from stacking_common.search.types import (
 from .backup import backpropagate
 from .config import MCTSConfig
 from .node import MCTSNode
-from .tree_policy import can_expand, expansion_room, select_child
+from .tree_policy import attempt_limit, can_expand, expansion_room, select_child
 
 
 ObservationT = TypeVar("ObservationT")
@@ -295,6 +296,23 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         iteration_deadline = deadline
         counters = _SearchCounters(generation_deadline=iteration_deadline)
         root.detach()
+        # Relaxed descendants must not bypass strict admission on the next
+        # search (including after subtree promotion). Keep the committed state.
+        pruned = False
+        pending = [root]
+        while pending:
+            parent = pending.pop()
+            if any(child.action is not None and child.action.diagnostics.get("active_layer_admission_relaxed")
+                   for child in parent.children):
+                parent.clear_children()
+                for key in ("descendant_floor_retry_attempted", "descendant_floor_retry_attempts",
+                            "descendant_floor_retry_generated"):
+                    parent.info.pop(key, None)
+                pruned = True
+            else:
+                pending.extend(parent.children)
+        if pruned:
+            root.reset_statistics(recursive=True)
         begin_evaluation = getattr(self.transition_evaluator, "begin_search", None)
         if callable(begin_evaluation):
             begin_evaluation(root.state)
@@ -384,7 +402,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 )
                 selected, ranked_candidates = self._final_select(root)
             if selected is None:
-                selected, ranked_candidates, fallback = self._run_corner_seed_fallback(
+                selected, ranked_candidates, fallback = self._run_proposal_fallback(
                     root, request, counters, deadline
                 )
         except BackendCapacityError as error:
@@ -482,6 +500,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 and time.monotonic() >= counters.generation_deadline
             ):
                 break
+            self._retry_blocked_descendants(root, request, counters)
             coverage = self._root_lookahead_candidates(root)
             if not coverage:
                 consumed = self._run_descendant_frontier_batch(
@@ -499,6 +518,8 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     ):
                         break
                     if not self._run_iteration(root, request, counters):
+                        if self._retry_blocked_descendants(root, request, counters):
+                            continue
                         break
                     counters.completed_iterations += 1
             else:
@@ -511,24 +532,93 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     break
                 counters.completed_iterations += consumed
 
-    def _run_corner_seed_fallback(self, root, request, counters, deadline):
-        """Retry empty-scene corner seeds within the original deadline.
+    def _retry_blocked_descendants(self, root, request, counters):
+        """One bounded relaxed pool per exhausted, floor-blocked parent."""
+        deadline = counters.generation_deadline
+        relax = getattr(self.action_generator, "floor_fill_fallback", None)
+        if not callable(relax) or (deadline is not None and time.monotonic() >= deadline):
+            return 0
+        blocked, pending = [], list(reversed(root.children))
+        while pending and len(blocked) < self.config.evaluation_batch_size:
+            node = pending.pop()
+            pending.extend(reversed(node.children))
+            if (node.evaluated and node.selectable and not node.terminal
+                    and node.depth < self.config.max_depth
+                    and not node.selectable_children() and not can_expand(node, self.config)
+                    and node.rejected_expansions.get("above_active_layer", 0)
+                    and not node.info.get("descendant_floor_retry_attempted")):
+                blocked.append(node)
+        if not blocked:
+            return 0
+        limit = min(self.config.generation_batch_size, attempt_limit(blocked[0], self.config))
+        with relax() as enabled:
+            if not enabled:
+                return 0
+            for node in blocked:
+                node.info["descendant_floor_retry_attempted"] = True
+            requests = [ActionGenerationRequest(
+                max_candidates=limit, sampling_priority=request.deeper_sampling_priority,
+                deadline=deadline, execution_rejections=request.execution_rejections,
+                attempt_offset=0,
+            ) for node in blocked]
+            started = time.perf_counter()
+            try:
+                batch = getattr(self.action_generator, "generate_batch", None)
+                if callable(batch):
+                    results = tuple(batch([n.state for n in blocked],
+                                          [n.observation for n in blocked], requests))
+                else:
+                    results = tuple(self.action_generator.generate(n.state, n.observation, r)
+                                    for n, r in zip(blocked, requests))
+            finally:
+                counters.pose_generation_seconds += time.perf_counter() - started
+            if len(results) != len(blocked):
+                raise ValueError("floor retry generator returned the wrong length")
+            counters.pose_generation_batches += 1
+            counters.pose_generation_node_requests += len(blocked)
+            counters.pose_generation_max_node_batch = max(
+                counters.pose_generation_max_node_batch, len(blocked))
+            for node, generated in zip(blocked, results):
+                before = len(node.children)
+                self._record_generation(node, generated, counters, limit, request.execution_rejections)
+                node.info["descendant_floor_retry_attempts"] = generated.attempts
+                node.info["descendant_floor_retry_generated"] = len(node.children) - before
+                # This is the final proposal pool for this parent, even if
+                # strict generation had stopped before reaching its attempt cap.
+                node.expansion_exhausted = True
+        return len(blocked)
+
+    def _run_proposal_fallback(self, root, request, counters, deadline):
+        """Retry corner seeds or active-layer admission within the same deadline.
 
         After the first pool, up to rejected_root_retry_rounds fresh pools run,
         each excluding earlier candidates, until one yields a selection.
         """
         empty = root.state is not None and not root.state.placed_object_indices
-        root_generator = getattr(self.root_action_generator, "generator", self.action_generator)
-        relax = getattr(root_generator, "corner_seed_fallback", None)
-        policy = "corner_seed"
-        if (not empty or not callable(relax)
+        root_generator = self.root_action_generator or self.action_generator
+        root_generator = getattr(root_generator, "generator", root_generator)
+        policy = "corner_seed" if empty else "floor_fill"
+        method = "corner_seed_fallback" if empty else "floor_fill_fallback"
+        relax = getattr(root_generator, method, None)
+        if (not callable(relax)
                 or (deadline is not None and time.monotonic() >= deadline)):
             return None, (), FloorFillFallbackResult()
-        with relax() as enabled:
+        with ExitStack() as stack:
+            enabled = stack.enter_context(relax())
             if not enabled:
                 return None, (), FloorFillFallbackResult()
-            # Rebuild the empty root with ordinary proposals instead of corner seeds.
+            if not empty and self.action_generator is not root_generator:
+                deeper_relax = getattr(self.action_generator, method, None)
+                if callable(deeper_relax):
+                    stack.enter_context(deeper_relax())
+            # Rebuild proposals under the fallback policy, including fresh CEM
+            # offsets rather than inheriting the exhausted strict pool cursor.
             root.clear_children()
+            if not empty:
+                root.reset_statistics(recursive=True)
+                reset = getattr(self.root_action_generator, "restart_proposals", None)
+                if callable(reset):
+                    reset()
             begin_retry = getattr(self.root_action_generator, "begin_retry", None)
             counters.generation_deadline = deadline
             excluded = []
@@ -727,10 +817,10 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 counters,
             )
         for child, selected in selected_nodes:
-            if selected is None:
-                self._back_up(child)
-            else:
-                self._back_up(selected)
+            leaf = child if selected is None else selected
+            if (leaf.visits == 0 or leaf in evaluation_nodes
+                    or leaf.terminal or leaf.depth >= self.config.max_depth):
+                self._back_up(leaf)
         return len(selected_children)
 
     def _run_descendant_frontier_batch(
@@ -858,7 +948,9 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         # All reservations disappear here (and on any exception) without undoing
         # edits to real visits/rewards: the selection overlay is local only.
         for node in selected_nodes:
-            self._back_up(node)
+            if (node.visits == 0 or node in evaluation_nodes
+                    or node.terminal or node.depth >= self.config.max_depth):
+                self._back_up(node)
         if selected_nodes:
             counters.descendant_frontier_batches += 1
             counters.descendant_frontier_iterations += len(selected_nodes)
@@ -871,11 +963,8 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
 
         node = root
         while True:
-            if (
-                not node.evaluated
-                or node.terminal
-                or node.depth >= self.config.max_depth
-            ):
+            if (not node.evaluated or node.terminal
+                    or node.depth >= self.config.max_depth):
                 return node, False
             if not node.pending_children() and can_expand(node, self.config):
                 capacity = min(
@@ -896,7 +985,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 node = child
             elif node is root:
                 return None
-            elif not node.selectable_children() and node not in expansions:
+            elif not node.selectable_children() and node not in expansions and node.visits == 0:
                 return node, False
             else:
                 # All work below this node is already reserved. Reconsider the
@@ -946,42 +1035,33 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         backpropagate(node, self.config, bootstrap_value=bootstrap)
 
     def _run_iteration(self, root, request, counters) -> bool:
-        node = root
-        while True:
-            if node.terminal or node.failed:
-                break
-            if not node.pending_children() and can_expand(node, self.config):
-                priority = (
-                    request.root_sampling_priority
-                    if node.depth == 0
-                    else request.deeper_sampling_priority
-                )
-                self._expand(node, counters, priority, request)
-            if (counters.generation_deadline is not None
-                    and time.monotonic() >= counters.generation_deadline):
-                return False
-            child = select_child(
-                node, self.config, epsilon=request.epsilon, rng=self.rng
-            )
-            if child is None:
-                break
-            if not child.evaluated:
-                fidelity = request.evaluation_fidelity
-                batch = [child]
-                batch.extend(
-                    sibling
-                    for sibling in node.pending_children()
-                    if sibling is not child
-                )
-                self._evaluate_many(
-                    batch[: self.config.evaluation_batch_size], fidelity, counters
-                )
-                node = child
-                break
-            node = child
-
-        self._back_up(node)
-        return True
+        selection = self._select_batch_frontier(root, request, {}, set(), {})
+        if selection is None:
+            return False
+        node, needs_expansion = selection
+        attempts_before = counters.expansion_calls
+        if needs_expansion:
+            priority = (request.root_sampling_priority if node.depth == 0
+                        else request.deeper_sampling_priority)
+            self._expand(node, counters, priority, request)
+            pending = node.pending_children()
+            if pending:
+                node = select_child(node, self.config, epsilon=request.epsilon, rng=self.rng)
+        if (counters.generation_deadline is not None
+                and time.monotonic() >= counters.generation_deadline):
+            return False
+        evaluated_now = not node.evaluated
+        if evaluated_now:
+            batch = [node]
+            if node.parent is not None:
+                batch.extend(c for c in node.parent.pending_children() if c is not node)
+            self._evaluate_many(batch[:self.config.evaluation_batch_size],
+                                request.evaluation_fidelity, counters)
+        unvisited = node.visits == 0
+        complete_path = node.terminal or node.depth >= self.config.max_depth
+        if evaluated_now or unvisited or complete_path:
+            self._back_up(node)
+        return evaluated_now or unvisited or complete_path or counters.expansion_calls > attempts_before
 
     def _expand(self, node, counters, sampling_priority, request) -> None:
         self._expand_many(
@@ -1228,7 +1308,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 "unclassified_generation",
                 count=generated.attempts - accounted,
             )
-        if generated.exhausted:
+        if generated.exhausted or generated.attempts == 0:
             node.expansion_exhausted = True
         counters.expansion_calls += 1
 

@@ -41,7 +41,8 @@ def test_floor_tracking_is_sampling_only_when_gate_disabled(monkeypatch):
     assert isinstance(generator.filters[0], PosegenFeasibilityFilter)
     assert generator.filters[1] is containment
     assert generator.planar_sampler.floor_policy is not None
-    assert not hasattr(generator, 'floor_fill_fallback')
+    with generator.floor_fill_fallback() as enabled:
+        assert not enabled
     generator.close()
     backend = SimpleNamespace(reset=lambda ids: None)
     monkeypatch.setattr(composition, 'CorePlacementBackend', SimpleNamespace(from_profile=lambda *a, **k: backend))

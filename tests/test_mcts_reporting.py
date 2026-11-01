@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_leaf_counts_include_pending_and_failed_nodes():
     def node(children=(), *, evaluated=True, failed=False):
         return SimpleNamespace(children=children, evaluated=evaluated, failed=failed,
-                               depth=0, rejected_expansions={}, rejection_reason=None)
+                               depth=0, rejected_expansions={}, rejection_reason=None, info={})
 
     pending = node(evaluated=False)
     branch = node([pending, node(evaluated=False)])

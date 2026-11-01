@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Sequence
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from typing import Generic, TypeVar
 
@@ -21,7 +22,7 @@ from .contracts import (
     PlacementPoseSolver,
     PlanarPoseSampler,
 )
-from .filtering import PosegenFeasibilityFilter
+from .filtering import ActiveLayerAdmissionFilter, PosegenFeasibilityFilter
 from .types import PlanarPlacement
 
 
@@ -72,6 +73,24 @@ class PlacementActionGenerator(Generic[ObservationT]):
             ),
             *tuple(filters),
         )
+
+    @contextmanager
+    def floor_fill_fallback(self):
+        """Temporarily bypass only construction-order admission, not physics."""
+        original = self.filters
+        enabled = any(isinstance(item, ActiveLayerAdmissionFilter) for item in original)
+        if not enabled:
+            yield False
+            return
+        self.filters = tuple(
+            ActiveLayerAdmissionFilter(item.floor_policy, relaxed=True)
+            if isinstance(item, ActiveLayerAdmissionFilter) else item
+            for item in original
+        )
+        try:
+            yield True
+        finally:
+            self.filters = original
 
     def generate(
         self,

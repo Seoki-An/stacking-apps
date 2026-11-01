@@ -209,6 +209,7 @@ def search_statistics(
         "root_lookahead": asdict(result.root_lookahead),
         "root_retry": asdict(result.root_retry),
         "floor_fill_fallback": asdict(result.floor_fill_fallback),
+        "descendant_floor_retry": tree["descendant_floor_retry"],
         "descendant_validation": {
             "attempts": result.descendant_validation_attempts,
             "failures": result.descendant_validation_failures,
@@ -453,6 +454,11 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
             f"pools={fallback.pools}, generated={fallback.generated}, "
             f"kept={fallback.accepted}, selected={fallback.selected}"
         )
+    retry = tree["descendant_floor_retry"]
+    if retry["nodes"]:
+        print(f"[INFO] Descendant floor retry: nodes={retry['nodes']}, "
+              f"attempts={retry['attempts']}, generated={retry['generated']}, "
+              f"evaluated={retry['evaluated']}, kept={retry['accepted']}")
     if result.final_validation_timed_out:
         print(
             "[INFO] Root long validation stopped at the search wall-time limit"
@@ -529,7 +535,17 @@ def tree_statistics(root) -> dict[str, object]:
         if node.failed:
             rejection_reasons[node.rejection_reason or "transition_failed"] += 1
 
+    retried = [node for node in nodes if node.info.get("descendant_floor_retry_attempted")]
+    relaxed = [child for node in retried for child in node.children
+               if child.action is not None and child.action.diagnostics.get("active_layer_admission_relaxed")]
     return {
+        "descendant_floor_retry": {
+            "nodes": len(retried),
+            "attempts": sum(node.info.get("descendant_floor_retry_attempts", 0) for node in retried),
+            "generated": sum(node.info.get("descendant_floor_retry_generated", 0) for node in retried),
+            "evaluated": sum(node.evaluated for node in relaxed),
+            "accepted": sum(node.evaluated and node.selectable for node in relaxed),
+        },
         "nodes": len(nodes),
         "evaluated": sum(node.evaluated for node in nodes),
         "pending": sum(not node.evaluated for node in nodes),
