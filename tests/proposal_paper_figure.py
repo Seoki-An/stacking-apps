@@ -26,7 +26,8 @@ from stacking_common.visualization.dsf import object_surface_path
 from stacking_common.visualization.sampling import initial_pose_score_view
 
 
-def render_initial_pose(directory, meshes, placed, candidate, view, bottom):
+def render_initial_pose(directory, meshes, placed, candidate, view, bottom,
+                        view_direction=(-1.7, 2.5, -1.5)):
     """Use original surfaces at recorded poses, with a fitted orthographic camera."""
     import pyvista as pv
     from scipy.spatial.transform import Rotation
@@ -45,7 +46,10 @@ def render_initial_pose(directory, meshes, placed, candidate, view, bottom):
     corners = np.array([[*(ground_center + np.array([x, y])*ground_size/2), 0.]
                         for x in (-1, 1) for y in (-1, 1)])
     cloud = np.vstack([cloud, corners])
-    direction = np.array([1.7, -2.5, 1.5])
+    direction = -np.asarray(view_direction, dtype=float)
+    if (direction.shape != (3,) or not np.isfinite(direction).all()
+            or np.linalg.norm(direction[:2]) <= 1e-12):
+        raise ValueError("view direction must be finite and not parallel to the Z up axis")
     direction /= np.linalg.norm(direction)
     right = np.cross([0, 0, 1], direction)
     right /= np.linalg.norm(right)
@@ -203,6 +207,9 @@ def main():
     parser.add_argument("--step", type=int, default=23)
     parser.add_argument("--candidate")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--view-direction", nargs=3, type=float, default=(-1.7, 2.5, -1.5),
+                        metavar=("X", "Y", "Z"),
+                        help="Camera looking direction with +Z up; 0 1 0 looks along +Y with +X right")
     args = parser.parse_args()
     print(f"Loading recorded placement at step {args.step}", flush=True)
     inventory, _, state, candidate, models, context_hash = load_recorded_placement(
@@ -225,7 +232,8 @@ def main():
         candidate.init_pose, view, context.asset_hashes.get(f"object_surface/{candidate.object_id}"))
     args.output.mkdir(parents=True, exist_ok=True)
     print(f"Rendering {len(placed)} placed stones and candidate {candidate.object_id}", flush=True)
-    scene_pixels, anchor, camera = render_initial_pose(args.output, meshes, placed, candidate, view, bottom)
+    scene_pixels, anchor, camera = render_initial_pose(
+        args.output, meshes, placed, candidate, view, bottom, args.view_direction)
     paths, limits = render_figure(args.output, view, bottom, scene_pixels, anchor)
     np.savez_compressed(args.output / "proposal_pipeline.npz", scene_height=view.scene_height,
         scene_xlim=view.scene_xlim, scene_ylim=view.scene_ylim, x=view.x, y=view.y,
