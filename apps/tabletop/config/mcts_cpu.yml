@@ -29,8 +29,7 @@
 # - rejected_root_retry_rounds: diversified all-rejected retries; integer >= 0.
 #
 # final_selection
-# - max_weight: descendant share; missing paths always use mean return.
-# - descendant_depth: path-score horizon below a root candidate; missing paths use mean (no eligibility filter).
+# - max_weight: mix mean return with observed return on each candidate's deepest feasible paths.
 #
 # parallel
 # - enabled: parallel pose generation and simulation; true | false.
@@ -96,8 +95,8 @@ generation:
   deeper_sampling_priority: lower_floor_first
 
 final_selection:
+  # Deepest feasible path return uses actual rewards only, including root-only paths.
   max_weight: 0.5
-  descendant_depth: 2
 
 parallel:
   posegen_backend: cpu  # cpu or cuda

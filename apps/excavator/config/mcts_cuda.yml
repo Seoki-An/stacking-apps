@@ -28,9 +28,8 @@ generation:
   root_sampling_priority: lower_floor_first
   deeper_sampling_priority: lower_floor_first
 final_selection:
+  # Deepest feasible path return uses actual rewards only, including root-only paths.
   max_weight: 0.0
-  # Path-score horizon only; missing descendants do not exclude a candidate.
-  descendant_depth: 4
 parallel:
   # Per-scene body/geometry minima cover the full inventory plus target.
   # Batch is the independent number of parallel pose-generation jobs.

@@ -9,19 +9,11 @@ class FinalSelectionConfig:
     """Choose a root from mean evidence and evaluated descendant returns."""
 
     max_weight: float = 0.5
-    descendant_depth: int = 1  # Path-score horizon, not an eligibility requirement.
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.max_weight) or not 0.0 <= self.max_weight <= 1.0:
             raise ValueError(
                 "MCTS final-selection maximum weight must be between zero and one"
-            )
-        if (
-            not isinstance(self.descendant_depth, int)
-            or self.descendant_depth < 0
-        ):
-            raise ValueError(
-                "MCTS descendant depth must be a non-negative integer"
             )
 
 

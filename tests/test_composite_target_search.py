@@ -81,9 +81,9 @@ def test_native_composite_search_and_promotion(kind, workers, tmp_path):
             assert selected.info["simulation_settled"]
             assert result.short_simulation_jobs == 0
             assert result.final_validation_attempts == result.descendant_validation_attempts == 0
-            assert (selected.info["descendant_depth_satisfied"]
-                    or selected.info["descendant_depth_fallback"])
-            assert selected.info["settled_active_floor_checked"]
+            assert selected.info["deepest_feasible_depth"] >= selected.depth
+            # Layer admission applies to optimized proposals, not settled poses.
+            assert "settled_active_floor_checked" not in selected.info
             assert selected.info["place_robustness_evaluated"]
             assert not selected.info["place_robustness_failed"]
             assert selected.info["posegen_target_component_count"] == 2

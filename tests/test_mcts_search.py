@@ -1081,7 +1081,6 @@ def _retry_path_search(depth, evaluator):
             rejected_root_retry_rounds=1,
             final_selection=FinalSelectionConfig(
                 max_weight=0.5,
-                descendant_depth=depth,
                 ),
         ),
         _RemainingObjectGenerator(),
@@ -1217,7 +1216,6 @@ def _corner_fallback_search(generator, evaluator, *, depth=1):
     return MonteCarloTreeSearch(
         _root_policy_config(max_depth=depth, root_lookahead=True, rejected_root_retry_rounds=2,
             final_selection=FinalSelectionConfig(max_weight=.5,
-                descendant_depth=2,
                 )),
         generator, _ObjectPriorityScorer(), evaluator, _ZeroEstimator(),
         root_action_generator=generator,
@@ -1325,7 +1323,7 @@ def test_root_survives_missing_continuations_without_sampling_relaxation(fail_de
         ))
     assert not generator.relaxed
     assert result.selected is not None
-    assert result.selected.info["descendant_depth_fallback"]
+    assert result.selected.info["deepest_feasible_depth"] == 1
     assert not result.floor_fill_fallback.attempted
     assert not any(generator.roots)
     assert not result.selected.children
@@ -1334,7 +1332,7 @@ def test_root_survives_missing_continuations_without_sampling_relaxation(fail_de
 
 
 @pytest.mark.parametrize('fail_descendants', [False, True])
-def test_corner_fallback_preserves_physics_and_descendant_depth_fallback(fail_descendants):
+def test_corner_fallback_preserves_physics_and_root_only_path_score(fail_descendants):
     generator = _CornerFallbackGenerator()
     evaluator = _CornerFallbackEvaluator(fail_relaxed=not fail_descendants,
                                        fail_descendants=fail_descendants)
@@ -1347,7 +1345,7 @@ def test_corner_fallback_preserves_physics_and_descendant_depth_fallback(fail_de
     assert not generator.relaxed
     if fail_descendants:
         assert result.selected is not None
-        assert result.selected.info["descendant_depth_fallback"]
+        assert result.selected.info["deepest_feasible_depth"] == 1
         assert not result.selected.state.failed
         # Descendants use the same physics; no extra validation/repair follows.
         assert (True, EvaluationFidelity.LONG) in evaluator.calls

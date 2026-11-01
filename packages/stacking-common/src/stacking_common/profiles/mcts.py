@@ -68,17 +68,17 @@ def load_mcts_profile(path: str | Path) -> MCTSProfile:
     widening = _mapping(values, "widening")
     generation = _mapping(values, "generation")
     if "validation" in values:
-        raise ValueError("MCTS validation block was removed; use final_selection.descendant_depth "
+        raise ValueError("MCTS validation block was removed; use final_selection.max_weight "
                          "and generation.rejected_root_retry_rounds")
     final_selection = _mapping(values, "final_selection")
     if "mode" in final_selection:
         raise ValueError("final_selection.mode was removed; use max_weight (0 to 1) "
-                         "and descendant_depth")
+                         "for deepest feasible path scoring")
     removed = {"validate_descendant_path", "validate_descendant_depth",
-               "require_validated_descendant"} & final_selection.keys()
+               "require_validated_descendant", "descendant_depth"} & final_selection.keys()
     if removed or "simulation_depth" in tree:
-        raise ValueError("MCTS now uses one simulation profile; replace legacy validation "
-                         "controls with final_selection.descendant_depth")
+        raise ValueError("MCTS uses deepest feasible paths without a depth gate; remove legacy "
+                         "validation/depth controls and use final_selection.max_weight")
     parallel = _mapping(values, "parallel")
     cem = _mapping(values, "root_cem")
     bootstrap = _mapping(values, "bootstrap")
@@ -110,7 +110,6 @@ def load_mcts_profile(path: str | Path) -> MCTSProfile:
         ),
         final_selection=FinalSelectionConfig(
             max_weight=float(_required(final_selection, "max_weight")),
-            descendant_depth=int(_required(final_selection, "descendant_depth")),
         ),
         widening=ProgressiveWideningConfig(
             enabled=bool(_required(widening, "enabled")),

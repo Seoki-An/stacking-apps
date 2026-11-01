@@ -214,6 +214,14 @@ def search_statistics(
             "failures": result.descendant_validation_failures,
         },
         "final_selection_max_weight": result.final_selection_max_weight,
+        "selected_value": None if result.selected is None else {
+            "visits": result.selected.visits,
+            "reward": result.selected.reward,
+            "mean_return": result.selected.mean_value,
+            "deepest_feasible_depth": result.selected.info.get("deepest_feasible_depth"),
+            "observed_path_return": result.selected.info.get("descendant_path_return"),
+            "score": result.selected.info.get("final_selection_score"),
+        },
         "tree": {
             "nodes": tree["nodes"],
             "evaluated": tree["evaluated"],
@@ -476,8 +484,14 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
         return
 
     info = selected.info
-    if info.get("descendant_depth_fallback"):
-        print("[INFO] Descendant depth unavailable: selected feasible root by mean return")
+    if "deepest_feasible_depth" in info:
+        print(
+            f"[INFO] Selected value: visits={selected.visits}, "
+            f"mean={selected.mean_value:.3f}, "
+            f"deepest_depth={info['deepest_feasible_depth']}, "
+            f"observed_path_return={info['descendant_path_return']:.3f}, "
+            f"mixed_score={info['final_selection_score']:.3f}"
+        )
     stage_times = info.get("simulation_stage_times")
     if isinstance(stage_times, dict) and stage_times:
         stages = ", ".join(

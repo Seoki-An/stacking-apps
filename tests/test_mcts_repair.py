@@ -92,7 +92,7 @@ class Estimator:
         return 0.0
 
 
-def setup(*, evaluator=None, depth=2, rounds=3, batch_size=4):
+def setup(*, evaluator=None, rounds=3, batch_size=4):
     root = MCTSNode(state=State(list(range(8)), [], {}, [], []), observation=())
     generator = Generator()
     evaluator = evaluator or Evaluator()
@@ -104,7 +104,7 @@ def setup(*, evaluator=None, depth=2, rounds=3, batch_size=4):
             expansion_attempt_multiplier=10.0,
             widening=ProgressiveWideningConfig(enabled=False),
             final_selection=FinalSelectionConfig(
-                max_weight=1.0, descendant_depth=depth,
+                max_weight=1.0,
             ),
         ), generator, Scorer(), evaluator, Estimator(),
     )
@@ -113,76 +113,98 @@ def setup(*, evaluator=None, depth=2, rounds=3, batch_size=4):
 
 
 @pytest.mark.parametrize("weight", [0.0, 0.5, 1.0])
-def test_missing_depth_never_excludes_feasible_roots_for_any_weight(weight):
-    root, generator, evaluator, search, request = setup()
-    search.config = replace(search.config, final_selection=FinalSelectionConfig(
-        max_weight=weight, descendant_depth=2))
+def test_all_feasible_roots_rank_by_the_same_mix_without_depth_gate(weight):
+    root, generator, evaluator, search, _ = setup()
+    search.config = replace(search.config, final_selection=FinalSelectionConfig(max_weight=weight))
     complete = child(root, 0)
     child(child(complete, 1), 2)
-    shallow = child(root, 3, reward=100)
-    shallow.record_visit(100)
+    complete.record_visit(4)
+    shallow = child(root, 3, reward=10)
+    shallow.record_visit(20)  # Includes an optimistic bootstrap, unlike the path return.
     pending = shallow.add_candidate(action(4))
-    pending.add_candidate(action(5))  # Unevaluated paths never satisfy the filter.
+    pending.add_candidate(action(5))
     selected, ranked = search._final_select(root)
-    assert selected is shallow and ranked == (shallow, complete)
-    assert shallow.selectable
-    assert shallow.info['final_selection_score'] == 100
-    assert shallow.info['final_selection_used_mean_fallback']
-    assert not complete.info['final_selection_used_mean_fallback']
+    assert selected is shallow and set(ranked) == {shallow, complete}
+    assert shallow.info['deepest_feasible_depth'] == 1
+    assert complete.info['deepest_feasible_depth'] == 3
+    assert shallow.info['descendant_path_return'] == 10
+    assert shallow.info['final_selection_score'] == (1-weight)*20 + weight*10
     assert not generator.calls and not evaluator.calls
 
 
-@pytest.mark.parametrize("weight", [0.0, 0.5, 1.0])
-def test_exhaustion_falls_back_to_mean_of_feasible_roots_without_repair(weight):
-    root, generator, evaluator, search, request = setup()
-    search.config = replace(search.config, final_selection=FinalSelectionConfig(
-        max_weight=weight, descendant_depth=2))
-    low = child(root, 0)
-    low.record_visit(2)
-    best = child(root, 1)
-    best.record_visit(5)
-    failed = child(root, 2)
-    failed.record_visit(100)
-    failed.reject("simulation_unsettled")
-    selected, ranked = search._final_select(root)
-    assert selected is best and ranked == (best, low)
-    assert selected.info["descendant_depth_fallback"]
-    assert not generator.calls and not evaluator.calls
-    assert not failed.selectable
-
-
-def test_path_score_is_maximum_of_evaluated_paths_not_first_passing_path():
-    root, generator, evaluator, search, request = setup(depth=1)
+def test_path_score_prefers_deepest_then_best_return_and_never_uses_bootstrap():
+    root, _, evaluator, search, _ = setup()
+    search.config = replace(search.config, discount=.9)
     candidate = child(root, 0, reward=2)
-    child(candidate, 1, reward=1)
-    child(candidate, 2, reward=10)
-    failed = child(candidate, 3, reward=100)
+    shallow = child(candidate, 1, reward=100)
+    shallow.record_visit(1000)
+    first = child(candidate, 2, reward=1)
+    child(first, 3, reward=-10)
+    second = child(candidate, 4, reward=2)
+    child(second, 5, reward=-5)
+    failed = child(candidate, 6, reward=999)
     failed.reject("physical_failure")
     selected, _ = search._final_select(root)
-    assert selected.info["descendant_path_return"] == 12
-    assert selected.info["final_selection_score"] == 12
+    expected = 2 + .9*2 + .9**2*(-5)
+    assert selected.info['deepest_feasible_depth'] == 3
+    assert selected.info['descendant_path_return'] == pytest.approx(expected)
+    assert selected.info['final_selection_score'] == pytest.approx(expected)
     assert not evaluator.calls
+    from stacking_common.visualization.mcts import _best_sequence
+    assert [pose.object_id for pose in _best_sequence(candidate)] == [0, 4, 5]
 
 
-def test_terminal_success_satisfies_depth_but_failed_terminal_does_not():
+@pytest.mark.parametrize("length", [1, 2, 3, 4, 5])
+def test_observed_return_supports_variable_depth_and_search_horizon(length):
     root, _, _, search, _ = setup()
-    complete = child(root, 0)
+    search.config = replace(search.config, max_depth=5, discount=.9)
+    candidate = child(root, 0, reward=1)
+    tail = candidate
+    for i in range(1, length):
+        tail = child(tail, i, reward=i+1)
+    selected, _ = search._final_select(root)
+    assert selected.info['deepest_feasible_depth'] == length
+    assert selected.info['descendant_path_return'] == pytest.approx(
+        sum(.9**i * (i+1) for i in range(length)))
+    # Retained deeper nodes do not bypass a shorter search horizon.
+    search.config = replace(search.config, max_depth=1)
+    search._final_select(root)
+    assert candidate.info['deepest_feasible_depth'] == 1
+    assert candidate.info['descendant_path_return'] == 1
+
+
+def test_terminal_success_ends_path_and_failed_root_is_excluded():
+    root, _, _, search, _ = setup()
+    complete = child(root, 0, reward=3)
+    child(complete, 2, reward=100)  # A terminal node must not traverse stale children.
     complete.terminal = True
-    failed = child(root, 1)
+    failed = child(root, 1, reward=100)
     failed.terminal = True
     failed.reject("physical_failure")
     selected, ranked = search._final_select(root)
     assert selected is complete and ranked == (complete,)
-    assert selected.info["descendant_depth_satisfied"]
+    assert selected.info['deepest_feasible_depth'] == 1
+    assert selected.info['descendant_path_return'] == 3
 
 
-def test_depth_is_capped_at_search_horizon():
-    root, _, _, search, _ = setup(depth=9)
-    search.config = replace(search.config, max_depth=1)
-    candidate = child(root, 0, reward=3)
+def test_descendant_failures_remain_in_mean_but_not_observed_path_return():
+    from stacking_common.search.mcts.backup import backpropagate
+    root, _, _, search, _ = setup()
+    search.config = replace(search.config, final_selection=FinalSelectionConfig(max_weight=.5))
+    candidate = child(root, 0, reward=1)
+    failed = child(candidate, 1)
+    failed.reject("physical_failure")
+    backpropagate(failed, search.config)  # -1 at depths 2 and 3, plus root reward 1.
+    assert candidate.mean_value == -1
     selected, _ = search._final_select(root)
-    assert selected is candidate
-    assert selected.info["descendant_depth_satisfied"]
+    assert selected.info['descendant_path_return'] == 1
+    assert selected.info['final_selection_score'] == 0
+    good = child(candidate, 2, reward=2)
+    backpropagate(good, search.config)
+    search._final_select(root)
+    assert candidate.mean_value == 1
+    assert candidate.info['descendant_path_return'] == 3
+    assert candidate.info['final_selection_score'] == 2
 
 
 def test_all_transitions_use_one_fidelity_once_and_final_selection_is_pure():
@@ -206,6 +228,17 @@ def test_root_physics_failure_cannot_be_selected_by_depth_fallback():
     assert result.failed_evaluations > 0
 
 
-def test_depth_filter_rejects_negative_configuration():
-    with pytest.raises(ValueError, match="descendant depth"):
-        FinalSelectionConfig(descendant_depth=-1)
+
+def test_selection_values_are_recorded_in_stack_statistics():
+    from stacking_common.workflows.mcts_reporting import search_statistics
+    root, _, _, search, request = setup()
+    result = search.search(root, replace(request, iterations=12))
+    statistics = search_statistics(result, 1., search, step=1)
+    selected = result.selected
+    assert statistics['selected_value'] == {
+        'visits': selected.visits, 'reward': selected.reward,
+        'mean_return': selected.mean_value,
+        'deepest_feasible_depth': selected.info['deepest_feasible_depth'],
+        'observed_path_return': selected.info['descendant_path_return'],
+        'score': selected.info['final_selection_score'],
+    }

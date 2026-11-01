@@ -74,13 +74,13 @@ def test_posegen_capacity_fields_are_loaded_recorded_and_validated(tmp_path, fie
 
 
 @pytest.mark.parametrize("key", ["validate_descendant_path", "validate_descendant_depth",
-                                "require_validated_descendant", "mode"])
+                                "require_validated_descendant", "descendant_depth", "mode"])
 def test_removed_validation_flags_fail_with_migration_message(tmp_path, key):
     values = yaml.safe_load((CONFIG / "mcts_cuda.yml").read_text())
     values["final_selection"][key] = 1
     path = tmp_path / "mcts.yml"
     path.write_text(yaml.safe_dump(values))
-    with pytest.raises(ValueError, match="descendant_depth"):
+    with pytest.raises(ValueError, match="max_weight"):
         load_mcts_profile(path)
 
 

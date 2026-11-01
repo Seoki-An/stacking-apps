@@ -77,7 +77,7 @@ def test_config_rejects_invalid_search_values() -> None:
         FinalSelectionConfig(mode="unknown")
     with pytest.raises(ValueError, match="maximum weight"):
         FinalSelectionConfig(max_weight=1.1)
-    with pytest.raises(ValueError, match="descendant depth"):
+    with pytest.raises(TypeError, match="descendant_depth"):
         FinalSelectionConfig(descendant_depth=-1)
     with pytest.raises(ValueError, match="retry rounds"):
         _config(rejected_root_retry_rounds=-1)

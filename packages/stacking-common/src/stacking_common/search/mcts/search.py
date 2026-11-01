@@ -1408,34 +1408,26 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             counters.root_validation_failures += sum(child.failed for child in batch)
 
     def _final_select(self, root):
-        """Rank every feasible root; missing descendant evidence is not a veto.
+        """Mix search means with observed returns on each root's deepest paths.
 
-        Depth is the horizon for the optional path-return component. A candidate
-        without a complete path uses its mean, including backed-up failures.
+        Every evaluated feasible root participates, including a root-only path.
+        The path component contains no bootstrap and never skips a bad suffix
+        in favor of a shallower prefix. Failure penalties remain in the mean.
         """
-        children = root.evaluated_children()
-        if not children:
-            return None, ()
-        paths = {
-            child: self._known_descendant_return(
-                child, min(self.config.final_selection.descendant_depth,
-                           max(self.config.max_depth - child.depth, 0)),
-            )
-            for child in children
-        }
-        weight = self.config.final_selection.max_weight
         scored = []
-        for child in children:
+        weight = self.config.final_selection.max_weight
+        for child in root.evaluated_children():
+            depth, path = self._deepest_feasible_return(child)
             mean = float(child.mean_value)
-            path = paths[child]
-            fallback = path is None or not math.isfinite(path)
-            score = mean if fallback else (1.0 - weight) * mean + weight * path
+            score = (1.0 - weight) * mean + weight * path
+            # Remove diagnostics from the old fixed-depth selection on reused trees.
+            for key in ("descendant_depth_satisfied", "descendant_depth_fallback",
+                        "descendant_depth_eligible", "final_selection_used_mean_fallback"):
+                child.info.pop(key, None)
             child.info.update(
-                descendant_depth_satisfied=not fallback,
-                descendant_depth_fallback=fallback,
                 descendant_path_return=path,
-                final_selection_used_mean_fallback=fallback,
-                final_selection_max_weight=self.config.final_selection.max_weight,
+                deepest_feasible_depth=depth,
+                final_selection_max_weight=weight,
                 final_selection_score=float(score),
             )
             if math.isfinite(score):
@@ -1444,20 +1436,25 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         ranked = tuple(child for child, _ in scored)
         return (ranked[0] if ranked else None), ranked
 
-    def _known_descendant_return(self, node, remaining_depth):
-        if not node.evaluated or not node.selectable:
-            return None
-        reward = float(node.reward)
-        if remaining_depth <= 0 or node.terminal:
-            return reward
-        values = [
-            self._known_descendant_return(child, remaining_depth - 1)
-            for child in node.evaluated_children()
-        ]
-        values = [value for value in values if value is not None]
-        if not values:
-            return None
-        return reward + self.config.discount * max(values)
+    def _deepest_feasible_return(self, node):
+        """Return (absolute search depth, discounted observed return).
+
+        Depth takes priority within a root's subtree; return breaks depth ties.
+        Pending/rejected transitions never extend a path. A terminal state or
+        the current search horizon ends it even if retained children exist.
+        """
+        depth, value = node.depth, float(node.reward)
+        next_index = None
+        if not node.terminal and node.depth < self.config.max_depth:
+            tails = [(child, self._deepest_feasible_return(child))
+                     for child in node.evaluated_children()]
+            if tails:
+                best, (depth, tail) = max(tails, key=lambda item: item[1])
+                next_index = node.children.index(best)
+                value += self.config.discount * tail
+        node.info.update(deepest_feasible_depth=depth, descendant_path_return=value,
+                         deepest_path_child_index=next_index)
+        return depth, value
 
     def _root_batch_size(self) -> int:
         return min(

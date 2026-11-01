@@ -103,7 +103,7 @@ def test_tabletop_composition_loads_and_builds_native_mcts_path() -> None:
     assert application.mcts_profile.tree.root_lookahead
     assert application.mcts_profile.tree.rejected_root_retry_rounds == 3
     assert application.mcts_profile.tree.final_selection.max_weight == 0.5
-    assert application.mcts_profile.tree.final_selection.descendant_depth == 2
+    assert not hasattr(application.mcts_profile.tree.final_selection, "descendant_depth")
     assert application.mcts_profile.parallel.enabled
     assert application.mcts_profile.parallel.effective_workers == 12
     assert application.mcts_profile.root_cem.height_map_score_weight == 1.0

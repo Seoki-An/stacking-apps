@@ -541,8 +541,13 @@ def _best_sequence(node: MCTSNode) -> tuple[SceneObjectPose, ...]:
                         current.action.object_index,
                     )
                 )
-        children = current.evaluated_children()
-        current = max(children, key=lambda value: value.mean_value, default=None)
+        if "deepest_path_child_index" in current.info:
+            index = current.info["deepest_path_child_index"]
+            current = None if index is None else current.children[index]
+        else:
+            # Trees projected without final ranking retain the historical view.
+            children = current.evaluated_children()
+            current = max(children, key=lambda value: value.mean_value, default=None)
     return tuple(result)
 
 

@@ -53,6 +53,13 @@ retained root candidates failed physical validation, exhausting step 17 in
 11.9 s. These short tests establish the gate's behavior and exhaustion risk,
 not an improvement in full-wall construction.
 
+### Deepest observed-path selection (2026-10-31)
+
+The fixed `descendant_depth` eligibility gate has been removed. Final ranking
+mixes the search mean with actual rewards on each root candidate's deepest
+feasible paths, without bootstrapping the path component. See Final selection
+below. The mix weight and bootstrap mean remain independently configurable.
+
 ### Soft previous-action distance (2026-10-30)
 
 Both platform profiles select `planar.connectivity: previous_action_soft`.
@@ -118,35 +125,40 @@ Select from the evaluated tree, without generating or simulating anything
 
 ## Final selection
 
-`final_selection.descendant_depth` replaces `validate_descendant_path`,
-`validate_descendant_depth`, and `require_validated_descendant`. It counts evaluated,
-feasible edges **below each root candidate**. It is capped by the remaining search
-horizon, and a successful terminal state satisfies the rest of the horizon.
-Pending or rejected nodes do not count. Thus a depth-1 warmup requires no further
-descendants even if the configured descendant depth is two.
-
-For each candidate n, recursively compute the best existing return to that depth:
+Every evaluated, physically feasible root candidate is ranked. For each root,
+find its deepest evaluated feasible paths, bounded by the current search horizon,
+and take the largest discounted observed return among paths at that depth.
+Depth is measured from the current search root (root action is depth 1).
 
 ```text
-PathReturn(n, d):
-    If n is pending or rejected: return unavailable
-    If d = 0 or n is successful terminal: return r(n)
-    tails = available PathReturn(child, d - 1) over feasible children
-    If tails is empty: return unavailable
-    Return r(n) + gamma * max(tails)
+DeepestReturn(n):
+    tails = DeepestReturn(c) for evaluated feasible children c
+            (none for a terminal node or at the current depth limit)
+    If tails is empty: return (depth(n), r(n))
+    (d, G) = lexicographic maximum of tails by depth, then return
+    Return (d, r(n) + gamma * G)
+
+For each evaluated feasible root action a:
+    (_, G) = DeepestReturn(a)
+    score(a) = (1 - max_weight) * mean_return(a) + max_weight * G
+Select the highest score
 ```
 
-Rank **every physically feasible root**. For a candidate with a complete path
-return G, use `(1 - max_weight) * mean_return + max_weight * G`. For a candidate
-without that path, use its mean return and record `descendant_depth_fallback=true`
-and `final_selection_used_mean_fallback=true`, even when other roots have paths.
-The mean retains the existing backed-up failure penalties. Missing evidence is
-not a physical failure, and failed candidates remain excluded.
+There is no fixed depth eligibility gate or mean-only fallback. A root-only
+path contributes its immediate reward to the same mix. Pending/rejected nodes
+cannot extend a path; a successful terminal node ends it. Retained children
+past the current horizon are ignored. The mean includes existing bootstrap and
+descendant failure penalties; the path component contains only observed rewards.
+A worse evaluated suffix cannot be omitted just to obtain a higher prefix score.
+This is a soft preference, not a statistical confidence or physical guarantee:
+returns on paths of different lengths are not identical-horizon estimates.
 
-`descendant_depth` is only the path-score horizon, capped by the search horizon.
-Weight zero therefore ranks all feasible roots solely by mean return. Weight one
-uses a complete path where available and mean otherwise. No path repair, extra
-simulation, or additional eligibility setting is introduced.
+`final_selection` now contains only `max_weight`; old YAML `descendant_depth`
+keys are rejected with a migration message. Historical `.stack` records remain
+readable and keep their original saved values. New statistics record selected
+visits, mean, deepest depth, observed path return, and mixed score. The viewer's
+best sequence follows the path used for the observed-return component.
+No additional simulation, generation, or repair occurs during final ranking.
 
 ## Configuration and reuse
 
