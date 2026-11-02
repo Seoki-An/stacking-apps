@@ -103,12 +103,16 @@ def test_console_surface_controls_match_and_keep_camera(platform, monkeypatch):
             super().__init__(parent)
             self.modes, self.resets = [], []
             self.transparency = []
+            self.backgrounds = []
 
         def set_transparent_stones(self, enabled):
             self.transparency.append(enabled)
 
         def set_object_geometry_mode(self, mode):
             self.modes.append(mode)
+
+        def set_white_background(self, enabled):
+            self.backgrounds.append(enabled)
 
         def render_frame(self, frame, *, reset_camera, **kwargs):
             self.resets.append(reset_camera)
@@ -136,6 +140,13 @@ def test_console_surface_controls_match_and_keep_camera(platform, monkeypatch):
         window.transparent_stones_action.trigger()
         assert window.scene_view.transparency == [True, False]
         assert window.scene_view.resets[-2:] == [False, False]
+        assert not window.white_background_action.isChecked()
+        window.white_background_action.trigger()
+        window._refresh_scene()
+        assert window.white_background_action.isChecked()
+        window.white_background_action.trigger()
+        assert window.scene_view.backgrounds == [True, False]
+        assert window.scene_view.resets[-3:] == [False, False, False]
         robots = window.plan_view.robot_geometry_selector
         assert [robots.itemText(i) for i in range(robots.count())] == [
             "Visual meshes", "Collision meshes", "Visual + collision wireframe"]

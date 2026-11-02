@@ -304,6 +304,11 @@ their original opacity. Ground, target, robot, and obstacle materials are
 unchanged. The option preserves the camera, applies to trajectory video exports,
 and does not modify the saved run. Turn it off to restore normal stone opacities.
 
+The **White background** toggle in the same toolbar switches the 3D view to
+white with dark scene labels. It preserves the camera and stays selected across
+step changes, refreshes, and rendering-layer changes. Turn it off to restore the
+dark background. Trajectory video exports use the selected background.
+
 ## Native `.stack` run document
 
 In both Operations Consoles, select a step in **Search Inspector** and read

@@ -164,6 +164,11 @@ class StackingOperationsWindow(QMainWindow):
             "Show all stone meshes at up to 35% opacity; leave the environment unchanged.")
         self.transparent_stones_action.toggled.connect(self._stone_transparency_changed)
         rendering.addAction(self.transparent_stones_action)
+        self.white_background_action = QAction("White background", self)
+        self.white_background_action.setCheckable(True)
+        self.white_background_action.setToolTip("Use a white background in the 3D view.")
+        self.white_background_action.toggled.connect(self._background_changed)
+        rendering.addAction(self.white_background_action)
         rendering.addWidget(QLabel("Robot / gripper: "))
         self.robot_geometry_selector = QComboBox()
         plan_selector = self.plan_view.robot_geometry_selector
@@ -181,6 +186,10 @@ class StackingOperationsWindow(QMainWindow):
 
     def _stone_transparency_changed(self, enabled):
         self.scene_view.set_transparent_stones(enabled)
+        self._refresh_scene()
+
+    def _background_changed(self, enabled):
+        self.scene_view.set_white_background(enabled)
         self._refresh_scene()
 
     def _object_geometry_changed(self, _index):

@@ -491,7 +491,7 @@ def test_stone_actor_keeps_mesh_in_local_coordinates():
     assert view.add_mesh.call_args.args[0] is mesh
     np.testing.assert_allclose(mesh.points, points)
     np.testing.assert_allclose(view.add_mesh.return_value.user_matrix[:3, 3], value.pose[:3])
-    assert view.add_mesh.call_args.kwargs["color"] == "#808080"
+    assert view.add_mesh.call_args.kwargs["color"] == "#a8a8a8"
 
 
 def test_collision_normals_are_outward_and_visual_vertex_colors_survive():

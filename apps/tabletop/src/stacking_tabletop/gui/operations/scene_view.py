@@ -31,7 +31,7 @@ _COLORS = (
 # fully rough defaults.  VTK's Phong material is glossier by default, so keep
 # its response diffuse while smoothing only the reconstructed stone normals.
 _LEGACY_BACKGROUND = "#1f1f1f"
-_LEGACY_SCENE_STONE = "#808080"
+_LEGACY_SCENE_STONE = "#a8a8a8"
 _LEGACY_KEY_LIGHT_ELEVATION = 45.0
 _LEGACY_KEY_LIGHT_AZIMUTH = -35.0
 _LEGACY_KEY_LIGHT_INTENSITY = 0.8
@@ -67,6 +67,7 @@ class OperationsSceneView(QtInteractor):
         self._mesh_cache: dict[tuple[Path, str], pv.DataSet] = {}
         self._object_geometry_mode = "dsf"
         self._transparent_stones = False
+        self._white_background = False
         self._robot_mesh_cache: dict[tuple[Path, str], pv.DataSet] = {}
         self.show_empty()
 
@@ -77,7 +78,7 @@ class OperationsSceneView(QtInteractor):
             self.add_text(
                 "Open a stacking run in Search Inspector",
                 position="upper_left",
-                color="#d5dbe3",
+                color=self._text_color,
                 font_size=11,
             )
         finally:
@@ -165,7 +166,7 @@ class OperationsSceneView(QtInteractor):
         self.add_text(
             f"Step {frame.step}",
             position="upper_left",
-            color="#d5dbe3",
+            color=self._text_color,
             font_size=11,
         )
         if previous_camera is not None:
@@ -183,14 +184,22 @@ class OperationsSceneView(QtInteractor):
     def _prepare_scene(self, *, translucent: bool = False) -> None:
         self._last_robot_scene_key = None
         self.clear()
-        self.set_background(_LEGACY_BACKGROUND)
+        self.set_background("#ffffff" if self._white_background else _LEGACY_BACKGROUND)
         self._configure_legacy_lighting()
         configure_scene_passes(
             self, translucent=translucent,
             occlusion_radius=_LEGACY_OCCLUSION_RADIUS,
             occlusion_bias=_LEGACY_OCCLUSION_BIAS,
         )
-        self.add_axes()
+        self.add_axes(color=self._text_color)
+
+    @property
+    def _text_color(self):
+        return "#252525" if self._white_background else "#d5dbe3"
+
+    def set_white_background(self, enabled: bool) -> None:
+        self._white_background = bool(enabled)
+        self._last_robot_scene_key = None
 
     def _configure_legacy_lighting(self) -> None:
         """Use one fixed rough-surface key light instead of camera lights."""
