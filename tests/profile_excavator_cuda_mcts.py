@@ -107,7 +107,7 @@ def main():
         (CorePlacementBackend, 'place', 'cpu_placement_worker'),
         (CorePlacementBackend, '_settle', 'cpu_settling_worker'),
         (CorePlacementBackend, '_simulate_structural', 'cpu_structural_worker'),
-        (robustness, '_simulate_velocity_disturbance', 'cpu_robustness_trial_worker'),
+        (robustness, '_simulate_disturbance', 'cpu_robustness_trial_worker'),
         (StackingEnvironmentEvaluator, 'evaluate', 'transition_single'),
         (StackingEnvironment, 'step_batch', 'environment_batch'),
         (StackingEnvironment, '_step_results', 'reward_observation_batch_wall'),

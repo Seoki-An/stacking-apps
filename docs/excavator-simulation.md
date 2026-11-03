@@ -149,37 +149,42 @@ xvfb-run -a env QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 \
 
 Both platforms configure `reward.place_stability` in `config/environment.yml`.
 After a placement passes nominal physical checks **and settles**, each trial
-starts from the final structural snapshot. Residual velocities are reset; only
-the newly placed stone receives an initial velocity. Stones within `contact_hops`
-of the candidate remain movable; distant stones retain collision geometry but
-are frozen. Pose-identified and structurally frozen stones remain fixed. Trials
+starts from the final structural snapshot with residual velocities reset. Trials
 do not alter the committed scene, action, or nominal trajectories.
 
 | Field under `reward.place_stability` | Excavator | Tabletop |
 | --- | --- | --- |
 | `enabled` | `true` | `true` |
-| `n_noise` (direction count) | 4 | 4 |
-| `linear_velocity_magnitude` (world XYZ amplitudes, m/s) | `[0.15, 0.15, 0.05]` | `[0.02, 0.02, 0.02]` |
-| `contact_hops` | 2 | 2 |
+| `n_noise` (direction count) | 8 | 4 |
+| `force_ratio` | 0.05 | unset |
+| `force_duration` (seconds) | 1.0 | unused |
+| `linear_velocity_magnitude` (m/s) | unset | `[0.02, 0.02, 0.02]` |
+| `contact_hops` | `null` (all stones) | 2 |
 | `rotation_weight` (metres/radian) | 0.1 | 0.01 |
 | `reject_failed_trials` | `true` | `true` |
 | `fail_displacement` (metres of combined excursion) | 0.15 | 0.015 |
 
-For `N = n_noise` and magnitudes `[vx, vy, vz]`, trial `k = 0, ..., N-1` uses
-`theta = 2*pi*k/N`, world velocity `[vx*cos(theta), vy*sin(theta), -vz]`, and
-zero angular velocity. Equal XY amplitudes give a circle; unequal amplitudes
-give an ellipse. Downward Z is included in every trial, not a separate trial.
-Four directions cover +X, +Y, -X, -Y; eight add the diagonals. Even counts give
-opposing pairs. Increasing the count changes angular resolution, not speed.
-Directions do not depend on the step, object ID, or seed, so all candidates face
-the same disturbances. Rotation caused by contact still contributes to the score.
+For `N = n_noise`, trial `k` uses `theta = 2*pi*k/N`. Excavator applies the
+world-frame force `force_ratio * m * |g| * [cos(theta), sin(theta), 0]` at the
+candidate's centre of mass for `force_duration`, then lets the scene recover.
+There is no imposed initial velocity or applied torque. Contact can induce
+rotation. CPU and CUDA apply the force directly in their momentum equations;
+CUDA uses one device-resident rollout, preserving contact warm starts and
+histories across force release. Settling cannot finish before the pulse ends.
+The pulse is rounded up to complete simulation timesteps.
 
-The magnitudes are provisional platform settings and should be calibrated to
-release velocities. A fixed magnitude is not statistically equivalent to the
-previous Gaussian standard deviation. Historical profiles without
-`linear_velocity_magnitude` retain their seeded Gaussian linear/angular trials
-for replay; new platform profiles use the directional pattern. Mixing fixed
-magnitudes with nonzero Gaussian settings raises a configuration error.
+Tabletop retains initial velocity `[vx*cos(theta), vy*sin(theta), -vz]` with
+zero angular velocity. Equal XY amplitudes give a circle; unequal amplitudes
+an ellipse. Historical profiles without fixed magnitudes or a force ratio keep
+their seeded Gaussian velocities. Force probes and velocity settings cannot
+be combined in one profile. Directions are independent of object ID and seed.
+
+Stones within `contact_hops` remain movable; distant stones retain collision
+geometry but are frozen. `null` includes all dynamic stones, as used for the
+excavator force calibration. Structurally fixed stones remain fixed. The
+0.05mg setting is a conservative starting disturbance criterion, not a
+real-world stability certificate; 134 saved scenes from three plans were
+measured, with numerical checks at higher iteration budgets and finer timesteps.
 
 The score is the largest **peak** excursion across trials and dynamic bodies:
 translation from that body's nominal settled position plus `rotation_weight`
@@ -220,7 +225,7 @@ quiet-window bounds. Energy must remain below threshold for the quiet window
 for **all dynamic bodies**. The cumulative speed-integral cutoff is disabled for
 intentional disturbances. CUDA uses the existing multi-body phase stopping rule;
 its older single-body `CudaRobustnessStopping` is not used. Per-step histories
-are downloaded in batches sized to an estimated 512 MiB sample-storage budget,
+are downloaded in batches sized to an estimated 1536 MiB sample-storage budget,
 then discarded. This is not a total simulator memory limit.
 
 If energy settling is not reached, each body's terminal-window motion can still
@@ -232,7 +237,8 @@ and excursion above `fail_displacement` always reject. Excursion failures use
 The candidate rejection is `place_robustness`; nominal physical failures retain
 precedence and skip disturbance trials.
 
-Diagnostics include `place_robustness_model: velocity_disturbance`,
+Diagnostics include `place_robustness_model` (`force_disturbance` or
+`velocity_disturbance`), force ratio/duration for force probes,
 `place_robustness_evaluated`, per-trial excursions/outcomes/failure reasons, raw
 score, and wall time. An enabled but unevaluated trial set means nominal
 validation did not provide an eligible settled scene. Ordinary structural

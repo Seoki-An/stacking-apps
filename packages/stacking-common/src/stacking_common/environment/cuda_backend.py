@@ -10,7 +10,7 @@ import numpy as np
 from stacking_common.domain import StackObjectTrajectory
 
 from .core_backend import CorePlacementBackend, _StructuralSimulation
-from .robustness import disturbance_scene, disturbance_phase, scene_trial_outcome, robustness_dynamic_entities
+from .robustness import disturbance_scene, disturbance_phase, scene_trial_outcome, robustness_dynamic_entities, disturbance_forces, disturbance_force_steps
 from .transition import PlacementResult
 
 
@@ -354,6 +354,11 @@ class CudaPlacementBackend(CorePlacementBackend):
                 initial = {body.id: np.asarray(body.pose) for body in scene.bodies
                            if body.mobility == self.core.Mobility.DYNAMIC}
                 phase = self._robustness_phase(phase_config, initial)
+                if config.force_ratio is not None:
+                    if not hasattr(phase, 'external_forces'):
+                        raise RuntimeError('rebuild stacking-core for native robustness force pulses')
+                    phase.external_forces = disturbance_forces(self, snapshot, action, number)
+                    phase.external_force_steps = disturbance_force_steps(config, phase.dt)
                 problems.append(self._problem(len(problems), scene, self.simulation_config, [phase]))
                 trials.append((i, number, initial, phase_config))
         # Keep every timestep, but compact-capable native builds store only

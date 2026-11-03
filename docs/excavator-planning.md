@@ -55,21 +55,19 @@ See the detailed experiments below for measurements and validation limits:
 
 ## Stability and floor-filling settings
 
-Placement robustness now applies **velocity disturbances**, starting from each
-candidate's final nominal structural snapshot after physical validation and
-settling. Poses stay unchanged. Only the new stone receives velocity; all
-structurally dynamic supporting stones remain dynamic. Pose noise and its
-clearance-repair/lift filter have been removed. See
+Excavator placement robustness applies a horizontal **0.05mg COM force for
+one second**, from each candidate's settled nominal snapshot. Eight equally
+spaced directions are tested with all placed dynamic stones movable. Native
+CPU/CUDA integration applies the pulse without resetting contact warm starts;
+the full peak excursion history includes both pushing and recovery. Tabletop
+retains velocity disturbances. See
 [the current policy and configuration](excavator-simulation.md#placement-robustness-reward)
-for units, defaults, motion metric, and rejection rules.
+for units, defaults, motion metrics, and rejection rules.
 
-The peak translation-plus-rotation excursion is measured across every dynamic
-body and integration step. Invalid simulations and excessive excursion reject;
-finite unresolved motion follows `reject_failed_trials` (currently true for
-excavator, false for tabletop). CUDA monitors every dynamic body with the ordinary
-phase stopping rule and no cumulative-motion cutoff. Existing memory-bounded
-history downloads are retained. Provisional velocity scales need physical
-calibration; these trials do not test geometric insertion feasibility.
+Invalid simulations and excessive excursion reject. Every dynamic body must
+recover through energy settling or configured bounded-rocking tolerances when
+`reject_failed_trials` is true. These trials do not test geometric insertion
+feasibility. Historical measurements below retain the policy used at the time.
 
 ### Historical pose-noise policy measurements
 

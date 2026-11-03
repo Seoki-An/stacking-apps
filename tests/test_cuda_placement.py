@@ -120,7 +120,7 @@ def test_velocity_disturbance_cpu_cuda_parity(backends, directional):
 
 
 def test_falling_disturbance_trial_exceeds_excursion_limit_on_cpu_and_cuda(backends):
-    from stacking_common.environment.robustness import _simulate_velocity_disturbance
+    from stacking_common.environment.robustness import _simulate_disturbance
     cpu, gpu = backends
     policy = PlaceStabilityConfig(True, 1, fail_displacement=.02, reject_failed_trials=True,
         settling_position_tolerance=.002, settling_rotation_tolerance_deg=.5)
@@ -131,7 +131,7 @@ def test_falling_disturbance_trial_exceeds_excursion_limit_on_cpu_and_cuda(backe
         backend.place_stability = policy
         backend.simulation_config = physics
     snapshot = cpu._scene(state(), action, [0], dynamic_indices={0})
-    peak, reason = _simulate_velocity_disturbance(cpu, state(), action, snapshot, np.zeros(3), np.zeros(3), {1})
+    peak, reason = _simulate_disturbance(cpu, state(), action, snapshot, np.zeros(3), np.zeros(3), {1})
     assert reason == 'excursion_limit' and peak > .02
     # Robustness normally starts from the final structural snapshot. This
     # deliberately raised snapshot exercises a known falling release instead.
@@ -486,3 +486,25 @@ def test_cuda_preparation_failure_drains_native_worker(backends, monkeypatch):
             assert finished.is_set()
         finally:
             release.set()
+
+
+def test_force_robustness_matches_cpu_and_preserves_nominal_scene(backends):
+    cpu, gpu = backends
+    from stacking_common.environment.robustness import evaluate_place_stability
+    cfg = PlaceStabilityConfig(True, 4, force_ratio=.05, force_duration=.04,
+        rotation_weight=.01, fail_displacement=1., reject_failed_trials=True)
+    physics = core.SimulationConfig()
+    physics.gravity = np.array([0., 0., -9.81])
+    source = state()
+    action = Action(0, pose(z=10), pose(z=10), object_id=10)
+    for backend in (cpu, gpu):
+        backend.place_stability = cfg
+        backend.simulation_config = physics
+    snapshot = gpu._scene(source, action, [0], {0})
+    original = np.array(snapshot.body_pose(1))
+    expected = evaluate_place_stability(cpu, source, action, snapshot, ())
+    actual, = gpu._robustness([(source, action, snapshot, ())])
+    np.testing.assert_allclose(actual[1], expected[1], atol=2e-6)
+    assert actual[2] == expected[2]
+    np.testing.assert_array_equal(snapshot.body_pose(1), original)
+    assert source.placed_object_indices == []

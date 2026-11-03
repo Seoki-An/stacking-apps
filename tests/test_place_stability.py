@@ -20,7 +20,6 @@ def pose(z=.2):
 
 
 @pytest.mark.parametrize('platform,magnitude,weight', [
-    ('excavator', [.15, .15, .05], .1),
     ('tabletop', [.02, .02, .02], .01),
 ])
 def test_platform_profiles_cover_signed_xy_with_downward_velocity(platform, magnitude, weight):
@@ -79,7 +78,11 @@ def test_directional_profile_roundtrip_preserves_sampling():
     dict(linear_velocity_magnitude=[1, np.inf, 0]),
     dict(linear_velocity_magnitude=[1, 1, 0], linear_velocity_std=[1, 1, 1]),
     dict(linear_velocity_magnitude=[1, 1, 0], angular_velocity_std_deg=5.),
-    dict(contact_hops=-1), dict(contact_hops=True), dict(contact_hops=1.5), dict(contact_hops="2")])
+    dict(force_ratio=-1), dict(force_ratio=np.inf), dict(force_ratio=True),
+    dict(force_duration=0), dict(force_duration=np.nan),
+    dict(force_ratio=.05, linear_velocity_magnitude=[0, 0, 0]),
+    dict(force_ratio=.05, linear_velocity_std=[.1, 0, 0]),
+    dict(force_ratio=.05, angular_velocity_std_deg=1), dict(contact_hops=-1), dict(contact_hops=True), dict(contact_hops=1.5), dict(contact_hops="2")])
 def test_invalid_settings_are_rejected(changes):
     with pytest.raises(ValueError):
         PlaceStabilityConfig(**changes)
@@ -108,14 +111,14 @@ def test_worst_trial_preserves_nominal_snapshot_and_state(monkeypatch, failed_tr
     snapshot = NS(bodies=[])
     backend.core = NS(Mobility=NS(DYNAMIC="dynamic"))
     calls = []
-    def simulate(b, s, a, nominal, linear, angular, dynamic):
+    def simulate(b, s, a, nominal, linear, angular, dynamic, trial):
         assert dynamic == set()
         assert b is backend and s is state and a is action and nominal is snapshot
         calls.append((linear, angular))
         if failed_trial and len(calls) == 2:
             return np.inf, 'nonfinite_simulation'
         return .01 * len(calls), None
-    monkeypatch.setattr(module, '_simulate_velocity_disturbance', simulate)
+    monkeypatch.setattr(module, '_simulate_disturbance', simulate)
     maximum, values, reasons = evaluate_place_stability(backend, state, action, snapshot)
     assert len(values) == len(reasons) == len(calls) == 3
     assert maximum == pytest.approx(np.inf if failed_trial else .03)
@@ -350,3 +353,37 @@ def test_local_trial_freezes_only_distant_stones_without_changing_nominal_scene(
         np.testing.assert_array_equal(before.linear, np.ones(3))
         np.testing.assert_array_equal(after.linear, v if before.id == 1 else np.zeros(3))
         np.testing.assert_array_equal(after.angular, w if before.id == 1 else np.zeros(3))
+
+
+def test_excavator_profile_uses_eight_weight_normalized_force_probes():
+    from stacking_common.environment.robustness import disturbance_forces
+    config = load_environment_profile(ROOT / 'apps/excavator/config/environment.yml').place_stability
+    assert config.active and config.n_noise == 8 and config.contact_hops is None
+    assert config.force_ratio == .05 and config.force_duration == 1.
+    backend = make_backend(config)
+    backend.reset([10])
+    source = State([10], [], {}, [], [])
+    action = Action(0, pose(), pose(), object_id=10)
+    snapshot = backend._scene(source, action, [0], {0})
+    forces = np.array([disturbance_forces(backend, snapshot, action, n)[1] for n in range(8)])
+    np.testing.assert_allclose(np.linalg.norm(forces, axis=1), .05 * 9.81)
+    np.testing.assert_array_equal(forces[:, 2], 0.)
+    np.testing.assert_allclose(forces[4:], -forces[:4], atol=1e-15)
+    np.testing.assert_array_equal(list(config.velocity_disturbances(step=1, object_index=0, object_id=10)), 0.)
+    from dataclasses import asdict
+    assert PlaceStabilityConfig.from_mapping(asdict(config)) == config
+    backend.close()
+
+
+def test_force_pulse_rounds_up_and_requires_recovery_time():
+    from stacking_common.environment.robustness import disturbance_phase, disturbance_force_steps
+    backend = make_backend(PlaceStabilityConfig(True, 1, force_ratio=.05, force_duration=.011))
+    backend.reset([10])
+    phase = disturbance_phase(backend, State([10], [], {}, [], []))
+    assert phase.dt == .02
+    assert disturbance_force_steps(backend.place_stability, phase.dt) == 1
+    assert phase.min_time == .02
+    backend.place_stability = replace(backend.place_stability, force_duration=.1)
+    with pytest.raises(ValueError, match='leave time for recovery'):
+        disturbance_phase(backend, State([10], [], {}, [], []))
+    backend.close()

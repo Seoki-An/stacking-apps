@@ -16,14 +16,13 @@ reward:
   max_displacement: 1.0
   # Reward unit in metres of combined excursion; matches the current failure limit.
   displacement_reference: 0.15
-  # Velocity disturbances from the nominal settled scene; poses stay unchanged.
+  # Horizontal COM-force probes from the nominal settled scene.
   place_stability:
     enabled: true
-    n_noise: 4  # Number of equally spaced XY directions; each also moves downward.
-    # Movable contact neighborhood: 0=candidate only, N=contact links, null=all stones.
-    contact_hops: 2
-    # Provisional disturbance magnitudes; calibrate to release velocity measurements.
-    linear_velocity_magnitude: [0.15, 0.15, 0.05]  # [XY cosine, XY sine, downward Z] m/s; angular velocity is zero.
+    n_noise: 8  # Equally spaced world XY directions.
+    contact_hops: null  # All placed stones remain movable.
+    force_ratio: 0.05  # Force = ratio * candidate mass * gravity magnitude.
+    force_duration: 1.0  # Seconds; then observe free recovery.
     rotation_weight: 0.1
     # Require recovery (energy settling or bounded rocking) in every trial.
     reject_failed_trials: true

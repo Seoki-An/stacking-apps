@@ -1,4 +1,4 @@
-"""Placement robustness under velocity disturbances of the settled scene."""
+"""Placement robustness under velocity kicks or sustained COM forces."""
 
 from dataclasses import dataclass, replace
 from collections.abc import Mapping
@@ -21,6 +21,10 @@ class PlaceStabilityConfig:
     contact_hops: int | None = None
     # Fixed world XYZ amplitudes. None preserves historical Gaussian profiles.
     linear_velocity_magnitude: tuple[float, float, float] | None = None
+
+    # A ratio selects a horizontal force pulse instead of initial-velocity noise.
+    force_ratio: float | None = None
+    force_duration: float = 1.0
 
     def __post_init__(self):
         if not isinstance(self.enabled, bool):
@@ -48,6 +52,16 @@ class PlaceStabilityConfig:
             if np.any(std != 0) or self.angular_velocity_std_deg != 0:
                 raise ValueError('directional velocities cannot be combined with Gaussian velocity settings')
             object.__setattr__(self, 'linear_velocity_magnitude', tuple(float(v) for v in magnitude))
+        if (not np.isfinite(self.force_duration) or self.force_duration <= 0
+                or isinstance(self.force_duration, bool)):
+            raise ValueError('place_stability.force_duration must be finite and positive')
+        if self.force_ratio is not None:
+            if (isinstance(self.force_ratio, bool) or not np.isfinite(self.force_ratio)
+                    or self.force_ratio < 0):
+                raise ValueError('place_stability.force_ratio must be finite and non-negative')
+            if (self.linear_velocity_magnitude is not None or np.any(std != 0)
+                    or self.angular_velocity_std_deg != 0):
+                raise ValueError('force probes cannot be combined with initial-velocity disturbances')
         limits = (self.angular_velocity_std_deg, self.rotation_weight,
                   self.settling_position_tolerance, self.settling_rotation_tolerance_deg)
         if self.fail_displacement is not None:
@@ -85,12 +99,18 @@ class PlaceStabilityConfig:
         )
 
     def velocity_disturbances(self, *, step, object_index, object_id):
-        """Circular world XY kicks with downward Z and zero angular velocity.
+        """Initial trial velocities; force probes start at rest.
+
+        Velocity probes use circular XY kicks with downward Z and zero spin.
 
         Equal XY amplitudes form a circle; unequal ones form an ellipse.
         Every candidate uses the same directions, starting at +X. Historical
         profiles without fixed magnitudes retain their seeded Gaussian trials.
         """
+        if self.force_ratio is not None:
+            for _ in range(self.n_noise if self.active else 0):
+                yield np.zeros(3), np.zeros(3)
+            return
         if self.linear_velocity_magnitude is not None:
             vx, vy, vz = self.linear_velocity_magnitude
             for index in range(self.n_noise if self.active else 0):
@@ -211,12 +231,38 @@ def disturbance_scene(backend, snapshot, action, linear, angular, dynamic_entiti
     return backend.core.SceneSnapshot(snapshot.frame_id, bodies)
 
 
+def disturbance_forces(backend, snapshot, action, trial):
+    """World-frame force alpha*m*|g| at the candidate COM, with no applied torque."""
+    config = backend.place_stability
+    if config.force_ratio is None:
+        return {}
+    entity = backend.scene_builder.entity_id(action.object_index)
+    body = next(body for body in snapshot.bodies if body.id == entity)
+    theta = 2 * np.pi * trial / config.n_noise
+    direction = np.array([np.cos(theta), np.sin(theta), 0.])
+    physics = (backend.simulation_config if backend.simulation_config is not None
+               else backend.core.SimulationConfig())
+    return {entity: config.force_ratio * body.model.mass *
+            np.linalg.norm(physics.gravity) * direction}
+
+
+def disturbance_force_steps(config, dt):
+    return (max(1, int(np.ceil(config.force_duration / dt - 1e-9)))
+            if config.force_ratio is not None else 0)
+
+
 def disturbance_phase(backend, state):
     phase = backend.config.structural
     extra = phase.extra_steps
     if len(state.placed_object_indices) + 1 == len(backend.object_ids):
         extra = phase.final_extra_steps or 2 * extra
-    return replace(phase, dt=2 * phase.dt, extra_steps=extra)
+    dt = 2 * phase.dt
+    minimum = phase.min_time
+    if backend.place_stability.force_ratio is not None:
+        minimum = max(minimum, disturbance_force_steps(backend.place_stability, dt) * dt)
+        if minimum >= phase.max_time:
+            raise ValueError('place_stability.force_duration must leave time for recovery before max_time')
+    return replace(phase, dt=dt, extra_steps=extra, min_time=minimum)
 
 
 def scene_trial_outcome(initial, histories, config, phase, *, energy_settled):
@@ -237,24 +283,27 @@ def evaluate_place_stability(backend, state, action, snapshot, contacts=()):
     if not config.active:
         return 0., [], []
     dynamic = robustness_dynamic_entities(backend, snapshot, action, contacts)
-    outcomes = [_simulate_velocity_disturbance(backend, state, action, snapshot, linear, angular, dynamic)
-                for linear, angular in config.velocity_disturbances(
+    outcomes = [_simulate_disturbance(backend, state, action, snapshot, linear, angular, dynamic, trial)
+                for trial, (linear, angular) in enumerate(config.velocity_disturbances(
                     step=len(state.placed_object_indices) + 1,
-                    object_index=action.object_index, object_id=action.object_id)]
+                    object_index=action.object_index, object_id=action.object_id))]
     values, reasons = map(list, zip(*outcomes))
     return max(values), values, reasons
 
 
-def _simulate_velocity_disturbance(backend, state, action, snapshot, linear, angular, dynamic_entities):
+def _simulate_disturbance(backend, state, action, snapshot, linear, angular, dynamic_entities, trial=0):
     scene = disturbance_scene(backend, snapshot, action, linear, angular, dynamic_entities)
     simulator = backend._new_simulator()
     phase = disturbance_phase(backend, state)
     bodies = [body for body in scene.bodies if body.mobility == backend.core.Mobility.DYNAMIC]
     initial = {body.id: np.asarray(body.pose) for body in bodies}
     histories = {body.id: [] for body in bodies}
+    forces = disturbance_forces(backend, snapshot, action, trial)
+    force_steps = disturbance_force_steps(backend.place_stability, phase.dt)
     settled_steps = 0
     for step in range(int(np.floor(phase.max_time / phase.dt + 1e-9)) + 1):
-        scene = simulator.step(scene, phase.dt).snapshot
+        scene = (simulator.step(scene, phase.dt, external_forces=forces)
+                 if forces and step < force_steps else simulator.step(scene, phase.dt)).snapshot
         energies = []
         for body in bodies:
             pose = np.asarray(scene.body_pose(body.id), dtype=float)

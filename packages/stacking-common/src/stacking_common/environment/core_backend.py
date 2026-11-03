@@ -524,7 +524,8 @@ class CorePlacementBackend:
             rejection_reason = 'place_robustness'
         diagnostics.update({
             'place_robustness_enabled': self.place_stability.active,
-            'place_robustness_model': 'velocity_disturbance',
+            'place_robustness_model': ('force_disturbance' if self.place_stability.force_ratio is not None
+                                       else 'velocity_disturbance'),
             'place_robustness_contact_hops': self.place_stability.contact_hops,
             'place_robustness_evaluated': bool(trials),
             'place_robustness_trial_displacements': trials,
@@ -536,6 +537,9 @@ class CorePlacementBackend:
             'simulation_robustness_wall_seconds': time.perf_counter() - robustness_started,
             'simulation_total_wall_seconds': time.perf_counter() - placement_started,
         })
+        if self.place_stability.force_ratio is not None:
+            diagnostics['place_robustness_force_ratio'] = self.place_stability.force_ratio
+            diagnostics['place_robustness_force_duration'] = self.place_stability.force_duration
         if rejection_reason is not None:
             diagnostics["rejection_reason"] = rejection_reason
         return PlacementResult(
