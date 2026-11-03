@@ -47,7 +47,8 @@ def load_stone_meshes(directory, object_ids, mode, recorded_hashes):
     return meshes, sources
 
 
-def render_pose_optimization(directory, meshes, placed_poses, candidate_id, trace, forces):
+def render_pose_optimization(directory, meshes, placed_poses, candidate_id, trace, forces,
+                             framing_poses=(), ground_margin=.8, ghost_count=7):
     """Render canonical meshes/poses and world-frame force incidences in N.
 
     ``forces`` contains (object_id, point, force) tuples. Both sides of a
@@ -55,6 +56,10 @@ def render_pose_optimization(directory, meshes, placed_poses, candidate_id, trac
     Yellow/green mark the initial/final candidate; gray ghosts show updates.
     Original display meshes retain their geometry and have no edge outlines.
     Mesh transparency is independent of the opaque PNG background.
+    ``framing_poses`` are extra candidate poses the camera must also frame,
+    so traces compared side by side share one view. ``ground_margin`` (m)
+    extends the ground plane beyond the framed objects. ``ghost_count``
+    poses, evenly spaced along the path, are drawn between the endpoints.
     """
     import pyvista as pv
     from scipy.spatial.transform import Rotation
@@ -75,10 +80,10 @@ def render_pose_optimization(directory, meshes, placed_poses, candidate_id, trac
 
     displayed = {i: transformed(meshes[i], p) for i, p in final_poses.items()}
     cloud = np.vstack([m.points for m in displayed.values()] +
-                      [transformed(candidate_mesh, p).points for p in poses])
+                      [transformed(candidate_mesh, p).points for p in [*poses, *framing_poses]])
     low, high = cloud.min(axis=0), cloud.max(axis=0)
     ground_center = (low[:2] + high[:2]) / 2
-    ground_size = high[:2] - low[:2] + .8
+    ground_size = high[:2] - low[:2] + ground_margin
     ground_corners = np.array([[ground_center[0] + x * ground_size[0] / 2,
                                 ground_center[1] + y * ground_size[1] / 2, 0.]
                                for x in (-1, 1) for y in (-1, 1)])
@@ -103,7 +108,7 @@ def render_pose_optimization(directory, meshes, placed_poses, candidate_id, trac
     angles = (rotations[:-1].inv() * rotations[1:]).magnitude()
     distance = np.r_[0., np.cumsum(np.linalg.norm(np.diff(poses[:, :3], axis=0), axis=1)
                                  + radius * angles)]
-    ghost_indices = np.unique(np.r_[0, np.searchsorted(distance, np.linspace(0, distance[-1], 7)),
+    ghost_indices = np.unique(np.r_[0, np.searchsorted(distance, np.linspace(0, distance[-1], ghost_count)),
                                     len(poses)-1])
     colors = dict(ground="#5a5046", stone="#808080", initial="#c5bf22", final="#24b33a",
                   ghost="#c0c0c0", force="#ed2525")

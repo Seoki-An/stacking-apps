@@ -17,7 +17,7 @@ Single-stone equilibrium accepts the cube anywhere on the plank, including
 the overhang that tips it. Structure equilibrium moves the cube over the
 pillar. Posegen models each body pair as one contact point, so it treats the
 plank as pivoting on a point and centers the cube, while simulation keeps the
-stack up anywhere within roughly |x| <= 0.25 m.
+stack up anywhere within roughly |x| <= 0.25 m (0.075 m for a 0.15 m pillar).
 
     python tests/posegen_structure_toy.py [--plot toy.png]
 """
@@ -61,9 +61,8 @@ def pose(x, z):
     return np.array([x, 0.0, z, 0.0, 0.0, 0.0, 1.0])
 
 
-def box(object_id, mass_factor=1.0):
-    sx, sy, sz = SIZES[object_id]
-    mass = MASSES[object_id] * mass_factor
+def box(object_id, size, mass):
+    sx, sy, sz = size
     points = 0.5 * np.array([[-sx, -sy, -sz], [sx, -sy, -sz], [sx, sy, -sz], [-sx, sy, -sz],
                              [-sx, -sy, sz], [sx, -sy, sz], [sx, sy, sz], [-sx, sy, sz]])
     inertia = mass / 12 * np.diag([sy**2 + sz**2, sx**2 + sz**2, sx**2 + sy**2])
@@ -90,8 +89,10 @@ def simulate(objects, poses, seconds=3.0, dt=0.01):
 
 
 class StructureToy:
-    def __init__(self, mass_factor=1.0):
-        self.objects = [box(object_id, mass_factor) for object_id in (PILLAR, PLANK, CUBE)]
+    def __init__(self, mass_factor=1.0, sizes=None):
+        self.sizes = {**SIZES, **(sizes or {})}
+        self.objects = [box(object_id, self.sizes[object_id], MASSES[object_id] * mass_factor)
+                        for object_id in (PILLAR, PLANK, CUBE)]
         nominal = {PILLAR: pose(0.0, 0.2), PLANK: pose(0.0, 0.45), CUBE: PARKED}
         # DSF boxes are slightly rounded; place the base where physics settles it.
         settled = simulate(self.objects, nominal)
@@ -148,7 +149,7 @@ def plot(toy, rows, path, showcase_x0=0.35):
                          "xtick.color": ink2, "ytick.color": ink2, "text.color": ink})
 
     def draw(ax, object_id, pose_value, **style):
-        sx, _, sz = SIZES[object_id]
+        sx, _, sz = toy.sizes[object_id]
         x, y, z, w = pose_value[3:]
         pitch = np.arctan2(2 * (x * z - w * y), 1 - 2 * (y * y + z * z))
         rect = Rectangle((-sx / 2, -sz / 2), sx, sz, **style)
