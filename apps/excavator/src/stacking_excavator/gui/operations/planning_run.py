@@ -15,6 +15,10 @@ from PySide6.QtWidgets import (
 from stacking_common.artifacts import StackRunStore
 from stacking_common.workflows.planning_output import PlanningRunOutput
 from stacking_common.profiles.targets import target_shape_choices
+from stacking_common.profiles.inventory import load_inventory_profile
+from stacking_common.artifacts.target import target_from_context
+from stacking_common.rendering.target_preview import TargetPreview
+from stacking_common.visualization.contracts import target_display
 from stacking_excavator import ExcavatorApplication
 from stacking_excavator.planning.resume import load_resume_checkpoint
 
@@ -34,7 +38,7 @@ class PlanningRunDialog(QDialog):
         self._run_timer.setInterval(500)
         self._run_timer.timeout.connect(self._check_run_available)
         self.setWindowTitle("Resume excavator planning" if source else "New excavator planning run")
-        self.resize(850, 650)
+        self.resize(1120, 720)
         layout = QVBoxLayout(self)
         self.inputs = QWidget()
         form = QFormLayout(self.inputs)
@@ -98,7 +102,13 @@ class PlanningRunDialog(QDialog):
             "recorded pickup poses in either mode. Resume preserves the recorded value.")
         form.addRow("Pose from scan (recorded)" if source else "Pose from scan override", self.pose_from_scan)
         form.addRow(self.search_only)
-        layout.addWidget(self.inputs)
+        self.target_preview = TargetPreview(self)
+        input_row = QHBoxLayout()
+        input_row.addWidget(self.inputs, 1)
+        input_row.addWidget(self.target_preview)
+        layout.addLayout(input_row)
+        self.target_shape.currentIndexChanged.connect(self._update_target_preview)
+        self._update_target_preview()
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.log.setMaximumBlockCount(3000)
@@ -124,6 +134,23 @@ class PlanningRunDialog(QDialog):
         self.process.readyReadStandardOutput.connect(self._read_output)
         self.process.finished.connect(self._finished)
         self.process.errorOccurred.connect(self._error)
+
+    def _update_target_preview(self):
+        try:
+            if self.source is not None:
+                checkpoint = StackRunStore.load_planning_checkpoint(self.source)
+                context = StackRunStore.load_run_context(self.source, checkpoint.context_sha256)
+                target = target_from_context(context)
+                name = context.profiles["inventory_profile"].get("target_name") or "Recorded target"
+            else:
+                profile = load_inventory_profile(
+                    self.repository / "apps/excavator/config/inventory.yml",
+                    target_shape=self.target_shape.currentData())
+                target = target_display(profile.target.geometry())
+                name = profile.target_name or "Configured inline target"
+            self.target_preview.set_target(target, name)
+        except (OSError, ValueError, TypeError, KeyError, sqlite3.Error) as error:
+            self.target_preview.show_error(str(error))
 
     def _file_row(self, form, label, field, file_filter, *, save=False):
         row = QWidget()

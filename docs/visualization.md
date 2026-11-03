@@ -473,6 +473,14 @@ its own minimize/maximize controls: minimizing it leaves the viewer usable and
 planning running. Selecting **New planning run** again restores an active
 minimized progress window instead of launching another planner.
 
+The **Target shape** selector in each new-planning dialog has an adjacent
+**Target preview** showing a 3D view, an XY plan view, and bounding extents in
+metres. It updates immediately when the selection changes and draws tapered or
+posed component geometry directly, preserving gaps and L-shaped notches. Resume
+dialogs show the target from the recorded checkpoint context rather than the
+current target registry. The preview loads no stone assets and uses Qt drawing
+without opening another 3D rendering context.
+
 Planning log output is appended independently of the text selection, so
 selecting/copying logs with `Ctrl+A` / `Ctrl+C` does not replace or erase them
 when new output arrives. Auto-scrolling pauses while selecting text or reading

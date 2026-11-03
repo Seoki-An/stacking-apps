@@ -16,6 +16,10 @@ from PySide6.QtWidgets import (
 from stacking_common.artifacts import StackRunStore
 from stacking_common.workflows.planning_output import PlanningRunOutput
 from stacking_common.profiles.targets import target_shape_choices
+from stacking_common.profiles.inventory import load_inventory_profile
+from stacking_common.artifacts.target import target_from_context
+from stacking_common.rendering.target_preview import TargetPreview
+from stacking_common.visualization.contracts import target_display
 
 
 class PlanningRunDialog(QDialog):
@@ -35,7 +39,7 @@ class PlanningRunDialog(QDialog):
         self._run_timer.setInterval(500)
         self._run_timer.timeout.connect(self._check_run_available)
         self.setWindowTitle("Resume tabletop planning" if self.source else "New tabletop planning run")
-        self.resize(900, 650)
+        self.resize(1120, 720)
         layout = QVBoxLayout(self)
         self.inputs = QWidget()
         form = QFormLayout(self.inputs)
@@ -92,7 +96,13 @@ class PlanningRunDialog(QDialog):
                       "Synthetic pickup scenes are for software checks; hardware plans need measured pickup poses.")
         note.setWordWrap(True)
         form.addRow(note)
-        layout.addWidget(self.inputs)
+        self.target_preview = TargetPreview(self)
+        input_row = QHBoxLayout()
+        input_row.addWidget(self.inputs, 1)
+        input_row.addWidget(self.target_preview)
+        layout.addLayout(input_row)
+        self.target_shape.currentIndexChanged.connect(self._update_target_preview)
+        self._update_target_preview()
         # Existing resume callers already select and validate these paths. Keep
         # their immediate launch and recorded-request behavior unchanged.
         review_output = self.source is None or (self.destination is not None and self.destination.exists())
@@ -129,6 +139,23 @@ class PlanningRunDialog(QDialog):
         self.process.errorOccurred.connect(self._error)
         if self.source is not None and not review_output:
             self.start()
+
+    def _update_target_preview(self):
+        try:
+            if self.source is not None:
+                checkpoint = StackRunStore.load_planning_checkpoint(self.source)
+                context = StackRunStore.load_run_context(self.source, checkpoint.context_sha256)
+                target = target_from_context(context)
+                name = context.profiles["inventory_profile"].get("target_name") or "Recorded target"
+            else:
+                profile = load_inventory_profile(
+                    self.repository / "apps/tabletop/config/inventory.yml",
+                    target_shape=self.target_shape.currentData())
+                target = target_display(profile.target.geometry())
+                name = profile.target_name or "Configured inline target"
+            self.target_preview.set_target(target, name)
+        except (OSError, ValueError, TypeError, KeyError, sqlite3.Error) as error:
+            self.target_preview.show_error(str(error))
 
     def _file_row(self, form, label, field, file_filter, *, save=False):
         row = QWidget()

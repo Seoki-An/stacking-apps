@@ -150,6 +150,11 @@ def test_gui_selection_passes_name_without_editing_registry(platform, chosen, tm
         dialog.search_only.setChecked(True)
         dialog.pose_from_scan.setCurrentIndex(dialog.pose_from_scan.findData(False))
         dialog.target_shape.setCurrentIndex(dialog.target_shape.findData(chosen))
+        assert dialog.target_preview.title.text() == chosen
+        expected = load_inventory_profile(ROOT / f"apps/{platform}/config/inventory.yml",
+                                          target_shape=chosen).target.geometry()
+        import numpy as np
+        np.testing.assert_allclose(dialog.target_preview.target.points, expected.points)
         args = dialog.arguments()
         assert args[args.index("--target-shape") + 1] == chosen
         assert path.read_bytes() == before
