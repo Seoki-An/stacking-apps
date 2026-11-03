@@ -58,7 +58,7 @@ root_cem:
   # Keep validation slots available for different stones.
   max_per_object: 2  # Baseline; grows to ceil(keep / remaining stones), elites use elite.
   height_map_score_weight: 1.0
-  seed: 0
+  seed: 1
 bootstrap:
   mean_reward: 0.3
   horizon: 6

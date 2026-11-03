@@ -29,7 +29,7 @@ shapes:
     # stacking-planner agent/configs/ablation.yml: environment.target.
     width: 3.0
     length: 3.0
-    height: 5.0
+    height: 4.0
     origin: [0.0, 0.0, 0.0]
     support_overlap: 0.02
     taper_degrees:
@@ -38,13 +38,13 @@ shapes:
       length_positive: 5.0
       length_negative: 5.0
   one_sided_wall:
-    width: 1.6
+    width: 1.0
     length: 4.5
-    height: 3.0
+    height: 2.3
     origin: [0.0, 0.0, 0.0]
     support_overlap: 0.02
     taper_degrees:
-      width_positive: 11.309932474020215
+      width_positive: 0.0
       width_negative: 0.0
       length_positive: 0.0
       length_negative: 0.0
@@ -108,7 +108,7 @@ shapes:
         shape: &l-arm
           width: 2.0
           length: 4.0
-          height: 3.0
+          height: 2.5
           origin: [0.0, 0.0, 0.0]
           support_overlap: 0.02
           taper_degrees:
@@ -119,4 +119,25 @@ shapes:
       - id: east_arm
         # Pose quaternion is XYZW: 90 degrees about Z.
         pose: [0.0, -1.0, 0.0, 0.0, 0.0, 0.7071067811865476, 0.7071067811865476]
+        shape: *l-arm
+  l_shaped_wall_nonsymmetric:
+    # Two perpendicular walls; 2 x 2 m ground overlap, one connected region.
+    # Ground footprint spans [-2, 2] in XY, excluding the upper-right 2 x 2 m notch.
+    components:
+      - id: north_arm
+        pose: [-3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        shape: &l-arm-long
+          width: 2.0
+          length: 6.0
+          height: 2.5
+          origin: [0.0, 0.0, 0.0]
+          support_overlap: 0.02
+          taper_degrees:
+            width_positive: 0.0
+            width_negative: 0.0
+            length_positive: 0.0
+            length_negative: 0.0
+      - id: east_arm
+        # Pose quaternion is XYZW: 90 degrees about Z.
+        pose: [0.0, -2.0, 0.0, 0.0, 0.0, 0.7071067811865476, 0.7071067811865476]
         shape: *l-arm
