@@ -258,6 +258,42 @@ bitmap. JSON and NPZ files retain source hashes, mesh hashes, poses, scoring
 settings, masks, values, and color limits. The script overwrites its own exports
 when rerun in the same output directory.
 
+## Vector benchmark structure comparison
+
+Compare final full-inventory benchmark structures from committed checkpoints:
+
+```bash
+MPLCONFIGDIR=/tmp/stacking-paper-mpl python tests/benchmark_structure_paper_figure.py \
+    --benchmark .stacks/benchmarks/one-sided-wall-height23-20261101 \
+    --seed 6 --output .analysis/seed6-wall-comparison
+```
+
+The example reads `mcts-seed6.stack` and `greedy-seed6.stack`, verifying the
+49-stone inventory, target, final placed counts, and recorded PLY surface hashes.
+Original meshes at the final checkpoint poses share an orthographic camera,
+physical scale, ground plane, and blue dashed target outline. Captions use the
+existing benchmark summaries' placement counts and target coverage (the recorded
+0.05 m mesh-union voxel estimate), without rerunning search or simulation.
+
+`mcts_greedy_seed6.pdf/.svg` contain vector triangle faces, ground, target edges,
+and text; the PNG is a 600 dpi preview. Vertex-normal lighting is averaged per
+original triangle, with no mesh simplification or convex decomposition. Opaque
+surfaces use back-face culling and global far-to-near triangle sorting, intended
+for nonintersecting stone surfaces. The exporter supports this benchmark's
+recorded untapered target. `comparison.json` records source/checkpoint/context
+hashes, final poses, meshes, metrics, shared camera basis, and projected bounds.
+
+The same directory also receives `numerical_results.txt`, `.csv`, and `.json`:
+target filling/unfilled percentages and volumes, placed counts, height
+statistics, search time, discounted return, and MCTS-minus-greedy differences.
+Filling is independently checked against the benchmark using the hash-verified
+commissioned OBJ convex-component unions at the saved final poses, on the same
+0.05 m voxel grid. Display surfaces remain the original PLY meshes. For this
+benchmark, the analytic denominator is 10.557 m³, including the target's 0.046 m
+below-ground support extension; its above-ground box is 10.350 m³. Unfilled
+volume includes unbuilt target space as well as gaps, so it is not an enclosed
+cavity porosity measurement. Definitions and units are retained in the reports.
+
 ## Source behavior
 
 The characterization comes from these read-only legacy references:
