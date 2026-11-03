@@ -50,7 +50,10 @@ class MCTSConfig:
     discount: float
     root_max_children: int | None = None
     expansion_attempt_multiplier: float = 1.0
-    failure_reward: float = -1.0  # Per-step penalty over the remaining failure horizon.
+    failure_reward: float = -1.0  # Fixed return for an infeasible transition.
+    # Provenance marker, not a tuning option: old horizon-scaled returns cannot
+    # silently be resumed under the new backup rule.
+    failure_return_mode: str = field(default="fixed", init=False)
     generation_batch_size: int = 1
     expansion_retry_batches: int = 1
     min_feasible_children: int = 1

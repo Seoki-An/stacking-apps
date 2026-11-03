@@ -9,7 +9,7 @@ tree:
   root_max_children: 32
   exploration_constant: 0.5
   discount: 0.9
-  failure_reward: -1.0  # Per-step failure penalty, discounted over the remaining horizon.
+  failure_reward: -1.0  # Fixed failure return; ancestors apply ordinary discounting.
   initial_depth1_steps: 0
   root_lookahead: true
 widening:

@@ -448,24 +448,20 @@ these averages can include samples from earlier, shorter remaining horizons.
 Start a fresh run when comparing the corrected convention against older runs;
 stored rewards and tree statistics are not retroactively rewritten.
 
-Failure is instead an absorbing per-step penalty over the remaining search
-horizon, including the failed placement:
+An infeasible transition terminates the simulated path with a fixed return:
 
 ```text
-h = min(max(max_depth - failed_node_depth, 0), stones_left_after_attempt)
-G_fail = failure_reward * sum(discount^j for j = 0, ..., h)
+G_fail = failure_reward  # -1 by default; no bootstrap or future penalty tail
 ```
 
-The available inventory is taken from the parent state and excludes the attempted
-stone once, regardless of whether the failed transition appended it. Depth is
-relative to the current root and uses the effective search depth (including the
-initial depth-one schedule). Ordinary backup discounts `G_fail` once per ancestor
-edge, as for successful returns. Failed
-nodes remain unselectable and retain their zero-valued visit sample. With depth
-four, discount 0.9 and per-step reward -1, failures at depths 1–4 contribute
--3.439, -2.71, -1.9 and -1 respectively before ancestor discounting, assuming enough
-stones remain. This horizon scaling does not guarantee that failure scores below
-every feasible multi-step return; the per-step magnitude still needs calibration.
+This cost is independent of maximum search depth and remaining inventory.
+Ordinary backup discounts `G_fail` once per ancestor edge and retains the rewards
+of successful prefix actions. Failed nodes remain unselectable and retain their
+zero-valued visit sample. The fixed cost still requires calibration against the
+task reward scale; it is not a measured execution failure probability.
+Recorded MCTS profiles include `failure_return_mode: fixed` as a provenance
+marker, not a YAML setting, to distinguish these returns from older horizon-scaled
+runs. Existing files remain readable; their stored values are not rewritten.
 
 Visit counts, unique nodes, and transition evaluations are different quantities.
 Repeated selections can consume iterations without generating a new node;

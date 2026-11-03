@@ -8,7 +8,7 @@
 # - max_children/root_max_children: child limits; integer > 0.
 # - exploration_constant: PUCT exploration strength; number >= 0.
 # - discount: reward discount; number in [0, 1].
-# - failure_reward: per-step failure penalty, discounted over the remaining horizon.
+# - failure_reward: fixed failure return; ancestors apply ordinary discounting.
 # - initial_depth1_steps: root-only warmup placements; 0 enables early lookahead.
 # - root_lookahead: cover each validated root with one descendant; true | false.
 #

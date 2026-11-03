@@ -249,17 +249,17 @@ def test_descendant_failures_remain_in_mean_but_not_observed_path_return():
     candidate = child(root, 0, reward=1)
     failed = child(candidate, 1)
     failed.reject("physical_failure")
-    backpropagate(failed, search.config)  # -1 at depths 2 and 3, plus root reward 1.
-    assert candidate.mean_value == -1
+    backpropagate(failed, search.config)  # One -1 failure cost, plus candidate reward 1.
+    assert candidate.mean_value == 0
     selected, _ = search._final_select(root)
     assert selected.info['descendant_path_return'] == 1
-    assert selected.info['final_selection_score'] == 0
+    assert selected.info['final_selection_score'] == .5
     good = child(candidate, 2, reward=2)
     backpropagate(good, search.config)
     search._final_select(root)
-    assert candidate.mean_value == 1
+    assert candidate.mean_value == 1.5
     assert candidate.info['descendant_path_return'] == 3
-    assert candidate.info['final_selection_score'] == 2
+    assert candidate.info['final_selection_score'] == 2.25
 
 
 def test_all_transitions_use_one_fidelity_once_and_final_selection_is_pure():
