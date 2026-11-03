@@ -198,6 +198,13 @@ def run(args):
         writer.append_run_context(context)
     else:
         writer, checkpoint = branch_excavator_run(args.resume_run, args.save_run, context)
+    from stacking_common.artifacts.object_assets import embed_object_assets, object_asset_paths
+    try:
+        embed_object_assets(writer, context, object_asset_paths(context, application.repository_root))
+    except BaseException:
+        writer.finish('failed')
+        writer.close()
+        raise
     config_path = (args.config or args.repository / "apps/excavator/config/mcts_cpu.yml").resolve()
     print(f"config: {config_path}", flush=True)
     print(f"target shape: {application.inventory_profile.target_name or 'inline/recorded'}", flush=True)

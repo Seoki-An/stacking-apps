@@ -180,6 +180,8 @@ def write_refined_branch(saved, repository, capture, step, refinement, *,
     check()
     temporary = destination.with_name(f'.{destination.stem}.pending-{uuid4().hex[:8]}.stack')
     with StackRunStore.create_mcts(temporary, replace(artifact, steps=()), metadata=metadata) as writer:
+        from stacking_common.artifacts.object_assets import copy_object_assets
+        copy_object_assets(saved.path, writer)
         writer.append_run_context(saved.context)
         for plan in prior_plans:
             if plan.step <= step:

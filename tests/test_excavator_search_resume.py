@@ -78,6 +78,8 @@ def interrupted_run(tmp_path, monkeypatch):
 def test_interrupted_search_resumes_exact_state_in_search_mode(interrupted_run, tmp_path, monkeypatch):
     source, seen = interrupted_run
     checkpoint = load_resume_checkpoint(source)
+    snapshots = StackRunStore.attachments(source)
+    assert len([item for item in snapshots if item.role == 'object_model']) == 6
     assert checkpoint.step == 1
     assert checkpoint.pick_scene.frame_id == 'world'
     assert len(checkpoint.state.action_history) == 1
@@ -90,6 +92,7 @@ def test_interrupted_search_resumes_exact_state_in_search_mode(interrupted_run, 
     # No --search-only: mode is restored from the source context automatically.
     assert main(['--worker', '--repository', str(ROOT), '--resume-run', str(source),
                  '--steps', '1', '--save-run', str(output)]) == 0
+    assert StackRunStore.attachments(output) == snapshots
     assert resumed[0].placed_object_indices == checkpoint.state.placed_object_indices
     assert len(resumed[0].action_history) == 1
     np.testing.assert_array_equal(resumed[0].object_poses[55], checkpoint.state.object_poses[55])

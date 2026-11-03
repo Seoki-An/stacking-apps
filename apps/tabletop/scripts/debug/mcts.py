@@ -446,6 +446,9 @@ def main() -> int | None:
         if plan_motion:
             if run_writer is not None:
                 run_writer.append_run_context(planning_context)
+                from stacking_common.artifacts.object_assets import embed_object_assets, object_asset_paths
+                embed_object_assets(run_writer, planning_context,
+                                    object_asset_paths(planning_context, repository))
             sequence = application.build_planning_sequence(
                 inventory,
                 session,

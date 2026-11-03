@@ -68,10 +68,11 @@ def resolve_execution_assets(context, repository, planning):
             if not asset.is_file():
                 asset = (root / getattr(planning, kind).urdf).parent / filename
             result[role] = asset
-        elif role.startswith("object/"):
+        elif role.startswith(("object/", "object_surface/")):
             object_id = int(role.split("/", 1)[1])
             directory = context.profiles["inventory_profile"]["model_directory"]
-            result[role] = root / directory / f"model_{object_id}.obj"
+            suffix = '.obj' if role.startswith('object/') else '_mesh.ply'
+            result[role] = root / directory / f"model_{object_id}{suffix}"
         else:
             raise ValueError(f"cannot resolve recorded execution asset role: {role}")
     return result

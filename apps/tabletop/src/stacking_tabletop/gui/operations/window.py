@@ -55,6 +55,7 @@ class StackingOperationsWindow(QMainWindow):
             self.repository / "apps/tabletop/config/planning.yml"
         )
         self.controller = OperationsController(
+            repository=self.repository,
             trajectory_projector=TabletopRobotTrajectoryProjector(
                 planning,
                 self.repository,

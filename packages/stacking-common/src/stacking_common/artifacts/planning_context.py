@@ -72,6 +72,9 @@ def build_planning_context(application, inventory, pick_scene, solver, runtime):
         assets[f"object/{object_id}"] = (
             root / application.inventory_profile.model_directory / f"model_{object_id}.obj"
         )
+        surface = root / application.inventory_profile.model_directory / f"model_{object_id}_mesh.ply"
+        if surface.is_file():
+            assets[f"object_surface/{object_id}"] = surface
     extra_assets = getattr(application, "additional_context_assets", None)
     if extra_assets is not None:
         assets.update(extra_assets(inventory))
@@ -136,6 +139,8 @@ def branch_planning_run(source, destination, context):
         "planning_parent": {"path": str(source), "checkpoint_step": checkpoint.step},
     })
     try:
+        from .object_assets import copy_object_assets
+        copy_object_assets(source, writer)
         writer.append_run_context(context)
         for plan in plans:
             if plan.step <= checkpoint.step:

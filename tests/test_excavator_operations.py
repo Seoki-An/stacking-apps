@@ -133,6 +133,40 @@ def test_console_parser_has_explicit_excavator_entrypoint():
     assert args.run == Path("plan.stack")
 
 
+def test_embedded_models_allow_replay_but_not_execution_asset_override(tmp_path):
+    import hashlib
+    from stacking_common.artifacts.object_assets import embed_object_assets, object_asset_paths
+    from stacking_excavator.planning.replay import verify_replay_assets, recorded_planning_profile
+    record, context = replay_run(tmp_path / 'fixture.stack')
+    models = tmp_path / 'models'
+    models.mkdir()
+    profiles = {**context.profiles, 'inventory_profile': {
+        **context.profiles['inventory_profile'], 'model_directory': str(models)}}
+    local = {}
+    for role, source in object_asset_paths(context, ROOT).items():
+        target = models / source.name
+        target.write_bytes(source.read_bytes())
+        local[role] = target
+    context = replace(context, profiles=profiles)
+    run = tmp_path / 'embedded.stack'
+    with StackRunStore.create_mcts(run, MCTSDebugArtifact('stack', ()),
+                                  metadata={'platform': 'excavator'}) as writer:
+        writer.append_run_context(context)
+        writer.append_placement_plan(replace(record, context_sha256=context.sha256))
+        embed_object_assets(writer, context, local)
+    obj_role = next(role for role in local if role.startswith('object/'))
+    local[obj_role].write_bytes(local[obj_role].read_bytes() + b'\n# changed friction metadata\n')
+    controller = OperationsController(ROOT)
+    controller.load(run)
+    frame = controller.planning_frame()
+    object_id = int(obj_role.split('/')[1])
+    extracted = frame.object_mesh_paths[object_id]
+    assert hashlib.sha256(extracted.read_bytes()).hexdigest() == context.asset_hashes[obj_role]
+    assert extracted.with_name(extracted.stem + '_mesh.ply').is_file()
+    with pytest.raises(ValueError, match='Recorded replay asset differs: object/'):
+        verify_replay_assets(ROOT, context, recorded_planning_profile(context))
+
+
 def test_console_navigation_and_playback(tmp_path, monkeypatch):
     pytest.importorskip("PySide6")
     from PySide6.QtWidgets import QApplication, QWidget

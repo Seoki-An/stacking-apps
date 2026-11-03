@@ -72,6 +72,8 @@ def branch_excavator_run(source, destination, context):
         'planning_parent': {'path': str(source), 'checkpoint_step': checkpoint.step},
     })
     try:
+        from stacking_common.artifacts.object_assets import copy_object_assets
+        copy_object_assets(source, writer)
         contexts = StackRunStore.load_run_contexts(source)
         for previous in contexts:
             writer.append_run_context(previous)

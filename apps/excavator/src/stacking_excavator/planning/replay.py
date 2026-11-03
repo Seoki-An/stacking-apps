@@ -18,7 +18,7 @@ def recorded_planning_profile(context):
 
 
 
-def verify_replay_assets(repository, context, planning):
+def verify_replay_assets(repository, context, planning, *, object_paths=None):
     """Replay uses recorded geometry; current solver tuning is irrelevant."""
     root = Path(repository)
     paths = {}
@@ -36,6 +36,11 @@ def verify_replay_assets(repository, context, planning):
             paths[key] = directory / f"model_{int(key.split('/')[1])}.obj"
         elif key.startswith("object_surface/"):
             paths[key] = directory / f"model_{int(key.split('/')[1])}_mesh.ply"
+    if object_paths is not None:
+        # Viewer-only override. Execution callers retain strict local checks.
+        for key in paths.keys() & object_paths.keys():
+            if key.startswith(('object/', 'object_surface/')):
+                paths[key] = object_paths[key]
     for key, path in paths.items():
         with path.open("rb") as stream:
             digest = hashlib.file_digest(stream, "sha256").hexdigest()

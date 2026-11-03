@@ -5,6 +5,24 @@ MCTS diagnostics, and rendering without sharing platform execution logic.
 Tabletop ROS, operator decisions, robot controls, sensor acquisition, and
 platform overlays remain under `apps/tabletop`.
 
+## Recorded object models
+
+New excavator runs (including search-only runs) and tabletop motion-planning
+runs embed the object OBJ and available PLY models identified by their recorded
+planning context. Attachments named `object-models/<sha256>` use the document's
+compressed blob store: unchanged models are stored once per file, shared by all
+steps and contexts. Checkpoint branches and tabletop scene-refinement branches
+retain these snapshots.
+
+The operations viewers prefer embedded object bytes and verify them against the
+recorded hashes. Temporary extraction preserves the OBJ/PLY sibling filenames,
+so both rendering modes use the saved geometry. Excavator score-map inspection
+also loads the recorded OBJ physics. Older files without snapshots still require
+matching local assets; a corrupt snapshot is an error, never a silent fallback.
+Robot/gripper assets remain external. Execution and planning resume continue to
+validate current inputs; viewing an old model does not authorize execution with
+changed friction or geometry.
+
 ## Legacy characterization baseline
 
 `tests/fixtures/legacy_visualization/mcts_candidate_viewer.json` is the small,

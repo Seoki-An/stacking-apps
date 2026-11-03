@@ -2,11 +2,13 @@
 
 from dataclasses import replace
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 from scipy.spatial.transform import Rotation, Slerp
 
 from stacking_common.artifacts import StackRunStore
+from stacking_common.artifacts.object_assets import materialize_object_assets
 from stacking_common.artifacts.target import target_from_context
 from stacking_common.profiles.visualization import SceneBox
 from stacking_common.visualization import MCTSDebugStep, SceneSnapshot
@@ -35,6 +37,7 @@ class OperationsController(CommonOperationsController):
         self._run_path = None
         self._score_inventory = None
         self._score_view = None
+        self._asset_directory = None
 
     def load(self, path):
         path = Path(path)
@@ -47,6 +50,7 @@ class OperationsController(CommonOperationsController):
             raise ValueError("Excavator runs require recorded planning and asset context")
         hashes = set(recorded) | {record.context_sha256 for record in records}
         contexts, projectors, paths = {}, {}, {}
+        assets = TemporaryDirectory(prefix='stack-replay-')
         for digest in hashes:
             if digest is None:
                 raise ValueError("Excavator replay requires a recorded planning context")
@@ -54,7 +58,9 @@ class OperationsController(CommonOperationsController):
             if context.profiles.get("platform") != "excavator":
                 raise ValueError("Planning context belongs to another platform")
             planning = recorded_planning_profile(context)
-            paths[digest] = verify_replay_assets(self.repository, context, planning)
+            embedded = materialize_object_assets(path, context, self.repository, assets.name)
+            paths[digest] = verify_replay_assets(self.repository, context, planning,
+                                                object_paths=embedded)
             contexts[digest] = context
             projectors[digest] = ExcavatorRobotTrajectoryProjector(planning, self.repository)
         # A cancelled run can have a durable attempt before its search step.
@@ -71,6 +77,7 @@ class OperationsController(CommonOperationsController):
         self._run_path = path
         self._score_inventory = None
         self._score_view = None
+        self._asset_directory = assets
         return artifact
 
     def initial_pose_score_view(self):
@@ -82,13 +89,7 @@ class OperationsController(CommonOperationsController):
         step, candidate = self.current_step, self.active_candidate
         if step is None or candidate is None or candidate.init_pose is None:
             raise ValueError("Select a candidate with a recorded initial pose")
-        if self.current_plan is not None:
-            digest = self.current_plan.context_sha256
-        elif len(self.contexts) == 1:
-            digest = next(iter(self.contexts))
-        else:
-            digest = StackRunStore.load_planning_checkpoint(
-                self._run_path, step=step.step).context_sha256
+        digest = self._current_context_digest()
         context = self.contexts[digest]
         construction = context.profiles['action_generation_profile'].get('construction', {})
         if construction.get('mode', 'volume_fill') != 'volume_fill':
@@ -103,8 +104,8 @@ class OperationsController(CommonOperationsController):
             profile = context.profiles['inventory_profile']
             from stacking_common.profiles.inventory import target_profile_from_record
             target = target_profile_from_record(profile['target']).geometry()
-            ids = tuple(map(int, profile['object_ids']))
-            inventory = ObjectAssetLoader(self.repository / profile['model_directory'],
+            ids = tuple(oid for oid in map(int, profile['object_ids']) if oid in self.mesh_paths[digest])
+            inventory = ObjectAssetLoader(next(iter(self.mesh_paths[digest].values())).parent,
                 profile['density'], target,
                 dict(profile['density_overrides'])).load(ids,
                     {oid: np.array([0., 0., 0., 0., 0., 0., 1.]) for oid in ids})
@@ -123,10 +124,18 @@ class OperationsController(CommonOperationsController):
         self._score_view = (key, result)
         return result
 
+    def _current_context_digest(self):
+        if self.current_plan is not None:
+            return self.current_plan.context_sha256
+        if len(self.contexts) == 1 or self.current_step is None:
+            return next(iter(self.contexts))
+        return StackRunStore.load_planning_checkpoint(
+            self._run_path, step=self.current_step.step).context_sha256
+
     def frame(self, *, trajectory_time=None):
         frame = super().frame(trajectory_time=trajectory_time)
         if self.mesh_paths:
-            digest = next(iter(self.mesh_paths))
+            digest = self._current_context_digest()
             frame = replace(frame, object_mesh_paths=self.mesh_paths[digest],
                             target=recorded_target(self.contexts[digest], frame.target))
         return frame
