@@ -215,6 +215,7 @@ def search_statistics(
             "failures": result.descendant_validation_failures,
         },
         "final_selection_max_weight": result.final_selection_max_weight,
+        "final_selection_depth_gate": result.root.info.get("final_selection_depth_gate"),
         "selected_value": None if result.selected is None else {
             "visits": result.selected.visits,
             "reward": result.selected.reward,
@@ -479,6 +480,13 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
         print(f"[INFO] Rejection reasons: {reasons}")
     print(f"[Timing] MCTS total wall={elapsed:.2f}s")
 
+    gate = result.root.info.get("final_selection_depth_gate")
+    if gate and gate["min_feasible_depth"] > 1:
+        print(
+            f"[INFO] Final feasible depth: required={gate['min_feasible_depth']}, "
+            f"eligible={gate['eligible_candidates']}/{gate['feasible_candidates']}, "
+            f"fallback={gate['fallback']}"
+        )
     selected = result.selected
     if selected is None:
         rejected = result.failed_evaluations + generation_rejected

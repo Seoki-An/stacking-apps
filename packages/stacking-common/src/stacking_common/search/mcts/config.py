@@ -9,12 +9,20 @@ class FinalSelectionConfig:
     """Choose a root from mean evidence and evaluated descendant returns."""
 
     max_weight: float = 0.5
+    # Absolute depth from the search root (a root action is depth 1).
+    min_feasible_depth: int = field(
+        default=1, metadata={"omit_default_from_context": True}
+    )
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.max_weight) or not 0.0 <= self.max_weight <= 1.0:
             raise ValueError(
                 "MCTS final-selection maximum weight must be between zero and one"
             )
+        if (isinstance(self.min_feasible_depth, bool)
+                or not isinstance(self.min_feasible_depth, int)
+                or self.min_feasible_depth < 1):
+            raise ValueError("MCTS final-selection minimum feasible depth must be a positive integer")
 
 
 @dataclass(frozen=True)

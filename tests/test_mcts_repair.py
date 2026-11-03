@@ -154,6 +154,61 @@ def test_path_score_prefers_deepest_then_best_return_and_never_uses_bootstrap():
     assert [pose.object_id for pose in _best_sequence(candidate)] == [0, 4, 5]
 
 
+@pytest.mark.parametrize("minimum", [2, 3])
+def test_minimum_feasible_depth_excludes_shallow_optimistic_roots(minimum):
+    root, generator, evaluator, search, _ = setup()
+    search.config = replace(search.config, final_selection=FinalSelectionConfig(
+        max_weight=.5, min_feasible_depth=minimum))
+    shallow = child(root, 0, reward=10)
+    shallow.record_visit(20)
+    complete = child(root, 1)
+    tail = complete
+    for index in range(2, minimum+1):
+        tail = child(tail, index)
+    # Pending and rejected children cannot satisfy the depth requirement.
+    pending = shallow.add_candidate(action(5))
+    pending.add_candidate(action(6))
+    failed = child(shallow, 7, reward=100)
+    failed.reject("physical_failure")
+    selected, ranked = search._final_select(root)
+    assert selected is complete and ranked == (complete,)
+    assert root.info["final_selection_depth_gate"] == dict(
+        min_feasible_depth=minimum, feasible_candidates=2, eligible_candidates=1, fallback=False)
+    assert not generator.calls and not evaluator.calls
+
+
+def test_minimum_feasible_depth_falls_back_and_refreshes_after_tree_changes():
+    root, _, _, search, request = setup(evaluator=Evaluator(fail_all=True))
+    search.config = replace(search.config, final_selection=FinalSelectionConfig(
+        max_weight=.5, min_feasible_depth=3))
+    first = child(root, 0, reward=2)
+    second = child(root, 1, reward=1)
+    failed = child(root, 2, reward=100)
+    failed.reject("physical_failure")
+    selected, ranked = search._final_select(root)
+    assert selected is first and set(ranked) == {first, second}
+    assert root.info["final_selection_depth_gate"]["fallback"] is True
+    child(child(second, 3), 4)
+    selected, ranked = search._final_select(root)
+    assert selected is second and ranked == (second,)
+    assert root.info["final_selection_depth_gate"]["fallback"] is False
+    # The gate is relative to the current root, after tree promotion.
+    second.detach()
+    selected, ranked = search._final_select(second)
+    assert root.info["final_selection_depth_gate"]["eligible_candidates"] == 1
+    assert second.info["final_selection_depth_gate"]["fallback"] is True
+
+
+def test_minimum_feasible_depth_never_falls_back_to_a_failed_root():
+    root, _, _, search, request = setup(evaluator=Evaluator(fail_all=True))
+    search.config = replace(search.config, final_selection=FinalSelectionConfig(
+        min_feasible_depth=3))
+    result = search.search(root, request)
+    assert result.selected is None
+    assert root.info["final_selection_depth_gate"]["feasible_candidates"] == 0
+    assert root.info["final_selection_depth_gate"]["fallback"] is False
+
+
 @pytest.mark.parametrize("length", [1, 2, 3, 4, 5])
 def test_observed_return_supports_variable_depth_and_search_horizon(length):
     root, _, _, search, _ = setup()

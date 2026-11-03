@@ -57,6 +57,23 @@ def test_excavator_default_uses_cpu_profile():
     assert application.mcts_profile == load_mcts_profile(CONFIG / "mcts_cpu.yml")
 
 
+@pytest.mark.parametrize("depth", [2, 3])
+def test_final_minimum_feasible_depth_is_loaded_and_recorded(tmp_path, depth):
+    values = yaml.safe_load((CONFIG / "mcts_cuda.yml").read_text())
+    assert "min_feasible_depth" not in _values(load_mcts_profile(CONFIG / "mcts_cuda.yml").tree.final_selection)
+    values["final_selection"]["min_feasible_depth"] = depth
+    path = tmp_path / "mcts.yml"
+    path.write_text(yaml.safe_dump(values))
+    selection = load_mcts_profile(path).tree.final_selection
+    assert selection.min_feasible_depth == depth
+    assert _values(selection)["min_feasible_depth"] == depth
+    for invalid in (0, -1, 2.5, True, "3"):
+        values["final_selection"]["min_feasible_depth"] = invalid
+        path.write_text(yaml.safe_dump(values))
+        with pytest.raises(ValueError, match="minimum feasible depth"):
+            load_mcts_profile(path)
+
+
 @pytest.mark.parametrize('field', ['batch', 'bodies', 'geometries', 'pairs', 'contacts', 'incidences'])
 def test_posegen_capacity_fields_are_loaded_recorded_and_validated(tmp_path, field):
     values = yaml.safe_load((CONFIG / 'mcts_cuda.yml').read_text())

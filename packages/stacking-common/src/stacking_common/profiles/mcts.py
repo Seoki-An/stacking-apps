@@ -110,6 +110,7 @@ def load_mcts_profile(path: str | Path) -> MCTSProfile:
         ),
         final_selection=FinalSelectionConfig(
             max_weight=float(_required(final_selection, "max_weight")),
+            min_feasible_depth=final_selection.get("min_feasible_depth", 1),
         ),
         widening=ProgressiveWideningConfig(
             enabled=bool(_required(widening, "enabled")),

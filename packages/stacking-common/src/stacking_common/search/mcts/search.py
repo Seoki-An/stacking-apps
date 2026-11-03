@@ -1490,12 +1490,14 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
     def _final_select(self, root):
         """Mix search means with observed returns on each root's deepest paths.
 
-        Every evaluated feasible root participates, including a root-only path.
+        Prefer roots meeting the configured feasible depth; fall back to all
+        feasible roots when none meet it. No additional physics is performed.
         The path component contains no bootstrap and never skips a bad suffix
         in favor of a shallower prefix. Failure penalties remain in the mean.
         """
         scored = []
         weight = self.config.final_selection.max_weight
+        minimum_depth = self.config.final_selection.min_feasible_depth
         for child in root.evaluated_children():
             depth, path = self._deepest_feasible_return(child)
             mean = float(child.mean_value)
@@ -1507,11 +1509,22 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             child.info.update(
                 descendant_path_return=path,
                 deepest_feasible_depth=depth,
+                final_selection_depth_eligible=depth >= minimum_depth,
                 final_selection_max_weight=weight,
                 final_selection_score=float(score),
             )
             if math.isfinite(score):
                 scored.append((child, score))
+        eligible = [(child, score) for child, score in scored
+                    if child.info["final_selection_depth_eligible"]]
+        root.info["final_selection_depth_gate"] = dict(
+            min_feasible_depth=minimum_depth,
+            feasible_candidates=len(scored),
+            eligible_candidates=len(eligible),
+            fallback=bool(scored and not eligible),
+        )
+        if eligible:
+            scored = eligible
         scored.sort(key=lambda pair: pair[1], reverse=True)
         ranked = tuple(child for child, _ in scored)
         return (ranked[0] if ranked else None), ranked
