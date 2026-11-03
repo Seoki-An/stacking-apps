@@ -159,7 +159,8 @@ def write_checkpoint_run(path, *, search_only=False):
     step = artifact.steps[0]
     candidate = next(item for item in step.candidates if item.selected)
     recorded = context()
-    recorded = replace(recorded, profiles={**recorded.profiles, "runtime": {"search_only": search_only}})
+    recorded = replace(recorded, profiles={**recorded.profiles,
+        "runtime": {"search_only": search_only}, "mcts_profile": {"root_cem": {"seed": 0}}})
     value = pose(-3., z=.2)
     ids = [11, 22]
     action = Action(candidate.object_index, value, value, object_id=candidate.object_id)

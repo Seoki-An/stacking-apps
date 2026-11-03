@@ -46,7 +46,23 @@ def branch_excavator_run(source, destination, context):
     source, destination = Path(source).resolve(), Path(destination).resolve()
     if source == destination or destination.exists():
         raise FileExistsError('resume requires a new output .stack path')
-    checkpoint = validate_planning_resume(source, context)
+    checkpoint = load_resume_checkpoint(source)
+    recorded = StackRunStore.load_run_context(source, checkpoint.context_sha256)
+    # A new random stream changes neither the committed scene nor its physical
+    # inputs. Normalize just the seed fields for the usual strict validation.
+    profiles = _values(context.profiles)
+    if recorded.profiles['runtime'].get('search_only', False):
+        if profiles['runtime'].get('seed', 0) != profiles['mcts_profile']['root_cem']['seed']:
+            raise ValueError('runtime and CEM seeds must agree')
+        for current, old in (
+            (profiles['runtime'], recorded.profiles['runtime']),
+            (profiles['mcts_profile']['root_cem'], recorded.profiles['mcts_profile']['root_cem']),
+        ):
+            if 'seed' in old:
+                current['seed'] = old['seed']
+            else:
+                current.pop('seed', None)
+    validate_planning_resume(source, replace(context, profiles=profiles))
     if StackRunStore.load_placement_plans(source):
         raise ValueError('search-only resume cannot retain robot motion plans')
     artifact = StackRunStore.load_mcts(source)
@@ -56,7 +72,12 @@ def branch_excavator_run(source, destination, context):
         'planning_parent': {'path': str(source), 'checkpoint_step': checkpoint.step},
     })
     try:
-        writer.append_run_context(context)
+        contexts = StackRunStore.load_run_contexts(source)
+        for previous in contexts:
+            writer.append_run_context(previous)
+        if context.sha256 not in {previous.sha256 for previous in contexts}:
+            writer.append_run_context(context)
+        checkpoint = replace(checkpoint, context_sha256=context.sha256)
         for step in artifact.steps:
             if step.step <= checkpoint.step:
                 writer.append_mcts_step(step, statistics=statistics.get(step.step),

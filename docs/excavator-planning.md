@@ -1862,11 +1862,15 @@ stacking-excavator-plan --repository "$PWD" \
 ```
 
 Supply the same `--config` if the original run used a custom MCTS profile.
-Recorded seed and search budgets are reused. Resume keeps search inputs
-immutable: omit `--seed`, `--iterations`, and `--max-search-time`, or repeat
-their recorded effective values. Changed values fail before creating the new
-run. `--steps` and `--max-run-time` may change. Start a new run to use different
-search inputs; the retained plans remain bound to their original context.
+Recorded seed and search budgets are reused by default. Search-only resume
+also accepts a different `--seed` to explore new continuations from the same
+committed scene. The CEM and search random streams both use that seed, and
+the branch preserves both the previous and new provenance contexts. The tree
+is rebuilt from the checkpoint. Motion-planning resume keeps its original seed.
+Omit `--iterations` and `--max-search-time`, or repeat their recorded effective
+values; changed budgets fail before creating the new run. `--steps` and
+`--max-run-time` may change. Other search and physical inputs remain fixed;
+retained robot plans remain bound to their original context.
 Already-unit pickup quaternions are preserved when copying/loading checkpoints.
 For older excavator runs, resume restores the exact context poses after checking
 that checkpoint differences are limited to quaternion normalization roundoff

@@ -10,7 +10,7 @@ from stacking_common.artifacts import StackRunStore
 from stacking_common.domain import Action
 from stacking_common.search import MonteCarloTreeSearch, MCTSNode, MCTSSearchResult
 from stacking_excavator.planning.cli import main
-from stacking_excavator.planning.resume import load_resume_checkpoint, restore_pick_scene
+from stacking_excavator.planning.resume import branch_excavator_run, load_resume_checkpoint, restore_pick_scene
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -119,6 +119,84 @@ def test_search_step_and_checkpoint_commit_together(tmp_path, monkeypatch):
                  '--save-run', str(path)]) == 2
     assert not StackRunStore.load_mcts(path).steps
     assert not StackRunStore.load_mcts_statistics(path)
+
+
+def test_search_resume_can_change_seed_without_changing_committed_scene(interrupted_run, tmp_path, monkeypatch):
+    import random
+    from stacking_excavator import ExcavatorApplication
+
+    source, _ = interrupted_run
+    before = source.read_bytes()
+    checkpoint = load_resume_checkpoint(source)
+    resumed = []
+    original = ExcavatorApplication.build_mcts
+
+    def build(self, inventory, *, rng):
+        assert self.mcts_profile.root_cem.seed == 5
+        assert rng.getstate() == random.Random(5).getstate()
+        return original(self, inventory, rng=rng)
+
+    monkeypatch.setattr(ExcavatorApplication, 'build_mcts', build)
+    monkeypatch.setattr(MonteCarloTreeSearch, 'search', controlled_search(resumed))
+    output = tmp_path / 'seed5.stack'
+    assert main(['--worker', '--repository', str(ROOT), '--resume-run', str(source),
+                 '--seed', '5', '--steps', '1', '--save-run', str(output)]) == 0
+    np.testing.assert_array_equal(resumed[0].object_poses[55], checkpoint.state.object_poses[55])
+    assert resumed[0].placed_object_indices == checkpoint.state.placed_object_indices
+    contexts = StackRunStore.load_run_contexts(output)
+    assert len(contexts) == 2
+    assert contexts[0].sha256 == checkpoint.context_sha256
+    current = StackRunStore.load_run_context(output, load_resume_checkpoint(output).context_sha256)
+    assert current.profiles['runtime']['seed'] == 5
+    assert current.profiles['mcts_profile']['root_cem']['seed'] == 5
+    assert source.read_bytes() == before
+    # Omission on the next branch keeps the new seed and both provenance contexts.
+    final = tmp_path / 'seed5-next.stack'
+    assert main(['--worker', '--repository', str(ROOT), '--resume-run', str(output),
+                 '--steps', '1', '--save-run', str(final)]) == 0
+    assert load_resume_checkpoint(final).step == 3
+    assert len(StackRunStore.load_run_contexts(final)) == 2
+
+
+@pytest.mark.parametrize('change', ['environment', 'request', 'asset'])
+def test_new_search_seed_does_not_relax_other_resume_checks(interrupted_run, tmp_path, change):
+    from stacking_common.artifacts.planning_context import _values
+
+    source, _ = interrupted_run
+    checkpoint = load_resume_checkpoint(source)
+    context = StackRunStore.load_run_context(source, checkpoint.context_sha256)
+    profiles = _values(context.profiles)
+    profiles['runtime']['seed'] = 5
+    profiles['mcts_profile']['root_cem']['seed'] = 5
+    assets = dict(context.asset_hashes)
+    if change == 'environment':
+        profiles['environment_profile']['changed_physics'] = True
+    elif change == 'request':
+        profiles['mcts_profile']['request']['iterations'] += 1
+    else:
+        assets['stacking_core_native'] = '0' * 64
+    altered = replace(context, profiles=profiles, asset_hashes=assets)
+    destination = tmp_path / 'invalid.stack'
+    with pytest.raises(ValueError, match='resume context mismatch'):
+        branch_excavator_run(source, destination, altered)
+    assert not destination.exists()
+
+
+def test_new_seed_remains_recorded_when_continuation_finds_no_action(interrupted_run, tmp_path, monkeypatch):
+    source, _ = interrupted_run
+    def exhausted(self, root, request):
+        return MCTSSearchResult(root=root, selected=None, completed_iterations=0,
+            expansion_calls=0, generated_candidates=0, evaluated_candidates=0,
+            failed_evaluations=0, effective_max_depth=1, timed_out=False)
+    monkeypatch.setattr(MonteCarloTreeSearch, 'search', exhausted)
+    output = tmp_path / 'seed5-exhausted.stack'
+    assert main(['--worker', '--repository', str(ROOT), '--resume-run', str(source),
+                 '--seed', '5', '--steps', '1', '--save-run', str(output)]) == 1
+    checkpoint = load_resume_checkpoint(output)
+    assert checkpoint.step == 1
+    context = StackRunStore.load_run_context(output, checkpoint.context_sha256)
+    assert context.profiles['runtime']['seed'] == 5
+    assert context.profiles['mcts_profile']['root_cem']['seed'] == 5
 
 
 def test_old_search_run_has_actionable_error_without_modification(interrupted_run, tmp_path):

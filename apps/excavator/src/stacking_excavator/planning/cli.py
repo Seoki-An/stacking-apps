@@ -55,7 +55,7 @@ def _parser():
                              "--no-pose-from-scan disables it. Recorded pickup poses are used in either mode")
     parser.add_argument("--save-run", type=Path, required=True)
     parser.add_argument("--resume-run", type=Path,
-                        help="branch a checkpoint with unchanged planning inputs; steps and run-time limit may change")
+                        help="branch a checkpoint with unchanged planning inputs; steps and run-time limit may change; search-only also permits a new seed")
     parser.add_argument("--steps", type=int, default=1)
     parser.add_argument("--iterations", type=int)
     parser.add_argument("--max-search-time", type=float)
@@ -85,7 +85,7 @@ def select_pick_scene(scene, requested_ids):
 
 
 def search_runtime(args, recorded=None):
-    """Retain the exact recorded context when continuing committed plans."""
+    """Preserve recorded controls, permitting a new search-only random seed."""
     if recorded is None:
         return {"seed": args.seed if args.seed is not None else 0,
                 "iterations": args.iterations, "max_search_time": args.max_search_time,
@@ -97,6 +97,10 @@ def search_runtime(args, recorded=None):
                  "max_search_time": request["max_time_seconds"]}
     for name, value in effective.items():
         supplied = getattr(args, name)
+        if name == "seed" and runtime.get("search_only", False):
+            if supplied is not None:
+                runtime["seed"] = supplied
+            continue
         if supplied is not None and supplied != value:
             flag = "--" + name.replace("_", "-")
             raise ValueError(f"resume requires recorded {flag}={value}; omit {flag} or repeat "
