@@ -18,6 +18,7 @@ from stacking_tabletop.execution.recovery import (
 )
 
 from .execution_worker import ExecutionWorker
+from .gripper_recovery import GripperRecoveryWorker, confirm_gripper_recovery
 
 
 def connect_live_state():
@@ -31,10 +32,13 @@ class ExecutionView(QWidget):
     refined_run_loaded = Signal(str)
 
     def __init__(self, repository=None, parent=None, *, worker_factory=ExecutionWorker,
-                 preview_transport_factory=connect_live_state):
+                 preview_transport_factory=connect_live_state,
+                 recovery_worker_factory=GripperRecoveryWorker):
         super().__init__(parent)
         self.repository = repository
         self.worker_factory = worker_factory
+        self.recovery_worker_factory = recovery_worker_factory
+        self.recovery_worker = None
         self.preview_transport_factory = preview_transport_factory
         self.can_start = lambda: True
         self.worker = self.saved = self.gate = self.scene = None
@@ -137,6 +141,9 @@ class ExecutionView(QWidget):
         self.reconcile_button = QPushButton("Record physical reconciliation…")
         self.reconcile_button.clicked.connect(self.reconcile)
         layout.addWidget(self.reconcile_button)
+        self.recover_gripper_button = QPushButton('Recover gripper…')
+        self.recover_gripper_button.clicked.connect(self.recover_gripper)
+        layout.addWidget(self.recover_gripper_button)
         self.retry_stack_capture_button = QPushButton("Retry stacked-scene capture…")
         self.retry_stack_capture_button.clicked.connect(self.retry_stack_capture)
         layout.addWidget(self.retry_stack_capture_button)
@@ -147,7 +154,41 @@ class ExecutionView(QWidget):
 
     @property
     def running(self):
-        return self.worker is not None and self.worker.isRunning()
+        return (self.worker is not None and self.worker.isRunning()) or self.recovering
+
+    @property
+    def recovering(self):
+        return self.recovery_worker is not None and self.recovery_worker.isRunning()
+
+    def recover_gripper(self):
+        if self.running or not self.can_start() or not self.recover_gripper_button.isEnabled():
+            return
+        if not confirm_gripper_recovery(self):
+            return
+        # A nested confirmation dialog can process other GUI events.
+        if self.running or not self.can_start():
+            return
+        self._close_live_preview()
+        self.recovery_worker = self.recovery_worker_factory(self)
+        self.recovery_worker.completed.connect(self._gripper_recovered)
+        self.recovery_worker.failed.connect(
+            lambda message: self.status.setText(f'Gripper recovery failed: {message}'))
+        self.recovery_worker.finished.connect(self._recovery_finished)
+        self.status.setText('Rebooting and checking gripper; wait for recovery to finish…')
+        self.recovery_worker.start()
+        self._controls()
+        self.state_changed.emit()
+
+    def _gripper_recovered(self, message):
+        self.history.appendPlainText(f'Gripper recovery: {message}')
+        self.status.setText(message + ' Record physical reconciliation for any failed step, '
+                            'then start a new reviewed execution attempt.')
+
+    def _recovery_finished(self):
+        self._controls()
+        if self._preview_requested:
+            self._open_live_preview()
+        self.state_changed.emit()
 
     def load(self, path):
         if self.running:
@@ -256,7 +297,8 @@ class ExecutionView(QWidget):
 
     def _controls(self):
         ready = self.saved is not None
-        active = self.running and not self._aborting
+        active = self.running and not self.recovering and not self._aborting
+        self.recover_gripper_button.setEnabled(not self.running and self.can_start())
         self.stack_capture.setEnabled(not self.running)
         checkpoint = StackRunStore.load_execution_checkpoint(self.path) if ready else None
         from stacking_tabletop.execution.scene_refinement import pending_scene_refinement
@@ -287,7 +329,7 @@ class ExecutionView(QWidget):
             and bool(self._motion_samples) and not self._paused
         )
         self.hold_button.setEnabled(active)
-        self.abort_button.setEnabled(self.running)
+        self.abort_button.setEnabled(self.running and not self.recovering)
 
     def start(self):
         if not self.start_button.isEnabled() or self.running or not self.can_start():
@@ -447,7 +489,7 @@ class ExecutionView(QWidget):
         self.motion_play_button.setText("Play saved motion")
 
     def approve(self):
-        executor = self.worker.executor if self.running else None
+        executor = self.worker.executor if self.running and not self.recovering else None
         if executor is not None and self.gate is not None and not self._paused:
             if executor.approve(self.gate.token):
                 self.continue_button.setEnabled(False)
@@ -485,12 +527,12 @@ class ExecutionView(QWidget):
             self.state_changed.emit()
 
     def adjust(self, direction):
-        executor = self.worker.executor if self.running else None
+        executor = self.worker.executor if self.running and not self.recovering else None
         if executor is not None and self.gate is not None and not self._paused:
             executor.adjust(self.gate.token, None if direction == 0 else self.joint.currentIndex(), direction)
 
     def toggle_hold(self):
-        executor = self.worker.executor if self.running else None
+        executor = self.worker.executor if self.running and not self.recovering else None
         if executor is None or executor.active_command_id is None:
             return
         if self._paused:
@@ -505,6 +547,9 @@ class ExecutionView(QWidget):
             self._controls()
 
     def abort(self):
+        if self.recovering:
+            self.status.setText('A reboot already sent cannot be cancelled; wait for recovery verification.')
+            return
         if self.running:
             self._aborting = True
             self.worker.abort()
@@ -738,6 +783,10 @@ class ExecutionView(QWidget):
                 self.status.setText(str(error))
 
     def closeEvent(self, event):
+        if self.recovering:
+            event.ignore()
+            self.status.setText('Wait for gripper recovery to finish before closing.')
+            return
         self._stop_motion_preview()
         self.set_live_preview_enabled(False)
         super().closeEvent(event)

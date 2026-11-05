@@ -1,4 +1,36 @@
-# Session context — 2026-10-16
+# Session context — 2026-11-06
+
+## Gripper recovery commit
+
+The gripper recovery implementation, GUI, regression tests and documentation
+are committed together. The versioned helper matches the external installed
+driver helper, and the companion patch matches its node/CMake integration.
+Unrelated excavator configuration, planning-resume and artifact edits are
+excluded. No physical reboot or motion is part of commit validation.
+
+## Explicit software gripper recovery
+
+Added `/gripper/recover` to the external ur5e_admittance single-owner driver and
+**Recover gripper…** to Operations. Recovery requires stopped execution and an
+operator-confirmed supported/removed load. The driver survives startup hardware
+faults, discards queued goals, revokes old holds, and performs one software reboot
+with bounded health verification. Torque stays off; the next explicit command
+seeds the measured position before enabling it. Unhealthy voltage/temperature,
+uncleared status, unavailable communication or a stuck old worker leave recovery
+failed. GUI/client success also requires fresh fault-clear, hold-clear and
+telemetry evidence on a new connection. No execution journal is reconciled or
+resumed automatically; whole-step retry and physical scene checks remain.
+
+The ROS-free helper is versioned under apps/tabletop/driver with a companion
+patch for the external node/CMake integration. The external scripts and build
+need updating together. This separates the new recovery logic from the existing
+large hardware-node module. Closing-margin/contact-control tuning is separate.
+Implementation/testing sends no real reboot, torque or robot/gripper commands.
+Validation: 96 focused recovery, ROS transport, hardware adapter, GUI and saved
+execution tests passed. The external ur5e_admittance package built successfully
+and installed the helper with symlink-install; existing C++ unused-variable
+warnings remain. Physical reboot/recovery has not been tested. Restart the
+hardware driver and Operations once before using the new recovery control.
 
 ## Commit handoff and gripper investigation
 

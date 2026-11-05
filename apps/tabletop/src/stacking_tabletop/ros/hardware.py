@@ -55,6 +55,8 @@ class TabletopRosTransport:
             self.position_publisher = self._publisher(api.Int32, "/grip_position_goal")
             self.hold_client = node.create_client(api.Trigger, "/gripper/hold_current_position")
             self._clients.append(self.hold_client)
+            self.recovery_client = node.create_client(api.Trigger, '/gripper/recover')
+            self._clients.append(self.recovery_client)
             if self._owns_node:
                 self.executor = api.SingleThreadedExecutor(context=self._context)
                 self.executor.add_node(node)
@@ -178,6 +180,9 @@ class TabletopRosTransport:
 
     def request_gripper_hold(self):
         return self.hold_client.call_async(self.api.Trigger.Request())
+
+    def request_gripper_recovery(self):
+        return self.recovery_client.call_async(self.api.Trigger.Request())
 
     def close(self):
         """Release only owned ROS resources; never send arm/gripper commands."""

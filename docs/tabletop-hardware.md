@@ -111,6 +111,57 @@ The transport retains `/grip_flag` (0 CLOSE, 1 MIDDLE, 2 OPEN),
 readiness, faults and hold acknowledgements use reliable transient-local QoS.
 Gripper JointState positions remain **raw encoder counts**, not radians.
 
+### Explicit gripper recovery
+
+In the Execution panel, **Recover gripper…** calls the single serial-owner
+driver's `/gripper/recover` (`std_srvs/srv/Trigger`) service. Finish/abort the
+execution attempt first, stop robot motion, and support or remove any held
+stone: reboot interrupts gripping torque. The GUI blocks execution, field work,
+run changes and closing the window while the bounded recovery is running.
+
+Recovery discards queued commands and the old hold acknowledgement, checks the
+configured voltage/temperature limits, sends one software reboot, and requires
+healthy status, valid encoder position and torque OFF for 0.25 s. It never
+commands OPEN/CLOSE or enables torque. A failed check keeps the fault latched;
+timeouts do not trigger automatic reboot retries. A later explicit gripper
+command first seeds the measured position before enabling torque, avoiding a
+jump to the reboot's default goal. Normal healthy driver startup still opens.
+
+Startup hardware faults now leave the driver alive for recovery instead of
+exiting before its service is created. Missing serial devices/open-port failures
+still require restoring the connection and restarting the driver. Recovery
+requires usable serial communication and does not repair a bad supply or jam.
+
+The GUI verifies a cleared driver fault, cleared hold, and fresh telemetry using
+a new ROS connection. Empty fault messages never clear an active execution
+session's latch. **Record physical reconciliation…** remains required for the
+failed step; recovery neither changes its journal nor authorizes lift. Retry
+starts the failed step with the existing motion review, not at the interrupted
+CLOSE sample. To retain a stone through recovery, support it physically and
+re-establish its pose/grasp separately before any robot motion.
+
+The equivalent service call, after the same physical checks, is:
+
+```bash
+ros2 service call /gripper/recover std_srvs/srv/Trigger '{}'
+```
+
+The recovery helper is versioned in `apps/tabletop/driver/gripper_recovery.py`;
+`ur5e_admittance-recovery.patch` records the integration with the external driver.
+On another workspace, inspect/apply that patch in `~/ros2_ws/src/ur5e_admittance`
+and copy the helper into its `scripts/` directory, then build:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+cd ~/ros2_ws
+colcon build --packages-select ur5e_admittance --symlink-install
+source install/setup.bash
+```
+
+Restart the hardware driver and Operations once to load the new service/UI.
+Recovery is tested with fake serial, ROS and GUI bindings; physical empty-gripper
+reboot and subsequent motion still need commissioning before loaded recovery.
+
 ## Migration baseline and verification
 
 The pure sampler/mapping/contact tests were ported from legacy

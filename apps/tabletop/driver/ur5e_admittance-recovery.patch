@@ -1,0 +1,135 @@
+--- a/scripts/gripper_node.py
++++ b/scripts/gripper_node.py
+@@ -44,6 +44,7 @@
+ from std_msgs.msg import Int32, String
+ from std_srvs.srv import Trigger
+ from sensor_msgs.msg import JointState
++from gripper_recovery import GripperRecoveryMixin
+ 
+ 
+ def _to_signed(val, nbits):
+@@ -52,7 +53,7 @@
+     return val
+ 
+ 
+-class GripperNode(Node):
++class GripperNode(GripperRecoveryMixin, Node):
+     # Dynamixel control table (X-series)
+     ADDR_HARDWARE_ERROR   = 70    # 1 B, latched fault flags
+     ADDR_MAX_VOLTAGE_LIMIT = 32   # 2 B, 0.1 V/count
+@@ -156,6 +157,8 @@
+         self._voltage_limit_max_raw = None
+         self._fault_message = None
+         self._shutdown_requested = False
++        self._recovering = False
++        self._torque_needs_enable = False
+         self._last_read_error_log = 0.0
+         self._read_error_count = 0
+         self._consecutive_position_read_errors = 0
+@@ -192,8 +195,11 @@
+             raise RuntimeError("Failed to set baudrate")
+ 
+         self._load_voltage_limits()
+-        self._enable_torque_safely()
+-        self.get_logger().info("Dynamixel connected successfully")
++        startup_error = None
++        try:
++            self._enable_torque_safely()
++        except RuntimeError as error:
++            startup_error = str(error)
+ 
+         self.state_pub = self.create_publisher(JointState, state_topic, 10)
+         fault_qos = QoSProfile(
+@@ -221,20 +227,24 @@
+             daemon=True,
+         )
+         self._command_worker_thread.start()
+-        self._start_move(self.DXL_MAXIMUM_POSITION_VALUE, source='startup OPEN')
+-        self.get_logger().info("Initial position → OPEN (grip_flag=2)")
+-
+-        self.subscription = self.create_subscription(
+-            Int32, flag_topic, self._grip_callback, 10
+-        )
+-        self.position_subscription = self.create_subscription(
+-            Int32, position_topic, self._position_callback, 10
+-        )
++        if startup_error is None:
++            self._publish_fault_text('')
++            self._start_move(self.DXL_MAXIMUM_POSITION_VALUE, source='startup OPEN')
++            self.get_logger().info("Initial position → OPEN (grip_flag=2)")
++        else:
++            self._latch_fault(f'Gripper startup failed: {startup_error}', disable_torque=True)
++            self.get_logger().error('Driver remains online for /gripper/recover')
++
++        self._flag_topic, self._position_topic = flag_topic, position_topic
++        self.subscription = self.position_subscription = None
++        self._replace_command_subscriptions(enabled=True)
+         self.hold_service = self.create_service(
+             Trigger,
+             '/gripper/hold_current_position',
+             self._hold_current_position_callback,
+         )
++        self.recovery_service = self.create_service(
++            Trigger, '/gripper/recover', self._recover_callback)
+         self.telemetry_timer = self.create_timer(
+             1.0 / self.TELEMETRY_HZ, self._publish_state
+         )
+@@ -261,6 +271,21 @@
+         )
+ 
+     # ───────────────────── Dynamixel I/O ─────────────────────
++    def _publish_fault_text(self, reason):
++        self.fault_pub.publish(String(data=reason))
++
++    def _replace_command_subscriptions(self, *, enabled):
++        for name in ('subscription', 'position_subscription'):
++            subscription = getattr(self, name, None)
++            if subscription is not None:
++                self.destroy_subscription(subscription)
++                setattr(self, name, None)
++        if enabled:
++            self.subscription = self.create_subscription(
++                Int32, self._flag_topic, self._grip_callback, 10)
++            self.position_subscription = self.create_subscription(
++                Int32, self._position_topic, self._position_callback, 10)
++
+     def _read_hw_error(self):
+         with self._bus_lock:
+             value, comm, err = self.packetHandler.read1ByteTxRx(
+@@ -415,7 +440,8 @@
+                     f"Refusing to enable gripper torque: Hardware Error Status="
+                     f"0x{hw_err:02X} ({', '.join(names) or 'unknown'}). Power-cycle "
+                     "and inspect the regulated supply, ground, wiring, and finger "
+-                    "mechanism before restarting; automatic reboot is disabled."
++                    "mechanism before recovery. Support the object and use "
++                    "/gripper/recover for an explicit software reboot."
+                 )
+ 
+         comm, err = self.packetHandler.write1ByteTxRx(
+@@ -1150,7 +1176,7 @@
+         self._start_move(goal_pos, source='raw position topic')
+ 
+     def _queue_command_locked(self, goal_pos: int, source: str):
+-        if self._fault_message is not None:
++        if self._fault_message is not None or self._recovering:
+             return None
+         self._command_generation += 1
+         generation = self._command_generation
+@@ -1286,6 +1312,7 @@
+                 )
+ 
+             try:
++                self._prepare_recovered_command()
+                 self._write_goal_position(goal_pos)
+             except Exception as exc:
+                 with self._state_condition:
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -41,6 +41,7 @@
+   DESTINATION lib/${PROJECT_NAME})
+ install(PROGRAMS
+   scripts/gripper_node.py
++  scripts/gripper_recovery.py
+   scripts/rviz_visualizer.py
+   DESTINATION lib/${PROJECT_NAME})
+ install(PROGRAMS

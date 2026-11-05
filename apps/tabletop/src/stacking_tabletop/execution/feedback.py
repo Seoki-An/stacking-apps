@@ -46,6 +46,7 @@ class HardwareFeedback:
         self._expected_hold = None
         self._guard = GripperHoldGuard()
         self._fault = None
+        self._fault_report = None
 
     def receive_ready(self, ready):
         with self._lock:
@@ -115,8 +116,14 @@ class HardwareFeedback:
 
     def receive_fault(self, reason):
         with self._lock:
+            self._fault_report = str(reason).strip()
             if str(reason).strip() and self._fault is None:
                 self._fault = str(reason).strip()
+
+    def gripper_fault_report(self):
+        """Latest driver report; an empty report never clears this session's latch."""
+        with self._lock:
+            return self._fault_report
 
     def check_gripper(self):
         with self._lock:

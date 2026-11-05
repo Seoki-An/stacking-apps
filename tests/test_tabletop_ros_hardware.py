@@ -138,7 +138,7 @@ def test_graph_topics_qos_and_no_startup_or_cleanup_commands():
     transport = TabletopRosTransport(node=node, bindings=bindings())
     assert set(node.publishers) == {"/dish_planning/pos_planner", "/dish_planning/admittance_gain",
                                     "/dish_planning/use_wrench", "/grip_flag", "/grip_position_goal"}
-    assert set(node.clients) == {"/gripper/hold_current_position"}
+    assert set(node.clients) == {"/gripper/hold_current_position", "/gripper/recover"}
     for topic in ("/admittance_ready", "/gripper/fault", "/gripper/contact_hold_goal"):
         assert node.subscriptions[topic].qos.durability == "latched"
         assert node.subscriptions[topic].qos.reliability == "reliable"
@@ -148,7 +148,7 @@ def test_graph_topics_qos_and_no_startup_or_cleanup_commands():
     transport.close()
     transport.close()
     assert not transport.ok()
-    assert len(node.destroyed_entities) == 12  # Six subscriptions, five publishers, one client.
+    assert len(node.destroyed_entities) == 13  # Six subscriptions, five publishers, two clients.
     assert not node.destroyed and node.context.ok()
     assert all(not entity.messages for entity in node.publishers.values())
 
