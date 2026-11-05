@@ -121,15 +121,27 @@ shapes:
         pose: [0.0, -1.0, 0.0, 0.0, 0.0, 0.7071067811865476, 0.7071067811865476]
         shape: *l-arm
   l_shaped_wall_nonsymmetric:
-    # Two perpendicular walls; 2 x 2 m ground overlap, one connected region.
-    # Ground footprint spans [-2, 2] in XY, excluding the upper-right 2 x 2 m notch.
+    # Two perpendicular walls meeting at y=-1, without volume overlap.
+    # Ground bounds: x=[-2, 2], y=[-3, 3].
     components:
       - id: north_arm
-        pose: [-3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
-        shape: &l-arm-long
-          width: 2.0
-          length: 6.0
-          height: 2.5
+        pose: [-1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        shape: *l-arm
+      - id: east_arm
+        # Pose quaternion is XYZW: 90 degrees about Z.
+        pose: [0.0, -2.0, 0.0, 0.0, 0.0, 0.7071067811865476, 0.7071067811865476]
+        shape: *l-arm
+  l_shaped_thin_wall:
+    # Two perpendicular walls with a 1 x 1 m overlap and a 1.2 x 1.2 m corner column.
+    # Corner column is centered on the overlap and has the same 3 m height.
+    # Ground bounds: x=[-1.6, 2.5], y=[-2.6, 1.5].
+    components:
+      - id: north_arm
+        pose: [-1.0, -0.5, 0.0, 0.0, 0.0, 0.0, 1.0]
+        shape: &l-thin-arm
+          width: 1.0
+          length: 4.0
+          height: 3.0
           origin: [0.0, 0.0, 0.0]
           support_overlap: 0.02
           taper_degrees:
@@ -139,5 +151,11 @@ shapes:
             length_negative: 0.0
       - id: east_arm
         # Pose quaternion is XYZW: 90 degrees about Z.
-        pose: [0.0, -2.0, 0.0, 0.0, 0.0, 0.7071067811865476, 0.7071067811865476]
-        shape: *l-arm
+        pose: [0.5, -2.0, 0.0, 0.0, 0.0, 0.7071067811865476, 0.7071067811865476]
+        shape: *l-thin-arm
+      - id: corner_column
+        pose: [-1.0, -2.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        shape:
+          <<: *l-thin-arm
+          width: 1.2
+          length: 1.2
