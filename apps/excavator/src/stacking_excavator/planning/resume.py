@@ -67,6 +67,7 @@ def branch_excavator_run(source, destination, context):
         raise ValueError('search-only resume cannot retain robot motion plans')
     artifact = StackRunStore.load_mcts(source)
     statistics = {int(item['step']): item for item in StackRunStore.load_mcts_statistics(source)}
+    step_contexts = StackRunStore.load_mcts_step_contexts(source)
     writer = StackRunStore.create_mcts(destination, replace(artifact, steps=()), metadata={
         **dict(StackRunStore.info(source).metadata),
         'planning_parent': {'path': str(source), 'checkpoint_step': checkpoint.step},
@@ -83,7 +84,8 @@ def branch_excavator_run(source, destination, context):
         for step in artifact.steps:
             if step.step <= checkpoint.step:
                 writer.append_mcts_step(step, statistics=statistics.get(step.step),
-                    checkpoint=checkpoint if step.step == checkpoint.step else None)
+                    checkpoint=checkpoint if step.step == checkpoint.step else None,
+                    context_sha256=step_contexts.get(step.step))
     except BaseException:
         writer.finish('failed')
         writer.close()

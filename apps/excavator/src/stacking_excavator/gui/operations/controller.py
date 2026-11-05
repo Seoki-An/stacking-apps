@@ -38,6 +38,7 @@ class OperationsController(CommonOperationsController):
         self._score_inventory = None
         self._score_view = None
         self._asset_directory = None
+        self._step_contexts = {}
 
     def load(self, path):
         path = Path(path)
@@ -73,6 +74,7 @@ class OperationsController(CommonOperationsController):
                 known.add(record.step)
         artifact = replace(artifact, steps=tuple(sorted(steps, key=lambda step: step.step)))
         self.contexts, self.projectors, self.mesh_paths = contexts, projectors, paths
+        self._step_contexts = StackRunStore.load_mcts_step_contexts(path)
         self.set_artifact(artifact, planning_records=records, search_statistics=statistics)
         self._run_path = path
         self._score_inventory = None
@@ -129,8 +131,10 @@ class OperationsController(CommonOperationsController):
             return self.current_plan.context_sha256
         if len(self.contexts) == 1 or self.current_step is None:
             return next(iter(self.contexts))
-        return StackRunStore.load_planning_checkpoint(
-            self._run_path, step=self.current_step.step).context_sha256
+        digest = self._step_contexts.get(self.current_step.step)
+        if digest is None:
+            raise ValueError(f"Search step {self.current_step.step} has no recorded context binding")
+        return digest
 
     def frame(self, *, trajectory_time=None):
         frame = super().frame(trajectory_time=trajectory_time)

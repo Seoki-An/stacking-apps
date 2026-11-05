@@ -159,6 +159,38 @@ def test_search_resume_can_change_seed_without_changing_committed_scene(interrup
                  '--steps', '1', '--save-run', str(final)]) == 0
     assert load_resume_checkpoint(final).step == 3
     assert len(StackRunStore.load_run_contexts(final)) == 2
+    # The branch only retains its restart checkpoint, but old search steps
+    # must still render with their original seed/settings context.
+    bindings = StackRunStore.load_mcts_step_contexts(final)
+    assert bindings[1] == checkpoint.context_sha256
+    assert bindings[2] == bindings[3] == current.sha256
+    from stacking_excavator.gui.operations.controller import OperationsController
+    controller = OperationsController(ROOT)
+    controller.load(final)
+    assert controller._current_context_digest() == checkpoint.context_sha256
+    assert controller.frame().object_mesh_paths
+
+
+def test_failed_search_step_has_context_without_checkpoint(interrupted_run, tmp_path, monkeypatch):
+    source, _ = interrupted_run
+    def exhausted(self, root, request):
+        return MCTSSearchResult(root=root, selected=None, ranked_candidates=(), completed_iterations=0,
+            expansion_calls=0, generated_candidates=0, evaluated_candidates=0,
+            failed_evaluations=0, effective_max_depth=1, timed_out=False)
+    monkeypatch.setattr(MonteCarloTreeSearch, 'search', exhausted)
+    output = tmp_path / 'failed-seed5.stack'
+    assert main(['--worker', '--repository', str(ROOT), '--resume-run', str(source),
+                 '--seed', '5', '--steps', '1', '--save-run', str(output)]) == 1
+    contexts = StackRunStore.load_run_contexts(output)
+    bindings = StackRunStore.load_mcts_step_contexts(output)
+    assert bindings[1] == contexts[0].sha256
+    assert bindings[2] == contexts[-1].sha256
+    from stacking_excavator.gui.operations.controller import OperationsController
+    controller = OperationsController(ROOT)
+    controller.load(output)
+    controller.select_step(1)
+    assert controller._current_context_digest() == contexts[-1].sha256
+    assert len(controller.frame().placed_objects) == 1
 
 
 @pytest.mark.parametrize('change', ['environment', 'request', 'asset'])

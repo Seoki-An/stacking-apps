@@ -96,6 +96,7 @@ class StackRunWriter:
         *,
         statistics: Mapping[str, object] | None = None,
         checkpoint: PlanningCheckpoint | None = None,
+        context_sha256: str | None = None,
     ) -> None:
         """Commit one complete search step without rewriting earlier steps."""
 
@@ -104,6 +105,20 @@ class StackRunWriter:
             raise ValueError("checkpoint and committed step numbers differ")
         payload, arrays = _externalize_arrays(encode_mcts_step(step))
         with self._connection:
+            # Viewing a search step must not require a restart checkpoint.
+            # Copied steps may belong to an older context than the branch's
+            # restart state; callers can preserve that association explicitly.
+            if context_sha256 is None and checkpoint is not None:
+                context_sha256 = checkpoint.context_sha256
+            if context_sha256 is None:
+                row = self._connection.execute(
+                    "SELECT record_id FROM records WHERE kind='planning_context' "
+                    "ORDER BY ordinal DESC LIMIT 1"
+                ).fetchone()
+                context_sha256 = None if row is None else row[0]
+            if context_sha256 is not None:
+                _load_context(self._connection, context_sha256)
+                payload["context_sha256"] = context_sha256
             _write_record(
                 self._connection,
                 kind="mcts_step",
@@ -386,6 +401,35 @@ class StackRunStore:
                 "SELECT record_id FROM records WHERE kind = 'planning_context' ORDER BY ordinal"
             ).fetchall()
             return tuple(_load_context(connection, row[0]) for row in rows)
+
+    @staticmethod
+    def load_mcts_step_contexts(path: str | Path) -> dict[int, str]:
+        """Read search/view context bindings without decoding scene arrays.
+
+        Older single-context runs and exact checkpoints remain supported.
+        Ambiguous historical steps are left unresolved rather than assigned
+        another experiment's settings.
+        """
+        with _open_reader(Path(path)) as connection:
+            connection.execute("BEGIN")
+            contexts = [row[0] for row in connection.execute(
+                "SELECT record_id FROM records WHERE kind='planning_context' ORDER BY ordinal")]
+            checkpoints = dict(connection.execute(
+                "SELECT CAST(record_id AS INTEGER), json_extract(payload_json, '$.context_sha256') "
+                "FROM records WHERE kind='planning_checkpoint'"))
+            result = {}
+            for step, digest, succeeded in connection.execute(
+                "SELECT CAST(record_id AS INTEGER), json_extract(payload_json, '$.context_sha256'), "
+                "json_extract(payload_json, '$.succeeded') FROM records WHERE kind='mcts_step'"
+            ):
+                digest = digest or checkpoints.get(step)
+                if digest is None and contexts and (len(contexts) == 1 or not succeeded):
+                    digest = contexts[-1]
+                if digest is not None:
+                    if digest not in contexts:
+                        raise ValueError(f"search step {step} references an unknown planning context")
+                    result[step] = digest
+            return result
 
     @staticmethod
     def load_execution_commands(path: str | Path) -> tuple[ExecutionCommand, ...]:
