@@ -160,6 +160,17 @@ to each region's allocation, within corner-seed/lower-floor priority groups.
 It returns the selected rows in region-balanced order. This avoids rounding
 every individual draw up to an elite when `elite_fraction` is positive.
 
+Composite samplers also retain score maps, rasterized surfaces and active-layer
+data for up to 16 previously visited states, within a 64 MiB retained-data budget
+per sampler, in addition to the current working state. Least recently visited
+states are evicted first; an oversized state is not retained. Inventory and target
+geometry are scoped to the sampler. Exact pose contents, placement order,
+sampling/floor settings and quaternion banks distinguish reusable maps.
+Cached diagnostic mappings and arrays are read-only. Restoring a state clears
+its mutation-score lookup until that visit requests the corresponding object's
+map. RNG state and regional draw cursor are never restored by this cache, so
+reuse changes computation cost without replaying old samples.
+
 CEM mutation scores evaluate the mutated quaternion's footprint and support,
 including rotations outside the fresh orientation bank. They use the fresh
 bank's score normalization rather than the best-orientation XY display map.

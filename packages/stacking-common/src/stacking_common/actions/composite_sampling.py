@@ -1,6 +1,9 @@
 """Region-balanced proposals using actual convex-component containment masks."""
 
-from collections.abc import Sequence
+from collections import OrderedDict
+from collections.abc import Mapping, Sequence
+from types import MappingProxyType
+import sys
 
 import numpy as np
 from scipy.ndimage import distance_transform_edt
@@ -47,6 +50,52 @@ class _CandidateRows(Sequence):
         return item
 
 
+def _readonly(value, memo=None):
+    """Freeze shared diagnostic containers without copying their array storage."""
+    memo = {} if memo is None else memo
+    if id(value) in memo:
+        return memo[id(value)]
+    if isinstance(value, np.ndarray):
+        value.setflags(write=False)
+    elif isinstance(value, dict):
+        frozen = {key: _readonly(item, memo) for key, item in value.items()}
+        value_id = id(value)
+        value = MappingProxyType(frozen)
+        memo[value_id] = value
+    elif isinstance(value, (tuple, list)):
+        value = tuple(_readonly(item, memo) for item in value)
+    elif isinstance(value, _CandidateRows):
+        value.batches = _readonly(value.batches, memo)
+        value.ends.setflags(write=False)
+    return value
+
+
+def _cache_bytes(value, seen=None):
+    """Count retained containers and backing arrays once within a state bundle.
+
+    Immutable target/region geometry belongs to the sampler, not this cache.
+    Counting shared grids again in different states is intentionally conservative.
+    """
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return 0
+    seen.add(id(value))
+    size = sys.getsizeof(value)
+    if isinstance(value, np.ndarray):
+        return size + (_cache_bytes(value.base, seen) if value.base is not None else 0)
+    if isinstance(value, Mapping):
+        # A mapping proxy also retains its underlying dict.
+        if isinstance(value, MappingProxyType):
+            size += sys.getsizeof(dict(value))
+        return size + sum(_cache_bytes(k, seen) + _cache_bytes(v, seen)
+                          for k, v in value.items())
+    if isinstance(value, (tuple, list)):
+        return size + sum(_cache_bytes(item, seen) for item in value)
+    if isinstance(value, _CandidateRows):
+        return size + _cache_bytes(vars(value), seen)
+    return size
+
+
 class CompositePlanarSampler:
     """Keep the original scorer untouched; share its kernels and draw policy.
 
@@ -57,6 +106,11 @@ class CompositePlanarSampler:
     to the physical surface, including geometry outside the target footprint.
     """
 
+    # Bound additional retained states; the working state exists independently.
+    # These are implementation limits, not planning/sampling parameters.
+    _cache_max_bytes = 64 * 1024 * 1024
+    _cache_max_states = 16
+
     def __init__(self, owner):
         self.owner = owner
         self.policy = owner.floor_policy
@@ -65,6 +119,8 @@ class CompositePlanarSampler:
         self._maps = {}
         self._latest_maps = {}
         self._surfaces = {}
+        self._states = OrderedDict()
+        self._states_bytes = 0
         self._cursor = 0
         self._kernels = {}
         self._rotated = {}
@@ -74,19 +130,45 @@ class CompositePlanarSampler:
     def metadata(self, object_index, pose):
         return self.regions.pose_metadata(self.owner.inventory, object_index, pose)
 
+    def _activate(self, context, state):
+        if context == self._context:
+            return
+        saved = self._states.pop(context, None)
+        if saved is not None:
+            self._states_bytes -= saved[0]
+        if self._context is not None:
+            bundle = (self._maps, self._surfaces, self._layers)
+            size = _cache_bytes((self._context, bundle))
+            if size <= self._cache_max_bytes and self._cache_max_states:
+                self._states[self._context] = (size, bundle)
+                self._states_bytes += size
+        while self._states and (self._states_bytes > self._cache_max_bytes or
+                                len(self._states) > self._cache_max_states):
+            _, (size, _) = self._states.popitem(last=False)
+            self._states_bytes -= size
+        self._context = context
+        # Only maps requested during this visit may be used to score mutations.
+        self._latest_maps = {}
+        if saved is None:
+            self._maps, self._surfaces = {}, {}
+            self._layers = _readonly(self.policy.context_details(state)["regions"])
+        else:
+            self._maps, self._surfaces, self._layers = saved[1]
+
     def score_map(self, state, observation, object_index):
         owner = self.owner
         self._state = state
         quaternions = owner.quaternions(state, observation, object_index)
-        context = (tuple(state.placed_object_indices),
-                   tuple((oid, np.asarray(pose).tobytes()) for oid, pose in sorted(state.object_poses.items())),
-                   owner.config, repr(owner.settings), owner.relax_corner_seed)
-        if context != self._context:
-            self._context = context
-            self._maps.clear()
-            self._latest_maps.clear()
-            self._surfaces.clear()
-            self._layers = self.policy.context_details(state)["regions"]
+        # Inventory/target geometry is immutable and scoped to this sampler.
+        # Rotations may depend on observation; their exact values key each map.
+        context = (tuple(state.object_ids), tuple(state.placed_object_indices),
+                   tuple((oid, np.asarray(pose).shape, np.asarray(pose).dtype.str,
+                          np.asarray(pose).tobytes()) for oid, pose in sorted(state.object_poses.items())),
+                   owner.config, repr(owner.settings), owner.relax_corner_seed,
+                   owner.connectivity_enabled, owner.connectivity_length,
+                   self.policy.bottom_tolerance, self.policy.fill_ratio,
+                   self.policy.coverage_mode, self.policy.grid_size)
+        self._activate(context, state)
         key = (object_index, tuple(tuple(q) for q in quaternions))
         if key in self._maps:
             self._latest_maps[object_index] = self._maps[key]
@@ -115,8 +197,8 @@ class CompositePlanarSampler:
         for _, _, columns in batches:
             for values in columns.values():
                 values.setflags(write=False)
-        result = {"regions": maps, "candidates": candidates,
-                  "normalization": {"score_min": float(low), "score_span": float(span)}}
+        result = _readonly({"regions": maps, "candidates": candidates,
+                  "normalization": {"score_min": float(low), "score_span": float(span)}})
         self._maps[key] = result
         self._latest_maps[object_index] = result
         return result
