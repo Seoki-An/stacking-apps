@@ -1730,14 +1730,13 @@ them in one `build_candidates` call. Results per proposal do not depend on
 batch composition. The deadline is now checked once before the combined solve
 instead of between its parts.
 
-On `l_shaped_thin_wall.stack` checkpoints (128 iterations, workers 2, mean of
-two alternating runs, with no other GPU job):
+On `l_shaped_thin_wall.stack` checkpoints (128 iterations, workers 2, seed 0,
+mean of two alternating runs, with no other GPU job):
 
-| Step, seed | Before (s) | After (s) | Pose calls |
-| --- | ---: | ---: | ---: |
-| 14, 0 | 21.6 | 20.7 | 19 → 17 |
-| 14, 1 | 21.8 | 20.8 | 19 → 17 |
-| 24, 0 | 54.1 | 53.1 | 36 → 34 |
+| Step | Before (s) | After (s) | Pose calls |
+| ---: | ---: | ---: | ---: |
+| 14 | 21.6 | 20.7 | 19 → 17 |
+| 24 | 54.1 | 53.1 | 36 → 34 |
 
 Every run kept the same ordered tree. Late steps remain dominated by up to
 three serial `_expand_many` retry rounds, which yield about five accepted
