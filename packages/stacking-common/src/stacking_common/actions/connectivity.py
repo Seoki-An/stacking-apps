@@ -15,8 +15,9 @@ def projected_footprint(points):
 def footprint_distances(previous, candidate, translations):
     """Exact distance between convex XY polygons at candidate translations.
 
-    Separating axes detect overlap; otherwise the closest vertex/edge pair
-    gives the Euclidean gap. No raster-cell dilation or bounding-box overlap.
+    Separating axes detect overlap. Outside, the gap is the distance from the
+    translation to the Minkowski difference of the two polygons. Its boundary
+    has at most m+n edges, avoiding a vertex/edge tensor of size N*m*n.
     """
     previous, candidate = np.asarray(previous), np.asarray(candidate)
     translations = np.asarray(translations).reshape(-1, 2)
@@ -32,19 +33,14 @@ def footprint_distances(previous, candidate, translations):
     distances = np.zeros(len(translations))
     if not np.any(separated):
         return distances
-    moving = candidate[None] + translations[separated, None]
-    fixed = np.broadcast_to(previous, (len(moving), *previous.shape))
-
-    def vertex_edge_distance(vertices, polygon):
-        edge = np.roll(polygon, -1, axis=1) - polygon
-        delta = vertices[:, :, None] - polygon[:, None]
-        fraction = np.clip(np.sum(delta * edge[:, None], axis=-1)
-                           / np.sum(edge * edge, axis=-1)[:, None], 0., 1.)
-        delta = delta - fraction[..., None] * edge[:, None]
-        return np.sqrt(np.min(np.sum(delta * delta, axis=-1), axis=(1, 2)))
-
-    distances[separated] = np.minimum(vertex_edge_distance(moving, fixed),
-                                     vertex_edge_distance(fixed, moving))
+    differences = (previous[:, None] - candidate[None, :]).reshape(-1, 2)
+    boundary = differences[ConvexHull(differences).vertices]
+    edge = np.roll(boundary, -1, axis=0) - boundary
+    delta = translations[separated, None] - boundary
+    fraction = np.clip(np.sum(delta * edge, axis=-1)
+                       / np.sum(edge * edge, axis=-1), 0., 1.)
+    delta = delta - fraction[..., None] * edge
+    distances[separated] = np.sqrt(np.min(np.sum(delta * delta, axis=-1), axis=1))
     return distances
 
 

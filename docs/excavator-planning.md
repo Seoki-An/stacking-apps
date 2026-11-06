@@ -21,6 +21,13 @@ history copies. Full trajectories remain available to checkpoints and viewers.
 The CPU placement/state-finalization experiment was reverted; reward/observation
 processing still overlaps subsequent CUDA simulation chunks.
 
+Exact XY polygon distances now use the boundary of the Minkowski difference,
+rather than a grid-by-vertex-by-edge tensor. The separating-axis overlap
+tolerance remains unchanged; this changes neither connectivity policy nor
+sampling restrictions. On three saved thin-wall scenes, twelve score maps per
+scene took 36–48% less time with identical sampled poses (maximum score
+difference below `1e-15`).
+
 The active excavator CUDA profile uses 1024 iterations, an evaluation batch of
 256 and four CPU result workers. Runtime chunk defaults are:
 
