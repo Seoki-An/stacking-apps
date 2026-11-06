@@ -113,6 +113,10 @@ class CudaPlacementBackend(CorePlacementBackend):
             phase = self.core.CudaSimulationPhase()
             phase.dt, phase.steps = self.config.settle_dt, self.config.settle_steps
             phase.sample_stride = max(1, phase.steps // self.config.settle_sample_count)
+            if hasattr(phase, 'sampled_entities'):
+                # Settling freezes the existing scene; only the new stone's
+                # history is consumed. The final snapshot still contains all bodies.
+                phase.sampled_entities = [self.scene_builder.entity_id(action.object_index)]
             problems.append(self._problem(i, scene, self.settling_simulation_config or self.simulation_config, [phase]))
         return self._run(problems)
 
@@ -137,6 +141,10 @@ class CudaPlacementBackend(CorePlacementBackend):
         phase.quiet_steps = (config.final_extra_steps if final_object and config.final_extra_steps is not None
                              else config.extra_steps)
         phase.monitored = [self.scene_builder.entity_id(i) for i in indices]
+        if phase.monitored and hasattr(phase, 'sampled_entities'):
+            # Preserve every stone and timestep without capacity-sized history
+            # slots for ground and unused bodies.
+            phase.sampled_entities = phase.monitored
         phase.energy_threshold = config.energy_threshold
         phase.motion_limit = config.velocity_integral_threshold
         phase.continue_previous = continuation
@@ -175,12 +183,13 @@ class CudaPlacementBackend(CorePlacementBackend):
         settling_wall = time.perf_counter() - started
         results, problems, contexts = [None] * len(states), [], {}
         for i, (state, action, out) in enumerate(zip(states, actions, settled)):
-            if out.snapshot is None:
+            snapshot = out.snapshot
+            if snapshot is None:
                 results[i] = self._failure(state, action, out, 'settling')
                 continue
             indices = [*state.placed_object_indices, action.object_index]
-            frozen = self._short_frozen_indices(out.snapshot, indices, action.object_index, out.contacts)
-            scene = self._scene_from_snapshot(out.snapshot, indices, state, action, frozen_indices=frozen)
+            frozen = self._short_frozen_indices(snapshot, indices, action.object_index, out.contacts)
+            scene = self._scene_from_snapshot(snapshot, indices, state, action, frozen_indices=frozen)
             phases = [self._phase(config, indices, final_object=len(indices) == len(self.object_ids),
                                   continuation=j > 0) for j, config in enumerate(
                 ([self.config.short_gate] if self.config.short_gate else []) + [self.config.structural])]
@@ -256,20 +265,23 @@ class CudaPlacementBackend(CorePlacementBackend):
     def _structural_summary(self, scene, indices, action, settling, out):
         elapsed = 0.
         times = {}
+        phases = out.phases
         names = ('short', 'long_extension') if self.config.short_gate else ('structural',)
-        for j, phase in enumerate(out.phases):
+        for j, phase in enumerate(phases):
             config = self.config.short_gate if j == 0 and self.config.short_gate else self.config.structural
             times[names[j]] = phase.steps * config.dt
             elapsed += times[names[j]]
         for name in names:
             times.setdefault(name, 0.)
         times['total'] = elapsed
-        last = out.phases[-1]
+        last = phases[-1]
+        # Native properties materialize Python containers on every access.
+        motion_integrals = last.motion_integrals
         integrals = {}
         for i in indices:
             entity, object_id = self.scene_builder.entity_id(i), self.object_ids[i]
-            integrals[object_id] = last.motion_integrals.get(entity, 0.)
-        config = self.config.short_gate if self.config.short_gate and len(out.phases) == 1 else self.config.structural
+            integrals[object_id] = motion_integrals.get(entity, 0.)
+        config = self.config.short_gate if self.config.short_gate and len(phases) == 1 else self.config.structural
         required_quiet = (config.final_extra_steps if len(indices) == len(self.object_ids)
                           and config.final_extra_steps is not None else config.extra_steps)
         is_settled = last.quiet_steps >= required_quiet and elapsed > config.min_time
@@ -312,8 +324,8 @@ class CudaPlacementBackend(CorePlacementBackend):
             entity, object_id = self.scene_builder.entity_id(i), self.object_ids[i]
             trajectories[object_id].vel_integral = simulation.velocity_integrals[object_id]
             trajectories[object_id].energy = self._normalized_energy(
-                object_id, out.snapshot.body_linear_velocity(entity),
-                out.snapshot.body_angular_velocity(entity))
+                object_id, simulation.snapshot.body_linear_velocity(entity),
+                simulation.snapshot.body_angular_velocity(entity))
         simulation.trajectories.update(trajectories)
 
     def settle_fixed(self, state, action):
@@ -347,12 +359,20 @@ class CudaPlacementBackend(CorePlacementBackend):
         for i, (state, action, snapshot, contacts) in enumerate(jobs):
             phase_config = disturbance_phase(self, state)
             dynamic = robustness_dynamic_entities(self, snapshot, action, contacts)
+            force_scene = None
             for number, (linear, angular) in enumerate(config.velocity_disturbances(
                     step=len(state.placed_object_indices) + 1,
                     object_index=action.object_index, object_id=action.object_id)):
-                scene = disturbance_scene(self, snapshot, action, linear, angular, dynamic)
-                initial = {body.id: np.asarray(body.pose) for body in scene.bodies
-                           if body.mobility == self.core.Mobility.DYNAMIC}
+                # Force probes all start from the same resting scene. Direction
+                # varies only in the phase's force; native jobs own their state.
+                if force_scene is None:
+                    scene = disturbance_scene(self, snapshot, action, linear, angular, dynamic)
+                    initial = {body.id: np.asarray(body.pose) for body in scene.bodies
+                               if body.mobility == self.core.Mobility.DYNAMIC}
+                    if config.force_ratio is not None:
+                        force_scene = scene, initial
+                else:
+                    scene, initial = force_scene
                 phase = self._robustness_phase(phase_config, initial)
                 if config.force_ratio is not None:
                     if not hasattr(phase, 'external_forces'):
@@ -401,8 +421,9 @@ class CudaPlacementBackend(CorePlacementBackend):
         histories = {entity: (out.sample_poses(entity) if hasattr(out, 'sample_poses') else
                      np.array([s.snapshot.body_pose(entity) for s in out.samples]))
                      for entity in initial}
-        if not out.phases or any(len(poses) != out.phases[-1].steps for poses in histories.values()):
+        phases = out.phases
+        if not phases or any(len(poses) != phases[-1].steps for poses in histories.values()):
             return float('inf'), 'incomplete_robustness_history'
-        settled = out.phases[-1].quiet_steps >= config.extra_steps
+        settled = phases[-1].quiet_steps >= config.extra_steps
         return scene_trial_outcome(initial, histories, self.place_stability, config,
                                    energy_settled=settled)

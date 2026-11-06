@@ -42,9 +42,9 @@ parallel:
     incidences: 1024
   posegen_backend: cuda  # cpu or cuda
   simulation_backend: cuda  # cpu or cuda
-  # CPU reward/observation workers overlap the next CUDA placement chunk.
+  # Two CPU reward/observation workers preserve GPU overlap without excess GIL contention.
   enabled: true
-  workers: 12
+  workers: 2
 root_cem:
   population: 96
   elite: 32

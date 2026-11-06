@@ -28,17 +28,44 @@ sampling restrictions. On three saved thin-wall scenes, twelve score maps per
 scene took 36–48% less time with identical sampled poses (maximum score
 difference below `1e-15`).
 
-The active excavator CUDA profile uses 1024 iterations, an evaluation batch of
-256 and four CPU result workers. Runtime chunk defaults are:
+The active excavator CUDA profile uses up to 4096 iterations within a 60-second
+search budget, an evaluation batch of 128 and two CPU result workers. Runtime
+chunk defaults are:
 
 | Work | Batch size |
 | --- | ---: |
 | CUDA pose generation | 512 jobs (`parallel.posegen_capacity.batch`) |
 | CUDA placement simulation | 128 placements |
-| Native simulation capacity | 512 jobs, allowing four robustness trials per placement |
+| Native simulation capacity | 512 independent scenes; robustness may require multiple batches |
 | CPU reward/observation processing | 32 results |
 
-The latest [production-default benchmark](benchmarks/excavator-mcts-state-copies-and-chunks.json)
+The 2026-11-06 Python evaluation update keeps simulation horizons, disturbance
+trials, rejection rules, rewards and tree policies unchanged. Native snapshots
+and motion-integral maps are read once per result where possible, and
+force-direction trials reuse their identical initial scene;
+each native trial still simulates independent state.
+Settling records only the new stone's history, while structural phases record
+every placed stone; unused capacity slots and ground histories are omitted.
+Every required timestep and the complete final snapshot remain available.
+
+Replaying 166 fixed candidates twice averaged 8.95 s with the previous code and
+twelve CPU workers, 8.93 s with the conversion/scene-reuse changes alone, and 8.30 s with two
+workers. One worker lost overlap and took 14.39 s. Physical decisions, poses and
+full trajectories matched exactly; worker-dependent surface-cache arithmetic
+changed rewards by at most `1.3e-15`. This worker setting is measured for the
+excavator CUDA profile; CPU pose-generation and tabletop worker settings are
+unchanged. Local replay inputs and reports are under
+`.stacks/RSS_visualization/thin-wall-corner120-180s-20261105/evaluation-optimization/`.
+
+With all changes applied, three fixed-128-iteration searches took 25.28 instead
+of 28.30 s (step 14, seed 0), 67.49 instead of 76.17 s (step 24, seed 0), and
+24.16 instead of 27.43 s (step 14, seed 1). Ordered nodes, poses, visit counts,
+feasibility and selected actions matched; reward/mean differences stayed below
+`2.4e-15`. These are saved-scene comparisons, not complete planning episodes.
+Under a fixed wall-time budget, faster evaluation permits more exploration
+rather than necessarily shortening the search.
+
+The earlier [production-default benchmark](benchmarks/excavator-mcts-state-copies-and-chunks.json)
 completed the fixed nine-stone starting scene with 49 inventory stones in
 **71.12 seconds at 14.96 evaluated nodes/s**. It evaluated 1064 candidates under
 the 1024-iteration budget. The optimization comparisons preserved ordered tree
@@ -1724,7 +1751,6 @@ Remaining costs are native pose generation (about 13 s, where each call runs
 until its slowest job reaches the 50/75 iteration limit), Python sampling and
 scoring (about 8 s) and waits on reward workers. See the
 [benchmark data](benchmarks/excavator-mcts-shared-diagnostics-20261021.json).
-
 
 ### One pose batch per root CEM iteration (2026-11-06)
 

@@ -52,6 +52,37 @@ def test_phase_time_bounds_are_strict():
     assert _steps_after(0., .01) == 1
 
 
+def test_compact_nominal_histories_preserve_all_stone_trajectories(backends, monkeypatch):
+    _, gpu = backends
+    source = state(True)
+    action = Action(1, pose(x=.5), pose(x=.5), object_id=20)
+    settled, = gpu._settling((source,), (action,))
+    assert {body.id for body in settled.samples[0].snapshot.bodies} == {2}
+    assert len(settled.snapshot.bodies) == 3  # Both stones and ground remain in physics.
+    phase = gpu._phase(gpu.config.structural, [0, 1], final_object=True)
+    assert phase.sampled_entities == [1, 2]
+    actual = gpu.place(source, action)
+    run = gpu._run
+
+    def full_histories(problems):
+        for problem in problems:
+            phases = problem.phases
+            for phase in phases:
+                phase.sampled_entities = None
+            problem.phases = phases
+        return run(problems)
+
+    monkeypatch.setattr(gpu, '_run', full_histories)
+    expected = gpu.place(source, action)
+    assert (actual.failed, actual.settled) == (expected.failed, expected.settled)
+    for object_id in actual.object_poses:
+        np.testing.assert_array_equal(actual.object_poses[object_id], expected.object_poses[object_id])
+        np.testing.assert_array_equal(actual.trajectories[object_id].poses,
+                                      expected.trajectories[object_id].poses)
+        np.testing.assert_array_equal(actual.trajectories[object_id].times,
+                                      expected.trajectories[object_id].times)
+
+
 @pytest.mark.parametrize("backends", [False, True], indirect=True,
                          ids=["unified", "legacy_staged"])
 def test_native_batch_matches_scalar_cpu_and_preserves_history(backends):
@@ -394,12 +425,12 @@ def test_cuda_robustness_receives_final_nominal_contacts(backends, monkeypatch):
     assert result.diagnostics['place_robustness_contact_hops'] == 2
 
 
-def test_only_robustness_requests_compact_histories(backends):
+def test_nominal_and_robustness_request_their_consumed_histories(backends):
     _, gpu = backends
     if not hasattr(core.CudaSimulationPhase, 'sampled_entities'):
         pytest.skip('requires selective native histories')
     nominal = gpu._phase(gpu.config.structural, [0, 1], final_object=False)
-    assert nominal.sampled_entities is None
+    assert nominal.sampled_entities == nominal.monitored == [1, 2]
     trial = gpu._robustness_phase(gpu.config.structural, {1: pose()})
     assert trial.sampled_entities == trial.monitored == [1]
     gpu._compact_robustness_history = False
@@ -488,7 +519,7 @@ def test_cuda_preparation_failure_drains_native_worker(backends, monkeypatch):
             release.set()
 
 
-def test_force_robustness_matches_cpu_and_preserves_nominal_scene(backends):
+def test_force_robustness_matches_cpu_and_preserves_nominal_scene(backends, monkeypatch):
     cpu, gpu = backends
     from stacking_common.environment.robustness import evaluate_place_stability
     cfg = PlaceStabilityConfig(True, 4, force_ratio=.05, force_duration=.04,
@@ -503,7 +534,15 @@ def test_force_robustness_matches_cpu_and_preserves_nominal_scene(backends):
     snapshot = gpu._scene(source, action, [0], {0})
     original = np.array(snapshot.body_pose(1))
     expected = evaluate_place_stability(cpu, source, action, snapshot, ())
+    import stacking_common.environment.cuda_backend as cuda_backend
+    build_scene = cuda_backend.disturbance_scene
+    scene_calls = []
+    def record_scene(*args, **kwargs):
+        scene_calls.append(1)
+        return build_scene(*args, **kwargs)
+    monkeypatch.setattr(cuda_backend, 'disturbance_scene', record_scene)
     actual, = gpu._robustness([(source, action, snapshot, ())])
+    assert len(scene_calls) == 1  # Force directions share a resting scene, not evolving state.
     np.testing.assert_allclose(actual[1], expected[1], atol=2e-6)
     assert actual[2] == expected[2]
     np.testing.assert_array_equal(snapshot.body_pose(1), original)
