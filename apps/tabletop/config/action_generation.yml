@@ -17,7 +17,7 @@ filtering:
   # Shared filter policy; physical gap limits are platform-specific.
   require_solver_convergence: false
   reject_equilibrium_at_threshold: true
-  posegen_equilibrium_threshold: 1.0
+  posegen_equilibrium_threshold: 0.1
   # stacking-core reports the summed penetration residual across active
   # candidate contacts; 3 mm admits the commissioned single-object solves.
   posegen_gap_threshold: 0.003
