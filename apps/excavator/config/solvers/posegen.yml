@@ -49,6 +49,7 @@ objective:
   narrow_phase_candidate_tol: 0.1
   narrow_phase_scene_tol: 0.005
   rho: 0.01
+  # Used when the initial-XY displacement filter is disabled; otherwise shape-aware bounds apply.
   w_box: 2.0
 force_solver:
   beta_consensus: 1.0

@@ -52,14 +52,18 @@ def test_composite_direct_pose_solver_factory_is_available(composite_target, mon
     application = StackingSearchApplication()
     application.mcts_profile = SimpleNamespace(parallel=SimpleNamespace(posegen_backend="cpu"))
     application.posegen_profile = object()
+    application.action_generation_profile = SimpleNamespace(
+        generator=SimpleNamespace(max_initial_xy_displacement_ratio=0.5),
+    )
     inventory = SimpleNamespace(target=composite_target)
     native_module = object()
     solver = object()
 
-    def build(received_inventory, profile, *, core_module):
+    def build(received_inventory, profile, *, core_module, max_initial_xy_displacement_ratio):
         assert received_inventory is inventory
         assert profile is application.posegen_profile
         assert core_module is native_module
+        assert max_initial_xy_displacement_ratio == 0.5
         return solver
 
     monkeypatch.setattr(workflow, "CorePlacementPoseSolver", build)

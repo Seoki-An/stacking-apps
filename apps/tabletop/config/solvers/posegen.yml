@@ -82,6 +82,7 @@ objective:
   k_box: 0.1
   k_reg: 0.0
   k_lower: 0.0
+  # Used when the initial-XY displacement filter is disabled; otherwise shape-aware bounds apply.
   w_box: 1.0
   gravity: 9.81
   ground_height: 0.0

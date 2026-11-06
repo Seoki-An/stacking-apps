@@ -6,6 +6,23 @@ in the earlier MCTS documents. The original code and dirty working files are in
 
 ## Initial-XY displacement admission (2026-10-31)
 
+As of 2026-11-06, enabling this filter also adapts the posegen box to each
+initialized stone. Let `D = ratio * volume(candidate)^(1/3)`. The world XY
+bounding rectangle of the initially rotated stone is expanded on each side
+by `D / sqrt(2)`. These explicit bounds stay fixed across continuation stages
+on both CPU and CUDA. The native box objective penalizes the stone's support
+points outside these planes; it does not constrain only the stone center.
+Thus X and Y widths can differ, and asymmetric shapes need not have a box
+centered on their pose origin. The existing `k_box` schedule controls the soft
+penalty. With the filter disabled, native `w_box` retains its original meaning.
+
+For unchanged orientation and zero box violation, the padding restricts the
+center's XY displacement to at most `D`. Rotation and soft violations prevent
+a strict guarantee, so optimized and simulated endpoint admission remains
+necessary. This does not change `k_xy`, reward, or simulation settings. Solve
+diagnostics record `posegen_box_bounds` as `[xmin, xmax, ymin, ymax]` and
+`posegen_box_reference: initial_footprint`.
+
 Both platforms enable `filtering.max_initial_xy_displacement_ratio: 0.5`
 in `action_generation.yml`. Let `L = volume(candidate)^(1/3)` and let `p0`
 be the initialized pose for this proposal. Accept only when both the optimized

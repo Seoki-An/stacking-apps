@@ -16,7 +16,8 @@ class CudaPlacementPoseSolver(CorePlacementPoseSolver):
 
     batch_size = 512
 
-    def __init__(self, inventory, profile, *, capacity=None, core_module=None):
+    def __init__(self, inventory, profile, *, capacity=None, core_module=None,
+                 max_initial_xy_displacement_ratio=None):
         if core_module is None:
             import stacking_core as core_module
         capabilities = getattr(core_module, "cuda_capabilities", lambda: {})()
@@ -25,7 +26,8 @@ class CudaPlacementPoseSolver(CorePlacementPoseSolver):
                 "posegen backend 'cuda' requires a CUDA-enabled stacking-core build "
                 "and a visible CUDA device; install CUDA bindings or set parallel.posegen_backend: cpu in the MCTS profile"
             )
-        super().__init__(inventory, profile, core_module=core_module)
+        super().__init__(inventory, profile, core_module=core_module,
+                         max_initial_xy_displacement_ratio=max_initial_xy_displacement_ratio)
         configured = capacity if capacity is not None else CudaPosegenCapacityConfig()
         self.capacity = asdict(configured)
         # Cover every possible placed-stone subset and lookahead candidate,
@@ -61,6 +63,7 @@ class CudaPlacementPoseSolver(CorePlacementPoseSolver):
             if id(state) not in scenes:
                 scenes[id(state)] = self._prepare_problem_scene(state)
         poses = [initial.pose for _, _, initial in requests]
+        boxes = [self._initial_box_bounds(index, initial) for _, index, initial in requests]
         gaps = [0.0 for _ in requests]
         results = [None for _ in requests]
         stages = [[] for _ in requests]
@@ -69,12 +72,14 @@ class CudaPlacementPoseSolver(CorePlacementPoseSolver):
         for step, time in enumerate(times):
             if not active:
                 break
-            items = [self.core.CudaPosegenBatchItem(
-                index,
-                self._problem(requests[index][0], requests[index][1], poses[index],
-                              scene_context=scenes[id(requests[index][0])]),
-                self._scheduled_config(float(time), gaps[index], final=step == len(times) - 1),
-            ) for index in active]
+            items = []
+            for index in active:
+                config = self._scheduled_config(float(time), gaps[index], final=step == len(times) - 1)
+                self._set_box_bounds(config, boxes[index])
+                items.append(self.core.CudaPosegenBatchItem(
+                    index,
+                    self._problem(requests[index][0], requests[index][1], poses[index],
+                                  scene_context=scenes[id(requests[index][0])]), config))
             outputs = self.cuda_generator.solve(items)
             by_id = {out.request_id: out for out in outputs}
             if len(outputs) != len(active) or set(by_id) != set(active):
@@ -122,9 +127,10 @@ class CudaPlacementPoseSolver(CorePlacementPoseSolver):
                 poses[index] = native.optimal_pose
                 gaps[index] = float(native.c_gap)
                 if step == len(times) - 1:
-                    results[index] = self._placement_result(
+                    result = self._placement_result(
                         native, self._native_mass_scale(*requests[index][:2]),
                         stages[index], status if limited else None)
+                    results[index] = self._with_box_diagnostics(result, boxes[index])
                 else:
                     next_active.append(index)
             active = next_active

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 from typing import Mapping
 
@@ -181,6 +181,7 @@ class CorePlacementPoseSolver:
         profile: CorePosegenProfile,
         *,
         core_module=None,
+        max_initial_xy_displacement_ratio: float | None = None,
     ) -> None:
         if core_module is None:
             try:
@@ -192,6 +193,12 @@ class CorePlacementPoseSolver:
         self.core = core_module
         self.inventory = inventory
         self.profile = profile
+        if max_initial_xy_displacement_ratio is not None and (
+            not math.isfinite(max_initial_xy_displacement_ratio)
+            or max_initial_xy_displacement_ratio <= 0
+        ):
+            raise ValueError("max initial XY displacement ratio must be positive")
+        self.max_initial_xy_displacement_ratio = max_initial_xy_displacement_ratio
         self.scene_builder = CoreSceneBuilder(
             inventory.models,
             frame_id=profile.frame_id,
@@ -249,16 +256,59 @@ class CorePlacementPoseSolver:
         c_gap = 0.0
         result = None
         schedule_times = self.profile.schedule["times"]
+        box_bounds = self._initial_box_bounds(object_index, initial)
         for step, schedule_time in enumerate(schedule_times):
-            self.generator.config = self._scheduled_config(
+            config = self._scheduled_config(
                 float(schedule_time), c_gap, final=step == len(schedule_times) - 1,
             )
+            self._set_box_bounds(config, box_bounds)
+            self.generator.config = config
             result = self.generator.solve(self._problem(state, object_index, pose))
             pose = np.asarray(result.optimal_pose, dtype=float)
             c_gap = float(result.c_gap)
         if result is None:
             raise RuntimeError("posegen schedule did not execute")
-        return self._placement_result(result, self._native_mass_scale(state, object_index))
+        return self._with_box_diagnostics(
+            self._placement_result(result, self._native_mass_scale(state, object_index)),
+            box_bounds,
+        )
+
+    @staticmethod
+    def _with_box_diagnostics(result, bounds):
+        if bounds is None:
+            return result
+        return replace(result, diagnostics={
+            **result.diagnostics,
+            "posegen_box_bounds": bounds,
+            "posegen_box_reference": "initial_footprint",
+        })
+
+    def _initial_box_bounds(self, object_index, initial):
+        """Pad the initial stone footprint by an inscribed XY displacement square.
+
+        This guides the soft shape constraint; rotation and soft violations
+        still require the final radial displacement filter.
+        """
+        ratio = getattr(self, "max_initial_xy_displacement_ratio", None)
+        if ratio is None:
+            return None
+        from stacking_common.domain.geometry import transform_points
+        obj = self.inventory[object_index]
+        points, _ = obj.mesh_arrays()
+        xy = transform_points(points, initial.pose)[:, :2]
+        padding = ratio * np.cbrt(obj.volume) / np.sqrt(2.0)
+        low, high = xy.min(axis=0) - padding, xy.max(axis=0) + padding
+        return (float(low[0]), float(high[0]), float(low[1]), float(high[1]))
+
+    @staticmethod
+    def _set_box_bounds(config, bounds):
+        if bounds is not None:
+            if not hasattr(config.objective, "box_bounds"):
+                raise RuntimeError(
+                    "automatic posegen box requires stacking-core with box_bounds support; "
+                    "rebuild stacking-core"
+                )
+            config.objective.box_bounds = bounds
 
     def _validate_request(self, inventory, state, object_index):
         if inventory is not self.inventory:

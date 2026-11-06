@@ -92,6 +92,7 @@ class StackingSearchApplication:
             inventory,
             self.posegen_profile,
             core_module=core_module,
+            max_initial_xy_displacement_ratio=self.action_generation_profile.generator.max_initial_xy_displacement_ratio,
             **options,
         )
 

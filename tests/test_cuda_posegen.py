@@ -335,7 +335,7 @@ def test_configured_capacity_covers_inventory_and_controls_chunking(monkeypatch)
         def __len__(self): return len(models)
     inventory = Inventory()
     inventory.models = models
-    def base_init(self, inventory, profile, *, core_module):
+    def base_init(self, inventory, profile, *, core_module, max_initial_xy_displacement_ratio=None):
         self.target_model = SimpleNamespace(geometry_count=1)
     monkeypatch.setattr(CorePlacementPoseSolver, '__init__', base_init)
     capacities = []
