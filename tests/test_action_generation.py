@@ -48,21 +48,27 @@ class _RecoveryGenerator:
         self.offsets = []
         self.clock = 0.0
 
-    def generate(self, state, observation, request):
-        from stacking_common.domain import Action
+    def select_proposals(self, state, observation, request):
         self.offsets.append(request.attempt_offset)
         start = min(request.attempt_offset, self.total)
         end = min(start + request.max_candidates, self.total)
-        candidates = tuple(ActionCandidate(Action(0, _pose(x=i), _pose(x=i), object_id=10))
-                           for i in range(start, end) if i >= 4)
-        rejected = end - start - len(candidates)
         self.clock += 1.0
-        return ActionGenerationResult(candidates, end - start, end == self.total,
+        return tuple((0, i) for i in range(start, end)), end == self.total
+
+    def generate(self, state, observation, request):
+        proposals, exhausted = self.select_proposals(state, observation, request)
+        built = self.build_candidates(state, proposals)
+        candidates = tuple(candidate for candidate, _ in built if candidate is not None)
+        rejected = len(built) - len(candidates)
+        return ActionGenerationResult(candidates, len(proposals), exhausted,
             {"active_floor_above_active_layer": rejected} if rejected else {})
 
     def build_candidates(self, state, proposals):
-        assert not proposals
-        return ()
+        from stacking_common.domain import Action
+        assert all(isinstance(i, int) for _, i in proposals)  # Fresh stream only; no mutations.
+        return tuple((ActionCandidate(Action(0, _pose(x=i), _pose(x=i), object_id=10)), None)
+                     if i >= 4 else (None, "active_floor_above_active_layer")
+                     for _, i in proposals)
 
 
 def _recovery_cem(base, iterations=3):

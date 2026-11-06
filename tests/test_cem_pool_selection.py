@@ -34,10 +34,21 @@ class Generator:
         batch = next(self.batches)
         return ActionGenerationResult(tuple(batch), len(batch), False)
 
+    def select_proposals(self, state, observation, request):
+        # Fresh proposals carry their prepared candidate through build_candidates.
+        self.requests.append(request)
+        return tuple((c.action.object_index, c) for c in next(self.batches)), False
+
     def build_candidates(self, state, proposals):
-        self.parents.extend(index + 1 for index, _ in proposals)
-        return [(ActionCandidate(Action(index, p.pose, p.pose, object_id=index + 1),
-                  diagnostics={"test_score": 10. + i}), None) for i, (index, p) in enumerate(proposals)]
+        built = []
+        for i, (index, p) in enumerate(proposals):
+            if isinstance(p, ActionCandidate):
+                built.append((p, None))
+                continue
+            self.parents.append(index + 1)
+            built.append((ActionCandidate(Action(index, p.pose, p.pose, object_id=index + 1),
+                          diagnostics={"test_score": 10. + i}), None))
+        return built
 
 
 def config(**kwargs):

@@ -1719,6 +1719,31 @@ scoring (about 8 s) and waits on reward workers. See the
 [benchmark data](benchmarks/excavator-mcts-shared-diagnostics-20261021.json).
 
 
+### One pose batch per root CEM iteration (2026-11-06)
+
+Native pose-generation calls are latency-bound: a 4-job call costs about
+0.5 s and a 96-job call about 1.1 s, because every job waits for the slowest
+one. Each root CEM iteration used to solve its mutations, fresh proposals and
+fresh fallbacks in up to three separate calls. It now samples them in the same
+RNG order, through `PlacementActionGenerator.select_proposals`, and solves
+them in one `build_candidates` call. Results per proposal do not depend on
+batch composition. The deadline is now checked once before the combined solve
+instead of between its parts.
+
+On `l_shaped_thin_wall.stack` checkpoints (128 iterations, workers 2, mean of
+two alternating runs, with no other GPU job):
+
+| Step, seed | Before (s) | After (s) | Pose calls |
+| --- | ---: | ---: | ---: |
+| 14, 0 | 21.6 | 20.7 | 19 → 17 |
+| 14, 1 | 21.8 | 20.8 | 19 → 17 |
+| 24, 0 | 54.1 | 53.1 | 36 → 34 |
+
+Every run kept the same ordered tree. Late steps remain dominated by up to
+three serial `_expand_many` retry rounds, which yield about five accepted
+children from about 140 pose jobs per frontier batch.
+
+
 ### Sampling fallback after search exhaustion
 
 Strict-floor rejection and its relaxation retry have been removed. When the

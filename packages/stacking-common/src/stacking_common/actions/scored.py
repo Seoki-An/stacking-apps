@@ -7,7 +7,6 @@ physical limits and orientation providers.
 """
 
 from types import SimpleNamespace
-from collections import Counter
 from contextlib import contextmanager
 from dataclasses import asdict
 import random
@@ -23,7 +22,6 @@ from ._support_maps import bottom_height_kernel
 from .types import PlanarPlacement, PlacementFilterDecision
 from .generator import PlacementActionGenerator
 from stacking_common.domain import CompositeTargetGeometry
-from stacking_common.search.types import ActionGenerationResult
 
 
 class _StoneView:
@@ -382,40 +380,26 @@ class ScoredPlacementActionGenerator(PlacementActionGenerator):
         finally:
             self.planar_sampler.relax_corner_seed = previous
 
-    def generate_batch(self, states, observations, requests):
-        if not (len(states) == len(observations) == len(requests)):
-            raise ValueError("batched action-generation inputs must align")
-        jobs = []
-        exhausted = []
-        attempts = [0 for _ in states]
-        for batch, (state, observation, request) in enumerate(zip(states, observations, requests)):
-            self._validate_state(state)
-            self._sampling_calls += 1
-            available = [i for i, object_id in enumerate(state.object_ids)
-                         if i not in state.placed_object_indices
-                         and object_id not in self.config.banned_object_ids
-                         and object_id not in request.execution_rejections.object_ids]
-            exhausted.append(not available)
-            priority = request.sampling_priority == "lower_floor_first" and bool(state.placed_object_indices)
-            counts = self._proposal_counts(available, request.max_candidates, priority)
-            for index, count in counts.items():
-                if not count or (request.deadline is not None and time.monotonic() >= request.deadline):
-                    continue
-                # Compute the elite/random mixture for the allocated budget.
-                # Oversampling then taking a prefix can retain only elites.
-                proposals = self.planar_sampler.sample(self.inventory, state, observation,
-                    index, count, request.sampling_priority)
-                jobs.extend((batch, state, index, proposal) for proposal in proposals)
-                attempts[batch] += len(proposals)
-        candidates = [[] for _ in states]
-        rejections = [Counter() for _ in states]
-        for (batch, *_), (candidate, reason) in zip(jobs, self._build_jobs(jobs)):
-            if reason is not None:
-                rejections[batch][reason] += 1
-            elif candidate is not None:
-                candidates[batch].append(candidate)
-        return tuple(ActionGenerationResult(tuple(candidates[i]), attempts[i], exhausted[i], rejections[i])
-                     for i in range(len(states)))
+    def select_proposals(self, state, observation, request):
+        """Draw a fresh population; retry offsets do not skip its prefix."""
+        self._validate_state(state)
+        self._sampling_calls += 1
+        available = [i for i, object_id in enumerate(state.object_ids)
+                     if i not in state.placed_object_indices
+                     and object_id not in self.config.banned_object_ids
+                     and object_id not in request.execution_rejections.object_ids]
+        priority = request.sampling_priority == "lower_floor_first" and bool(state.placed_object_indices)
+        counts = self._proposal_counts(available, request.max_candidates, priority)
+        selected = []
+        for index, count in counts.items():
+            if not count or (request.deadline is not None and time.monotonic() >= request.deadline):
+                continue
+            # Compute the elite/random mixture for the allocated budget.
+            # Oversampling then taking a prefix can retain only elites.
+            proposals = self.planar_sampler.sample(self.inventory, state, observation,
+                index, count, request.sampling_priority)
+            selected.extend((index, proposal) for proposal in proposals)
+        return tuple(selected), not available
 
 
 class TargetXYOverlapFilter:

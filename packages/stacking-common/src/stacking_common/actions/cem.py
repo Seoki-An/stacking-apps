@@ -287,27 +287,14 @@ class CEMRootActionGenerator(Generic[ObservationT]):
                 )
                 for _ in range(mutate_count)
             ]
-            built = self.generator.build_candidates(state, mutations)
-            candidates = [
-                candidate for candidate, _ in built if candidate is not None
-            ]
-            round_rejections: Counter[str] = Counter(
-                reason for _, reason in built if reason is not None
-            )
-            mutation_accounted = len(candidates) + sum(
-                round_rejections.values()
-            )
-            if len(mutations) > mutation_accounted:
-                round_rejections["unclassified_generation"] += (
-                    len(mutations) - mutation_accounted
-                )
-            fresh_attempts = 0
-            fresh_fallback_attempts = 0
+            # Sample mutation, fresh and fallback proposals in their usual RNG
+            # order, then solve them together: one latency-bound pose batch
+            # instead of up to three. Results are independent per proposal.
+            fresh_proposals = ()
+            fallback_proposals = []
             if fresh_count and not expired():
-                if fresh_exhausted:
-                    fresh = ActionGenerationResult((), attempts=0, exhausted=True)
-                else:
-                    fresh = self.generator.generate(
+                if not fresh_exhausted:
+                    fresh_proposals, fresh_exhausted = self.generator.select_proposals(
                         state, observation,
                         ActionGenerationRequest(
                             max_candidates=fresh_count,
@@ -317,21 +304,8 @@ class CEMRootActionGenerator(Generic[ObservationT]):
                             execution_rejections=request.execution_rejections,
                         ),
                     )
-                candidates.extend(fresh.candidates)
-                fresh_attempts = fresh.attempts
-                fresh_offset += fresh.attempts
-                fresh_exhausted = fresh.exhausted
-                round_rejections.update(fresh.rejection_counts)
-                accounted = len(fresh.candidates) + sum(
-                    fresh.rejection_counts.values()
-                )
-                if fresh.attempts > accounted:
-                    round_rejections["unclassified_generation"] += (
-                        fresh.attempts - accounted
-                    )
-                if parents and not expired():
-                    fresh_fallback_attempts = max(fresh_count - fresh.attempts, 0)
-                if fresh_fallback_attempts:
+                fresh_offset += len(fresh_proposals)
+                if parents:
                     fallback_proposals = [
                         self._mutation_proposal(
                             rng,
@@ -339,21 +313,30 @@ class CEMRootActionGenerator(Generic[ObservationT]):
                             observation,
                             source="cem_fresh_fallback",
                         )
-                        for _ in range(fresh_fallback_attempts)
+                        for _ in range(max(fresh_count - len(fresh_proposals), 0))
                     ]
-                    fallback = self.generator.build_candidates(
-                        state, fallback_proposals
+            fresh_attempts = len(fresh_proposals)
+            fresh_fallback_attempts = len(fallback_proposals)
+            built = self.generator.build_candidates(
+                state, [*mutations, *fresh_proposals, *fallback_proposals])
+            fresh_end = len(mutations) + fresh_attempts
+            candidates = []
+            round_rejections: Counter[str] = Counter()
+            for proposals, results in (
+                (mutations, built[:len(mutations)]),
+                (fresh_proposals, built[len(mutations):fresh_end]),
+            ):
+                accepted = [candidate for candidate, _ in results if candidate is not None]
+                reasons = [reason for _, reason in results if reason is not None]
+                candidates.extend(accepted)
+                round_rejections.update(reasons)
+                if len(proposals) > len(accepted) + len(reasons):
+                    round_rejections["unclassified_generation"] += (
+                        len(proposals) - len(accepted) - len(reasons)
                     )
-                    candidates.extend(
-                        candidate
-                        for candidate, _ in fallback
-                        if candidate is not None
-                    )
-                    round_rejections.update(
-                        reason
-                        for _, reason in fallback
-                        if reason is not None
-                    )
+            fallback = built[fresh_end:]
+            candidates.extend(candidate for candidate, _ in fallback if candidate is not None)
+            round_rejections.update(reason for _, reason in fallback if reason is not None)
             combined = [*ranked, *candidates]
             pool, duplicates = self._select_pool(
                 state, observation, combined, request, rejection_counts)

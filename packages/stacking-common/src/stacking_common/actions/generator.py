@@ -124,18 +124,9 @@ class PlacementActionGenerator(Generic[ObservationT]):
         for request_index, (state, observation, request) in enumerate(
             zip(states, observations, requests)
         ):
-            self._validate_state(state)
-            proposals = self._proposal_stream(
-                state,
-                observation,
-                request.sampling_priority,
-            )
-            start = min(request.attempt_offset, len(proposals))
-            selected = tuple(
-                proposals[start : start + request.max_candidates]
-            )
+            selected, exhausted = self.select_proposals(state, observation, request)
             selected_by_request.append(selected)
-            exhausted_by_request.append(start + len(selected) >= len(proposals))
+            exhausted_by_request.append(exhausted)
             jobs.extend(
                 (request_index, state, object_index, proposal)
                 for object_index, proposal in selected
@@ -168,6 +159,24 @@ class PlacementActionGenerator(Generic[ObservationT]):
                 rejections_by_request,
             )
         )
+
+    def select_proposals(
+        self,
+        state: State,
+        observation: ObservationT,
+        request: ActionGenerationRequest,
+    ) -> tuple[tuple[tuple[int, PlanarPlacement], ...], bool]:
+        """Sample the ordered proposals ``generate`` would solve, and exhaustion."""
+
+        self._validate_state(state)
+        proposals = self._proposal_stream(
+            state,
+            observation,
+            request.sampling_priority,
+        )
+        start = min(request.attempt_offset, len(proposals))
+        selected = tuple(proposals[start : start + request.max_candidates])
+        return selected, start + len(selected) >= len(proposals)
 
     def build_candidate(
         self,
