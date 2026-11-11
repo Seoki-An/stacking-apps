@@ -36,11 +36,14 @@ def footprint_distances(previous, candidate, translations):
     differences = (previous[:, None] - candidate[None, :]).reshape(-1, 2)
     boundary = differences[ConvexHull(differences).vertices]
     edge = np.roll(boundary, -1, axis=0) - boundary
-    delta = translations[separated, None] - boundary
-    fraction = np.clip(np.sum(delta * edge, axis=-1)
-                       / np.sum(edge * edge, axis=-1), 0., 1.)
-    delta = delta - fraction[..., None] * edge
-    distances[separated] = np.sqrt(np.min(np.sum(delta * delta, axis=-1), axis=1))
+    # Explicit x/y components avoid reductions over a length-2 axis.
+    dx = translations[separated, 0, None] - boundary[:, 0]
+    dy = translations[separated, 1, None] - boundary[:, 1]
+    ex, ey = edge[:, 0], edge[:, 1]
+    fraction = np.clip((dx * ex + dy * ey) / (ex * ex + ey * ey), 0., 1.)
+    dx = dx - fraction * ex
+    dy = dy - fraction * ey
+    distances[separated] = np.sqrt(np.min(dx * dx + dy * dy, axis=1))
     return distances
 
 

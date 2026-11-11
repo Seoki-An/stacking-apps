@@ -593,11 +593,19 @@ def score_xy_debug_map(
         "candidates": candidates,
     }
 
-def rectangle_cell_counts(mask: np.ndarray, rectangles) -> np.ndarray:
+def cell_count_table(mask: np.ndarray) -> np.ndarray:
+    """Summed-area table: entry [y, x] counts true cells in mask[:y, :x]."""
+    return np.pad(np.cumsum(np.cumsum(mask, axis=0), axis=1), ((1, 0), (1, 0)))
+
+
+def table_cell_counts(summed: np.ndarray, rectangles) -> np.ndarray:
     """Count true grid cells in rectangles with exclusive upper indices."""
     x0, x1, y0, y1 = rectangles
-    summed = np.pad(np.cumsum(np.cumsum(mask, axis=0), axis=1), ((1, 0), (1, 0)))
     return summed[y1, x1] - summed[y0, x1] - summed[y1, x0] + summed[y0, x0]
+
+
+def rectangle_cell_counts(mask: np.ndarray, rectangles) -> np.ndarray:
+    return table_cell_counts(cell_count_table(mask), rectangles)
 
 
 def score_grid_shape(inventory, height_map: Optional[np.ndarray]) -> tuple[int, int]:

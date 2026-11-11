@@ -148,7 +148,7 @@ class CachedAnchorContainment:
 
     def __call__(self, xy, rotated_points, placement_z, *, inset_scale=1., margin=0.):
         xy = np.asarray(xy, dtype=float).reshape(-1, 2)
-        positions = np.c_[xy, np.broadcast_to(placement_z, (len(xy),))]
+        positions = np.column_stack((xy, np.broadcast_to(placement_z, (len(xy),))))
         offsets = self.offsets(np.asarray(rotated_points, dtype=float).tobytes(),
                                inset_scale, margin)
         return np.column_stack([

@@ -228,12 +228,14 @@ class CompositePlanarSampler:
         orientations = []
         for q in quaternions:
             rotation_key = (object_index, tuple(q))
-            rotated = self._rotated.get(rotation_key)
-            if rotated is None:
+            rotation = self._rotated.get(rotation_key)
+            if rotation is None:
                 rotated = Rotation.from_quat(q).apply(source)
                 rotated.setflags(write=False)
+                rotation = (rotated, _readonly(projected_footprint(rotated)))
                 if cache_geometry:
-                    self._rotated[rotation_key] = rotated
+                    self._rotated[rotation_key] = rotation
+            rotated, footprint = rotation
             kernel_key = (object_index, dx, dy, tuple(q))
             kernel = self._kernels.get(kernel_key)
             if kernel is None:
@@ -245,7 +247,7 @@ class CompositePlanarSampler:
             # Raster kernels may miss the lowest vertex of an irregular stone.
             placement = np.maximum(support.placement_height[0].ravel(),
                                    self.regions.ground_z - rotated[:, 2].min())
-            orientations.append((rotated, support.contact_height[0].ravel(),
+            orientations.append((rotated, footprint, support.contact_height[0].ravel(),
                                  placement, support.support[0].ravel()))
         return x, y, xy, shape, orientations
 
@@ -271,7 +273,16 @@ class CompositePlanarSampler:
             index = self._state.placed_object_indices[-1]
             previous_entry = floor.floor_entry(owner.stones[index],
                 self._state.object_poses[self._state.object_ids[index]], include_volumes=False)
-        for orientation, (rotated, height, placement, likelihood) in enumerate(orientations):
+        height_scale = max(float(region.target.bounds[1, 2] - self.regions.ground_z), 1e-12)
+        bias_xy = floor.score_planar_bias_xy(score_cfg)
+        axis = str(score_cfg.get("planar_bias_axis", score_cfg.get("excavator_distance_axis", "xy"))).lower()
+        extent = np.ptp(owner.inventory.target.bounds[:, :2], axis=0)
+        footprint_scale = float(cfg.get("footprint_scale", .9))
+        xs, ys = layer["xx"][0], layer["yy"][:, 0]
+        # Layer masks are shared by every orientation.
+        unfilled_table = floor.cell_count_table(layer["valid"] & ~layer["occupied"])
+        contact_table = floor.cell_count_table(layer["occupied_neighbor"])
+        for orientation, (rotated, footprint, height, placement, likelihood) in enumerate(orientations):
             finite = np.isfinite(height) & np.isfinite(placement) & np.isfinite(likelihood)
             indices = np.flatnonzero(finite)
             membership = containment(xy[indices], rotated, placement[indices],
@@ -279,24 +290,22 @@ class CompositePlanarSampler:
             valid = membership.any(axis=1)
             indices, membership = indices[valid], membership[valid]
             # A scaled footprint may overhang, but its anchor cannot be in a gap.
-            valid = region.target.contains(np.c_[xy[indices], height[indices]])
+            valid = region.target.contains(np.column_stack((xy[indices], height[indices])))
             indices, membership = indices[valid], membership[valid]
             if not len(indices):
                 continue
             target_valid = np.zeros(shape, dtype=bool)
             target_valid.ravel()[indices] = True
             distance = distance_transform_edt(np.pad(target_valid, 1), sampling=(dy, dx))[1:-1, 1:-1]
-            bounds = float(cfg.get("footprint_scale", .9)) * np.stack(
-                (rotated[:, :2].min(0), rotated[:, :2].max(0)))
-            xs, ys = layer["xx"][0], layer["yy"][:, 0]
+            bounds = footprint_scale * np.stack((rotated[:, :2].min(0), rotated[:, :2].max(0)))
             anchors = xy[indices]
             rectangles = (
                 np.searchsorted(xs, anchors[:, 0] + bounds[0, 0]),
                 np.searchsorted(xs, anchors[:, 0] + bounds[1, 0], side="right"),
                 np.searchsorted(ys, anchors[:, 1] + bounds[0, 1]),
                 np.searchsorted(ys, anchors[:, 1] + bounds[1, 1], side="right"))
-            unfilled = floor.rectangle_cell_counts(layer["valid"] & ~layer["occupied"], rectangles)
-            contacts = floor.rectangle_cell_counts(layer["occupied_neighbor"], rectangles)
+            unfilled = floor.table_cell_counts(unfilled_table, rectangles)
+            contacts = floor.table_cell_counts(contact_table, rectangles)
             connected = (contacts > 0) if layer["occupied"].any() else np.ones(len(indices), dtype=bool)
             if not owner.connectivity_enabled:
                 connected[:] = True
@@ -305,11 +314,11 @@ class CompositePlanarSampler:
                 connected[:] = True
                 if previous_entry is not None:
                     distance_penalty = bounded_distance_penalty(
-                        previous_entry["xy_polygon"], projected_footprint(rotated), anchors,
+                        previous_entry["xy_polygon"], footprint, anchors,
                         float(owner.settings["contact_gap_tolerance"]), owner.connectivity_length)
             elif previous_entry is not None:
                 connected = footprints_within_gap(previous_entry["xy_polygon"],
-                    projected_footprint(rotated), anchors,
+                    footprint, anchors,
                     float(owner.settings["contact_gap_tolerance"]) + 1e-9)
             keep = connected
             indices, membership, unfilled = indices[keep], membership[keep], unfilled[keep]
@@ -317,11 +326,7 @@ class CompositePlanarSampler:
                 continue
             boundary = 1. - distance.ravel()[indices] / max(float(distance.max()), 1e-12)
             relative_height = np.maximum(height[indices] - self.regions.ground_z, 0.)
-            height_scale = max(float(region.target.bounds[1, 2] - self.regions.ground_z), 1e-12)
-            bias_xy = floor.score_planar_bias_xy(score_cfg)
-            axis = str(score_cfg.get("planar_bias_axis", score_cfg.get("excavator_distance_axis", "xy"))).lower()
             delta = np.abs(xy[indices] - bias_xy)
-            extent = np.ptp(owner.inventory.target.bounds[:, :2], axis=0)
             bias = (delta[:, 0] / max(extent[0], 1e-12) if axis in ("x", "0") else
                     delta[:, 1] / max(extent[1], 1e-12) if axis in ("y", "1") else
                     np.linalg.norm(delta, axis=1) / max(float(np.linalg.norm(extent)), 1e-12))
