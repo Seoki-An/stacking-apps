@@ -164,17 +164,18 @@ class ActiveFloorPolicy:
                 raise ValueError("floor grid misses a composite target region; increase floor.grid_size")
             # Only stones actually overlapping this region contribute to its layers.
             projected_target = (region.target.footprint_distance(np.c_[xx.ravel(), yy.ravel()]) <= 1e-9).reshape(xx.shape)
-            remaining = [entry for entry in entries if np.any(projected_target & self._projected_mask(entry, xx, yy))]
+            remaining = [entry for entry in entries
+                         if np.any(projected_target & self._mask(entry, None, grid=(xx, yy)))]
             empty = not remaining
             support_z, completed = self.ground_z, []
             while True:
                 valid = region.mask(xx, yy, support_z)
                 layer = [entry for entry in remaining
                          if entry["bottom"] <= support_z + self.bottom_tolerance
-                         and np.any(self._compute_mask(entry, support_z, (xx, yy)) & valid)]
+                         and np.any(self._mask(entry, support_z, grid=(xx, yy)) & valid)]
                 occupied = np.zeros(xx.shape, dtype=bool)
                 for entry in layer:
-                    occupied |= self._compute_mask(entry, support_z, (xx, yy))
+                    occupied |= self._mask(entry, support_z, grid=(xx, yy))
                 occupied &= valid
                 occupancy = np.count_nonzero(occupied) / max(np.count_nonzero(valid), 1)
                 if not valid.any() or not layer or occupancy < self.fill_ratio:
@@ -280,16 +281,19 @@ class ActiveFloorPolicy:
         xx, yy = np.meshgrid(xs, ys, indexing="xy")
         return lower, upper, xx, yy
 
-    def _mask(self, entry, support_z: float, *, grid=None) -> np.ndarray:
-        default = self._grid()[2:]
-        if grid is not None and not (grid[0] is default[0] and grid[1] is default[1]):
-            return self._compute_mask(entry, support_z, grid)
-        # Projected footprints do not depend on the support height.
-        key = (id(entry), None if self.coverage_mode == "projected_footprint" else float(support_z))
+    def _mask(self, entry, support_z: float | None, *, grid=None) -> np.ndarray:
+        """Cached cell mask; support_z=None requests the projected footprint."""
+        xx, yy = self._grid()[2:] if grid is None else grid
+        # Projected footprints do not depend on the support height. The cache
+        # keeps the entry and grid alive, so their ids cannot be reused.
+        projected = support_z is None or self.coverage_mode == "projected_footprint"
+        key = (id(entry), id(xx), None if projected else float(support_z))
         mask = self._masks.get(key)
-        if mask is None or mask[0] is not entry:
-            mask = self._masks[key] = (entry, _readonly(self._compute_mask(entry, support_z, default)))
-        return mask[1]
+        if mask is None or mask[0] is not entry or mask[1] is not xx:
+            values = (self._projected_mask(entry, xx, yy) if projected
+                      else self._compute_mask(entry, support_z, (xx, yy)))
+            mask = self._masks[key] = (entry, xx, _readonly(values))
+        return mask[2]
 
     def _compute_mask(self, entry, support_z: float, grid) -> np.ndarray:
         xx, yy = grid
