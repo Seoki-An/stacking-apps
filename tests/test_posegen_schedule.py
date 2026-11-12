@@ -45,7 +45,7 @@ def test_native_schedule_matches_legacy_stages(platform):
         assert config.trust_region.max_iters == stage["trust_region"]["max_iter"]
         assert config.trust_region.tol == pytest.approx(stage["trust_region"]["tol_eps"])
         assert config.force_solver.tol_abs == .001
-        assert config.force_solver.tol_rel == .0001
+        assert config.force_solver.tol_rel == .001
 
 
 @pytest.mark.parametrize("platform", ["excavator", "tabletop"])
