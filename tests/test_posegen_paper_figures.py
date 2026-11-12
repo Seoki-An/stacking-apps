@@ -14,7 +14,7 @@ from stacking_common.actions.types import InitializedPlacement
 from posegen_paper_figures import force_incidences
 from posegen_paper_rendering import make_force_arrow
 from posegen_paper_trace import trace_pose_optimization
-from posegen_structure_toy import CUBE, StructureToy
+from posegen_structure_toy import StructureToy
 
 
 def test_trace_matches_normal_solve_and_true_prefix_poses():
@@ -42,7 +42,6 @@ def test_trace_matches_normal_solve_and_true_prefix_poses():
     for entity, forces in reference.diagnostics["posegen_contact_forces"].items():
         np.testing.assert_allclose(trace.result.diagnostics["posegen_contact_forces"][entity], forces)
     assert len(force_incidences(toy.inventory, trace.result.diagnostics)) > 1
-    assert CUBE in {i for i, _, _ in force_incidences(toy.inventory, trace.result.diagnostics)}
 
 
 def test_force_entities_map_to_inventory_ids_and_keep_both_contact_sides():

@@ -52,8 +52,8 @@ def test_excavator_l_shaped_wall_overlaps_and_forms_one_region():
     regions = TargetRegions(geometry)
     assert len(regions.regions) == 1
     assert set(regions.regions[0].region_id) == {"north_arm", "east_arm"}
-    # Interior overlap remains present from ground to the tapered wall tops.
-    overlap = np.array([[-1., -1., z] for z in (0., 1.5, 3.)])
+    # Interior overlap remains present from ground to the wall tops.
+    overlap = np.array([[-1., -1., z] for z in (0., 1.25, 2.5)])
     assert all(component.world_geometry.contains(overlap).all()
                for component in geometry.components)
     # Both arms are included, but the concave notch is not convexified.

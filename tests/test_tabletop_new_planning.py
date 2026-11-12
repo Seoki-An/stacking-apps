@@ -133,7 +133,9 @@ def test_cli_search_completes_and_open_result_emits_path(qt, tmp_path, scan_over
         info = StackRunStore.info(output)
         assert info.status == 'complete'
         assert info.metadata['request']['plan_motion'] is False
-        assert info.metadata['request']['pose_from_scan'] is (scan_override is not False)
+        configured = yaml.safe_load((ROOT / 'apps/tabletop/config/action_generation.yml').read_text())
+        expected = configured['orientation']['pose_from_scan'] if scan_override is None else scan_override
+        assert info.metadata['request']['pose_from_scan'] is expected
         assert not StackRunStore.load_execution_commands(output)
         assert dialog.inputs.isEnabled() and dialog.start_button.isEnabled()
         assert dialog.open_button.isEnabled()

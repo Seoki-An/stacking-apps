@@ -364,7 +364,7 @@ def test_execution_and_scan_preview_honor_robot_geometry_mode(mode, count):
         plan=_controller().current_plan, released={}, saved=SimpleNamespace(planning=planning),
         projector=projector, boxes=(), mesh_paths={},
         telemetry={"joints": planning.robot.home_positions, "gripper_raw": 500., "object_pose": pose},
-        scan_preview=planning.robot.home_positions + .01,
+        scan_preview=planning.robot.home_positions + .01, _identified_through_step=0,
     )
     frame = ExecutionScene.frame(scene, geometry_mode=mode)
     assert len(frame.robot_parts) == 2 * count

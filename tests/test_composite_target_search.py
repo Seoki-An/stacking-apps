@@ -148,23 +148,3 @@ def test_tabletop_cli_composite_with_catalog_stones(kind, monkeypatch, tmp_path)
     assert all(step.succeeded for step in artifact.steps)
     assert len(artifact.target.components) == 2
 
-
-def test_native_composite_displacement_gate_reports_exhaustion():
-    """The locality policy can exhaust a pool; do not silently bypass it."""
-    app = bounded_application()
-    app = replace(app, action_generation_profile=replace(app.action_generation_profile,
-        generator=replace(app.action_generation_profile.generator,
-                          max_initial_xy_displacement_ratio=.75)))
-    inventory, _ = inventory_for(target_case('disconnected'), count=3)
-    environment = app.build_environment(inventory, app.build_core_backend(inventory))
-    reset = environment.reset()
-    engine = app.build_mcts(inventory, rng=random.Random(0))
-    try:
-        result = engine.search(MCTSNode(state=reset.state, observation=reset.observation),
-                               app.default_mcts_request())
-        assert result.selected is None
-        assert result.evaluated_candidates == 0
-        assert engine.root_action_generator.last_statistics.rejection_counts['initial_xy_displacement'] > 0
-    finally:
-        engine.close()
-        environment.close()

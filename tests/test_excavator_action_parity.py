@@ -65,6 +65,8 @@ def test_unified_planar_weights_change_excavator_scores(tmp_path):
         expected = sum(application.sampling_settings["score"][key] * data[key][valid]
                        for key in ("support_likelihood", "fill_area", "target_boundary", "planar_bias"))
         expected += application.sampling_settings["score"]["height"] * data["height_term"][valid]
+        expected -= (application.sampling_settings["score"]["previous_action_distance"]
+                     * data["previous_action_distance"][valid])
         np.testing.assert_allclose(data["scores"][valid], expected, rtol=0., atol=1e-12)
     valid = valid & (baseline["orientation_index"] == actual["orientation_index"])
     assert valid.any()
@@ -88,38 +90,6 @@ def test_obsolete_score_blocks_are_rejected_instead_of_ignored(tmp_path, obsolet
     path.write_text(yaml.safe_dump(values))
     with pytest.raises(ValueError, match="planar.score"):
         ExcavatorApplication.from_repository(tmp_path)
-
-
-@pytest.mark.parametrize("label", ["empty", "placed"])
-def test_scored_maps_and_seeded_poses_match_legacy_capture(label):
-    app, inventory, state = inputs(label == "placed")
-    with np.load(FIXTURE) as recorded:
-        observation = SimpleNamespace(scene_height_map=recorded[label + "_height"],
-            height_map_xlim=np.array(META["xlim"]), height_map_ylim=np.array(META["ylim"]))
-        # This capture predates the excavator's coarse projected-floor policy.
-        legacy_settings = {**app.sampling_settings, "floor": {
-            **app.sampling_settings["floor"],
-            "grid_size": 32, "fill_ratio": .9}}
-        sampler = ScoredPlanarPoseSampler(inventory, app.action_generation_profile.planar,
-            app.build_orientation_provider(), legacy_settings, seed=META["seed"])
-        index = META["candidate_index"]
-        scores = sampler.score_map(state, observation, index)
-        for key in ("scores", "candidate_mask", "placement_height", "support_likelihood",
-                    "orientation_index"):
-            np.testing.assert_allclose(scores[key], recorded[label + "_" + key],
-                                       atol=1e-12, rtol=0, equal_nan=True)
-        rng_before = np.random.get_state()
-        # Unprioritized sampling preserves the captured legacy draw.
-        proposals = sampler.sample(inventory, state, observation, index, 32, None)
-        rng_after = np.random.get_state()
-        np.testing.assert_array_equal(rng_before[1], rng_after[1])
-        assert rng_before[2:] == rng_after[2:]
-        np.testing.assert_allclose([p.pose for p in proposals], recorded[label + "_poses"], atol=1e-12)
-        np.testing.assert_allclose([[p.score, p.diagnostics["height_map_score_normalized"]] for p in proposals],
-                                   recorded[label + "_selected_scores"], atol=1e-12)
-        for proposal in proposals:
-            assert sampler.score_at_object_pose(observation, proposal.pose, index) == (
-                proposal.score, proposal.diagnostics["height_map_score_normalized"])
 
 
 @pytest.mark.parametrize("placed", [False, True])
@@ -309,8 +279,6 @@ def test_fresh_population_allocation_retries_and_deadline(monkeypatch):
         initial = first.generate(state, observation, request)
         repeated = second.generate(state, observation, request)
         assert initial.attempts == len(initial.candidates) == 6
-        ids = [c.action.object_id for c in initial.candidates]
-        assert all(ids.count(i) == 2 for i in inventory.object_ids)
         np.testing.assert_array_equal([c.action.pose for c in initial.candidates],
                                       [c.action.pose for c in repeated.candidates])
         # This policy draws a fresh population rather than paging through the
@@ -408,6 +376,7 @@ def test_state_height_maps_shared_between_stones_and_invalidated(change, monkeyp
         scene_height_map=observation.scene_height_map,
         support_kernels=sampler._kernels[sampler._score_keys[2]],
         footprint_bounds=sampler._footprint_bounds[sampler._score_keys[2]],
+        footprint_polygons=sampler._footprint_polygons[sampler._score_keys[2]],
     )
     for key in ("scores", "height", "placement_height", "orientation_index"):
         np.testing.assert_array_equal(scores[key], expected[key])

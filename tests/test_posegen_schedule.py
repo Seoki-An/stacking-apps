@@ -58,7 +58,7 @@ def test_current_platform_wrench_and_robustness_defaults_survive_schedule(platfo
             solver, stage["time"], stage["c_gap"], final=stage["time"] == 1.)
         np.testing.assert_allclose(config.objective.k_wrench,
                                    np.asarray(stage["objective"]["k_wrench"]), atol=1e-12)
-        assert config.objective.k_robust == pytest.approx(0. if platform == "excavator" else .8)
+        assert config.objective.k_robust == 0.
         assert config.objective.robust_load == pytest.approx(.2)
 
 

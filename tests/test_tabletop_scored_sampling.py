@@ -39,8 +39,8 @@ def test_same_physical_inputs_match_excavator_maps_draws_and_mutation_lookup(pla
     inventory, state, observation = scene(tabletop, placed)
     policy = tabletop.build_floor_policy(inventory)
     excavator = ExcavatorApplication.from_repository(ROOT)
-    # Resolve excavator with the same physical profile and orientation bank,
-    # while retaining its independently configured dimensionless score weights.
+    # Resolve excavator with the same physical profile, orientation bank and
+    # score weights; the platforms tune those weights independently.
     excavator = replace(excavator,
         action_generation_profile=tabletop.action_generation_profile,
         mcts_profile=replace(excavator.mcts_profile, root_cem=tabletop.mcts_profile.root_cem),
@@ -49,7 +49,8 @@ def test_same_physical_inputs_match_excavator_maps_draws_and_mutation_lookup(pla
             "grid_size": policy.grid_size},
         sampling_settings={**excavator.sampling_settings,
             "contact_gap_tolerance": tabletop.sampling_settings["contact_gap_tolerance"],
-            "floor": tabletop.sampling_settings["floor"]})
+            "floor": tabletop.sampling_settings["floor"],
+            "score": tabletop.sampling_settings["score"]})
     generators = [app.build_action_generator(inventory, SimpleNamespace(),
         orientation_provider=tabletop.build_orientation_provider()) for app in (tabletop, excavator)]
     try:
@@ -129,6 +130,9 @@ def test_tabletop_yaml_weights_drive_scores_and_are_recorded(tmp_path):
         valid = baseline["candidate_mask"]
         assert valid.any()
         np.testing.assert_array_equal(actual["candidate_mask"], valid)
+        # Fill coverage depends on rotation, so a weight change can switch the
+        # winning orientation at a map cell.
+        valid &= baseline["orientation_index"] == actual["orientation_index"]
         delta = sum((changed.sampling_settings["score"][key] - app.sampling_settings["score"][key])
                     * baseline[key][valid] for key in ("fill_area", "planar_bias"))
         assert np.any(delta != 0.)

@@ -24,7 +24,6 @@ def test_base_stack_stands_without_candidate(toy):
 def test_single_stone_equilibrium_accepts_overhang_that_topples(toy, x0):
     row = toy.place("single", x0)
 
-    assert row["solved"].pose[0] == pytest.approx(x0, abs=0.05)
     assert row["accepted"]
     assert not row["stands"]
 

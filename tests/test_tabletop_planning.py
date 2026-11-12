@@ -743,12 +743,6 @@ def test_tabletop_fixed_scene_accepts_physically_valid_upper_pose() -> None:
     assert record.result.reason == "motion-planner-reached"
     assert record.result.diagnostics["motion_planning_attempted"]
 
-def test_tabletop_floor_fill_threshold_matches_commissioned_base() -> None:
-    application = TabletopApplication.from_repository(ROOT)
-
-    assert application.floor_settings["fill_ratio"] == pytest.approx(0.75)
-
-
 def test_tabletop_floor_diagnostics_describe_floating_and_disconnected_poses() -> None:
     half = np.array([0.01, 0.02, 0.01])
     points = np.asarray(

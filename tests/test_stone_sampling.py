@@ -72,8 +72,8 @@ def test_invalid_volume_exponent_is_rejected(value):
 def test_profile_records_bias_and_missing_setting_preserves_old_runs(platform, tmp_path):
     source = ROOT / f'apps/{platform}/config/action_generation.yml'
     profile = load_action_generation_profile(source, max_poses_per_object=32, banned_object_ids=())
-    assert profile.generator.stone_volume_exponent == 1.
     values = yaml.safe_load(source.read_text())
+    assert profile.generator.stone_volume_exponent == values['stone_sampling']['volume_exponent']
     values.pop('stone_sampling')
     path = tmp_path / 'old.yml'
     path.write_text(yaml.safe_dump(values))
@@ -89,9 +89,9 @@ def test_generation_excludes_placed_and_banned_stones(application, monkeypatch):
     gen.config = replace(gen.config, banned_object_ids=frozenset({20}))
     sampler = gen.planar_sampler
     from stacking_common.actions.types import PlanarPlacement
-    monkeypatch.setattr(sampler, 'sample', lambda *args: tuple(
+    monkeypatch.setattr(sampler, 'sample', lambda inventory, state, observation, index, count, priority: tuple(
         PlanarPlacement(np.array([i * .01, 0., 0., 0., 0., 0., 1.]), 0.)
-        for i in range(32)))
+        for i in range(count)))
     seen = []
     def build(jobs):
         seen.extend(job[2] for job in jobs)

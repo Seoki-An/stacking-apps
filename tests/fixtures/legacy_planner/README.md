@@ -8,17 +8,6 @@ were executed from the sibling planner, using its ablation configuration;
 only imports were redirected to load the pure modules without the agent stack.
 Tests consume these numeric fixtures without importing the sibling repository.
 
-`scan_sampling.npz` captures scan mode separately, using stone 55 with a measured
-XYZ rotation of [20, -10, 37] degrees. It records four support kernels, score maps,
-and 32 seeded final proposals for empty and occupied scenes. Orientation pairs
-come from the legacy `_orientation_quaternion_pairs` method extracted with AST;
-the legacy floor/support modules produce the maps and selected candidates. Final
-poses compose each selected yaw with the measured scan once, as in legacy
-`ActionBuilder._build_sample_with_solver`. `scan_sampling.json` records the
-source hashes, scene inputs, seed and zero planar variance. This fixture checks
-measured heading preservation and prevents a second scan composition during
-height initialization or action construction.
-
 `reference.json` and `motion.npz` were exported from the trusted local
 `stacking-planner/sessions/260701/plan_260701_5` session with
 `tests/export_legacy_planner_fixture.py`. The JSON records source paths/hashes,

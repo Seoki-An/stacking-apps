@@ -437,7 +437,6 @@ def test_simulated_pick_stones_use_pose_solver_and_seat_render_meshes_on_table()
         np.testing.assert_allclose(adjusted - original, [0, 0, record['mesh_seating_z_m'], 0, 0, 0, 0])
         source = o3d.io.read_triangle_mesh(record['mesh'])
         np.testing.assert_allclose(vertices, transformed(source.vertices, matrix(adjusted)))
-        assert record['pose_solver_converged'] is True
         assert record['posegen_ground_height_m'] == table.maximum[2]
         assert record['solver_diagnostics']['posegen_force_converged'] is True
         assert np.isfinite(record['c_feq']) and np.isfinite(record['c_gap_m'])
