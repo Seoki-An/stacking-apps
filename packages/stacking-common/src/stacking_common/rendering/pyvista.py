@@ -6,8 +6,8 @@ from stacking_common.visualization.contracts import CompositeTargetVolume, Targe
 from stacking_common.visualization.dsf import dsf_support_points, read_dsf_components
 
 
-def read_dsf_surface(path):
-    """Return a display mesh of each curved component at icosphere level 4."""
+def read_dsf_surfaces(path):
+    """Return separate curved component meshes at icosphere level 4."""
     import pyvista as pv
     from scipy.spatial import ConvexHull
 
@@ -24,7 +24,12 @@ def read_dsf_surface(path):
         mesh = pv.PolyData(surface, np.column_stack((np.full(len(faces), 3), faces)))
         pieces.append(mesh.clean().compute_normals(
             consistent_normals=True, auto_orient_normals=True, split_vertices=False))
-    # Keep concave multi-component models separate; never hull the entire body.
+    return tuple(pieces)
+
+
+def read_dsf_surface(path):
+    """Combine curved components for display without hulling the entire body."""
+    pieces = read_dsf_surfaces(path)
     result = pieces[0] if len(pieces) == 1 else pieces[0].append_polydata(*pieces[1:])
     result.field_data["dsf_surface"] = [1]
     return result

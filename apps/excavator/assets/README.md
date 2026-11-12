@@ -1,5 +1,10 @@
 # Commissioned offline model assets
 
+The optional [`objects_augmented`](objects_augmented/README.md) catalog adds
+51 deformed, decomposed, and DSF-fitted synthetic stones to the unchanged 49
+real stones. Its opt-in profile is `config/inventory_augmented.yml`; see the
+[augmentation guide](../../../docs/excavator-object-augmentation.md).
+
 This directory contains the 49 commissioned convex-component stone OBJs,
 their matching reconstructed PLY surfaces, and
 the VDK23/stone-grab URDF dependency closure copied from `stacking-planner`.

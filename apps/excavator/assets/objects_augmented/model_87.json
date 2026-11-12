@@ -1,0 +1,222 @@
+{
+  "object_id": 87,
+  "kind": "synthetic",
+  "source_mesh": "/home/inrol-excavator/workspace/stacking/stacking-apps/apps/excavator/assets/objects/model_54_mesh.ply",
+  "source_mesh_sha256": "7fa89abf8c803dfae86d0f7dc586948e465b62c6ab18fbbc365b9ba0d5da142a",
+  "source_obj": "/home/inrol-excavator/workspace/stacking/stacking-apps/apps/excavator/assets/objects/model_54.obj",
+  "source_obj_sha256": "ea560b6611b0d2d6b0ae959e4c9af1fae9de23685df3e6acc16f0a2c6b594943",
+  "deformation": {
+    "seed": 3282300776,
+    "principal_axes": [
+      [
+        0.8246899634867213,
+        -0.39672244403213264,
+        -0.4031101171211677
+      ],
+      [
+        -0.2798111103749885,
+        0.3332124762329907,
+        -0.9003750264158787
+      ],
+      [
+        0.49152030134571845,
+        0.8553249371343327,
+        0.1637896372825948
+      ]
+    ],
+    "normalization_half_extents_m": [
+      0.5306663060786827,
+      0.30899272709231684,
+      0.29568498749470806
+    ],
+    "source_vertex_mean_m": [
+      -0.010113067052115827,
+      -0.007282748398345975,
+      -0.0031029245784377443
+    ],
+    "axis_scales": [
+      1.1240586995593773,
+      1.110915938209996,
+      0.8700411808539471
+    ],
+    "gaussian_centers": [
+      [
+        0.20455097960204993,
+        0.1537639687708624,
+        0.4715224647100701
+      ],
+      [
+        0.19844002968589647,
+        -0.46925812584307036,
+        0.35482123635857843
+      ],
+      [
+        -0.295051129074289,
+        -0.05286010650649775,
+        0.23021344455983428
+      ],
+      [
+        0.13806247245960035,
+        -0.6314355418826032,
+        0.2538004476152068
+      ]
+    ],
+    "gaussian_widths": [
+      0.8624357751962966,
+      0.7631726124174136,
+      0.7763111741444194,
+      0.7384601596609879
+    ],
+    "gaussian_weights": [
+      [
+        -0.042852565300924954,
+        0.04850039017506467,
+        -0.006984365218052889
+      ],
+      [
+        0.08214665532944793,
+        -0.12022656972293222,
+        -0.04908633311841376
+      ],
+      [
+        -0.053354027869024524,
+        0.04120737642591756,
+        -0.014914342305371562
+      ],
+      [
+        -0.02035593038240791,
+        0.08336110254798985,
+        0.04052326137144755
+      ]
+    ],
+    "warp_jacobian_norm_bound": 0.2997907525984277
+  },
+  "center_of_mass_shift_m": [
+    -0.0003011884445777472,
+    0.00919344901925655,
+    0.004677644429112067
+  ],
+  "volume_m3": 0.1954883476637277,
+  "unit_density_inertia": [
+    [
+      0.010847416939934658,
+      0.003063063846810283,
+      -0.0043687761221068155
+    ],
+    [
+      0.003063063846810283,
+      0.018788721573429302,
+      0.0008400920987233955
+    ],
+    [
+      -0.0043687761221068155,
+      0.0008400920987233955,
+      0.014743523814892676
+    ]
+  ],
+  "surface_extents_m": [
+    1.0421018738454813,
+    0.638731926156443,
+    0.948807016838104
+  ],
+  "surface_vertices": 2562,
+  "surface_triangles": 5120,
+  "watertight": true,
+  "self_intersecting": false,
+  "convex_components": 4,
+  "convex_profile": {
+    "enabled": true,
+    "threshold": 0.02,
+    "maximum_components": 4,
+    "preprocess_mode": "auto",
+    "preprocess_resolution": 50,
+    "resolution": 2000,
+    "mcts_nodes": 20,
+    "mcts_iterations": 150,
+    "mcts_max_depth": 3,
+    "pca": false,
+    "merge": true,
+    "decimate": false,
+    "maximum_hull_vertices": 256,
+    "seed": 3282300776,
+    "real_metric": false
+  },
+  "fitting_profile": {
+    "enabled": true,
+    "fit_source": "both",
+    "total_vertices": 48,
+    "direction_subdivisions": 3,
+    "maximum_iterations": 300,
+    "support_quantile": 0.999,
+    "loss": "huber",
+    "loss_scale": 0.02,
+    "center_interior_upper_bound": 0.8,
+    "maximum_sharpness": 60,
+    "split_inside_tolerance": 0.005,
+    "split_minimum_points": 20,
+    "ransac": {
+      "enabled": false,
+      "iterations": 5,
+      "sample_ratio": 0.5,
+      "minimum_sample_points": 200,
+      "maximum_sample_points": 2000,
+      "fit_maximum_iterations": 25,
+      "inlier_threshold": 0.02,
+      "minimum_inlier_ratio": 0.5,
+      "score_direction_subdivisions": 2,
+      "seed": 0
+    }
+  },
+  "support_validation": [
+    {
+      "support_rmse_m": 0.005780536331879605,
+      "support_p95_m": 0.010390401386647362,
+      "support_max_m": 0.02607413680396492,
+      "support_p95_fraction_of_stone_extent": 0.009970619617356152,
+      "cost": 0.005131812067146948,
+      "evaluations": 300,
+      "fitted_sharpness": 7.950272782693095,
+      "commissioned_sharpness": 7,
+      "nodes": 12
+    },
+    {
+      "support_rmse_m": 0.009445159249557829,
+      "support_p95_m": 0.019622439607341603,
+      "support_max_m": 0.04406866052713866,
+      "support_p95_fraction_of_stone_extent": 0.0188296750057002,
+      "cost": 0.009102194791559843,
+      "evaluations": 300,
+      "fitted_sharpness": 6.191060258254277,
+      "commissioned_sharpness": 6,
+      "nodes": 12
+    },
+    {
+      "support_rmse_m": 0.008364432870498017,
+      "support_p95_m": 0.018429245021583603,
+      "support_max_m": 0.03152436729987211,
+      "support_p95_fraction_of_stone_extent": 0.01768468657826847,
+      "cost": 0.010580015864589669,
+      "evaluations": 300,
+      "fitted_sharpness": 7.4664579874605685,
+      "commissioned_sharpness": 7,
+      "nodes": 12
+    },
+    {
+      "support_rmse_m": 0.00690730240697517,
+      "support_p95_m": 0.014688730358130207,
+      "support_max_m": 0.02920843197578299,
+      "support_p95_fraction_of_stone_extent": 0.014095292146368593,
+      "cost": 0.012225471474507562,
+      "evaluations": 300,
+      "fitted_sharpness": 5.506657778268625,
+      "commissioned_sharpness": 5,
+      "nodes": 12
+    }
+  ],
+  "files": {
+    "model_87.obj": "332032b735449688c8968cd9c3b4edaba66f472878e3a78e4035a7672b5b63af",
+    "model_87_mesh.ply": "2e2bd78345fa0d399ead4fe35a32f220de873b46209fa1b1ed5acadc0134479e"
+  },
+  "parent_id": 54,
+  "fitting_retry_count": 0
+}
