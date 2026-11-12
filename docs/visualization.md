@@ -486,10 +486,12 @@ selecting/copying logs with `Ctrl+A` / `Ctrl+C` does not replace or erase them
 when new output arrives. Auto-scrolling pauses while selecting text or reading
 earlier output. The existing 3,000-line display limit still applies.
 
-Save-path browsers use the Qt widget file chooser in both consoles. Right-click
+All open/save file and directory browsers use the same Qt widget chooser in
+both consoles, including planning inputs, session files, and capture folders.
+The tabletop reconstruction workbench uses this chooser too. Right-click
 a file or directory for **Rename** / **Delete**, or create a **New Folder**.
 Deletion requires confirmation and is permanent, not a move to Ubuntu Trash;
-avoid deleting a run that is still being written. Cancelling the save chooser
+avoid deleting a run that is still being written. Cancelling the chooser
 does not undo filesystem changes already confirmed in it.
 
 Scene replacement is render-suppressed until all actors and the preserved

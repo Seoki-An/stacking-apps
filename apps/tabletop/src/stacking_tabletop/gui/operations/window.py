@@ -347,6 +347,7 @@ class StackingOperationsWindow(QMainWindow):
             "Open stacking run",
             str(self.repository),
             "Stacking runs (*.stack);;JSON fixtures (*.json);;All files (*)",
+            options=QFileDialog.Option.DontUseNativeDialog,
         )
         if filename:
             self.open_artifact(filename)

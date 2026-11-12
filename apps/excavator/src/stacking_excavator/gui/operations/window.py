@@ -161,7 +161,8 @@ class ExcavatorOperationsWindow(QMainWindow):
 
     def _choose_artifact(self):
         filename, _ = QFileDialog.getOpenFileName(self, "Open excavator run",
-            str(self.repository), "Stacking runs (*.stack)")
+            str(self.repository), "Stacking runs (*.stack)",
+            options=QFileDialog.Option.DontUseNativeDialog)
         if filename:
             self.open_artifact(filename)
 

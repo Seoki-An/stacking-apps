@@ -132,8 +132,11 @@ class SessionConsole(QObject):
         edit = QLineEdit()
         button = QPushButton('Browse…')
         def browse():
-            path = (QFileDialog.getExistingDirectory(None, label) if directory else
-                    QFileDialog.getOpenFileName(None, label, '', 'JSON (*.json)')[0])
+            path = (QFileDialog.getExistingDirectory(None, label,
+                        options=QFileDialog.Option.ShowDirsOnly | QFileDialog.Option.DontUseNativeDialog)
+                    if directory else
+                    QFileDialog.getOpenFileName(None, label, '', 'JSON (*.json)',
+                        options=QFileDialog.Option.DontUseNativeDialog)[0])
             if path:
                 edit.setText(path)
         button.clicked.connect(browse)
@@ -154,7 +157,8 @@ class SessionConsole(QObject):
         self.perception_info.appendPlainText(message)
 
     def choose_session(self):
-        path = QFileDialog.getExistingDirectory(None, 'Open session folder')
+        path = QFileDialog.getExistingDirectory(None, 'Open session folder',
+            options=QFileDialog.Option.ShowDirsOnly | QFileDialog.Option.DontUseNativeDialog)
         if path:
             self.open_session(path)
 
@@ -215,7 +219,8 @@ class SessionConsole(QObject):
         self._buttons()
 
     def choose_proposal(self):
-        path = QFileDialog.getOpenFileName(None, 'Open perception proposal', '', 'JSON (*.json)')[0]
+        path = QFileDialog.getOpenFileName(None, 'Open perception proposal', '', 'JSON (*.json)',
+            options=QFileDialog.Option.DontUseNativeDialog)[0]
         if path:
             self.load_proposal(path)
 
@@ -293,14 +298,16 @@ class SessionConsole(QObject):
     def choose_plan(self):
         if self.runtime is None:
             raise ValueError('open a simulation session first')
-        path = QFileDialog.getOpenFileName(None, 'Load committed excavator placement', '', 'Stacking run (*.stack)')[0]
+        path = QFileDialog.getOpenFileName(None, 'Load committed excavator placement', '', 'Stacking run (*.stack)',
+            options=QFileDialog.Option.DontUseNativeDialog)[0]
         if path:
             self.set_command(load_command(self.repository, path))
 
     def choose_emulation(self):
         if self.runtime is None:
             raise ValueError('open a session folder first')
-        path = QFileDialog.getOpenFileName(None, 'Choose emulation placement', '', 'Stacking run (*.stack)')[0]
+        path = QFileDialog.getOpenFileName(None, 'Choose emulation placement', '', 'Stacking run (*.stack)',
+            options=QFileDialog.Option.DontUseNativeDialog)[0]
         if not path:
             return
         plans = StackRunStore.load_committed_placement_plans(path)

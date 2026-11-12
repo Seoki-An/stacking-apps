@@ -503,7 +503,8 @@ class ExecutionView(QWidget):
         from datetime import datetime
         from uuid import uuid4
         gate, worker = self.gate, self.worker
-        parent = QFileDialog.getExistingDirectory(self, 'Choose parent directory for a new scan')
+        parent = QFileDialog.getExistingDirectory(self, 'Choose parent directory for a new scan',
+            options=QFileDialog.Option.ShowDirsOnly | QFileDialog.Option.DontUseNativeDialog)
         if not parent or self.gate is not gate or not self.running or worker.executor is None or self._paused or self._aborting:
             return
         output = Path(parent) / f'scan-step-{gate.step}-{datetime.now():%Y%m%d-%H%M%S}-{uuid4().hex[:8]}'

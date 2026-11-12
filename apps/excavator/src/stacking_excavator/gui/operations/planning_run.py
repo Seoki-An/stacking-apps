@@ -183,8 +183,8 @@ class PlanningRunDialog(QDialog):
         layout.addWidget(button)
         def choose():
             picker = QFileDialog.getSaveFileName if save else QFileDialog.getOpenFileName
-            options = ({"options": QFileDialog.Option.DontUseNativeDialog} if save else {})
-            filename, _ = picker(self, label, field.text() or str(self.repository), file_filter, **options)
+            filename, _ = picker(self, label, field.text() or str(self.repository), file_filter,
+                                 options=QFileDialog.Option.DontUseNativeDialog)
             if filename:
                 field.setText(filename)
         button.clicked.connect(choose)

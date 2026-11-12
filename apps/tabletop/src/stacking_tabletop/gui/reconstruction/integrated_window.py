@@ -398,7 +398,8 @@ class ObjectBuildWindow(QMainWindow):
         self.refresh()
 
     def _choose_capture(self) -> None:
-        value = QFileDialog.getExistingDirectory(self, "Raw capture directory")
+        value = QFileDialog.getExistingDirectory(self, "Raw capture directory",
+            options=QFileDialog.Option.ShowDirsOnly | QFileDialog.Option.DontUseNativeDialog)
         if value:
             self.capture_directory = Path(value)
             self.capture_label.setText(value)

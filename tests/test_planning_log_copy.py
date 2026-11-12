@@ -61,12 +61,14 @@ def test_new_output_appends_even_when_cursor_and_scroll_are_at_start(dialog, mon
     assert scrollbar.value() == scrollbar.maximum()
 
 
-def test_save_browse_exposes_file_management_without_deleting_anything(dialog, tmp_path):
+@pytest.mark.parametrize("field_name", ["output_path", "config_path", "pick_path"])
+def test_browse_exposes_file_management_without_deleting_anything(dialog, tmp_path, field_name):
     existing = tmp_path / "existing.stack"
     existing.write_text("keep this file")
     directory = tmp_path / "existing directory"
     directory.mkdir()
-    dialog.output_path.setText(str(tmp_path / "new.stack"))
+    field = getattr(dialog, field_name)
+    field.setText(str(tmp_path / "new.stack"))
     observed = {}
 
     def inspect_and_cancel():
@@ -86,11 +88,11 @@ def test_save_browse_exposes_file_management_without_deleting_anything(dialog, t
             picker.reject()
 
     QTimer.singleShot(50, inspect_and_cancel)
-    button = dialog.output_path.parentWidget().findChild(QPushButton)
+    button = field.parentWidget().findChild(QPushButton)
     button.click()
     assert observed["widget_dialog"]
     assert not observed["readonly"] and not observed["model_readonly"]
     assert {"Rename", "Delete", "New Folder"}.issubset(observed["actions"])
     assert Path(observed["directory"]) == tmp_path
     assert existing.read_text() == "keep this file" and directory.is_dir()
-    assert dialog.output_path.text() == str(tmp_path / "new.stack")
+    assert field.text() == str(tmp_path / "new.stack")

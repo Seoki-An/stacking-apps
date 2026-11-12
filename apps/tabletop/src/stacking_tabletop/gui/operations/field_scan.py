@@ -238,7 +238,8 @@ class FieldScanDialog(QDialog):
         return self.process.state() != QProcess.ProcessState.NotRunning
 
     def _browse(self, field):
-        directory = QFileDialog.getExistingDirectory(self, 'Choose directory', str(self.repository))
+        directory = QFileDialog.getExistingDirectory(self, 'Choose directory', str(self.repository),
+            options=QFileDialog.Option.ShowDirsOnly | QFileDialog.Option.DontUseNativeDialog)
         if directory:
             if field is self.output:
                 directory = str(Path(directory) / f'field_{datetime.now():%Y%m%d_%H%M%S}_{uuid4().hex[:8]}')
