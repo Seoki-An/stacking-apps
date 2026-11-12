@@ -8,6 +8,8 @@ from .inventory import (
     TargetComponentProfile,
     TargetProfile,
     load_inventory_profile,
+    inventory_choices,
+    load_inventory_objects,
 )
 from .environment import load_environment_profile
 from .simulation import load_simulation_profile

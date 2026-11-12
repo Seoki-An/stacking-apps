@@ -6,17 +6,19 @@ from pathlib import Path
 
 import numpy as np
 import open3d as o3d
-import yaml
+from stacking_common.profiles.inventory import inventory_choices, load_inventory_objects
 
 from stacking_excavator.acquisition.storage import file_hash
 
 
 def export(legacy, repository):
-    profile = yaml.safe_load((repository / "apps/excavator/config/inventory.yml").read_text())
+    path = repository / "apps/excavator/config/inventory.yml"
+    _, choices = inventory_choices(path)
+    objects, _ = load_inventory_objects(path, inventory_name="real" if "real" in choices else None)
     directory = repository / "apps/excavator/assets/perception"
     directory.mkdir(exist_ok=True)
     manifest = {"source_project": "stacking-planner", "encoding": "exact measured XYZ, compressed NPZ", "models": {}}
-    for object_id in profile["objects"]["ids"]:
+    for object_id in objects["ids"]:
         source = legacy / f"assets/stone/model_{object_id}.pcd"
         path = directory / f"model_{object_id}.npz"
         cloud = o3d.io.read_point_cloud(str(source))

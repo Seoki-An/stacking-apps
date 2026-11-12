@@ -1841,11 +1841,24 @@ without creating a run; omit `--object-ids` to use all recorded objects.
 
 `--search-only` saves placement search without invoking robot motion planning.
 With the default `pose_from_scan: false`, pickup data is optional: the run uses
-all objects from `inventory.yml`, or the catalog subset passed with
+all objects from the selected inventory, or the catalog subset passed with
 `--object-ids`. Initial orientations come from the assets' principal axes.
 The saved context labels its identity inventory poses as synthetic search
 initialization, not measured pickup poses. Motion planning and
 `pose_from_scan: true` still require `--pick-pose-data` for new runs.
+
+Select assets independently of MCTS settings and target shape with
+`--inventory real` (49 commissioned stones) or `--inventory augmented` (100
+stones including fitted synthetic variants). `apps/excavator/config/inventory.yml`
+contains `units: si`, `default: real`, and an `inventories:` mapping whose named
+entries each specify `model_directory`, `ids`, `density`, and `density_overrides`.
+Add another entry to expose another catalog; omitting `--inventory` uses the
+configured default. Legacy files with a single `objects:` block remain readable.
+The GUI's **File → New planning run… → Inventory** dropdown shows the same choices
+and counts. The chosen name and resolved asset profile are recorded in `.stack`;
+resume keeps that inventory instead of following a changed default, and rejects
+an explicit attempt to switch catalogs. Older unnamed runs are matched by their
+original physical inventory values without adding a name to their saved context.
 
 Override `orientation.pose_from_scan` from `action_generation.yml` explicitly:
 

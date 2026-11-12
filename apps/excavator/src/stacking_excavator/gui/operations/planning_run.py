@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 from stacking_common.artifacts import StackRunStore
 from stacking_common.workflows.planning_output import PlanningRunOutput
 from stacking_common.profiles.targets import target_shape_choices
-from stacking_common.profiles.inventory import load_inventory_profile
+from stacking_common.profiles.inventory import inventory_choices, load_inventory_profile
 from stacking_common.artifacts.target import target_from_context
 from stacking_common.rendering.target_preview import TargetPreview
 from stacking_common.visualization.contracts import target_display
@@ -50,12 +50,34 @@ class PlanningRunDialog(QDialog):
             self.output_path.setText(str(self.source.with_name(self.source.stem + "-resumed.stack")))
             metadata = StackRunStore.info(self.source).metadata
             self.config_path.setText(metadata.get("config", {}).get("path", self.config_path.text()))
+            checkpoint = load_resume_checkpoint(self.source)
+            context = StackRunStore.load_run_context(self.source, checkpoint.context_sha256)
         else:
             self._file_row(form, "Recorded pickup poses", self.pick_path, "Pickup poses (*.json *.pkl *.pickle)")
         self._file_row(form, "Save new run", self.output_path, "Stacking run (*.stack)", save=True)
         self.overwrite = QCheckBox("Overwrite existing run on successful completion")
         form.addRow(self.overwrite)
         self._file_row(form, "MCTS profile", self.config_path, "YAML (*.yml *.yaml)")
+        self.inventory_choice = QComboBox()
+        inventory_path = self.repository / "apps/excavator/config/inventory.yml"
+        if self.source:
+            stored = context.profiles["inventory_profile"]
+            name = stored.get("inventory_name") or str(stored["model_directory"])
+            self.inventory_choice.addItem(f"Recorded: {name} ({len(stored['object_ids'])} stones)", None)
+            self.inventory_choice.setEnabled(False)
+        else:
+            default_inventory, names = inventory_choices(inventory_path)
+            for name in names or (None,):
+                profile = load_inventory_profile(inventory_path, inventory_name=name)
+                self.inventory_choice.addItem(
+                    f"{name or 'Configured inventory'} ({len(profile.object_ids)} stones)", name)
+                self.inventory_choice.setItemData(self.inventory_choice.count()-1,
+                    str(profile.model_directory), Qt.ItemDataRole.ToolTipRole)
+            self.inventory_choice.setCurrentIndex(self.inventory_choice.findData(default_inventory))
+        self.inventory_choice.setToolTip(
+            "Select a named catalog from config/inventory.yml for this run. "
+            "Resume preserves the recorded inventory.")
+        form.addRow("Inventory", self.inventory_choice)
         self.target_shape = QComboBox()
         if self.source is not None:
             self.target_shape.addItem("Recorded target (locked)", None)
@@ -90,8 +112,6 @@ class PlanningRunDialog(QDialog):
         self.pose_from_scan.addItem("true", True)
         self.pose_from_scan.addItem("false", False)
         if self.source:
-            checkpoint = load_resume_checkpoint(self.source)
-            context = StackRunStore.load_run_context(self.source, checkpoint.context_sha256)
             scan_enabled = context.profiles["pose_from_scan"]
             self.pose_from_scan.setCurrentIndex(self.pose_from_scan.findData(scan_enabled))
         self.pose_from_scan.setEnabled(source is None)
@@ -108,6 +128,7 @@ class PlanningRunDialog(QDialog):
         input_row.addWidget(self.target_preview)
         layout.addLayout(input_row)
         self.target_shape.currentIndexChanged.connect(self._update_target_preview)
+        self.inventory_choice.currentIndexChanged.connect(self._update_target_preview)
         self._update_target_preview()
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
@@ -145,6 +166,7 @@ class PlanningRunDialog(QDialog):
             else:
                 profile = load_inventory_profile(
                     self.repository / "apps/excavator/config/inventory.yml",
+                    inventory_name=self.inventory_choice.currentData(),
                     target_shape=self.target_shape.currentData())
                 target = target_display(profile.target.geometry())
                 name = profile.target_name or "Configured inline target"
@@ -189,6 +211,11 @@ class PlanningRunDialog(QDialog):
         if self.source:
             arguments += ["--resume-run", str(self.source)]
         else:
+            name = self.inventory_choice.currentData()
+            load_inventory_profile(self.repository / "apps/excavator/config/inventory.yml",
+                inventory_name=name, target_shape=self.target_shape.currentData())
+            if name is not None:
+                arguments += ["--inventory", name]
             if self.target_shape.currentData() is not None:
                 arguments += ["--target-shape", self.target_shape.currentData()]
             scan_override = self.pose_from_scan.currentData()

@@ -194,3 +194,31 @@ def test_scan_override_requires_recorded_pickup_even_for_search(tmp_path, capsys
     assert main(["--worker", "--search-only", "--pose-from-scan",
                  "--save-run", str(tmp_path / "run.stack")]) == 2
     assert "pose_from_scan requires --pick-pose-data" in capsys.readouterr().err
+
+
+def test_named_inventory_uses_all_augmented_objects_and_records_the_selection(tmp_path, monkeypatch):
+    root_path = Path(__file__).resolve().parents[1]
+    seen = []
+
+    def search(self, root, request):
+        seen.append(tuple(root.state.object_ids))
+        return MCTSSearchResult(root=root, selected=None, completed_iterations=0,
+            expansion_calls=0, generated_candidates=0, evaluated_candidates=0,
+            failed_evaluations=0, effective_max_depth=1, timed_out=False)
+
+    monkeypatch.setattr(MonteCarloTreeSearch, "search", search)
+    output = tmp_path / "augmented.stack"
+    assert main(["--worker", "--repository", str(root_path), "--inventory", "augmented",
+                 "--search-only", "--no-pose-from-scan", "--save-run", str(output)]) == 1
+    assert len(seen) == 1 and len(seen[0]) == 100 and 93 in seen[0]
+    context, = StackRunStore.load_run_contexts(output)
+    assert context.profiles["inventory_profile"]["inventory_name"] == "augmented"
+    assert context.profiles["inventory_profile"]["model_directory"] == "apps/excavator/assets/objects_augmented"
+    assert StackRunStore.info(output).metadata["inventory"]["catalog_size"] == 100
+
+
+def test_unknown_named_inventory_fails_before_creating_a_run(tmp_path, capsys):
+    output = tmp_path / "missing.stack"
+    assert main(["--worker", "--inventory", "missing", "--search-only", "--save-run", str(output)]) == 2
+    assert "unknown inventory" in capsys.readouterr().err
+    assert not output.exists()

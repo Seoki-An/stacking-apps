@@ -4,12 +4,31 @@
 49 real commissioned stones, copied without changing their original IDs or
 OBJ/PLY bytes, and 51 synthetic stones with IDs 59–109. Historical gaps in the
 real catalog's numbering are preserved. The original `objects` directory and
-default `inventory.yml` remain the real 49-stone catalog.
+default inventory selection remains the real 49-stone catalog.
 
-The opt-in profile is `apps/excavator/config/inventory_augmented.yml`. It uses
-the same SI units, density, target registry, and material properties as the real
-catalog. Synthetic stones have no measured pickup poses or scan references;
+Choose **augmented (100 stones)** under **File → New planning run… → Inventory**,
+or pass `--inventory augmented` to `stacking-excavator-plan`. Named catalogs live
+under `inventories:` in `apps/excavator/config/inventory.yml`, with `default: real`.
+Changing this default affects new runs that do not explicitly select a catalog;
+the dialog always passes its displayed selection. Target selection remains
+independent, using `target_shapes.yml`. New `.stack` contexts record the selected
+inventory name and resolved assets; resume locks that selection regardless of
+the current default and verifies the recorded physical inputs and asset hashes.
+Older unnamed runs retain their original context through physical catalog matching.
+
+The standalone `inventory_augmented.yml` remains compatible with tools such as
+the inventory renderer. It uses the same SI units, density, target registry, and
+material properties as the real catalog. Synthetic stones have no measured pickup poses or scan references;
 use model-derived orientations (`pose_from_scan=False`) for simulation studies.
+
+For example:
+
+```bash
+stacking-excavator-plan --inventory augmented --target-shape default \
+    --config apps/excavator/config/mcts_cuda.yml \
+    --search-only --no-pose-from-scan --steps 100 \
+    --save-run .stacks/augmented-default.stack
+```
 
 ## Generation
 
@@ -111,9 +130,9 @@ python tests/inventory_paper_figures.py \
     --output .analysis/objects-augmented/inventory
 ```
 
-For a Python search experiment, load this profile and replace the application's
-`inventory_profile` using `dataclasses.replace`, with `pose_from_scan=False`.
-The asset catalog does not change planner profiles. A 100-stone scene exceeds
-the existing 64-body CUDA capacity; size body and geometry capacities for the
-experiment using the counts recorded in `validation.json` before starting a
-long run.
+For Python experiments, use
+`ExcavatorApplication.from_repository(".", inventory_name="augmented")`, with
+`pose_from_scan=False`. The CUDA pose generator automatically expands its body
+and geometry capacities to cover the chosen catalog plus target, so the configured
+64-body/256-geometry values are minima rather than limits. The complete catalog
+requires 101 bodies and 344 geometries, as recorded in `validation.json`.

@@ -260,6 +260,7 @@ def test_search_resume_dialog_preserves_mode_and_additional_steps(interrupted_ru
         context = StackRunStore.load_run_context(source, checkpoint.context_sha256)
         assert not dialog.pose_from_scan.isEnabled()
         assert not dialog.target_shape.isEnabled()
+        assert not dialog.inventory_choice.isEnabled()
         assert dialog.pose_from_scan.currentData() is context.profiles["pose_from_scan"]
         dialog.steps.setValue(21)
         dialog.wall_seconds.setValue(3600)
@@ -268,6 +269,30 @@ def test_search_resume_dialog_preserves_mode_and_additional_steps(interrupted_ru
         assert args[args.index('--max-run-time') + 1] == '3600'
         assert '--resume-run' in args and '--pick-pose-data' not in args
         assert '--target-shape' not in args
+        assert '--inventory' not in args
         assert '--pose-from-scan' not in args and '--no-pose-from-scan' not in args
     finally:
         dialog.close()
+
+
+def test_augmented_checkpoint_resumes_its_catalog_instead_of_default_real(tmp_path, monkeypatch, capsys):
+    seen = []
+    monkeypatch.setattr(MonteCarloTreeSearch, "search", controlled_search(seen))
+    source = tmp_path / "augmented.stack"
+    assert main(["--worker", "--repository", str(ROOT), "--inventory", "augmented",
+                 "--search-only", "--no-pose-from-scan", "--object-ids", "59", "60",
+                 "--steps", "1", "--save-run", str(source)]) == 0
+    before = source.read_bytes()
+    output = tmp_path / "resumed.stack"
+    assert main(["--worker", "--repository", str(ROOT), "--resume-run", str(source),
+                 "--steps", "1", "--save-run", str(output)]) == 0
+    checkpoint = load_resume_checkpoint(output)
+    context = StackRunStore.load_run_context(output, checkpoint.context_sha256)
+    assert context.profiles["inventory_profile"]["inventory_name"] == "augmented"
+    assert checkpoint.state.object_ids == [59, 60]
+    assert checkpoint.state.placed_object_indices == [0, 1]
+    wrong = tmp_path / "wrong-inventory.stack"
+    assert main(["--worker", "--repository", str(ROOT), "--resume-run", str(source),
+                 "--inventory", "real", "--save-run", str(wrong)]) == 2
+    assert "resume preserves recorded inventory" in capsys.readouterr().err
+    assert not wrong.exists() and source.read_bytes() == before

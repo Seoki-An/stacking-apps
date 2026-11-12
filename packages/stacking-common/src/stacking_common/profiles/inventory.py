@@ -126,8 +126,13 @@ class InventoryProfile:
     density_overrides: tuple[tuple[int, float], ...]
     target: TargetProfile | CompositeTargetProfile
     target_name: str | None = field(default=None, metadata={"omit_default_from_context": True})
+    inventory_name: str | None = field(default=None, metadata={"omit_default_from_context": True})
 
     def __post_init__(self) -> None:
+        if self.inventory_name is not None and (
+            not isinstance(self.inventory_name, str) or not self.inventory_name.strip()
+        ):
+            raise ValueError("inventory name must be a non-empty string")
         if self.target_name is not None and (
             not isinstance(self.target_name, str) or not self.target_name.strip()
         ):
@@ -157,9 +162,7 @@ class InventoryProfile:
         return dict(self.density_overrides).get(value, self.density)
 
 
-def load_inventory_profile(path: str | Path, *, target_shape=None, recorded_target=None) -> InventoryProfile:
-    """Load the explicitly resolved platform inventory profile."""
-
+def _inventory_values(path):
     profile_path = Path(path)
     if not profile_path.is_file():
         raise FileNotFoundError(f"missing inventory profile: {profile_path}")
@@ -168,8 +171,75 @@ def load_inventory_profile(path: str | Path, *, target_shape=None, recorded_targ
         raise TypeError("inventory profile root must be a mapping")
     if values.get("units") != "si":
         raise ValueError("inventory profile units must be 'si'")
+    return values
 
-    objects = _mapping(values, "objects")
+
+def _inventory_definitions(values):
+    if "inventories" not in values:
+        return None, {}
+    if "objects" in values:
+        raise ValueError("inventory profile cannot mix objects and named inventories")
+    definitions = _mapping(values, "inventories")
+    default = values.get("default")
+    if not definitions or not isinstance(default, str) or default not in definitions:
+        raise ValueError("inventory default must name an available inventory")
+    if any(not isinstance(name, str) or not name.strip() or name != name.strip()
+           or not isinstance(objects, Mapping) for name, objects in definitions.items()):
+        raise ValueError("inventory choices require nonempty names and object mappings")
+    return default, definitions
+
+
+def inventory_choices(path):
+    """Return the named default and available catalogs; legacy files have no names."""
+    default, definitions = _inventory_definitions(_inventory_values(path))
+    return default, tuple(definitions)
+
+
+def load_inventory_objects(path, *, inventory_name=None, recorded_inventory=None):
+    """Resolve object assets independently of target selection.
+
+    Resume selects its recorded name, rather than a possibly changed default.
+    Legacy runs match physical catalog values and retain their unnamed context.
+    """
+    values = _inventory_values(path)
+    default, definitions = _inventory_definitions(values)
+    if not definitions:
+        if inventory_name is not None:
+            raise ValueError("this inventory profile has no named inventory choices")
+        return _mapping(values, "objects"), None
+    name = default if inventory_name is None else inventory_name
+    recorded_name = None if recorded_inventory is None else recorded_inventory.get("inventory_name")
+    if recorded_inventory is not None:
+        if recorded_name is not None:
+            if inventory_name is not None and inventory_name != recorded_name:
+                raise ValueError(f"resume preserves recorded inventory {recorded_name!r}; start a new run to change it")
+            name = recorded_name
+        else:
+            expected = (Path(recorded_inventory["model_directory"]), tuple(recorded_inventory["object_ids"]),
+                        float(recorded_inventory["density"]),
+                        tuple(sorted((int(i), float(d)) for i, d in recorded_inventory["density_overrides"])))
+            matching = [key for key, objects in definitions.items()
+                if (Path(str(objects.get("model_directory"))), tuple(int(i) for i in objects.get("ids", ())),
+                    float(objects.get("density", np.nan)), tuple(sorted((int(i), float(d)) for i, d
+                        in objects.get("density_overrides", {}).items()))) == expected]
+            if inventory_name is not None:
+                matching = [key for key in matching if key == inventory_name]
+            if len(matching) != 1:
+                raise ValueError("resume context mismatch: restore the recorded inventory definition")
+            name = matching[0]
+    if name not in definitions:
+        raise ValueError(f"unknown inventory {name!r}; choose from {', '.join(definitions)}")
+    return definitions[name], name if recorded_inventory is None else recorded_name
+
+
+def load_inventory_profile(path: str | Path, *, inventory_name=None, target_shape=None,
+                           recorded_target=None, recorded_inventory=None) -> InventoryProfile:
+    """Load explicitly selected assets and target, supporting legacy single catalogs."""
+    profile_path = Path(path)
+    values = _inventory_values(profile_path)
+    objects, selected_name = load_inventory_objects(profile_path, inventory_name=inventory_name,
+                                                    recorded_inventory=recorded_inventory)
+
     from .targets import resolve_inventory_target
     target, target_name = resolve_inventory_target(profile_path, values,
         target_shape=target_shape, recorded_target=recorded_target)
@@ -191,6 +261,7 @@ def load_inventory_profile(path: str | Path, *, target_shape=None, recorded_targ
         ),
         target=target,
         target_name=target_name,
+        inventory_name=selected_name,
     )
 
 

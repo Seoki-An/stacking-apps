@@ -66,7 +66,8 @@ class ExcavatorApplication(StackingSearchApplication):
     sampling_settings: dict
 
     @classmethod
-    def from_repository(cls, repository, *, mcts_config=None, target_shape=None, recorded_target=None):
+    def from_repository(cls, repository, *, mcts_config=None, inventory_name=None,
+                        target_shape=None, recorded_target=None):
         root = Path(repository).resolve()
         config = root / "apps/excavator/config"
         solvers = SolverProfileFiles.from_directory(config / "solvers")
@@ -93,8 +94,10 @@ class ExcavatorApplication(StackingSearchApplication):
         return cls(root, solvers, environment,
                    load_simulation_profile(solvers.simulation),
                    load_posegen_profile(solvers.posegen),
-                   load_inventory_profile(config / "inventory.yml", target_shape=target_shape,
-                                          recorded_target=recorded_target),
+                   load_inventory_profile(config / "inventory.yml", inventory_name=inventory_name,
+                       target_shape=target_shape, recorded_target=recorded_target,
+                       recorded_inventory=(recorded_target if recorded_target is not None
+                           and "model_directory" in recorded_target else None)),
                    load_action_generation_profile(config / "action_generation.yml",
                        max_poses_per_object=environment.observation.max_poses_per_object,
                        banned_object_ids=environment.observation.banned_object_ids),

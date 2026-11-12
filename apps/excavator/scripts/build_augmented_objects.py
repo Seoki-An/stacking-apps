@@ -20,12 +20,12 @@ import shutil
 import sys
 
 import numpy as np
-import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "packages/stacking-common/src"))
 
 from stacking_common.reconstruction.augmentation import fit_augmented_stone
+from stacking_common.profiles.inventory import inventory_choices, load_inventory_objects
 from stacking_common.reconstruction.config import (
     ConvexDecompositionProfile, DsfExportProfile, DsfFittingProfile, DsfRansacProfile)
 
@@ -66,7 +66,9 @@ def main():
     parser.add_argument("--seed", type=int, default=20261112)
     parser.add_argument("--workers", type=int, default=4)
     args = parser.parse_args()
-    source = yaml.safe_load(args.source_inventory.read_text())["objects"]
+    _, choices = inventory_choices(args.source_inventory)
+    source, _ = load_inventory_objects(args.source_inventory,
+        inventory_name="real" if "real" in choices else None)
     ids = source["ids"]
     if args.total <= len(ids) or args.workers < 1 or args.seed < 0:
         parser.error("total must exceed the source count; workers must be positive and seed nonnegative")

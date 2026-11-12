@@ -77,6 +77,12 @@ Native search-only timings are recorded in the
 Open its offline Operations Console with `stacking-excavator-operations .`
 or `stacking-excavator-operations . --run /path/to/run.stack`.
 
+For new excavator plans, choose **Inventory → real (49 stones)** or
+**augmented (100 stones)** in the planning dialog, or pass `--inventory real`
+or `--inventory augmented` to `stacking-excavator-plan`. Named catalogs and their
+default live in `apps/excavator/config/inventory.yml`; target shapes are selected
+independently. See the [augmented catalog guide](docs/excavator-object-augmentation.md).
+
 ## FEMTO capture
 
 The FEMTO acquisition layer captures fixed fields and settled in-hand views using

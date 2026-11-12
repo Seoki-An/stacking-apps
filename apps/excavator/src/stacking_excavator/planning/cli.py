@@ -46,6 +46,7 @@ def _parser():
     parser.add_argument("--repository", type=Path, default=Path(__file__).resolve().parents[5])
     parser.add_argument("--config", type=Path, help="excavator MCTS YAML; other profiles belong to the platform")
     parser.add_argument("--target-shape", help="name in config/target_shapes.yml; new runs only")
+    parser.add_argument("--inventory", help="named catalog in config/inventory.yml; resume keeps the recorded inventory")
     parser.add_argument("--pick-pose-data", type=Path,
                         help="recorded JSON or trusted legacy pose_data.pkl; optional for search-only unless pose_from_scan is enabled")
     parser.add_argument("--object-ids", type=int, nargs="+",
@@ -136,8 +137,10 @@ def run(args):
         if old.profiles.get("platform") != "excavator":
             raise ValueError("source run is not an excavator planning run")
     target_options = {}
+    if args.inventory is not None:
+        target_options["inventory_name"] = args.inventory
     if args.target_shape is not None or old is not None:
-        target_options = dict(target_shape=args.target_shape,
+        target_options.update(target_shape=args.target_shape,
             recorded_target=None if old is None else old.profiles["inventory_profile"])
     application = ExcavatorApplication.from_repository(args.repository, mcts_config=args.config, **target_options)
     if args.resume_run:
@@ -194,6 +197,9 @@ def run(args):
             application.planning_profile.world_T_stack.child_frame, (),
             target_display(inventory.target)),
             metadata={"platform": "excavator", "mode": "search" if args.search_only else "planning",
+                      "inventory": {"name": application.inventory_profile.inventory_name,
+                          "model_directory": str(application.inventory_profile.model_directory),
+                          "catalog_size": len(application.inventory_profile.object_ids)},
                       "config": {"path": str((args.config or args.repository / "apps/excavator/config/mcts_cpu.yml").resolve())}})
         writer.append_run_context(context)
     else:
@@ -207,6 +213,9 @@ def run(args):
         raise
     config_path = (args.config or args.repository / "apps/excavator/config/mcts_cpu.yml").resolve()
     print(f"config: {config_path}", flush=True)
+    print(f"inventory: {application.inventory_profile.inventory_name or 'configured/legacy'}; "
+          f"catalog_size={len(application.inventory_profile.object_ids)}; "
+          f"models={application.inventory_profile.model_directory}", flush=True)
     print(f"target shape: {application.inventory_profile.target_name or 'inline/recorded'}", flush=True)
     scheduling = (f"batched CUDA transitions; result_workers={application.mcts_profile.parallel.effective_workers}"
                   if application.mcts_profile.parallel.simulation_backend == "cuda"
