@@ -28,18 +28,34 @@ class InitialPoseScoreDialog(QDialog):
     def __init__(self, data, *, step, candidate, parent=None):
         super().__init__(parent)
         self.data = data
+        self._regions = data.regions or (data,)
         self.setWindowTitle(f'XY score maps · step {step} · object {candidate.object_id} · #{candidate.rank}')
         self.resize(1100, 820)
         layout = QVBoxLayout(self)
+        normalization = (
+            "Recomputed with recorded settings; height is normalized by each region's target height. "
+            if data.regions else
+            'Recomputed with recorded settings; height normalization uses only this orientation. ')
         self.description = QLabel(
             f'Step {step} · candidate #{candidate.rank} · object {candidate.object_id}\n'
             'Fixed recorded initial orientation · pre-search scene · normal floor gates\n'
-            'Recomputed with recorded settings; height normalization uses only this orientation. '
+            + normalization +
             'Retry relaxation is not reconstructed.\n'
-            'White: candidate footprint · magenta: initial XY · yellow: target base.')
+            'White: candidate footprint · magenta: initial XY · yellow: target base outlines.')
         self.description.setWordWrap(True)
         layout.addWidget(self.description)
         controls = QHBoxLayout()
+        self.region = QComboBox()
+        for index, view in enumerate(self._regions):
+            self.region.addItem(' + '.join(view.region_id) or 'Target', index)
+            if view.region_id == data.region_id:
+                self.region.setCurrentIndex(index)
+        region_label = QLabel('Region:')
+        region_label.setVisible(bool(data.regions))
+        self.region.setVisible(bool(data.regions))
+        self.region.setToolTip('Connected target region; each map keeps its native sampling grid')
+        controls.addWidget(region_label)
+        controls.addWidget(self.region)
         self.field = QComboBox()
         for name, label, _ in FIELDS:
             self.field.addItem(label, name)
@@ -57,6 +73,11 @@ class InitialPoseScoreDialog(QDialog):
         layout.addWidget(self.plot.interactor)
         self.field.currentIndexChanged.connect(self.render_map)
         self.weighted.toggled.connect(self.render_map)
+        self.region.currentIndexChanged.connect(self._region_changed)
+        self.render_map()
+
+    def _region_changed(self, index):
+        self.data = self._regions[index]
         self.render_map()
 
     def render_map(self, *_):
@@ -74,7 +95,10 @@ class InitialPoseScoreDialog(QDialog):
         finite = values[np.isfinite(values)]
         text = ('No admissible grid cells' if not len(finite) else
                 f'{len(finite)} admissible cells · min {finite.min():.4g} · max {finite.max():.4g}')
-        self.summary.setText(f'{preference} · {text}\n'
+        region = (f'Region {" + ".join(data.region_id)} · '
+                  f'{"local fallback grid" if data.grid_source == "region_fallback" else "shared grid"} · '
+                  if data.region_id else '')
+        self.summary.setText(f'{region}{preference} · {text}\n'
             'Gray cells are masked. These values rank seeds; they do not guarantee a valid placement.')
         self.plot.suppress_rendering = True
         try:
@@ -90,10 +114,14 @@ class InitialPoseScoreDialog(QDialog):
                 else:
                     x, y, raster, title = data.x, data.y, values, label
                 self._heatmap(x, y, raster, title)
-                lo, hi = data.target_bounds
-                corners = np.array([[lo[0], lo[1]], [hi[0], lo[1]],
-                                    [hi[0], hi[1]], [lo[0], hi[1]]])
-                self._outline(corners, '#f4d35e')
+                if data.target_outlines:
+                    for polygon in data.target_outlines:
+                        self._outline(polygon, '#f4d35e')
+                else:
+                    lo, hi = data.target_bounds
+                    corners = np.array([[lo[0], lo[1]], [hi[0], lo[1]],
+                                        [hi[0], hi[1]], [lo[0], hi[1]]])
+                    self._outline(corners, '#f4d35e')
                 for polygon in data.footprint:
                     self._outline(polygon, 'white')
                 self.plot.add_points(np.array([[*data.initial_xy, .05]]), color='magenta',

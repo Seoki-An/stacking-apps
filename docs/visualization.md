@@ -331,10 +331,34 @@ contacts, tree statistics, and diagnostics without mutating the search tree.
 Generation failures remain aggregate rejection counts; the projection does not
 invent geometry that normal search did not retain.
 
-Candidate pose modes are explicitly named `initial`, `solved`, `action`,
-`simulation_start`, and `final`. Candidate identity and outcome are explicit,
+Candidate pose modes include `initial`, `solved`, `action`, `simulation_start`,
+`final`, and `simulation_start_and_final`. Candidate identity and outcome are explicit,
 and render-mode ordering preserves the legacy selected-last behavior for the
 transparent all-candidate view.
+
+**Final** shows candidate stones in yellow and respects **All**, **All opaque**,
+**Selected**, and **State only**. **Simulation start + final** adds translucent
+blue starting poses beside yellow final poses, and blue ghosts of any moved
+neighbours. Missing recorded poses are omitted. Settled neighbours stay gray
+and come from the active candidate's simulation; all-candidate views overlay
+alternative candidate outcomes on that one scene rather than duplicating the
+whole scene for every candidate. Trajectory replay remains a gray scene.
+
+In the excavator console, **Search Inspector → XY score maps…** supports both
+single and composite targets. Composite targets expose a **Region** selector;
+touching components share a region, while disjoint regions have separate maps.
+It initially selects the region nearest the candidate's recorded initial XY.
+Both panels retain the full scene bounds and draw each component's actual
+ground outline, preserving gaps and notches. Score cells use the production
+region grid, including the finer local fallback when needed; regions are never
+interpolated onto a misleading combined rectangle. The summary identifies the
+grid source, and the weighted score terms sum to the displayed total.
+
+These maps reconstruct the recorded initial orientation and pre-search scene
+using recorded settings and object assets. Composite height terms use each
+region's target height, as in its production scorer. Retry relaxation and the
+full multi-orientation proposal population are not replayed. Additional term
+maps are computed only for inspection, leaving normal search caches compact.
 
 Select **Search Inspector → MCTS tree…** in either operations console to see the
 branching search tree for the selected step. The non-modal diagram follows step

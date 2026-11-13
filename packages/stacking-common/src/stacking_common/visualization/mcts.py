@@ -48,6 +48,7 @@ class CandidatePoseMode(str, Enum):
     INITIAL_AND_SOLVED = "initial_and_solved"
     SIMULATION_START = "simulation_start"
     FINAL = "final"
+    SIMULATION_START_AND_FINAL = "simulation_start_and_final"
     TRAJECTORY = "trajectory"
     BEST_SEQUENCE = "best_sequence"
 
@@ -201,6 +202,7 @@ class MCTSCandidateDiagnostic:
             return None if self.final_pose is None else self.final_pose.copy()
         if mode in {
             CandidatePoseMode.INITIAL_AND_SOLVED,
+            CandidatePoseMode.SIMULATION_START_AND_FINAL,
             CandidatePoseMode.TRAJECTORY,
             CandidatePoseMode.BEST_SEQUENCE,
         }:

@@ -241,14 +241,13 @@ def test_replay_replaces_tracked_stones_but_keeps_untracked_scene_objects() -> N
     assert [value.object_id for value in controller.frame().placed_objects] == [11, 99]
 
 
-@pytest.mark.parametrize("render_mode", list(CandidateRenderMode))
-def test_final_view_uses_active_candidates_simulated_neighbours(render_mode):
+def test_final_view_uses_active_candidates_simulated_neighbours():
     artifact = _artifact()
     step = artifact.steps[0]
     untracked = replace(step.scene.objects[0], object_id=99)
     step = replace(step, scene=replace(step.scene, objects=step.scene.objects + (untracked,)))
     controller = OperationsController(replace(artifact, steps=(step,)))
-    controller.set_render_mode(render_mode)
+    controller.set_render_mode(CandidateRenderMode.SELECTED)
     controller.set_pose_mode(CandidatePoseMode.FINAL)
     candidate = controller.active_candidate
     frame = controller.frame()
@@ -276,6 +275,61 @@ def test_final_view_without_timeline_preserves_untracked_scene():
     assert len(frame.overlays) == 1
     np.testing.assert_allclose(frame.overlays[0].pose, candidate.final_pose)
     assert len(frame.placed_objects) == len(step.scene.objects)
+
+
+@pytest.mark.parametrize('mode', list(CandidateRenderMode))
+@pytest.mark.parametrize('compare', [False, True])
+def test_final_candidate_visibility_colors_and_simulation_start_comparison(mode, compare):
+    controller = OperationsController(_artifact())
+    controller.consume_camera_reset_request()
+    controller.set_render_mode(mode)
+    controller.set_pose_mode(CandidatePoseMode.SIMULATION_START_AND_FINAL if compare else CandidatePoseMode.FINAL)
+    frame = controller.frame()
+    visible = (() if mode is CandidateRenderMode.STATE_ONLY else
+               (controller.active_candidate,) if mode is CandidateRenderMode.SELECTED else
+               controller.current_step.candidates)
+    finals = {item.instance_id: item for item in frame.overlays if item.layer == 'candidate_final'}
+    starts = {item.instance_id: item for item in frame.overlays if item.layer == 'candidate_simulation_start'}
+    assert len(finals) == sum(candidate.final_pose is not None for candidate in visible)
+    assert len(starts) == (sum(candidate.pose(CandidatePoseMode.SIMULATION_START) is not None
+                              for candidate in visible) if compare else 0)
+    for candidate in visible:
+        if candidate.final_pose is not None:
+            final = finals[f'candidate/{candidate.candidate_id}/final']
+            np.testing.assert_array_equal(final.pose, candidate.final_pose)
+            assert final.color == pytest.approx((1., .8, .05))
+            assert final.opacity == (1. if mode is not CandidateRenderMode.ALL
+                                     or candidate is controller.active_candidate else .45)
+        if compare and candidate.pose(CandidatePoseMode.SIMULATION_START) is not None:
+            start = starts[f'candidate/{candidate.candidate_id}/simulation_start']
+            np.testing.assert_array_equal(start.pose, candidate.pose(CandidatePoseMode.SIMULATION_START))
+            assert start.color == pytest.approx((.15, .65, 1.))
+            assert start.opacity <= .45
+    if mode is CandidateRenderMode.STATE_ONLY:
+        assert frame.overlays == ()
+        assert len(frame.placed_objects) == len(controller.current_step.scene.objects)
+    assert len({item.instance_id for item in frame.objects}) == len(frame.objects)
+    assert not controller.consume_camera_reset_request()
+
+
+def test_comparison_ghosts_only_moved_neighbours_of_the_active_candidate():
+    controller = OperationsController(_artifact())
+    controller.set_render_mode(CandidateRenderMode.SELECTED)
+    controller.set_pose_mode(CandidatePoseMode.SIMULATION_START_AND_FINAL)
+    active = controller.active_candidate
+    frame = controller.frame()
+    for track in active.timeline.tracks:
+        if track.object_id == active.object_id:
+            continue
+        final = next(item for item in frame.overlays
+                     if item.layer == 'final' and item.object_id == track.object_id)
+        np.testing.assert_array_equal(final.pose, track.poses[-1])
+        ghosts = [item for item in frame.overlays if item.layer == 'simulation_start_scene'
+                  and item.object_id == track.object_id]
+        moved = not np.allclose(track.poses[0], track.poses[-1], rtol=0., atol=1e-9)
+        assert len(ghosts) == int(moved)
+        if moved:
+            np.testing.assert_array_equal(ghosts[0].pose, track.poses[0])
 
 
 def test_zero_candidate_step_renders_state_without_timeline() -> None:

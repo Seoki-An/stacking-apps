@@ -37,6 +37,8 @@ from stacking_common.visualization import (
 _CANDIDATE_SELECTED_COLOR = (1.00, 0.80, 0.05, 1.00)
 _CANDIDATE_INITIAL_COLOR = (0.92, 0.92, 0.92, 1.00)
 _CANDIDATE_SOLVED_COLOR = (0.10, 0.85, 0.25, 1.00)
+_CANDIDATE_FINAL_COLOR = (1.00, 0.80, 0.05, 0.45)
+_CANDIDATE_SIMULATION_START_COLOR = (0.15, 0.65, 1.00, 0.45)
 _CANDIDATE_FAILED_COLOR = (0.25, 0.25, 0.25, 0.35)
 _CANDIDATE_SCORE_ANCHORS = np.asarray(
     (
@@ -445,7 +447,8 @@ class OperationsController:
         )
         replay_object_ids = (
             {value.object_id for value in overlays}
-            if self.pose_mode in (CandidatePoseMode.TRAJECTORY, CandidatePoseMode.FINAL)
+            if self.pose_mode in (CandidatePoseMode.TRAJECTORY, CandidatePoseMode.FINAL,
+                                  CandidatePoseMode.SIMULATION_START_AND_FINAL)
             else set()
         )
         placed = tuple(
@@ -611,8 +614,8 @@ class OperationsController:
             return self._trajectory_overlays(active)
         if self.pose_mode is CandidatePoseMode.BEST_SEQUENCE:
             return self._sequence_overlays(active)
-        if self.pose_mode is CandidatePoseMode.FINAL:
-            return self._final_overlays(active)
+        if self.pose_mode in (CandidatePoseMode.FINAL, CandidatePoseMode.SIMULATION_START_AND_FINAL):
+            return self._final_overlays(step, active)
         candidates = self._visible_candidates(step, active)
         candidate_colors = _candidate_score_colors(
             step.candidates,
@@ -688,23 +691,42 @@ class OperationsController:
             )
         )
 
-    @staticmethod
     def _final_overlays(
-        candidate: MCTSCandidateDiagnostic | None,
+        self, step: MCTSDebugStep, active: MCTSCandidateDiagnostic | None,
     ) -> tuple[RenderObject, ...]:
-        if candidate is None or candidate.final_pose is None:
+        candidates = self._visible_candidates(step, active)
+        if not candidates:
             return ()
-        # Final poses belong to this candidate's simulated scene. Mixing its
-        # final pose with the original neighbours can create false overlaps.
-        poses = (candidate.timeline.poses_at(candidate.timeline.frame_count - 1)
-                 if candidate.timeline.frame_count else ())
-        objects = {value.object_id: value for value in poses}
-        objects[candidate.object_id] = SceneObjectPose(candidate.object_id, candidate.final_pose)
-        return tuple(
-            _render_object(value, f"final/{candidate.candidate_id}/{value.object_id}",
-                           "final", selected=value.object_id == candidate.object_id)
-            for value in objects.values()
-        )
+        compare = self.pose_mode is CandidatePoseMode.SIMULATION_START_AND_FINAL
+        overlays, starts, finals = [], [], []
+        # Keep one coherent settled scene: each alternative candidate has its
+        # own simulation outcome, but neighbours come from the active one only.
+        if (active is not None and active.final_pose is not None
+                and active.timeline.frame_count):
+            for track in active.timeline.tracks:
+                if track.object_id == active.object_id:
+                    continue
+                overlays.append(RenderObject(
+                    f"final/{active.candidate_id}/{track.object_id}", track.object_id,
+                    track.poses[-1], "final"))
+                if compare and not np.allclose(track.poses[0], track.poses[-1], rtol=0., atol=1e-9):
+                    starts.append(RenderObject(
+                        f"simulation_start/{active.candidate_id}/{track.object_id}",
+                        track.object_id, track.poses[0], "simulation_start_scene", opacity=.25,
+                        color=_CANDIDATE_SIMULATION_START_COLOR[:3]))
+        for candidate in candidates:
+            if compare:
+                start = candidate.pose(CandidatePoseMode.SIMULATION_START)
+                if start is not None:
+                    starts.append(_candidate_render_object(
+                        candidate, start, "candidate_simulation_start", self.render_mode,
+                        suffix="simulation_start", opacity_scale=.45,
+                        color=_CANDIDATE_SIMULATION_START_COLOR, highlighted=candidate is active))
+            if candidate.final_pose is not None:
+                finals.append(_candidate_render_object(
+                    candidate, candidate.final_pose, "candidate_final", self.render_mode,
+                    suffix="final", color=_CANDIDATE_FINAL_COLOR, highlighted=candidate is active))
+        return tuple(overlays + starts + finals)
 
     @staticmethod
     def _sequence_overlays(

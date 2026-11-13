@@ -86,6 +86,18 @@ def test_translucent_layers_select_the_correct_pass():
 
 
 @pytest.mark.parametrize("platform", ["tabletop", "excavator"])
+def test_final_candidate_keeps_explicit_yellow_while_settled_neighbours_are_gray(platform):
+    module = importlib.import_module(f"stacking_{platform}.gui.operations.scene_view")
+    view = Mock()
+    view._transparent_stones = False
+    view._object_mesh.return_value = pv.Sphere()
+    for layer, expected in (("candidate_final", (1., .8, .05)), ("final", "#a8a8a8")):
+        value = RenderObject(layer, 8, [0, 0, 0, 0, 0, 0, 1], layer, color=(1., .8, .05))
+        module.OperationsSceneView._add_object(view, value)
+        assert view.add_mesh.call_args.kwargs['color'] == expected
+
+
+@pytest.mark.parametrize("platform", ["tabletop", "excavator"])
 def test_transparency_toggle_invalidates_cached_scene(platform):
     module = importlib.import_module(f"stacking_{platform}.gui.operations.scene_view")
     view = SimpleNamespace(_transparent_stones=False, _last_robot_scene_key="cached",

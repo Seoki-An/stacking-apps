@@ -92,6 +92,7 @@ class SearchInspector(QWidget):
             ("Initial + solved", CandidatePoseMode.INITIAL_AND_SOLVED),
             ("Simulation start", CandidatePoseMode.SIMULATION_START),
             ("Final", CandidatePoseMode.FINAL),
+            ("Simulation start + final", CandidatePoseMode.SIMULATION_START_AND_FINAL),
             ("Trajectory", CandidatePoseMode.TRAJECTORY),
             ("Best sequence", CandidatePoseMode.BEST_SEQUENCE),
         ):

@@ -203,6 +203,27 @@ class CompositePlanarSampler:
         self._latest_maps[object_index] = result
         return result
 
+    def diagnostic_maps(self, state, observation, object_index):
+        """Reconstruct score terms on each production region's chosen grid.
+
+        Only the viewer calls this on its separate fixed-orientation sampler;
+        ordinary search maps retain their compact column storage.
+        """
+        production = self.score_map(state, observation, object_index)
+        quaternions = self.owner.quaternions(state, observation, object_index)
+        shared = self._support_maps(state, object_index, quaternions,
+                                    SamplingRegion(self.owner.inventory.target))
+        maps = {}
+        for layer in self._layers:
+            region_id = layer["region_id"]
+            source = production["regions"][region_id]["grid_source"]
+            support = (self._support_maps(state, object_index, quaternions, layer["region"])
+                       if source == "region_fallback" else shared)
+            result = self._region_scores(layer, support, include_terms=True)
+            result["grid_source"] = source
+            maps[region_id] = result
+        return maps
+
     def _support_maps(self, state, object_index, quaternions, region, *, cache_geometry=True):
         """Compute the physical surface/support once, before target masking."""
         owner = self.owner
@@ -251,7 +272,7 @@ class CompositePlanarSampler:
                                  placement, support.support[0].ravel()))
         return x, y, xy, shape, orientations
 
-    def _region_scores(self, layer, support_maps):
+    def _region_scores(self, layer, support_maps, *, include_terms=False):
         owner = self.owner
         region = layer["region"]
         region_id = region.region_id
@@ -267,6 +288,10 @@ class CompositePlanarSampler:
         containment = self._containment[region_id]
         score_grid = np.full(shape, np.nan)
         mask = np.zeros(shape, dtype=bool)
+        terms = ({name: np.full(shape, np.nan) for name in (
+            "height", "support_likelihood", "fill_area", "target_boundary",
+            "planar_bias", "previous_action_distance", "placement_height")}
+            if include_terms else None)
         previous_entry = None
         if (owner.connectivity_enabled and owner.settings.get("connectivity", "active_floor") in ("previous_action", "previous_action_soft")
                 and self._state.placed_object_indices):
@@ -336,6 +361,15 @@ class CompositePlanarSampler:
                       + float(score_cfg.get("target_boundary", 0.)) * boundary
                       + float(score_cfg.get("planar_bias", score_cfg.get("excavator_distance", .25))) * np.minimum(bias, 1.))
             scores -= float(score_cfg.get("previous_action_distance", 1.)) * distance_penalty[keep]
+            if terms is not None:
+                wins = ~np.isfinite(score_grid.ravel()[indices]) | (scores > score_grid.ravel()[indices])
+                values = dict(height=relative_height / height_scale,
+                    support_likelihood=likelihood[indices],
+                    fill_area=unfilled / max(int(unfilled.max()), 1), target_boundary=boundary,
+                    planar_bias=np.minimum(bias, 1.),
+                    previous_action_distance=distance_penalty[keep], placement_height=placement[indices])
+                for name, value in values.items():
+                    terms[name].ravel()[indices[wins]] = value[wins]
             full = containment(xy[indices], rotated, placement[indices],
                                inset_scale=max(scale, 1.), margin=margin).any(axis=1)
             chunks.append(dict(xy=xy[indices], score=scores,
@@ -355,9 +389,20 @@ class CompositePlanarSampler:
                 # Feasible extrema, not corners of a bounding rectangle or notch.
                 for direction in ((-1., -1.), (1., -1.), (1., 1.), (-1., 1.)):
                     columns["seed"][eligible[int(np.argmax(centers @ direction))]] = True
-        return {"x_coords": x, "y_coords": y, "scores": score_grid,
+        result = {"x_coords": x, "y_coords": y, "scores": score_grid,
                 "candidate_mask": mask, "columns": columns,
                 "candidates": _CandidateRows([(region_id, component_ids, columns)])}
+        if terms is not None:
+            result["terms"] = terms
+            result["weights"] = dict(
+                height=float(score_cfg.get("height", -1.5)),
+                support_likelihood=float(score_cfg.get("support_likelihood", 2.)),
+                fill_area=float(score_cfg.get("fill_area", 0.)),
+                target_boundary=float(score_cfg.get("target_boundary", 0.)),
+                planar_bias=float(score_cfg.get("planar_bias", score_cfg.get("excavator_distance", .25))),
+                previous_action_distance=-float(score_cfg.get("previous_action_distance", 1.))
+                    if owner.settings.get("connectivity") == "previous_action_soft" else 0.)
+        return result
 
     def sample(self, state, observation, object_index, count, sampling_priority):
         if count <= 0:

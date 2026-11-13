@@ -1,6 +1,8 @@
-"""On-demand diagnostics for the pre-region production XY scorer."""
+"""On-demand diagnostics using the production XY scorers."""
 
-from dataclasses import dataclass
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -10,6 +12,8 @@ from stacking_common.actions.config import PlanarSamplingConfig
 from stacking_common.actions.floor import ActiveFloorPolicy, floor_policy_settings
 from stacking_common.actions.orientation import MappingOrientationProvider
 from stacking_common.actions.scored import ScoredPlanarPoseSampler
+from stacking_common.actions.target_regions import horizontal_polygon
+from stacking_common.domain import CompositeTargetGeometry
 from stacking_common.domain.geometry import transform_points
 from .heightmap import HeightMapRenderer
 
@@ -27,20 +31,21 @@ class SamplingScoreView:
     footprint: tuple[np.ndarray, ...]
     target_bounds: tuple[np.ndarray, np.ndarray]
     weights: dict[str, float]
+    target_outlines: tuple[np.ndarray, ...] = ()
+    region_id: tuple[str, ...] = ()
+    grid_source: str = "shared"
+    regions: tuple[SamplingScoreView, ...] = ()
 
 
 def initial_pose_score_view(inventory, state, object_id, initial_pose, *, planar_config,
                             settings, height_map_resolution, height_map_margin, floor_settings=None):
     """Recompute a fixed initial orientation in the pre-search scene.
 
-    The separate sampler cannot affect planning RNG or caches. Height scores are
-    normalized over this orientation's eligible cells. This is a diagnostic
-    reconstruction with normal floor gates, not a replay of retries or the
-    multi-orientation normalization used during search.
+    The separate sampler cannot affect planning RNG or caches. Single-target
+    height scores use this orientation's eligible cells; composite scores use
+    each region's physical target height, as in production. This reconstructs
+    normal floor gates, not retry relaxation or the full orientation bank.
     """
-    from stacking_common.domain import CompositeTargetGeometry
-    if isinstance(inventory.target, CompositeTargetGeometry):
-        raise ValueError("Composite target rendering is supported; per-region score-map inspection is not yet available")
     if settings.get('strategy') or not settings.get('score') or not (settings.get('floor') or settings.get('floor_fill')):
         raise ValueError('Score inspection requires pre-region sampler settings')
     removed_scores = {'open_area', 'frontier'}
@@ -82,10 +87,32 @@ def initial_pose_score_view(inventory, state, object_id, initial_pose, *, planar
         target_anchor_inset_scale=planar_config.get('target_anchor_inset_scale'))
     provider = MappingOrientationProvider({oid: pose[3:] for oid in inventory.object_ids})
     policy = ActiveFloorPolicy(inventory, **floor_policy_settings(settings['floor']))
-    if (recorded_max_layers is not None
-            and len(policy.context_details(state)['completed_layers']) >= int(recorded_max_layers)):
-        raise ValueError('This run reached its historical layer limit; its score maps cannot be reconstructed')
+    if recorded_max_layers is not None:
+        context = policy.context_details(state)
+        layers = context['regions'] if policy.target_regions is not None else (context,)
+        if any(len(layer['completed_layers']) >= int(recorded_max_layers) for layer in layers):
+            raise ValueError('This run reached its historical layer limit; its score maps cannot be reconstructed')
     sampler = ScoredPlanarPoseSampler(inventory, config, provider, settings, floor_policy=policy)
+    footprint = []
+    for component in inventory[index].geometries:
+        xy = transform_points(component.points, pose)[:, :2]
+        footprint.append(xy[ConvexHull(xy).vertices])
+    if isinstance(inventory.target, CompositeTargetGeometry):
+        maps = sampler._composite.diagnostic_maps(state, observation, index)
+        outlines = tuple(horizontal_polygon(item.world_geometry, policy.ground_z)
+                         for item in inventory.target.components)
+        bounds = tuple(inventory.target.bounds[:, :2])
+        regions = tuple(SamplingScoreView(
+            data['x_coords'], data['y_coords'], {'score': data['scores'], **data['terms']},
+            data['candidate_mask'], observation.scene_height_map, renderer.xlim, renderer.ylim,
+            pose[:2].copy(), tuple(footprint), bounds, data['weights'],
+            target_outlines=outlines, region_id=region_id, grid_source=data['grid_source'])
+            for region_id, data in maps.items())
+        # Prefer the region nearest the recorded initial XY, even if it has no seeds.
+        nearest = min(policy.target_regions.regions,
+                      key=lambda region: float(region.target.footprint_distance([pose[:2]])[0]))
+        selected = next(view for view in regions if view.region_id == nearest.region_id)
+        return replace(selected, regions=regions)
     data = sampler.score_map(state, observation, index)
     fields = {'score': data['scores'].copy()}
     for name in ('height', 'support_likelihood', 'fill_area',
@@ -93,10 +120,6 @@ def initial_pose_score_view(inventory, state, object_id, initial_pose, *, planar
         source = 'height_term' if name == 'height' else name
         fields[name] = np.asarray(data.get(source, np.full(config.grid_shape, np.nan))).copy()
     valid = data['candidate_mask'] & np.isfinite(fields['score'])
-    footprint = []
-    for component in inventory[index].geometries:
-        xy = transform_points(component.points, pose)[:, :2]
-        footprint.append(xy[ConvexHull(xy).vertices])
     half = np.array([inventory.target.width, inventory.target.length]) / 2
     target_bounds = (inventory.target.origin[:2] - half, inventory.target.origin[:2] + half)
     weights = dict(data.get('weights', {}))
