@@ -118,10 +118,11 @@ def load_mcts_profile(path: str | Path) -> MCTSProfile:
             exponent=float(_required(widening, "exponent")),
         ),
     )
+    max_search_time = _required(tree, "max_search_time")
     request = MCTSSearchRequest(
         iterations=int(_required(tree, "iterations")),
         evaluation_fidelity=EvaluationFidelity.LONG,
-        max_time_seconds=float(_required(tree, "max_search_time")),
+        max_time_seconds=(None if max_search_time is None else float(max_search_time)),
         root_sampling_priority=str(
             _required(generation, "root_sampling_priority")
         ),

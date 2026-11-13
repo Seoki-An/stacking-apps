@@ -182,7 +182,7 @@ Proposals carry `target_component_ids`, `target_region_ids` and a primary
 `target_region_id`. Mutation and accepted optimized poses recompute membership
 from projected geometry; these labels are diagnostics, not proof of 3D
 containment. Solved candidates must overlap an actual component footprint,
-even when floor-fill restrictions are relaxed.
+including during next-floor fallback.
 
 Components must intersect the same physical ground plane over an area. This
 plane comes from the platform posegen objective's `ground_height` (default
@@ -317,7 +317,7 @@ is needed for the conservative whole-stone-in-one-component adapter.
    paths. Repair missing paths within bounded additional work.
 6. If no candidate qualifies, retry root generation, search continuations, and
    repeat final selection within the remaining deadline. If retries also fail,
-   relax floor-first sampling and try a few fresh root pools.
+   advance the search floor and try fresh root pools with updated filling scores.
 7. Select the highest final score. In search-only mode, promote that node to the
    next root. The motion-planning workflow additionally checks executability.
 
@@ -561,17 +561,34 @@ run again. Increasing root retry rounds alone does not improve alternatives
 when some root already qualifies.
 
 Before replacing a physically validated root, the planner can also repair
-its missing continuations with relaxed floor admission, once per root. It
-preserves the root and existing physical validation evidence.
+its missing continuations by advancing through incomplete floors. Each parent
+gets at most `rejected_root_retry_rounds + 1` pools within the search deadline;
+the next floor is tried only after the preceding pool has no selectable child.
+It preserves the root and existing physical validation evidence.
+
+Distance-frozen physics is provisional for root admission. Roots that pass with
+frozen stones repeat settling, structural simulation, and robustness without
+distance freezing before lookahead. Rejection triggers the normal root retry
+path; success replaces the entire candidate state with the full-scene result.
+Subtrees computed from the provisional scene are discarded. This prevents a
+change in the next candidate's freeze radius from exposing a structure that
+was supported only by artificially fixed stones.
 
 **The sampling fallback runs only if root retries also select nothing.** An
 empty scene relaxes corner seeding to ordinary scored sampling. A nonempty
-scene relaxes floor admission while retaining lower-floor priority, fill-area
-scores, sampling connectivity, and physical validation. It repeats root
+scene advances its search floor after exhausting the current pool. Occupied
+and unfilled masks, filling scores, and the height-admission gate all use that
+same advanced floor. Skipped floors retain their measured coverage and are
+recorded separately from completed floors. Overrides apply only to the parent
+states being retried and are restored on exit, including exceptions; sibling
+states and later searches retain their normal floor policy. Score-cache keys
+include the floor override. Sampling connectivity and physical validation remain
+active. It repeats root
 preparation, lookahead, retry depth extension, and final selection on fresh root
 pools. After the first pool, up to `rejected_root_retry_rounds` further pools
-each exclude every earlier candidate. The fallback stops at the first
-selection, when CEM has no fresh proposals, or at the original overall
+each exclude every earlier candidate and try the next incomplete floor.
+The fallback stops at the first selection, when no further floor exists,
+or at the original overall
 deadline. Saved statistics record its pool, generated, and accepted counts.
 
 `missing_validated_descendant` means no qualifying continuation was found within

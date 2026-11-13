@@ -40,23 +40,24 @@ def test_limit_is_candidate_size_normalized_and_inclusive(scale):
 
 
 def test_fresh_and_mutated_proposals_keep_filter_during_floor_relaxation():
-    inv = _inventory(1)
+    inv = _inventory(2)
+    parent = _state(inv, placed=(1,))
     config = PlacementActionGeneratorConfig(2, .01, 0., None,
         max_initial_xy_displacement_ratio=.75)
-    floor = SimpleNamespace(context_details=lambda state: {},
-        pose_diagnostics=lambda *a, **k: {'fixed_scene_active_layer_above': True})
+    from stacking_common.actions.floor import ActiveFloorPolicy
+    floor = ActiveFloorPolicy(inv, bottom_tolerance=.01, fill_ratio=.75, grid_size=16)
     solver = SimpleNamespace(solve=lambda inv, state, i, initial:
                              PlacementSolveResult(initial.pose + np.array([.04, 0, 0, 0, 0, 0, 0]), 0., 0.))
     generator = PlacementActionGenerator(inv, config, _PlanarSampler(), _Initializer(), solver,
         filters=(ActiveLayerAdmissionFilter(floor),))
     from stacking_common.search import ActionGenerationRequest
     try:
-        fresh = generator.generate(_state(inv), None, ActionGenerationRequest(max_candidates=2))
+        fresh = generator.generate(parent, None, ActionGenerationRequest(max_candidates=2))
         assert fresh.rejection_counts == {'initial_xy_displacement': 2}
-        with generator.floor_fill_fallback() as enabled:
+        with generator.floor_fill_fallback((parent,)) as enabled:
             assert enabled
             # CEM mutation and seed construction share build_candidates.
-            assert generator.build_candidates(_state(inv), [(0, PlanarPlacement(_pose()))]) == (
+            assert generator.build_candidates(parent, [(0, PlanarPlacement(_pose()))]) == (
                 (None, 'initial_xy_displacement'),)
     finally:
         generator.close()

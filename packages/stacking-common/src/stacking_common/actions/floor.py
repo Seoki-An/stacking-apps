@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import numpy as np
 
 from stacking_common.domain import Action, CompositeTargetGeometry, ObjectInventory, State
@@ -49,6 +50,23 @@ class ActiveFloorPolicy:
         self._grid_values = None
         self._entries: dict = {}
         self._masks: dict = {}
+        self._fallback_levels: dict[int, int] = {}
+
+    def fallback_level(self, state):
+        return self._fallback_levels.get(id(state), 0)
+
+    @contextmanager
+    def advance_for_search(self, states, level):
+        """Skip exhausted incomplete floors only for these live parent states."""
+        if level < 1:
+            raise ValueError("floor fallback level must be positive")
+        states = tuple(states)  # Retain identities until the scope exits.
+        previous = self._fallback_levels
+        self._fallback_levels = {**previous, **{id(state): level for state in states}}
+        try:
+            yield
+        finally:
+            self._fallback_levels = previous
 
     def pose_diagnostics(
         self,
@@ -67,6 +85,7 @@ class ActiveFloorPolicy:
             neighbors=context["occupied_neighbor"], grid=(context["xx"], context["yy"]))
         diagnostics["fixed_scene_active_layer_coverage_mode"] = self.coverage_mode
         diagnostics["fixed_scene_completed_layers"] = context["completed_layers"]
+        diagnostics["fixed_scene_skipped_layers"] = context["skipped_layers"]
         return diagnostics
 
     def context(self, state: State) -> tuple[float, np.ndarray]:
@@ -89,6 +108,8 @@ class ActiveFloorPolicy:
         layer_entries: list[dict[str, object]] = []
         occupied = self._empty_mask()
         completed_layers = []
+        skipped_layers = []
+        fallback_level = self.fallback_level(state)
         # Every completed layer consumes at least one remaining stone.
         while remaining:
             layer_entries = [
@@ -97,12 +118,14 @@ class ActiveFloorPolicy:
                 if float(entry["bottom"]) <= support_z + self.bottom_tolerance
             ]
             occupied = self._occupancy(layer_entries, support_z)
-            if float(np.mean(occupied)) < self.fill_ratio:
-                break
             if not layer_entries:
                 break
-            completed_layers.append({"support_z": support_z,
-                                     "coverage": float(np.mean(occupied))})
+            coverage = float(np.mean(occupied))
+            incomplete = coverage < self.fill_ratio
+            if incomplete and len(skipped_layers) >= fallback_level:
+                break
+            (skipped_layers if incomplete else completed_layers).append(
+                {"support_z": support_z, "coverage": coverage})
             used = {id(entry) for entry in layer_entries}
             remaining = [entry for entry in remaining if id(entry) not in used]
             support_z = max(float(entry["top"]) for entry in layer_entries)
@@ -116,6 +139,7 @@ class ActiveFloorPolicy:
             "occupied": occupied, "occupied_neighbor": _neighbor_mask(occupied),
             "occupancy": float(np.mean(occupied)), "coverage_mode": self.coverage_mode,
             "completed_layers": completed_layers,
+            "skipped_layers": skipped_layers, "fallback_level": fallback_level,
         }
 
     def _layer_diagnostics(self, action, support_z, occupied, *, neighbors=None, grid=None, valid=None):
@@ -167,7 +191,8 @@ class ActiveFloorPolicy:
             remaining = [entry for entry in entries
                          if np.any(projected_target & self._mask(entry, None, grid=(xx, yy)))]
             empty = not remaining
-            support_z, completed = self.ground_z, []
+            support_z, completed, skipped = self.ground_z, [], []
+            fallback_level = self.fallback_level(state)
             while True:
                 valid = region.mask(xx, yy, support_z)
                 layer = [entry for entry in remaining
@@ -178,9 +203,13 @@ class ActiveFloorPolicy:
                     occupied |= self._mask(entry, support_z, grid=(xx, yy))
                 occupied &= valid
                 occupancy = np.count_nonzero(occupied) / max(np.count_nonzero(valid), 1)
-                if not valid.any() or not layer or occupancy < self.fill_ratio:
+                if not valid.any() or not layer:
                     break
-                completed.append({"support_z": support_z, "coverage": float(occupancy)})
+                incomplete = occupancy < self.fill_ratio
+                if incomplete and len(skipped) >= fallback_level:
+                    break
+                (skipped if incomplete else completed).append(
+                    {"support_z": support_z, "coverage": float(occupancy)})
                 consumed = {id(entry) for entry in layer}
                 remaining = [entry for entry in remaining if id(entry) not in consumed]
                 support_z = max(entry["top"] for entry in layer)
@@ -191,6 +220,7 @@ class ActiveFloorPolicy:
                 "occupied": occupied, "occupied_neighbor": _neighbor_mask(occupied) & valid,
                 "occupancy": float(occupancy), "coverage_mode": self.coverage_mode,
                 "completed_layers": completed,
+                "skipped_layers": skipped, "fallback_level": fallback_level,
             })
         return {"regions": tuple(contexts), "ground_z": self.ground_z}
 
@@ -215,7 +245,8 @@ class ActiveFloorPolicy:
             neighbors=region["occupied_neighbor"], grid=(region["xx"], region["yy"]), valid=region["valid"])
         diagnostics.update(metadata, target_region_id=region["region_id"],
             fixed_scene_active_layer_coverage_mode=self.coverage_mode,
-            fixed_scene_completed_layers=region["completed_layers"])
+            fixed_scene_completed_layers=region["completed_layers"],
+            fixed_scene_skipped_layers=region["skipped_layers"])
         return diagnostics
 
     def _entry(self, object_index: int, pose: np.ndarray) -> dict[str, object]:

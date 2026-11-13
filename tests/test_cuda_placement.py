@@ -547,3 +547,39 @@ def test_force_robustness_matches_cpu_and_preserves_nominal_scene(backends, monk
     assert actual[2] == expected[2]
     np.testing.assert_array_equal(snapshot.body_pose(1), original)
     assert source.placed_object_indices == []
+
+
+@pytest.mark.parametrize('all_rejected', [False, True])
+@pytest.mark.parametrize('with_preparation', [False, True])
+def test_refinement_containment_filters_gpu_jobs_without_reordering(
+        backends, monkeypatch, all_rejected, with_preparation):
+    from stacking_common.actions.types import PlacementFilterDecision
+    _, gpu = backends
+    gpu.settling_pose_filter = lambda action, refined: (
+        PlacementFilterDecision.reject('stone_outside_target',
+                                       settling_target_containment_fraction=0.)
+        if all_rejected or refined[0] > 1. else PlacementFilterDecision.accept())
+    batches = []
+    run = gpu._run
+    def record(problems):
+        if problems:
+            batches.append([p.request_id for p in problems])
+        return run(problems)
+    monkeypatch.setattr(gpu, '_run', record)
+    parents = (state(), state(), state())
+    actions = tuple(Action(0, pose(x=x), pose(x=x), object_id=10) for x in (2., 0., 3.))
+    prepared = []
+    result = (gpu.place_batch_with_preparation(parents, actions, lambda start, p: prepared.extend(p))
+              if with_preparation else gpu.place_batch(parents, actions))
+    assert batches == ([[0, 1, 2]] if all_rejected else [[0, 1, 2], [1]])
+    for index in (0, 2):
+        assert result[index].failed
+        assert result[index].diagnostics['simulation_rejection_stage'] == 'settling'
+        assert result[index].diagnostics['simulation_structural_wall_seconds'] == 0.
+        np.testing.assert_array_equal(result[index].object_poses[10][:3], actions[index].pose[:3])
+    if not all_rejected:
+        assert result[1].diagnostics.get('simulation_rejection_stage') is None
+    if with_preparation:
+        assert len(prepared) == 3
+        assert prepared[0] is None and prepared[2] is None
+        assert (prepared[1] is None) == all_rejected

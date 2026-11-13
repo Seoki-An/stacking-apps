@@ -2,9 +2,21 @@
 units: si
 default: default
 shapes:
-  default:
+  default: &default-wall
     width: 2.0
     length: 6.0
+    height: 2.5
+    origin: [0.0, 0.0, 0.0]
+    support_overlap: 0.02
+    taper_degrees:
+      width_positive: 5.0
+      width_negative: 5.0
+      length_positive: 5.0
+      length_negative: 5.0
+  default_long_wall:
+    # Default wall with its length increased by 20 percent.
+    width: 2.0
+    length: 7.2
     height: 2.5
     origin: [0.0, 0.0, 0.0]
     support_overlap: 0.02
@@ -25,7 +37,7 @@ shapes:
       width_negative: 1.0
       length_positive: 1.0
       length_negative: 1.0
-  tapered_tower:
+  tapered_tower: &tapered-tower
     # stacking-planner agent/configs/ablation.yml: environment.target.
     width: 3.0
     length: 3.0
@@ -70,6 +82,18 @@ shapes:
       width_negative: 30.51023740611555
       length_positive: 30.51023740611555
       length_negative: 30.51023740611555
+  pyramid_large:
+    # Uniform 1.2x enlargement of pyramid, retaining its taper and top plateau.
+    width: 4.8
+    length: 4.8
+    height: 3.36
+    origin: [0.0, 0.0, 0.0]
+    support_overlap: 0.02
+    taper_degrees:
+      width_positive: 30.51023740611555
+      width_negative: 30.51023740611555
+      length_positive: 30.51023740611555
+      length_negative: 30.51023740611555
   box:
     width: 2.8
     length: 3.2
@@ -81,6 +105,15 @@ shapes:
       width_negative: 0.0
       length_positive: 0.0
       length_negative: 0.0
+  tower_and_wall:
+    # A 4 m tower joins the end of the 2.5 m wall with 1 m ground overlap.
+    components:
+      - id: wall
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        shape: *default-wall
+      - id: tower
+        pose: [0.0, 3.5, 0.0, 0.0, 0.0, 0.0, 1.0]
+        shape: *tapered-tower
   two_walls:
     components:
       - id: west
@@ -121,20 +154,23 @@ shapes:
         pose: [0.0, -1.0, 0.0, 0.0, 0.0, 0.7071067811865476, 0.7071067811865476]
         shape: *l-arm
   l_shaped_wall_nonsymmetric:
-    # Two perpendicular walls meeting at y=-1, without volume overlap.
-    # Ground bounds: x=[-2, 2], y=[-3, 3].
+    # Each arm is 4.8 m long (1.2 times 4 m), with a 2 x 2 m overlap.
+    # Keep the lower-left corner at (-2, -3); overlap x=[-2, 0], y=[-3, -1].
+    # Ground bounds: x=[-2, 2.8], y=[-3, 1.8].
     components:
       - id: north_arm
-        pose: [-1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
-        shape: *l-arm
+        pose: [-1.0, -0.6, 0.0, 0.0, 0.0, 0.0, 1.0]
+        shape: &l-nonsymmetric-arm
+          <<: *l-arm
+          length: 4.8
       - id: east_arm
         # Pose quaternion is XYZW: 90 degrees about Z.
-        pose: [0.0, -2.0, 0.0, 0.0, 0.0, 0.7071067811865476, 0.7071067811865476]
-        shape: *l-arm
+        pose: [0.4, -2.0, 0.0, 0.0, 0.0, 0.7071067811865476, 0.7071067811865476]
+        shape: *l-nonsymmetric-arm
   l_shaped_thin_wall:
-    # Two perpendicular walls with a 1 x 1 m overlap and a 1.2 x 1.2 m corner column.
+    # Two perpendicular walls with a 1 x 1 m overlap and a 2 x 2 m corner column.
     # Corner column is centered on the overlap and has the same 3 m height.
-    # Ground bounds: x=[-1.6, 2.5], y=[-2.6, 1.5].
+    # Ground bounds: x=[-2.0, 2.5], y=[-3.0, 1.5].
     components:
       - id: north_arm
         pose: [-1.0, -0.5, 0.0, 0.0, 0.0, 0.0, 1.0]
@@ -157,5 +193,5 @@ shapes:
         pose: [-1.0, -2.0, 0.0, 0.0, 0.0, 0.0, 1.0]
         shape:
           <<: *l-thin-arm
-          width: 1.2
-          length: 1.2
+          width: 2.0
+          length: 2.0

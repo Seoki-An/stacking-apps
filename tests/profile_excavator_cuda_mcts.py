@@ -125,7 +125,7 @@ def main():
         (CudaPlacementBackend, '_run', 'native_simulation_run'),
         (CorePlacementBackend, '_scene', 'scene_build'),
         (CorePlacementBackend, '_scene_from_snapshot', 'scene_from_snapshot'),
-        (CorePlacementBackend, '_short_frozen_indices', 'support_freezing'),
+        (CorePlacementBackend, '_structural_frozen_indices', 'support_freezing'),
         (CudaPlacementBackend, '_structural_result', 'structural_sample_processing'),
         (CudaPlacementBackend, '_structural_summary', 'structural_metadata'),
         (CudaPlacementBackend, '_populate_trajectories', 'structural_trajectory_processing'),

@@ -68,10 +68,20 @@ class StackingSearchApplication:
         if self.mcts_profile.parallel.simulation_backend == "cuda":
             from stacking_common.environment.cuda_backend import CudaPlacementBackend
             backend_type = CudaPlacementBackend
+        containment = TargetContainmentFilter(
+            VoxelOverlapEvaluator(
+                inventory.target,
+                resolution=self.environment_profile.overlap_resolution,
+            ),
+            self.environment_profile.reward.containment_threshold,
+        )
         return backend_type.from_profile(
             inventory.models,
             profile,
             place_stability=self.environment_profile.place_stability,
+            settling_pose_filter=lambda action, pose: containment.check_pose(
+                inventory, action.object_index, pose, stage="settling",
+            ),
         )
 
     def build_pose_solver(

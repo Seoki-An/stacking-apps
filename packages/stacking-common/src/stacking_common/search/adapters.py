@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import replace
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Generic, Mapping, Protocol, TypeVar
@@ -218,6 +219,22 @@ class StackingEnvironmentEvaluator(Generic[ObservationT]):
             environment.close()
             closed.add(identity)
 
+    def evaluate_full_scene_batch(self, states, actions, fidelity):
+        """Validate root placements without the provisional distance freeze.
+
+        The synchronous batch includes robustness checks. Restore the local
+        search configuration even when native simulation raises an exception.
+        """
+        environment = self.environments[EvaluationFidelity(fidelity)]
+        backend = environment.transition.backend
+        original = backend.config
+        backend.config = replace(original, structural=replace(
+            original.structural, freeze_radius=None))
+        try:
+            return self.evaluate_batch(states, actions, fidelity)
+        finally:
+            backend.config = original
+
 
 class ParallelTransitionEvaluator(Generic[ObservationT]):
     """Evaluate batches across independent evaluator instances."""
@@ -248,6 +265,12 @@ class ParallelTransitionEvaluator(Generic[ObservationT]):
         return self.evaluators[0].evaluate(state, action, fidelity)
 
     def evaluate_batch(self, states, actions, fidelity):
+        return self._evaluate_batch(states, actions, fidelity, full_scene=False)
+
+    def evaluate_full_scene_batch(self, states, actions, fidelity):
+        return self._evaluate_batch(states, actions, fidelity, full_scene=True)
+
+    def _evaluate_batch(self, states, actions, fidelity, *, full_scene):
         if len(states) != len(actions):
             raise ValueError("transition batch states and actions must align")
         buckets = [[] for _ in self.evaluators]
@@ -255,6 +278,11 @@ class ParallelTransitionEvaluator(Generic[ObservationT]):
             buckets[index % len(buckets)].append((index, *pair))
 
         def evaluate_bucket(evaluator, jobs):
+            if full_scene:
+                results = evaluator.evaluate_full_scene_batch(
+                    [state for _, state, _ in jobs],
+                    [action for _, _, action in jobs], fidelity)
+                return [(job[0], value) for job, value in zip(jobs, results)]
             return [
                 (index, evaluator.evaluate(state, action, fidelity))
                 for index, state, action in jobs

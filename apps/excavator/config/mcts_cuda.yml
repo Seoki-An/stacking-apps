@@ -4,10 +4,10 @@
 units: si
 tree:
   max_depth: 6
-  iterations: 4096
-  max_search_time: 60.0
+  iterations: 2048
+  max_search_time: 120.0
   max_children: 16
-  root_max_children: 32
+  root_max_children: 64
   exploration_constant: 0.5
   discount: 0.9
   failure_reward: -1.0  # Fixed failure return; ancestors apply ordinary discounting.
@@ -19,7 +19,7 @@ widening:
   exponent: 0.5
 generation:
   rejected_root_retry_rounds: 3  # Fresh root pools after physical rejection.
-  batch_size: 32
+  batch_size: 64
   expansion_retry_batches: 3
   min_feasible_children: 3
   attempt_multiplier: 3.0
@@ -34,7 +34,7 @@ parallel:
   # Per-scene body/geometry minima cover the full inventory plus target.
   # Batch is the independent number of parallel pose-generation jobs.
   posegen_capacity:
-    batch: 512
+    batch: 1024
     bodies: 64
     geometries: 256
     pairs: 4096
@@ -46,10 +46,10 @@ parallel:
   enabled: true
   workers: 2
 root_cem:
-  population: 96
-  elite: 32
+  population: 256
+  elite: 64
   iterations: 3
-  keep: 32
+  keep: 64
   mutation_xy_std: 0.2
   mutation_yaw_std_degrees: 5.0
   fresh_fraction: 0.5

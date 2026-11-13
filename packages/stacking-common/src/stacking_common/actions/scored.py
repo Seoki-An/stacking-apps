@@ -141,6 +141,7 @@ class ScoredPlanarPoseSampler:
             height.shape, height.dtype.str, height.tobytes(),
             tuple(observation.height_map_xlim), tuple(observation.height_map_ylim),
             self.config, repr(self.settings),
+            0 if self.floor_policy is None else self.floor_policy.fallback_level(state),
         )
         if context != self._score_context:
             self._scores.clear()

@@ -57,6 +57,17 @@ def test_excavator_default_uses_cpu_profile():
     assert application.mcts_profile == load_mcts_profile(CONFIG / "mcts_cpu.yml")
 
 
+@pytest.mark.parametrize("limit", [None, 60.0])
+def test_mcts_profile_supports_iteration_only_search(tmp_path, limit):
+    values = yaml.safe_load((CONFIG / "mcts_cpu.yml").read_text())
+    values["tree"]["max_search_time"] = limit
+    path = tmp_path / "mcts.yml"
+    path.write_text(yaml.safe_dump(values))
+    request = load_mcts_profile(path).request
+    assert request.max_time_seconds == limit
+    assert request.iterations == values["tree"]["iterations"]
+
+
 @pytest.mark.parametrize("depth", [2, 3])
 def test_final_minimum_feasible_depth_is_loaded_and_recorded(tmp_path, depth):
     values = yaml.safe_load((CONFIG / "mcts_cuda.yml").read_text())
@@ -101,15 +112,17 @@ def test_removed_validation_flags_fail_with_migration_message(tmp_path, key):
         load_mcts_profile(path)
 
 
-def test_new_profiles_have_one_full_simulation_after_settling():
+def test_new_profiles_have_one_structural_simulation_after_settling():
     from stacking_common.profiles.simulation import load_simulation_profile
     from stacking_common.search import EvaluationFidelity
     for platform in ("tabletop", "excavator"):
         config = ROOT / "apps" / platform / "config"
         profile = load_simulation_profile(config / "solvers/simulation.yml")
         assert profile.placement.short_gate is None
-        assert profile.placement.settle_steps == 400
-        assert profile.placement.structural.freeze_radius is None
+        assert profile.placement.settle_steps == (500 if platform == "excavator" else 400)
+        assert profile.placement.structural.freeze_radius == (
+            3.0 if platform == "excavator" else None
+        )
         assert profile.placement.structural.min_time == 1.0
         assert profile.placement.structural.max_time == 10.0
         assert profile.placement.structural.final_extra_steps == 200

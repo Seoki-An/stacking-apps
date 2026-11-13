@@ -312,7 +312,7 @@ def test_failed_short_gate_skips_long_extension() -> None:
     assert result.stage_times["long_extension"] == 0.0
 
 
-def test_short_freezing_preserves_the_descending_support_chain() -> None:
+def test_structural_freezing_preserves_the_descending_support_chain() -> None:
     backend = object.__new__(CorePlacementBackend)
     backend.object_ids = [10, 20, 30]
     backend.config = CorePlacementConfig(
@@ -334,12 +334,12 @@ def test_short_freezing_preserves_the_descending_support_chain() -> None:
     backend.scene_builder = SimpleNamespace(entity_id=lambda index: index + 1)
     poses = {
         1: np.array([0.30, 0.0, 0.05, 0.0, 0.0, 0.0, 1.0]),
-        2: np.array([0.0, 0.0, 0.10, 0.0, 0.0, 0.0, 1.0]),
+        2: np.array([0.20, 0.0, 0.10, 0.0, 0.0, 0.0, 1.0]),
         3: np.array([0.0, 0.0, 0.15, 0.0, 0.0, 0.0, 1.0]),
     }
     snapshot = SimpleNamespace(body_pose=lambda entity: poses[entity])
 
-    frozen = backend._short_frozen_indices(
+    frozen = backend._structural_frozen_indices(
         snapshot,
         [0, 1, 2],
         2,
@@ -481,3 +481,28 @@ def test_physical_validation_attributes_target_and_scene_motion(
     )
 
     assert reason == expected
+
+
+@pytest.mark.skipif(stacking_core is None, reason="native bindings unavailable")
+def test_settling_containment_rejection_skips_structural_simulation(monkeypatch):
+    from stacking_common.actions.types import PlacementFilterDecision
+    profile = CorePlacementConfig(_phase(.1, 1), .01, 2, .01, 1)
+    model = stacking_core.BodyModel.dsf(
+        10, cube_nodes(), mass=1., inertia=np.eye(3), friction=.6, sharpness=100)
+    backend = CorePlacementBackend({10: model}, profile,
+        settling_pose_filter=lambda action, refined: PlacementFilterDecision.reject(
+            'stone_outside_target', settling_target_containment_fraction=0.))
+    backend.reset([10])
+    monkeypatch.setattr(backend, '_simulate_structural',
+                        lambda *a, **k: pytest.fail('rejected refinement reached structural simulation'))
+    try:
+        result = backend.place(State([10], [], {}, [], []),
+                               Action(0, pose(1.), pose(1.), object_id=10))
+        assert result.failed and not result.settled
+        assert result.diagnostics['rejection_reason'] == 'stone_outside_target'
+        assert result.diagnostics['simulation_rejection_stage'] == 'settling'
+        assert result.diagnostics['simulation_structural_wall_seconds'] == 0.
+        assert result.trajectories[10].settle_pose_count > 0
+        np.testing.assert_array_equal(result.object_poses[10], result.trajectories[10].poses[-1])
+    finally:
+        backend.close()

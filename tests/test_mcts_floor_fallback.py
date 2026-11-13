@@ -1,4 +1,4 @@
-"""Exhausted layer admission relaxes construction order without bypassing physics."""
+"""Exhausted floors advance sampling and admission together without bypassing physics."""
 from types import SimpleNamespace
 
 import pytest
@@ -73,7 +73,7 @@ def test_relaxation_retries_physics_and_restores_both_generators(fail):
         assert (result.selected is None) is fail
         assert evaluator.calls
         assert all(a.diagnostics['floor_fill_fallback'] for a in evaluator.calls)
-        assert all(not f.relaxed for g in (base, deeper) for f in g.filters
+        assert all(not f.floor_policy.fallback_level(root.state) for g in (base, deeper) for f in g.filters
                    if isinstance(f, ActiveLayerAdmissionFilter))
         history = search.root_action_generator.statistics_history
         assert history[0].rejection_counts['above_active_layer'] > 0
@@ -104,7 +104,7 @@ def test_fallback_context_restores_on_exception_and_keeps_posegen_gate():
     original = gen.filters
     try:
         with pytest.raises(RuntimeError):
-            with gen.floor_fill_fallback() as enabled:
+            with gen.floor_fill_fallback((parent,)) as enabled:
                 assert enabled
                 built = gen.build_candidates(parent, [(2, PlanarPlacement(_pose(z=.3)))])
                 assert built[0][0] is None
@@ -144,7 +144,7 @@ def test_strict_success_does_not_relax():
         result = search.search(root, MCTSSearchRequest(iterations=2))
         assert result.selected is not None
         assert not result.floor_fill_fallback.attempted
-        assert not result.selected.action.diagnostics.get('active_layer_admission_relaxed')
+        assert not result.selected.action.diagnostics.get('active_layer_fallback_level')
     finally:
         search.close()
 
@@ -192,7 +192,7 @@ def test_blocked_descendant_gets_one_pool_without_repeating_empty_backups(fail_d
                    for n in retries)
         assert all(n.expansion_exhausted for n in retries)
         relaxed = [c for n in retries for c in n.children
-                   if c.action.diagnostics.get('active_layer_admission_relaxed')]
+                   if c.action.diagnostics.get('active_layer_fallback_level')]
         assert relaxed
         recorded = search_statistics(result, 0., search, step=2)['descendant_floor_retry']
         assert recorded['nodes'] == len(retries)
@@ -206,7 +206,7 @@ def test_blocked_descendant_gets_one_pool_without_repeating_empty_backups(fail_d
             assert all(n.visits <= 2 for n in root.evaluated_children())
         else:
             assert any(c.selectable and c.depth == 2 for c in relaxed)
-        assert not any(f.relaxed for f in deeper.filters if isinstance(f, ActiveLayerAdmissionFilter))
+        assert not any(f.floor_policy.fallback_level(root.state) for f in deeper.filters if isinstance(f, ActiveLayerAdmissionFilter))
     finally:
         search.close()
 

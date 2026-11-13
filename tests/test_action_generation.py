@@ -448,6 +448,12 @@ def test_target_containment_filter_rejects_before_simulation() -> None:
     ] == 0.25
     assert accepted.accepted
 
+    refined = placement_filter.check_pose(inventory, 0, initial.pose, stage="settling")
+    assert not refined.accepted
+    assert refined.reason == rejected.reason
+    assert refined.diagnostics["settling_target_containment_fraction"] == 0.25
+    assert refined.diagnostics["settling_target_containment_threshold"] == 0.5
+
 
 def test_generator_parallelizes_pose_solves_and_preserves_order() -> None:
     inventory = _inventory()

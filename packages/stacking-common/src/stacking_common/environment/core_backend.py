@@ -142,6 +142,10 @@ class CorePhysicsProfile:
     solver_tol_abs: float
     solver_tol_rel: float
     damping: float = field(default=0.0, kw_only=True)
+    linear_damping: float | None = field(default=None, kw_only=True,
+        metadata={"omit_default_from_context": True})
+    angular_damping: float | None = field(default=None, kw_only=True,
+        metadata={"omit_default_from_context": True})
     error_reduction_ratio: float | None = field(default=None, kw_only=True)
     patch_eps: float | None = field(default=None, kw_only=True)
     solver_constraint_scale_reference: float | None = field(default=None, kw_only=True)
@@ -154,6 +158,10 @@ class CorePhysicsProfile:
         gravity = np.asarray(self.gravity, dtype=float)
         if not np.isfinite(self.damping) or self.damping < 0.0:
             raise ValueError("damping must be finite and non-negative")
+        for name in ("linear_damping", "angular_damping"):
+            value = getattr(self, name)
+            if value is not None and (not np.isfinite(value) or value < 0.0):
+                raise ValueError(f"{name} must be finite and non-negative")
         if gravity.shape != (3,) or not np.all(np.isfinite(gravity)):
             raise ValueError("simulation gravity must be a finite XYZ vector")
         if self.contact_model not in {"single_point", "limit_surface_4d", "limit_surface_6d"}:
@@ -202,6 +210,12 @@ class CorePhysicsProfile:
             config.damping = self.damping
         elif self.damping != 0.0:
             raise RuntimeError("rebuild stacking-core to enable physical dynamics damping")
+        for name in ("linear_damping", "angular_damping"):
+            value = getattr(self, name)
+            if hasattr(config, name):
+                setattr(config, name, value)
+            elif value is not None:
+                raise RuntimeError("rebuild stacking-core to enable separate linear/angular damping")
         contact = core.ContactConfig()
         try:
             contact.model = getattr(core.ContactModel, self.contact_model.upper())
@@ -305,9 +319,10 @@ class CoreSimulationProfile(CorePhysicsProfile):
             settling_physics = CorePhysicsProfile(**_physics_values(
                 integration, _profile_mapping(settling_settings, "contact"),
                 _profile_mapping(settling_settings, "solver"),
+                damping=settling_settings.get("damping"),
             ))
         return cls(
-            **_physics_values(integration, contact, solver),
+            **_physics_values(integration, contact, solver, damping=structural_physics.get("damping")),
             placement=placement, settling_physics=settling_physics,
         )
 
@@ -315,7 +330,7 @@ class CoreSimulationProfile(CorePhysicsProfile):
         return (self.settling_physics or self).native_config(core_module)
 
 
-def _physics_values(integration, contact, solver):
+def _physics_values(integration, contact, solver, *, damping=None):
     if "damping" in solver:
         raise ValueError(
             "solver.damping has been renamed to solver.constraint_scale_reference; "
@@ -329,6 +344,11 @@ def _physics_values(integration, contact, solver):
         solver_tol_abs=float(_profile_value(solver, "tol_abs")),
         solver_tol_rel=float(_profile_value(solver, "tol_rel")),
     )
+    if damping is not None:
+        if not isinstance(damping, Mapping) or set(damping) != {"linear", "angular"}:
+            raise ValueError("physics damping requires both linear and angular rates in s^-1")
+        values.update(linear_damping=float(damping["linear"]),
+                      angular_damping=float(damping["angular"]))
     for name in ("error_reduction_ratio", "patch_eps"):
         if name in contact:
             values[name] = float(contact[name])
@@ -352,6 +372,7 @@ class CorePlacementBackend:
         profile: CoreSimulationProfile,
         *,
         place_stability: PlaceStabilityConfig | None = None,
+        settling_pose_filter=None,
         core_module=None,
     ) -> "CorePlacementBackend":
         core = core_module
@@ -369,6 +390,7 @@ class CorePlacementBackend:
             simulation_config=profile.native_config(core),
             settling_simulation_config=profile.settling_native_config(core),
             place_stability=place_stability,
+            settling_pose_filter=settling_pose_filter,
             core_module=core,
         )
 
@@ -380,6 +402,7 @@ class CorePlacementBackend:
         *,
         settling_simulation_config=None,
         place_stability: PlaceStabilityConfig | None = None,
+        settling_pose_filter=None,
         core_module=None,
     ) -> None:
         if core_module is None:
@@ -395,6 +418,7 @@ class CorePlacementBackend:
         self.models = {int(key): value for key, value in models.items()}
         self.config = config
         self.place_stability = place_stability or PlaceStabilityConfig()
+        self.settling_pose_filter = settling_pose_filter
         self.simulation_config = simulation_config
         self.settling_simulation_config = settling_simulation_config
         self.object_ids: list[int] = []
@@ -441,8 +465,15 @@ class CorePlacementBackend:
         )
         settling_wall_seconds = time.perf_counter() - settling_started
 
+        rejected = self._settling_rejection(
+            state, action, settling_scene, settle_trajectory,
+            settling_wall_seconds, placement_started,
+        )
+        if rejected is not None:
+            return rejected
+
         self.simulator.clear_warm_start()
-        frozen_indices = self._short_frozen_indices(
+        frozen_indices = self._structural_frozen_indices(
             settling_scene,
             indices,
             action.object_index,
@@ -467,6 +498,34 @@ class CorePlacementBackend:
         return self._finish_placement(
             state, action, structural_result, frozen_indices,
             settling_wall_seconds, structural_wall_seconds, placement_started,
+        )
+
+    def _settling_rejection(
+        self, state, action, snapshot, trajectory, settling_seconds, started,
+    ):
+        """Discard refined poses outside the target before structural simulation."""
+        if self.settling_pose_filter is None:
+            return None
+        pose = np.asarray(
+            snapshot.body_pose(self.scene_builder.entity_id(action.object_index)),
+            dtype=float,
+        )
+        decision = self.settling_pose_filter(action, pose)
+        if decision.accepted:
+            return None
+        return PlacementResult(
+            object_poses={**state.object_poses, action.object_id: pose},
+            trajectories={action.object_id: trajectory},
+            failed=True, settled=False,
+            diagnostics={
+                **decision.diagnostics,
+                "rejection_reason": decision.reason,
+                "simulation_rejection_stage": "settling",
+                "simulation_settling_wall_seconds": settling_seconds,
+                "simulation_structural_wall_seconds": 0.,
+                "simulation_robustness_wall_seconds": 0.,
+                "simulation_total_wall_seconds": time.perf_counter() - started,
+            },
         )
 
     def _finish_placement(
@@ -726,13 +785,14 @@ class CorePlacementBackend:
             trajectory.poses = [poses[-1].copy()]
         return scene, trajectory, contacts
 
-    def _short_frozen_indices(
+    def _structural_frozen_indices(
         self,
         snapshot,
         indices: Sequence[int],
         target_index: int,
         contacts: Sequence[dict],
     ) -> set[int]:
+        """Freeze distant stones while retaining the descending support chain."""
         radius = self.config.structural.freeze_radius
         if radius is None:
             return set()

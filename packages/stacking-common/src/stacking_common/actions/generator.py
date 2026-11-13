@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Sequence
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from typing import Generic, TypeVar
 
@@ -77,22 +77,20 @@ class PlacementActionGenerator(Generic[ObservationT]):
         )
 
     @contextmanager
-    def floor_fill_fallback(self):
-        """Temporarily bypass only construction-order admission, not physics."""
-        original = self.filters
-        enabled = any(isinstance(item, ActiveLayerAdmissionFilter) for item in original)
-        if not enabled:
+    def floor_fill_fallback(self, states=(), *, level=1):
+        """Advance sampling and admission together, without changing coverage."""
+        policies = {item.floor_policy for item in self.filters
+                    if isinstance(item, ActiveLayerAdmissionFilter)}
+        if not policies or not states:
             yield False
             return
-        self.filters = tuple(
-            ActiveLayerAdmissionFilter(item.floor_policy, relaxed=True)
-            if isinstance(item, ActiveLayerAdmissionFilter) else item
-            for item in original
-        )
-        try:
-            yield True
-        finally:
-            self.filters = original
+        with ExitStack() as stack:
+            for policy in policies:
+                stack.enter_context(policy.advance_for_search(states, level))
+            contexts = [policy.context_details(state) for policy in policies for state in states]
+            yield any(len(layer['skipped_layers']) >= level
+                      for context in contexts
+                      for layer in context.get('regions', (context,)))
 
     def generate(
         self,

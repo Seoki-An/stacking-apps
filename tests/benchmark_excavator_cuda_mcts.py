@@ -52,6 +52,7 @@ def main():
     parser.add_argument('--backend', choices=('cpu', 'cuda'), required=True)
     parser.add_argument('--seed', type=int, required=True)
     parser.add_argument('--config', type=Path, help='Use the same profile for controlled CPU/CUDA comparisons.')
+    parser.add_argument('--target-shape', help='Select a named target explicitly, independent of the registry default.')
     parser.add_argument('--iterations', type=int)
     parser.add_argument('--workers', type=int, help='CPU workers, including CUDA reward/observation workers.')
     parser.add_argument('--result-batch-size', type=int, help='CPU reward/observation chunk size, independent of CUDA placements.')
@@ -178,7 +179,8 @@ def main():
         # Process-local benchmark override; production defaults stay unchanged.
         cuda_backend.CudaPlacementBackend = MeasuredCudaBackend
     started = time.perf_counter()
-    app = ExcavatorApplication.from_repository(ROOT, mcts_config=args.config)
+    app = ExcavatorApplication.from_repository(ROOT, mcts_config=args.config,
+                                               target_shape=args.target_shape)
     app = replace(app, mcts_profile=replace(app.mcts_profile,
         parallel=replace(app.mcts_profile.parallel,
                          posegen_backend=args.backend, simulation_backend=args.backend),
@@ -207,6 +209,14 @@ def main():
     inventory = app.load_inventory(ids, {i: [0., 0., 0., 0., 0., 0., 1.] for i in ids})
     environment = app.build_environment(inventory, app.build_core_backend(inventory, EvaluationFidelity.LONG))
     search = app.build_mcts(inventory, rng=random.Random(args.seed))
+    evaluation_batch_sizes = []
+    original_evaluate = search._evaluate_transitions
+
+    def measure_evaluate(states, actions, fidelity):
+        evaluation_batch_sizes.append(len(actions))
+        return original_evaluate(states, actions, fidelity)
+
+    search._evaluate_transitions = measure_evaluate
     request = app.default_mcts_request()
     try:
         reset = environment.reset()
@@ -236,6 +246,7 @@ def main():
                    object_count=len(ids), setup_seconds=setup_seconds,
                    requested_iterations=request.iterations, max_time_seconds=request.max_time_seconds,
                    expanded_nodes_per_second=result.generated_candidates / elapsed,
+                   evaluation_batch_sizes=evaluation_batch_sizes,
                    expansion_calls_per_second=result.expansion_calls / elapsed,
                    evaluated_nodes_per_second=result.evaluated_candidates / elapsed,
                    nonfailed_evaluations_per_second=(result.evaluated_candidates - result.failed_evaluations) / elapsed,
@@ -245,6 +256,7 @@ def main():
                        'placement_batch_size', 'result_batch_size', 'serial_results', 'serial_geometry',
                        'eager_observations', 'early_stops')},
                    config_path=str(args.config.resolve()) if args.config else None,
+                   inventory_profile=_values(app.inventory_profile),
                    cuda_simulation_calls=cuda_calls,
                    result_processing_batches=result_batches,
                    result_cuda_overlap_seconds=overlap,

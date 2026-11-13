@@ -167,7 +167,8 @@ class CompositePlanarSampler:
                    owner.config, repr(owner.settings), owner.relax_corner_seed,
                    owner.connectivity_enabled, owner.connectivity_length,
                    self.policy.bottom_tolerance, self.policy.fill_ratio,
-                   self.policy.coverage_mode, self.policy.grid_size)
+                   self.policy.coverage_mode, self.policy.grid_size,
+                   self.policy.fallback_level(state))
         self._activate(context, state)
         key = (object_index, tuple(tuple(q) for q in quaternions))
         if key in self._maps:

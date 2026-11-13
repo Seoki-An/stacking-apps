@@ -187,8 +187,16 @@ class CudaPlacementBackend(CorePlacementBackend):
             if snapshot is None:
                 results[i] = self._failure(state, action, out, 'settling')
                 continue
+            if self.settling_pose_filter is not None:
+                rejected = self._settling_rejection(
+                    state, action, snapshot, self._settle_trajectory(action, out),
+                    settling_wall / len(states), started,
+                )
+                if rejected is not None:
+                    results[i] = rejected
+                    continue
             indices = [*state.placed_object_indices, action.object_index]
-            frozen = self._short_frozen_indices(snapshot, indices, action.object_index, out.contacts)
+            frozen = self._structural_frozen_indices(snapshot, indices, action.object_index, out.contacts)
             scene = self._scene_from_snapshot(snapshot, indices, state, action, frozen_indices=frozen)
             phases = [self._phase(config, indices, final_object=len(indices) == len(self.object_ids),
                                   continuation=j > 0) for j, config in enumerate(

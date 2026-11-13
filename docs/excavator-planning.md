@@ -416,6 +416,125 @@ Platform time bounds map to integer step counts with strict greater-than
 stopping; this avoids accumulated-time roundoff but can differ from the CPU
 loop by one timestep at exact decimal boundaries.
 
+Treat settling as the final pose-refinement stage: only the new stone moves
+against the fixed existing structure. It does not independently certify
+structural stability, and there is no additional quiet-motion acceptance gate
+at this stage. After refinement, both placement backends apply the same target
+containment threshold used before simulation. A rejected endpoint records
+`simulation_rejection_stage: settling` and skips structural and robustness
+simulation. This is the configured overlap-fraction rule, not a requirement
+that every point of the stone lie inside the target. Accepted endpoints still
+undergo structural and robustness validation and final containment checks.
+
+Excavator fixed-scene refinement uses single-point contacts with ERP 0.05,
+dt 0.01 s, and 500 steps (5 seconds). Structural validation retains ERP 0.2 and the 6D
+contact model; global damping remains zero. Lower refinement ERP changes how
+quickly contact gaps are corrected. Remaining near the optimized pose does
+not replace the subsequent structural/robustness checks.
+
+On 2026-11-13, the 64 retained candidates from failed step 71 of
+`tower-focus-preserve-wall-20261113/tower_and_wall.stack` were replayed from
+their recorded optimized poses. Existing stones and the checkpoint were
+unchanged. With the early containment filter, single-point refinement rejected
+55 endpoints; 6D refinement with global damping 0, 0.5, and 1.0 s^-1 rejected
+54, 54, and 53 respectively. The 6D trials used the structural contact-patch
+and solver tolerances. Damping applied to refinement, structural simulation,
+and robustness trials. None produced a valid placement after the existing
+initial-XY locality rule. Damping 1.0 produced one physical/robustness success
+(candidate 10, stone 46), but its final XY was 1.364 m from the proposal,
+exceeding its 0.288 m limit. It also passed undamped structural/robustness
+validation after damped refinement; its failure was locality, not residual
+instability. These results do not justify changing the production single-point
+refinement or zero global damping. They concern one failed candidate pool,
+not a full planning benchmark. Replay scripts and per-candidate results are
+in `.analysis/tower-focus-step71-failure/refinement_damping_compare.*` and
+`refinement_damping_validate.*`.
+
+The subsequent ERP comparison changed only settling ERP (0.2 versus 0.05),
+with dt 0.01 s and 400 steps in both variants. It replayed 314 retained
+optimizer endpoints across seven parent scenes, using current excavator
+validation profiles and each checkpoint's recorded target/inventory. It did
+not rerun proposal generation or MCTS. The counts below include structural,
+robustness, final target containment, and initial-XY locality checks; other
+search/reward gates are outside this comparison.
+
+| Parent scene / attempted step | Candidates | ERP 0.2 passes | ERP 0.05 passes |
+| --- | ---: | ---: | ---: |
+| Tower focus / 71 | 64 | 0 | 0 |
+| Tower-wall / 41 | 35 | 32 | 32 |
+| Tower-wall / 61 | 56 | 19 | 20 |
+| Large pyramid / 40 | 61 | 9 | 9 |
+| Large pyramid / 56 | 32 | 6 | 5 |
+| Long wall / 40 | 62 | 26 | 27 |
+| Long wall / 52 | 4 | 0 | 0 |
+
+Refinement displacement over 1 m fell from 102 to 95 candidates, center-height
+rise over 0.1 m above a preceding minimum from 72 to 68, and endpoint speed
+over 0.1 m/s from 96 to 86. Both variants had zero unconverged refinement
+solver steps. Two candidates gained acceptance and one lost it: pyramid
+step 56 candidate 32 (stone 64) exceeded the existing-scene motion limit with
+ERP 0.05. All four recorded selected candidates in the sampled successful
+steps passed both variants. These are modest, mixed improvements, not evidence
+that lower ERP always increases physical stability. The requested ERP 0.05
+is now the excavator refinement default. Scripts, exact input profile text,
+per-candidate diagnostics, paired changes, and CSV summaries are saved in
+`.analysis/settling-erp-20261113/`.
+
+Excavator structural simulation uses `phases.structural.freeze_radius: 3.0`
+(metres). Stones beyond this XY distance from the candidate are held static,
+except for the descending support chain identified from the available contacts.
+Their collision geometry remains present. The CPU and CUDA backends share
+`_structural_frozen_indices`; its former `_short_frozen_indices` name was
+misleading because this policy applies to structural evaluation generally.
+Robustness trials retain the structural scene's frozen bodies during screening.
+MCTS root candidates that pass with frozen stones are then re-evaluated from
+their original optimized pose with distance freezing disabled, including the
+robustness trials. Only these full-scene results can enter lookahead or final
+selection. The complete resulting scene, including moved existing stones, is
+committed. A deadline cannot admit an unchecked frozen candidate. Failed roots
+follow the existing rejection and resampling path. Search statistics and logs
+report `full_scene_validation` separately. Use `freeze_radius: null` to also
+disable freezing during provisional search evaluations.
+
+Physical damping can be set independently for each phase and motion component:
+`physics.settling.damping: {linear: 0.5, angular: 1.0}` applies only to refinement;
+`physics.structural.damping: {linear: 0.0, angular: 0.0}` keeps structural and
+robustness checks undamped. Both rates are in s^-1. Linear damping acts at the
+center of mass; angular damping acts on rotation about it. CPU and CUDA preserve
+the coupled mass matrix for models whose center of mass is offset from the body
+origin. The legacy scalar `integration.damping` remains the fallback when a
+phase has no component overrides. Explicit overrides are recorded in planning
+contexts; old default contexts retain their previous representation.
+
+The default settling pair is linear 0.5 / angular 1.0 s^-1, an experimental
+refinement setting, not a calibrated rock material property. Structural and
+robustness component rates remain zero. Mass/inertia-proportional
+viscous damping is a passive mathematical model, but it does not reproduce
+contact friction, restitution, or air drag without calibration. It can change
+the pose reached by refinement even when the final undamped scene passes all
+checks. Use independent undamped structural and robustness checks when comparing
+nonzero refinement rates. The fixed-candidate comparison is saved under
+`.analysis/settling-separate-damping-20261113/`.
+
+For synchronized videos of the same optimized candidate at four settling rates:
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python tests/settling_damping_video.py \
+  --run .stacks/RSS_visualization/tower-full-validation-20261113/tower_and_wall.stack \
+  --step 73 --candidates 5 3 54 50 \
+  --output .analysis/settling-damping-videos-20261113
+```
+
+The example uses the run's adjacent `repository` snapshot (override with
+`--repository`), checkpoint 72, and recorded optimized poses from step 73.
+It writes four-panel MP4s, an `index.html` with playback controls, full-rate
+`traces.npz`, and JSON/CSV summaries. The rates are linear/angular 0/0,
+0.25/0.5, 0.5/1.0, and 1.0/2.0 s^-1; only damping changes between variants.
+MP4 playback is half simulation speed, with one-second initial/final holds.
+Gray existing stones are fixed during settling; these videos do not establish
+whole-structure stability. `--render-only` regenerates figures/videos from the
+saved traces without running the CUDA simulator.
+
 The 6D model adds two patch-bounded tipping moments to the sliding/torsion
 model. Excavator structural validation and velocity-disturbance trials use it on both
 CPU and CUDA; global damping remains zero. See the
@@ -1778,14 +1897,24 @@ children from about 140 pose jobs per frontier batch.
 
 ### Sampling fallback after search exhaustion
 
-Strict-floor rejection and its relaxation retry have been removed. When the
-empty scene's corner-seeded search fails, MCTS may retry ordinary proposals
-within the same deadline and remaining iteration budget. Connectivity, target
-containment and physical validation are unchanged. Existing placed scenes do
-not use this corner fallback. Evaluated descendants remain eligible for reuse.
+When the empty scene's corner-seeded search fails, MCTS may retry ordinary
+proposals within the same deadline. For placed scenes, exhausted root pools
+advance the search floor one incomplete layer at a time, bounded by the existing
+root retry count and deadline. Filling masks/scores and height admission advance
+together. This replaces the former fallback that disabled height admission
+while still scoring the original floor. A timeout does not justify advancing
+an unevaluated pool. There is no fabricated layer above the existing geometry.
 
-Saved statistics retain the historical `floor_fill_fallback` field name for
-compatibility; new fallback records use `policy: corner_seed`.
+The override belongs to the retried parent states; it never marks an incomplete
+floor as completed or changes committed scene geometry. It is restored on exit,
+and score caches distinguish each floor level. Missing descendant continuations
+also advance through successive exhausted floors, bounded by the same retry
+count and deadline, instead of stopping after one next-floor pool. Posegen,
+locality, containment, structural, and
+robustness gates remain active. Saved `floor_fill_fallback` statistics distinguish
+`policy: floor_fill` and `policy: corner_seed`; admitted actions record
+`active_layer_fallback_level`, `fixed_scene_active_layer_support_z`, and separate
+`fixed_scene_skipped_layers` / `fixed_scene_completed_layers` diagnostics.
 
 
 ## Run

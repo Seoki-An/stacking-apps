@@ -296,17 +296,19 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         iteration_deadline = deadline
         counters = _SearchCounters(generation_deadline=iteration_deadline)
         root.detach()
+        root.info["full_scene_validation"] = dict(attempted=0, failed=0, seconds=0.)
         # Relaxed descendants must not bypass strict admission on the next
         # search (including after subtree promotion). Keep the committed state.
         pruned = False
         pending = [root]
         while pending:
             parent = pending.pop()
-            if any(child.action is not None and child.action.diagnostics.get("active_layer_admission_relaxed")
+            if any(child.action is not None and (child.action.diagnostics.get("active_layer_fallback_level")
+                        or child.action.diagnostics.get("active_layer_admission_relaxed"))
                    for child in parent.children):
                 parent.clear_children()
                 for key in ("descendant_floor_retry_attempted", "descendant_floor_retry_attempts",
-                            "descendant_floor_retry_generated"):
+                            "descendant_floor_retry_generated", "descendant_floor_retry_level"):
                     parent.info.pop(key, None)
                 pruned = True
             else:
@@ -533,7 +535,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 counters.completed_iterations += consumed
 
     def _retry_blocked_descendants(self, root, request, counters):
-        """One bounded relaxed pool per exhausted, floor-blocked parent."""
+        """Advance each exhausted descendant through bounded floor pools."""
         deadline = counters.generation_deadline
         relax = getattr(self.action_generator, "floor_fill_fallback", None)
         if not callable(relax) or (deadline is not None and time.monotonic() >= deadline):
@@ -546,16 +548,23 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     and node.depth < self.config.max_depth
                     and not node.selectable_children() and not can_expand(node, self.config)
                     and node.rejected_expansions.get("above_active_layer", 0)
-                    and not node.info.get("descendant_floor_retry_attempted")):
+                    and node.info.get("descendant_floor_retry_level", 0)
+                        < self.config.rejected_root_retry_rounds + 1):
                 blocked.append(node)
         if not blocked:
             return 0
+        level = min(node.info.get("descendant_floor_retry_level", 0) + 1 for node in blocked)
+        blocked = [node for node in blocked
+                   if node.info.get("descendant_floor_retry_level", 0) + 1 == level]
         limit = min(self.config.generation_batch_size, attempt_limit(blocked[0], self.config))
-        with relax() as enabled:
+        with relax(tuple(node.state for node in blocked), level=level) as enabled:
             if not enabled:
+                for node in blocked:
+                    node.info["descendant_floor_retry_level"] = self.config.rejected_root_retry_rounds + 1
                 return 0
             for node in blocked:
                 node.info["descendant_floor_retry_attempted"] = True
+                node.info["descendant_floor_retry_level"] = level
             requests = [ActionGenerationRequest(
                 max_candidates=limit, sampling_priority=request.deeper_sampling_priority,
                 deadline=deadline, execution_rejections=request.execution_rejections,
@@ -581,15 +590,16 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             for node, generated in zip(blocked, results):
                 before = len(node.children)
                 self._record_generation(node, generated, counters, limit, request.execution_rejections)
-                node.info["descendant_floor_retry_attempts"] = generated.attempts
-                node.info["descendant_floor_retry_generated"] = len(node.children) - before
-                # This is the final proposal pool for this parent, even if
-                # strict generation had stopped before reaching its attempt cap.
+                node.info["descendant_floor_retry_attempts"] = (
+                    node.info.get("descendant_floor_retry_attempts", 0) + generated.attempts)
+                node.info["descendant_floor_retry_generated"] = (
+                    node.info.get("descendant_floor_retry_generated", 0) + len(node.children) - before)
+                # Evaluate this pool before trying the next incomplete floor.
                 node.expansion_exhausted = True
         return len(blocked)
 
     def _run_proposal_fallback(self, root, request, counters, deadline):
-        """Retry corner seeds or active-layer admission within the same deadline.
+        """Retry corners or advance exhausted floors within the same deadline.
 
         After the first pool, up to rejected_root_retry_rounds fresh pools run,
         each excluding earlier candidates, until one yields a selection.
@@ -603,30 +613,24 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         if (not callable(relax)
                 or (deadline is not None and time.monotonic() >= deadline)):
             return None, (), FloorFillFallbackResult()
-        with ExitStack() as stack:
-            enabled = stack.enter_context(relax())
-            if not enabled:
-                return None, (), FloorFillFallbackResult()
-            if not empty and self.action_generator is not root_generator:
-                deeper_relax = getattr(self.action_generator, method, None)
-                if callable(deeper_relax):
-                    stack.enter_context(deeper_relax())
-            # Rebuild proposals under the fallback policy, including fresh CEM
-            # offsets rather than inheriting the exhausted strict pool cursor.
-            root.clear_children()
-            if not empty:
-                root.reset_statistics(recursive=True)
-                reset = getattr(self.root_action_generator, "restart_proposals", None)
-                if callable(reset):
-                    reset()
-            begin_retry = getattr(self.root_action_generator, "begin_retry", None)
-            counters.generation_deadline = deadline
-            excluded = []
-            selected, ranked, pools, generated, accepted = None, (), 0, 0, 0
-            for pool in range(self.config.rejected_root_retry_rounds + 1):
-                if pool:
-                    if deadline is not None and time.monotonic() >= deadline:
-                        break
+        begin_retry = getattr(self.root_action_generator, "begin_retry", None)
+        excluded = []
+        selected, ranked, pools, generated, accepted = None, (), 0, 0, 0
+        for pool in range(self.config.rejected_root_retry_rounds + 1):
+            if ((deadline is not None and time.monotonic() >= deadline)
+                    or counters.root_validation_timed_out):
+                break
+            with ExitStack() as stack:
+                # Each exhausted pool advances one incomplete layer. The override
+                # belongs to this parent only; descendants retain their own floors.
+                scope = relax() if empty else relax((root.state,), level=pool + 1)
+                if not stack.enter_context(scope):
+                    break
+                if not empty and self.action_generator is not root_generator:
+                    deeper = getattr(self.action_generator, method, None)
+                    if callable(deeper):
+                        stack.enter_context(deeper((root.state,), level=pool + 1))
+                if empty and pool:
                     retired = root.retire_failed_children()
                     cem = getattr(self.root_action_generator, "last_statistics", None)
                     if not retired and (cem is None or cem.fresh_exhausted):
@@ -634,8 +638,16 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     if not retired:
                         root.expansion_attempts = 0
                         root.expansion_exhausted = False
+                else:
+                    root.clear_children()
+                    if not empty:
+                        root.reset_statistics(recursive=True)
+                        reset = getattr(self.root_action_generator, "restart_proposals", None)
+                        if callable(reset):
+                            reset()
                 if callable(begin_retry):
                     begin_retry(tuple(excluded))
+                counters.generation_deadline = deadline
                 pools += 1
                 generated_before = counters.generated_candidates
                 accepted_before = counters.root_validation_attempts - counters.root_validation_failures
@@ -649,10 +661,10 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 selected, ranked = self._final_select(root)
                 if selected is not None:
                     break
-            return selected, ranked, FloorFillFallbackResult(
-                attempted=True, pools=pools, generated=generated, accepted=accepted,
-                selected=selected is not None, policy=policy,
-            )
+        return selected, ranked, FloorFillFallbackResult(
+            attempted=pools > 0, pools=pools, generated=generated, accepted=accepted,
+            selected=selected is not None, policy=policy,
+        )
 
     def close(self) -> None:
         """Release worker pools and environments owned by search collaborators."""
@@ -706,6 +718,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             counters,
             deadline,
         )
+        self._validate_full_scene(root, request, counters, deadline)
         for child in root.evaluated_children():
             if reseed or child.visits == 0:
                 self._back_up(child)
@@ -1486,6 +1499,54 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             self._evaluate_many(batch, fidelity, counters)
             counters.root_validation_attempts += len(batch)
             counters.root_validation_failures += sum(child.failed for child in batch)
+
+    def _validate_full_scene(self, root, request, counters, deadline):
+        """Local freeze is screening only; admit roots with unfrozen physics."""
+        nodes = [child for child in root.evaluated_children()
+                 if child.info.get("simulation_frozen_object_count", 0) > 0]
+        if not nodes:
+            return
+        validate = getattr(self.transition_evaluator, "evaluate_full_scene_batch", None)
+        if not callable(validate):
+            raise ValueError("frozen root candidates require full-scene validation")
+        summary = root.info["full_scene_validation"]
+        for start in range(0, len(nodes), self._root_batch_size()):
+            batch = nodes[start:start + self._root_batch_size()]
+            if deadline is not None and time.monotonic() >= deadline:
+                counters.root_validation_timed_out = True
+                for child in nodes[start:]:
+                    child.reject("full_scene_validation_timeout", info=child.info)
+                break
+            fidelity = request.evaluation_fidelity
+            self._record_evaluation_batch(counters, fidelity, len(batch))
+            started = time.perf_counter()
+            evaluations = tuple(validate([root.state] * len(batch),
+                                         [child.action for child in batch], fidelity))
+            elapsed = time.perf_counter() - started
+            counters.long_simulation_seconds += elapsed
+            counters.long_settling_job_seconds += _diagnostic_seconds(
+                evaluations, "simulation_settling_wall_seconds")
+            counters.long_structural_job_seconds += _diagnostic_seconds(
+                evaluations, "simulation_structural_wall_seconds")
+            if len(evaluations) != len(batch):
+                raise ValueError("full-scene evaluator returned the wrong batch length")
+            summary["attempted"] += len(batch)
+            summary["seconds"] += elapsed
+            for child, evaluation in zip(batch, evaluations):
+                if (evaluation.fidelity is not fidelity
+                        or evaluation.state.object_ids != root.state.object_ids
+                        or evaluation.diagnostics.get("simulation_frozen_object_count", 0)):
+                    raise ValueError("full-scene evaluator did not return an unfrozen transition")
+                # Descendants of a provisional scene cannot be reused after its
+                # existing stones move. Commit the complete validated state.
+                child.clear_children()
+                child.reset_statistics(recursive=True)
+                self._apply_evaluation(child, evaluation, owned=True)
+                child.info["full_scene_validated"] = not evaluation.failed
+                counters.evaluated_candidates += 1
+                counters.failed_evaluations += int(evaluation.failed)
+                counters.root_validation_failures += int(evaluation.failed)
+                summary["failed"] += int(evaluation.failed)
 
     def _final_select(self, root):
         """Mix search means with observed returns on each root's deepest paths.

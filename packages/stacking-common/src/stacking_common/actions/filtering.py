@@ -60,9 +60,8 @@ class ActiveLayerAdmissionFilter:
     Connectivity, empty-area overlap and repair are deliberately independent.
     """
 
-    def __init__(self, floor_policy, *, relaxed=False) -> None:
+    def __init__(self, floor_policy) -> None:
         self.floor_policy = floor_policy
-        self.relaxed = relaxed
 
     def prepare_scene(self, inventory, state):
         return self.floor_policy.context_details(state)
@@ -72,12 +71,9 @@ class ActiveLayerAdmissionFilter:
                         object_id=inventory[object_index].object_id)
         diagnostics = self.floor_policy.pose_diagnostics(state, action, context=scene_context)
         diagnostics["active_layer_admission_checked"] = True
-        if self.relaxed:
-            return PlacementFilterDecision.accept(
-                **diagnostics, floor_fill_fallback=True, active_layer_admission_relaxed=True,
-                floor_fill_bypassed_reason=(
-                    "above_active_layer" if diagnostics["fixed_scene_active_layer_above"] else None),
-            )
+        level = self.floor_policy.fallback_level(state)
+        if level:
+            diagnostics.update(floor_fill_fallback=True, active_layer_fallback_level=level)
         if diagnostics["fixed_scene_active_layer_above"]:
             return PlacementFilterDecision.reject("above_active_layer", **diagnostics)
         return PlacementFilterDecision.accept(**diagnostics)
@@ -212,14 +208,25 @@ class TargetContainmentFilter:
         solved: PlacementSolveResult,
     ) -> PlacementFilterDecision:
         del state, initial
+        return self.check_pose(inventory, object_index, solved.pose)
+
+    def check_pose(
+        self,
+        inventory: ObjectInventory,
+        object_index: int,
+        pose: np.ndarray,
+        *,
+        stage: str = "presimulation",
+    ) -> PlacementFilterDecision:
+        """Use the same containment rule before and after fixed-scene refinement."""
         containment = float(
             self.overlap_evaluator.object_containment(
-                inventory[object_index], solved.pose
+                inventory[object_index], pose
             )
         )
         diagnostics = {
-            "presimulation_target_containment_fraction": containment,
-            "presimulation_target_containment_threshold": self.threshold,
+            f"{stage}_target_containment_fraction": containment,
+            f"{stage}_target_containment_threshold": self.threshold,
         }
         if not np.isfinite(containment):
             return PlacementFilterDecision.reject(

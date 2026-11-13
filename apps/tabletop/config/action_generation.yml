@@ -11,7 +11,7 @@ filtering:
   # Checked after posegen and simulation; null disables. Floor retries keep this limit.
   max_initial_xy_displacement_ratio: 0.5
   # Construction order: reject optimized poses above the lowest incomplete layer.
-  # Uses planar.floor coverage/tolerance; exhausted search retries without the gate if time remains.
+  # Exhausted search advances the floor and recomputes scores; the height gate stays active.
   # false disables this gate for comparisons.
   reject_above_active_layer: true
   # Shared filter policy; physical gap limits are platform-specific.

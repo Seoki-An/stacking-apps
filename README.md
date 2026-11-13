@@ -73,6 +73,9 @@ For recorded-scene MCTS, native direct/regrasp planning, `.stack` runs, and
 checkpoint resume, see [the excavator planning guide](docs/excavator-planning.md).
 Native search-only timings are recorded in the
 [excavator PMBS benchmark](docs/excavator-mcts-pmbs-benchmark.md).
+For a CPU/GPU comparison with shared batch sizes and no search time budget,
+see the [matched throughput benchmark](docs/mcts-cpu-gpu-matched-benchmark.md).
+Its preparation command writes inputs without running searches.
 
 Open its offline Operations Console with `stacking-excavator-operations .`
 or `stacking-excavator-operations . --run /path/to/run.stack`.
