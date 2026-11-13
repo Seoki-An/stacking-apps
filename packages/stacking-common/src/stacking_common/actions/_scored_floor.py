@@ -6,6 +6,7 @@ through the canonical inventory adapter in scored.py.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Optional
 
 import numpy as np
@@ -446,7 +447,6 @@ def score_xy_debug_map(
     base = np.arange(count)
     base_indices = grid_index[base]
     base_xy = cell_xy[base]
-    base_xy_items = [xy.copy() for xy in base_xy]
     parts = []
     for orientation_index, kernel in enumerate(support_kernels):
         group = np.flatnonzero(orientations[base] == orientation_index)
@@ -542,23 +542,17 @@ def score_xy_debug_map(
     normalized_scores = np.clip(
         (candidate_scores - candidate_score_min) / candidate_score_span, 0.0, 1.0,
     )
-    candidates = [
-        {
-            "xy": base_xy_items[item],
-            "score": score,
-            "height": height,
-            "support_likelihood": support,
-            "placement_height": placement,
-            "orientation_index": orientation,
-            "target_boundary": boundary,
-            "normalized_score": normalized,
-        }
-        for item, cell, score, height, support, placement, orientation, boundary, normalized in zip(
-            item_base.tolist(), cells.tolist(), candidate_scores.tolist(), item_height.tolist(),
-            item_support.tolist(), item_placement.tolist(), item_orientation.astype(int).tolist(),
-            item_boundary.tolist(), normalized_scores.tolist(),
-        ) if connected[cell]
-    ]
+    admitted = connected[cells]
+    candidates = CandidateColumns({
+        "xy": base_xy[item_base[admitted]],
+        "score": candidate_scores[admitted],
+        "height": item_height[admitted],
+        "support_likelihood": item_support[admitted],
+        "placement_height": item_placement[admitted],
+        "orientation_index": item_orientation[admitted].astype(int),
+        "target_boundary": item_boundary[admitted],
+        "normalized_score": normalized_scores[admitted],
+    })
 
     return {
         "x_coords": xy_grid[0, :, 0].astype(float).copy(),
@@ -592,6 +586,35 @@ def score_xy_debug_map(
                           "score_min": candidate_score_min, "score_span": candidate_score_span},
         "candidates": candidates,
     }
+
+class CandidateColumns(Sequence):
+    """Admitted grid candidates as columns; a row becomes a dict only on access.
+
+    Sampling reads the score and height columns directly. Most maps (for
+    example CEM mutation lookups) never materialize a row.
+    """
+
+    def __init__(self, columns):
+        self.columns = columns
+
+    def __len__(self):
+        return len(self.columns["score"])
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [self[row] for row in range(*index.indices(len(self)))]
+        columns = self.columns
+        return {
+            "xy": columns["xy"][index].copy(),
+            "score": float(columns["score"][index]),
+            "height": float(columns["height"][index]),
+            "support_likelihood": float(columns["support_likelihood"][index]),
+            "placement_height": float(columns["placement_height"][index]),
+            "orientation_index": int(columns["orientation_index"][index]),
+            "target_boundary": float(columns["target_boundary"][index]),
+            "normalized_score": float(columns["normalized_score"][index]),
+        }
+
 
 def cell_count_table(mask: np.ndarray) -> np.ndarray:
     """Summed-area table: entry [y, x] counts true cells in mask[:y, :x]."""

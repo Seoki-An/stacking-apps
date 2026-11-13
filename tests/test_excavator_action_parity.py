@@ -336,9 +336,12 @@ def test_scored_priority_spends_budget_on_active_floor_before_higher_scores(
     sampler = ScoredPlanarPoseSampler(inventory, app.action_generation_profile.planar,
         app.build_orientation_provider(), app.sampling_settings, seed=17)
     ceiling = support_z + .2
-    candidates = [dict(xy=np.array([float(i), 0.]), height=height,
-        score=100. if height > ceiling else 0., orientation_index=0)
-        for i, height in enumerate(heights)]
+    zeros = np.zeros(len(heights))
+    candidates = scored.floor.CandidateColumns(dict(
+        xy=np.column_stack((np.arange(len(heights), dtype=float), zeros)),
+        height=np.array(heights), score=np.where(np.array(heights) > ceiling, 100., 0.),
+        orientation_index=np.zeros(len(heights), dtype=int), support_likelihood=zeros,
+        placement_height=zeros, target_boundary=zeros, normalized_score=zeros))
     monkeypatch.setattr(sampler, "score_map", lambda *args: {"candidates": candidates})
     monkeypatch.setattr(scored.floor, "active_floor_context",
         lambda *args: {"support_z": support_z, "bottom_tol": .2})

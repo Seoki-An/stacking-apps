@@ -547,6 +547,19 @@ def test_planar_sampler_uses_measured_orientation_provider() -> None:
     np.testing.assert_allclose(proposal.pose[3:], measured)
 
 
+def _columns(rows):
+    """Score-map candidate columns from minimal test rows."""
+    from stacking_common.actions._scored_floor import CandidateColumns
+    zeros = np.zeros(len(rows))
+    return CandidateColumns(dict(
+        xy=np.array([row["xy"] for row in rows]),
+        score=np.array([row["score"] for row in rows], dtype=float),
+        height=np.array([row["height"] for row in rows], dtype=float),
+        orientation_index=np.array([row["orientation_index"] for row in rows]),
+        support_likelihood=zeros, placement_height=zeros,
+        target_boundary=zeros, normalized_score=zeros))
+
+
 def test_lower_floor_sampling_priority_survives_relaxed_admission(monkeypatch):
     from pathlib import Path
     from stacking_tabletop import TabletopApplication
@@ -561,7 +574,7 @@ def test_lower_floor_sampling_priority_survives_relaxed_admission(monkeypatch):
     sampler._active_floor = dict(support_z=0., bottom_tol=.02)
     candidates = [dict(xy=np.array([x, 0.]), height=h, score=s, orientation_index=0)
                   for x, h, s in [(0., 0., 0.), (.1, 1., 100.)]]
-    monkeypatch.setattr(sampler, 'score_map', lambda *args: dict(candidates=candidates))
+    monkeypatch.setattr(sampler, 'score_map', lambda *args: dict(candidates=_columns(candidates)))
     observation = SimpleNamespace(scene_height_map=np.zeros((3, 3)),
         height_map_xlim=np.array([-.15, .15]), height_map_ylim=np.array([-.15, .15]))
     state = _state(inventory, placed=(0,))
@@ -584,7 +597,7 @@ def test_scored_generator_keeps_random_draws_in_small_allocations(monkeypatch, p
     sampler._active_floor = dict(support_z=0., bottom_tol=.02)
     candidates = [dict(xy=np.array([i * .001, 0.]), height=.1,
                        score=1. - i * .01, orientation_index=0) for i in range(40)]
-    monkeypatch.setattr(sampler, "score_map", lambda *args: dict(candidates=candidates))
+    monkeypatch.setattr(sampler, "score_map", lambda *args: dict(candidates=_columns(candidates)))
     # Make the stochastic branch observable without relying on a lucky seed.
     sampler.rng = SimpleNamespace(choice=lambda count, p: count - 1)
     generator = ScoredPlacementActionGenerator(

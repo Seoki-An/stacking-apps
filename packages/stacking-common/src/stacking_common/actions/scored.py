@@ -211,7 +211,7 @@ class ScoredPlanarPoseSampler:
         view = self.view(state, observation)
         corner_seeds = (scores.get("corner_candidates", [])
                         if not state.placed_object_indices and not self.relax_corner_seed else [])
-        pools = [] if corner_seeds else [candidates]
+        pools = [] if corner_seeds else [np.arange(len(candidates))]
         if sampling_priority == "lower_floor_first" and state.placed_object_indices:
             layer = (self._active_floor if self.floor_policy is not None
                      else floor.active_floor_context(view, self.state_view(state)))
@@ -219,17 +219,17 @@ class ScoredPlanarPoseSampler:
                 ceiling = layer["support_z"] + layer["bottom_tol"]
                 # Preserve score/diversity sampling within each pool, but spend
                 # the proposal budget on the unfilled active floor first.
-                pools = [
-                    [item for item in candidates if item["height"] <= ceiling],
-                    [item for item in candidates if item["height"] > ceiling],
-                ]
+                heights = candidates.columns["height"]
+                pools = [np.flatnonzero(heights <= ceiling), np.flatnonzero(heights > ceiling)]
         selected = (floor.sample_corner_candidates(view, corner_seeds, count, rng=self.rng)
                     if corner_seeds else [])
         for pool in pools:
             remaining = count - len(selected)
-            if pool and remaining > 0:
-                selected.extend(floor.sample_scored_candidates(
-                    view, pool, remaining, True, rng=self.rng))
+            if len(pool) and remaining > 0:
+                chosen = floor.sample_scored_indices(
+                    view.cfg.action.planar, candidates.columns["score"][pool],
+                    remaining, True, rng=self.rng)
+                selected.extend(candidates[pool[index]] for index in chosen)
         quaternions = self.quaternions(state, observation, object_index)
         proposals = tuple(PlanarPlacement(
             pose=np.r_[item["xy"], 0., quaternions[item["orientation_index"]]],
