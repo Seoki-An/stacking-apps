@@ -16,35 +16,13 @@ def footprint_distances(previous, candidate, translations):
     """Exact distance between convex XY polygons at candidate translations.
 
     Separating axes detect overlap. Outside, the gap is the distance from the
-    translation to the Minkowski difference of the two polygons. Its boundary
-    has at most m+n edges, avoiding a vertex/edge tensor of size N*m*n.
+    translation to the Minkowski difference of the two polygons.
     """
-    previous, candidate = np.asarray(previous), np.asarray(candidate)
-    translations = np.asarray(translations).reshape(-1, 2)
-    if not len(translations):
-        return np.empty(0)
-    edges = np.concatenate((np.roll(previous, -1, axis=0) - previous,
-                            np.roll(candidate, -1, axis=0) - candidate))
-    axes = np.column_stack((-edges[:, 1], edges[:, 0]))
-    pa, pb = previous @ axes.T, candidate @ axes.T
-    offsets = translations @ axes.T
-    separated = np.any((pb.min(0) + offsets > pa.max(0) + 1e-12)
-                       | (pb.max(0) + offsets < pa.min(0) - 1e-12), axis=1)
-    distances = np.zeros(len(translations))
-    if not np.any(separated):
-        return distances
-    differences = (previous[:, None] - candidate[None, :]).reshape(-1, 2)
-    boundary = differences[ConvexHull(differences).vertices]
-    edge = np.roll(boundary, -1, axis=0) - boundary
-    # Explicit x/y components avoid reductions over a length-2 axis.
-    dx = translations[separated, 0, None] - boundary[:, 0]
-    dy = translations[separated, 1, None] - boundary[:, 1]
-    ex, ey = edge[:, 0], edge[:, 1]
-    fraction = np.clip((dx * ex + dy * ey) / (ex * ex + ey * ey), 0., 1.)
-    dx = dx - fraction * ex
-    dy = dy - fraction * ey
-    distances[separated] = np.sqrt(np.min(dx * dx + dy * dy, axis=1))
-    return distances
+    import stacking_core as core
+
+    translations = np.asarray(translations, dtype=float).reshape(-1, 2)
+    return core.convex_polygon_distances(
+        np.asarray(previous, dtype=float), np.asarray(candidate, dtype=float), translations)
 
 
 def footprints_within_gap(previous, candidate, translations, max_gap):

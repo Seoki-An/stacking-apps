@@ -158,16 +158,15 @@ def trial_outcome(initial, poses, config, phase, *, energy_settled):
     pose. Neither a large excursion followed by a return nor missing history
     can pass as a small final displacement.
     """
+    import stacking_core as core
+
     poses = np.asarray(poses, dtype=float)
-    if (poses.ndim != 2 or poses.shape[1:] != (7,) or not len(poses)
-            or not np.all(np.isfinite(poses))
-            or np.any(np.linalg.norm(poses[:, 3:], axis=1) == 0)):
+    if poses.ndim != 2 or poses.shape[1:] != (7,):
         return float('inf'), 'nonfinite_simulation'
-    translation = np.linalg.norm(poses[:, :3] - initial[:3], axis=1)
-    q = poses[:, 3:] / np.linalg.norm(poses[:, 3:], axis=1)[:, None]
-    reference = initial[3:] / np.linalg.norm(initial[3:])
-    angle = 2 * np.arccos(np.clip(np.abs(q @ reference), 0., 1.))
-    peak = float(np.max(translation + config.rotation_weight * angle))
+    peak = core.peak_excursion(np.asarray(initial, dtype=float), poses,
+                               float(config.rotation_weight))
+    if not np.isfinite(peak):
+        return float('inf'), 'nonfinite_simulation'
     if config.fail_displacement is not None and peak > config.fail_displacement:
         return peak, 'excursion_limit'
     if energy_settled:

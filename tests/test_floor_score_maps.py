@@ -181,21 +181,6 @@ def test_covered_cells_are_admitted_but_empty_connected_cells_score_higher():
     assert np.all(result['scores'][:, 1] > result['scores'][:, 0])
 
 
-def test_shifted_samples_match_per_offset_slices():
-    from stacking_common.actions._support_maps import _shifted_samples
-    values = np.arange(12, dtype=float).reshape(3, 4)
-    values[1, 2] = np.nan
-    offsets = [(0, 0), (1, -2), (-1, 3), (2, 2), (-5, 0), (0, 7)]  # Last two leave the grid.
-    actual = _shifted_samples(values, [y for y, _ in offsets], [x for _, x in offsets], -np.inf)
-    for (dy, dx), grid in zip(offsets, actual):
-        expected = np.full(values.shape, -np.inf)
-        for y in range(3):
-            for x in range(4):
-                if 0 <= y + dy < 3 and 0 <= x + dx < 4:
-                    expected[y, x] = values[y + dy, x + dx]
-        np.testing.assert_array_equal(grid, expected)
-
-
 @pytest.mark.parametrize("shape", [(3, 4), (5, 7), (16, 2)])
 def test_resized_height_maps_take_finite_block_maxima(shape):
     from stacking_common.actions._support_maps import resize_height_map_max

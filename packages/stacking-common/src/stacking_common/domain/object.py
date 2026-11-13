@@ -35,6 +35,12 @@ class StackObject:
         object.__setattr__(self, "object_id", int(object_id))
         object.__setattr__(self, "body_model", body_model)
         object.__setattr__(self, "geometries", values)
+        # Every component's half-spaces, stacked for native membership tests.
+        object.__setattr__(self, "_planes", (
+            np.concatenate([geometry._face_normals for geometry in values]),
+            np.concatenate([geometry._plane_offsets for geometry in values]),
+            np.cumsum([len(geometry._plane_offsets) for geometry in values]).astype(np.int64),
+        ))
 
     @property
     def mass(self) -> float:
@@ -80,11 +86,12 @@ class StackObject:
     ) -> np.ndarray:
         """Test body-frame points against the union of convex components."""
 
+        import stacking_core as core
+
         values = np.asarray(points, dtype=float)
-        inside = np.zeros(len(values), dtype=bool)
-        for geometry in self.geometries:
-            inside |= geometry.contains(values, tolerance)
-        return inside
+        if values.ndim != 2 or values.shape[1] != 3:
+            raise ValueError("query points must have shape (N, 3)")
+        return core.convex_union_contains(values, *self._planes, float(tolerance))
 
     def representative_face_normals(self) -> tuple[np.ndarray, np.ndarray]:
         """Return outward component-face normals and their surface areas."""
