@@ -106,14 +106,19 @@ shapes:
       length_positive: 0.0
       length_negative: 0.0
   tower_and_wall:
-    # A 4 m tower joins the end of the 2.5 m wall with 1 m ground overlap.
+    # Lower both heights by 20% for the 100-stone example; retain a 1.2 m contrast.
+    # A 3.2 m tower joins the 2 m wall with 1 m ground overlap.
     components:
       - id: wall
         pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
-        shape: *default-wall
+        shape:
+          <<: *default-wall
+          height: 2.0
       - id: tower
         pose: [0.0, 3.5, 0.0, 0.0, 0.0, 0.0, 1.0]
-        shape: *tapered-tower
+        shape:
+          <<: *tapered-tower
+          height: 3.2
   two_walls:
     components:
       - id: west

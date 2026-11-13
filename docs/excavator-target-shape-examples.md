@@ -19,6 +19,13 @@ supplies the batch runner, CLI `--target-shape`, and the operations GUI's
 object settings. The default shape named `default` preserves the wall from
 `excavator_plan17.stack`; `tapered_tower` remains selectable, and `two_walls`
 demonstrates one composite goal with two disconnected DSFs.
+`tower_and_wall` combines a 2 × 6 × 2 m wall and a 3 × 3 × 3.2 m tower,
+with 1 m overlap along their length and 5° taper on each component. Its heights
+are reduced by 20% from the original 2.5 m wall / 4 m tower, retaining a
+1.2 m height difference while reducing the upper stacking demand. This is a
+target adjustment for the augmented 100-stone experiments, not a demonstrated
+completion guarantee. Existing `.stack` runs retain their recorded targets;
+select `tower_and_wall` in a new run to use these dimensions.
 `l_shaped_wall` instead overlaps two perpendicular 2 × 4 × 3 m wall DSFs:
 their ground overlap is 2 × 2 m, and the L-shaped footprint spans [-2, 2] m
 on both axes, excluding the upper-right 2 × 2 m notch. Both components taper
