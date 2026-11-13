@@ -154,6 +154,51 @@ def test_path_score_prefers_deepest_then_best_return_and_never_uses_bootstrap():
     assert [pose.object_id for pose in _best_sequence(candidate)] == [0, 4, 5]
 
 
+def test_projection_after_ranked_subtree_is_cleared_and_rejected():
+    from stacking_common.visualization import project_mcts_step
+    root, _, _, search, _ = setup()
+    candidate = child(root, 0)
+    child(candidate, 1)
+    survivor = child(root, 2)
+    search._final_select(root)
+    assert candidate.info['deepest_path_child_index'] == 0
+    # Full-scene revalidation discards descendants, then may reject this root.
+    candidate.clear_children()
+    candidate.reject('scene_motion_limit', info=candidate.info)
+    selected, _ = search._final_select(root)
+    assert selected is survivor
+    step = project_mcts_step(root, selected, step=32)
+    assert [p.object_id for p in step.candidates[0].best_sequence] == [0]
+
+
+@pytest.mark.parametrize('index', [-1, 5])
+def test_projection_does_not_follow_a_stale_path_index(index):
+    from stacking_common.visualization.mcts import _best_sequence
+    root, _, _, _, _ = setup()
+    candidate = child(root, 0)
+    child(candidate, 1)
+    candidate.info['deepest_path_child_index'] = index
+    assert [p.object_id for p in _best_sequence(candidate)] == [0]
+
+
+@pytest.mark.parametrize('mutation', ['clear', 'detach', 'retire'])
+def test_removing_children_invalidates_the_ranked_path(mutation):
+    root, _, _, search, _ = setup()
+    candidate = child(root, 0)
+    first = child(candidate, 1, reward=1.)
+    child(candidate, 2, reward=2.)
+    search._final_select(root)
+    assert candidate.info['deepest_path_child_index'] == 1
+    if mutation == 'clear':
+        candidate.clear_children()
+    elif mutation == 'detach':
+        first.detach()
+    else:
+        first.reject('scene_motion_limit')
+        candidate.retire_failed_children()
+    assert 'deepest_path_child_index' not in candidate.info
+
+
 @pytest.mark.parametrize("minimum", [2, 3])
 def test_minimum_feasible_depth_excludes_shallow_optimistic_roots(minimum):
     root, generator, evaluator, search, _ = setup()

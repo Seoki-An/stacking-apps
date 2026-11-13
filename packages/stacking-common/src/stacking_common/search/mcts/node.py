@@ -114,6 +114,7 @@ class MCTSNode(Generic[ObservationT]):
             ancestor = ancestor.parent
         child.parent = self
         self.children.append(child)
+        self._invalidate_ranked_path()
 
     def add_candidate(
         self,
@@ -188,6 +189,7 @@ class MCTSNode(Generic[ObservationT]):
 
         if self.parent is not None:
             self.parent.children.remove(self)
+            self.parent._invalidate_ranked_path()
             self.parent = None
         return self
 
@@ -197,6 +199,7 @@ class MCTSNode(Generic[ObservationT]):
         for child in self.children:
             child.parent = None
         self.children.clear()
+        self._invalidate_ranked_path()
         self.expansion_attempts = 0
         self.expansion_exhausted = False
         self.rejected_expansions.clear()
@@ -214,10 +217,18 @@ class MCTSNode(Generic[ObservationT]):
         for child in retired:
             child.parent = None
         self.children = [child for child in self.children if child.selectable]
+        self._invalidate_ranked_path()
         self.expansion_attempts = 0
         self.expansion_exhausted = False
         self.info.pop("external_seed_attempts", None)
         return actions
+
+    def _invalidate_ranked_path(self) -> None:
+        """Child positions and cached path scores expire when the tree changes."""
+        for key in ("deepest_path_child_index", "deepest_feasible_depth",
+                    "descendant_path_return", "final_selection_score",
+                    "final_selection_depth_eligible"):
+            self.info.pop(key, None)
 
     def reset_statistics(self, *, recursive: bool = True) -> None:
         """Reset evaluated nodes to one zero-return visit, retaining the tree.

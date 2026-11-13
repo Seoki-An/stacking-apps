@@ -543,9 +543,16 @@ def _best_sequence(node: MCTSNode) -> tuple[SceneObjectPose, ...]:
                         current.action.object_index,
                     )
                 )
+        # Rejected roots can retain ranking diagnostics from an earlier search.
+        # Their old continuation is not a feasible path in the current tree.
+        if not current.selectable:
+            break
         if "deepest_path_child_index" in current.info:
             index = current.info["deepest_path_child_index"]
-            current = None if index is None else current.children[index]
+            if index is None or not 0 <= index < len(current.children):
+                break
+            child = current.children[index]
+            current = child if child.selectable and child.evaluated else None
         else:
             # Trees projected without final ranking retain the historical view.
             children = current.evaluated_children()
