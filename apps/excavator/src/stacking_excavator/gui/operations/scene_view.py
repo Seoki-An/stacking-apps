@@ -11,7 +11,8 @@ from stacking_common.profiles.visualization import SceneBox, VisualizationProfil
 from stacking_common.visualization.dsf import object_surface_path
 from stacking_common.rendering.pyvista import open_target_shell, read_dsf_surface
 from stacking_common.visualization.rendering import (
-    configure_scene_passes, object_surface_culling, scene_is_translucent, stone_opacity,
+    configure_scene_passes, fit_ground_to_target, object_surface_culling,
+    scene_is_translucent, stone_opacity,
 )
 
 from .controller import OperationsFrame, RenderObject
@@ -167,14 +168,15 @@ class OperationsSceneView(QtInteractor):
         """Replace all actors while intermediate renders remain suppressed."""
 
         boxes = self.visualization.boxes if frame.environment_boxes is None else frame.environment_boxes
+        boxes = tuple(
+            fit_ground_to_target(box, frame.target, margin=.5, transform=frame.target_transform)
+            if box.component_id not in ("pick_ground", "handoff_ground") else box
+            for box in boxes)
         self._prepare_scene(translucent=scene_is_translucent(
             frame, boxes, environment_visibility, transparent_stones=self._transparent_stones))
-        if frame.environment_boxes is None:
-            self._add_environment(environment_visibility)
-        else:
-            for component in frame.environment_boxes:
-                if environment_visibility.get(component.layer, False):
-                    self._add_scene_box(component)
+        for component in boxes:
+            if environment_visibility.get(component.layer, False):
+                self._add_scene_box(component)
         if frame.target is not None and environment_visibility.get("target", True):
             self._add_target(frame.target)
             if frame.target_transform is not None:

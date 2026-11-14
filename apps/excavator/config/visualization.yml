@@ -5,10 +5,11 @@ environment:
     support: false
     obstacle: true
   # Search coordinates are stack-local. Plan replay uses recorded world planes.
+  # Ground XY is fitted to the full displayed target with 0.5 m on each side.
+  # These bounds are only the fallback when no target is available.
   boxes:
     - id: search_ground
       layer: ground
-      # Center on the RSS L-shaped target footprint at (0.4, -0.6).
       minimum: [-2.6, -3.6, -0.03]
       maximum: [3.4, 2.4, 0.0]
       color: [0.353, 0.314, 0.275]  # Brown (#5a5046), matching the paper figures.

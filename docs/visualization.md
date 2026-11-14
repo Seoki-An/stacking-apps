@@ -465,6 +465,14 @@ its reference ground stays at stack `z=0`. Plan and Execution retain world-frame
 geometry. The operator can toggle each semantic layer without altering the
 planning result.
 
+Both Operations Consoles center the display ground on the entire target's XY
+bounds, including every component and its pose. Each side has an equal margin:
+0.5 m for excavator and 0.05 m for tabletop. This also applies when the target
+layer is hidden. Ground height, thickness, color, support tables, and obstacles
+are preserved; excavator pickup/handoff grounds retain their recorded reference
+bounds. Search and placement views automatically fit new targets without editing
+individual `.stack` files or their old ground-display metadata.
+
 The viewport preserves its camera pose across step, candidate, render-mode,
 pose-mode, diagnostic-layer, environment-layer, planning-attempt, and tab
 changes. Camera reset occurs only when a new run is loaded or the operator

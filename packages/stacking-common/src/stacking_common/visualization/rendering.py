@@ -1,5 +1,30 @@
 """Shared rendering policy for opaque and translucent operations scenes."""
 
+from dataclasses import replace
+
+import numpy as np
+
+from stacking_common.domain.geometry import transform_points
+
+
+def fit_ground_to_target(box, target, *, margin, transform=None):
+    """Center a display ground on all target vertices with equal XY margins.
+
+    Keep its elevation, thickness and material. Target points already include
+    component poses and structure offsets; planning replay may add a world pose.
+    """
+    if target is None or box.layer != "ground":
+        return box
+    if not np.isfinite(margin) or margin < 0:
+        raise ValueError("ground margin must be finite and non-negative")
+    points = target.points
+    if transform is not None:
+        points = transform_points(points, transform)
+    minimum, maximum = box.minimum.copy(), box.maximum.copy()
+    minimum[:2] = points[:, :2].min(axis=0) - margin
+    maximum[:2] = points[:, :2].max(axis=0) + margin
+    return replace(box, minimum=minimum, maximum=maximum)
+
 
 def stone_opacity(opacity, transparent_stones=False):
     """Cap all stones' opacity without making existing ghost overlays more opaque."""
