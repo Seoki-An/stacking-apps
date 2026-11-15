@@ -283,6 +283,22 @@ def score_xy_debug_map(
     normalization: Optional[dict] = None,
     footprint_polygons=None,
 ) -> dict:
+    """Score anchor cells; maps where every anchor is connected run natively."""
+    planar = inventory.cfg.action.planar
+    every_anchor_connected = (planar.get("connectivity") == "previous_action_soft"
+                              or not planar.get("connectivity_enabled", True))
+    score = native_score_xy_map if every_anchor_connected else python_score_xy_map
+    return score(
+        inventory, state, stone_idx, scene_height_map=scene_height_map,
+        active_floor=active_floor, support_kernels=support_kernels,
+        state_map_bundle=state_map_bundle, footprint_bounds=footprint_bounds,
+        normalization=normalization, footprint_polygons=footprint_polygons,
+    )
+
+
+def _score_grid(inventory, state, stone_idx, scene_height_map, support_kernels,
+                state_map_bundle, footprint_bounds):
+    """Anchor grid, state maps, kernels and footprint bounds of one score map."""
     if scene_height_map is None:
         scene_height_map = inventory.get_height_map(state)
     height_map = np.asarray(scene_height_map)
@@ -304,14 +320,12 @@ def score_xy_debug_map(
         )
     bundle = state_map_bundle
     heights = bundle.smoothed_height
-    grid_dx = float(np.mean(np.diff(xy_grid[0, :, 0])))
-    grid_dy = float(np.mean(np.diff(xy_grid[:, 0, 1])))
     if support_kernels is None:
         support_kernels = [
             rectangular_bottom_kernel(
                 stone_xy_extent(inventory, stone_idx),
-                grid_dx,
-                grid_dy,
+                float(np.mean(np.diff(xy_grid[0, :, 0]))),
+                float(np.mean(np.diff(xy_grid[:, 0, 1]))),
             )
         ]
     if footprint_bounds is None:
@@ -320,6 +334,25 @@ def score_xy_debug_map(
     footprint_bounds = np.asarray(footprint_bounds, dtype=float)
     if footprint_bounds.shape != (len(support_kernels), 2, 2):
         raise ValueError("footprint bounds must contain XY minima and maxima for each orientation")
+    return shape, xy_grid, support, bundle, heights, support_kernels, footprint_bounds
+
+
+def python_score_xy_map(
+    inventory,
+    state,
+    stone_idx: Optional[int],
+    scene_height_map: Optional[np.ndarray] = None,
+    active_floor: Optional[dict] = None,
+    support_kernels: Optional[list[BottomHeightKernel]] = None,
+    state_map_bundle: Optional[StateMapBundle] = None,
+    footprint_bounds: Optional[np.ndarray] = None,
+    normalization: Optional[dict] = None,
+    footprint_polygons=None,
+) -> dict:
+    """Reference implementation for every connectivity mode."""
+    shape, xy_grid, support, bundle, heights, support_kernels, footprint_bounds = _score_grid(
+        inventory, state, stone_idx, scene_height_map, support_kernels,
+        state_map_bundle, footprint_bounds)
     target_statics = [target_anchor_static(inventory, stone_idx, xy_bounds=bounds)
                       for bounds in footprint_bounds]
     target_bounds = np.array([target_anchor_bounds(inventory, stone_idx, _static=static)
@@ -586,6 +619,113 @@ def score_xy_debug_map(
                           "score_min": candidate_score_min, "score_span": candidate_score_span},
         "candidates": candidates,
     }
+
+def native_score_xy_map(
+    inventory,
+    state,
+    stone_idx: Optional[int],
+    scene_height_map: Optional[np.ndarray] = None,
+    active_floor: Optional[dict] = None,
+    support_kernels: Optional[list[BottomHeightKernel]] = None,
+    state_map_bundle: Optional[StateMapBundle] = None,
+    footprint_bounds: Optional[np.ndarray] = None,
+    normalization: Optional[dict] = None,
+    footprint_polygons=None,
+) -> dict:
+    """python_score_xy_map, bit for bit, when every anchor is connected."""
+    import stacking_core as core
+
+    shape, xy_grid, support, bundle, heights, support_kernels, footprint_bounds = _score_grid(
+        inventory, state, stone_idx, scene_height_map, support_kernels,
+        state_map_bundle, footprint_bounds)
+    planar = inventory.cfg.action.planar
+    cfg = planar.get("floor", {})
+    score_cfg = planar.get("score", {})
+    soft = planar.get("connectivity") == "previous_action_soft"
+    weights = (
+        float(score_cfg.get("height", -1.5)),
+        float(score_cfg.get("support_likelihood", 2.0)),
+        float(score_cfg.get("fill_area", 0.0)),
+        float(score_cfg.get("target_boundary", 0.0)),
+        float(score_cfg.get("planar_bias", score_cfg.get("excavator_distance", 0.25))),
+        -float(score_cfg.get("previous_action_distance", 1.)) if soft else 0.,
+    )
+    planar_bias = planar_bias_grid(
+        inventory, xy_grid, score_planar_bias_xy(score_cfg),
+        str(score_cfg.get("planar_bias_axis", score_cfg.get("excavator_distance_axis", "xy"))).lower(),
+    )
+    # Same terms as target_anchor_bounds; insets are passed per orientation.
+    wall, origin, half_extent, margin, _ = target_anchor_static(
+        inventory, stone_idx, xy_bounds=np.zeros((2, 2)))
+    inset_scale = float(cfg.get("boundary_inset_radius_scale", 0.6))
+    lower_slope = np.tan([max(float(wall.taper["width_negative"]), 0.0),
+                          max(float(wall.taper["length_negative"]), 0.0)])
+    upper_slope = np.tan([max(float(wall.taper["width_positive"]), 0.0),
+                          max(float(wall.taper["length_positive"]), 0.0)])
+    wall_values = (*(origin - half_extent), *(origin + half_extent), float(wall.origin[2]),
+                   float(wall.height), *lower_slope, *upper_slope, float(margin))
+
+    layer = active_floor if active_floor is not None else active_floor_context(inventory, state)
+    occupied = np.zeros((0, 0), dtype=bool)
+    floor_x = floor_y = np.zeros(0)
+    if layer is not None and np.any(layer["occupied"]):
+        occupied = np.asarray(layer["occupied"], dtype=bool)
+        floor_x, floor_y = layer["xx"][0], layer["yy"][:, 0]
+    previous, polygons, gap, length = np.zeros((0, 2)), [], 0., 1.
+    if soft and state.stone_seq:
+        stone, stone_id = state_stone(inventory, state, state.stone_seq[-1])
+        entry = floor_entry(stone, state.stone_poses[stone_id], include_volumes=False)
+        if footprint_polygons is None:
+            raise ValueError("soft connectivity requires actual footprint polygons")
+        length = float(planar["connectivity_length"])
+        if not np.isfinite(length) or length <= 0.:
+            raise ValueError("distance penalty length must be finite and positive")
+        previous = np.asarray(entry["xy_polygon"], dtype=float)
+        polygons = [np.asarray(polygon, dtype=float) for polygon in footprint_polygons]
+        gap = float(planar["contact_gap_tolerance"])
+    reference = None if normalization is None else (
+        normalization["h_min"], normalization["h_span"], int(normalization["max_unfilled_cells"]),
+        normalization["score_min"], normalization["score_span"])
+
+    result = core.score_map(
+        xy_grid[0, :, 0], xy_grid[:, 0, 1], np.asarray(bundle.surface_height, dtype=float),
+        [(np.asarray(kernel.y_offsets, dtype=np.int64), np.asarray(kernel.x_offsets, dtype=np.int64),
+          np.asarray(kernel.bottom_height, dtype=float)) for kernel in support_kernels],
+        float(support.contact_gap_tolerance), (inset_scale * footprint_bounds).reshape(-1, 4),
+        wall_values, occupied, floor_x, floor_y,
+        (float(cfg.get("footprint_scale", 0.9)) * footprint_bounds).reshape(-1, 4),
+        previous, polygons, gap, length, planar_bias, weights, reference,
+    )
+    valid = result["valid"]
+    maps = {
+        "x_coords": xy_grid[0, :, 0].astype(float).copy(),
+        "y_coords": xy_grid[:, 0, 1].astype(float).copy(),
+        "scores": result["scores"],
+        "valid": valid,
+        "candidate_mask": result["candidate_mask"],
+        "connectivity_mask": valid.copy(),
+    }
+    if not np.any(valid):
+        return {**maps, "candidates": []}
+    if not len(result["columns"]["score"]):
+        return {**maps, "height": heights.copy(), "candidates": []}
+    h_min, h_span, max_unfilled_cells, score_min, score_span = result["normalization"]
+    return {
+        **maps,
+        "height": heights.copy(),
+        **{name: result[name] for name in (
+            "height_term", "support_likelihood", "fill_area", "target_boundary",
+            "planar_bias", "previous_action_distance", "placement_height", "orientation_index")},
+        "weights": dict(zip(("height", "support_likelihood", "fill_area", "target_boundary",
+                             "planar_bias", "previous_action_distance"), weights)),
+        "h_min": h_min,
+        "h_span": h_span,
+        "normalization": {"h_min": h_min, "h_span": h_span,
+                          "max_unfilled_cells": max_unfilled_cells,
+                          "score_min": score_min, "score_span": score_span},
+        "candidates": CandidateColumns(result["columns"]),
+    }
+
 
 class CandidateColumns(Sequence):
     """Admitted grid candidates as columns; a row becomes a dict only on access.

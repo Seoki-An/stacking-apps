@@ -30,6 +30,7 @@ class _StoneView:
         points, _ = obj.mesh_arrays()
         hull = ConvexHull(points)
         self.points = points[hull.vertices]
+        self._extent = np.ptp(self.points, axis=0)
         self.geometries = []
         for geometry in obj.geometries:
             equations = ConvexHull(geometry.points).equations
@@ -40,7 +41,7 @@ class _StoneView:
         return self.points, None
 
     def local_aabb_extent(self):
-        return np.ptp(self.points, axis=0)
+        return self._extent.copy()
 
 
 
