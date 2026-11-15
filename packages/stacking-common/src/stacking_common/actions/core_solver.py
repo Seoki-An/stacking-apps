@@ -413,7 +413,7 @@ class CorePlacementPoseSolver:
             "posegen_contact_points": dict(result.contact_point),
             "posegen_contact_normals": dict(result.contact_normal),
             "posegen_contact_forces": {
-                entity_id: [np.asarray(force, dtype=float) * native_mass_scale for force in forces]
+                entity_id: np.asarray(forces, dtype=float).reshape(-1, 3) * native_mass_scale
                 for entity_id, forces in result.contact_force.items()
             },
         }

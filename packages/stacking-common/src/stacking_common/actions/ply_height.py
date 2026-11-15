@@ -81,8 +81,8 @@ class PlyHeightInitializer:
         return self._vertices[obj.object_id]
 
     def prepare_scene(self, inventory, state):
-        """Compute placed-body bounds for one read-only batch input state."""
-        bounds = []
+        """Compute stacked placed-body bounds for one read-only batch input state."""
+        indices, lows, highs = [], [], []
         for index in state.placed_object_indices:
             obj = inventory[index]
             pose = np.asarray(state.object_poses[obj.object_id], dtype=float)
@@ -96,8 +96,10 @@ class PlyHeightInitializer:
                 low.setflags(write=False)
                 high.setflags(write=False)
                 self._bounds[key] = (low, high)
-            bounds.append((index, *self._bounds[key]))
-        return tuple(bounds)
+            indices.append(index)
+            lows.append(self._bounds[key][0])
+            highs.append(self._bounds[key][1])
+        return tuple(indices), np.reshape(lows, (-1, 3)), np.reshape(highs, (-1, 3))
 
     def initialize(self, inventory, state, object_index, proposal, *, scene_context=None):
         pose = proposal.pose.copy()
@@ -106,14 +108,17 @@ class PlyHeightInitializer:
         low, high = points.min(axis=0), points.max(axis=0)
         height = ground_height(inventory, self.ground_z)
         supports = []
-        bounds = self.prepare_scene(inventory, state) if scene_context is None else scene_context
-        for index, p_low, p_high in bounds:
-            # Each footprint expands by padding, exactly as legacy initialize_height.
-            if np.all(high[:2] + 2*self.xy_padding >= p_low[:2]) and np.all(p_high[:2] + 2*self.xy_padding >= low[:2]):
-                if p_high[2] > height:
-                    height, supports = float(p_high[2]), [index]
-                elif np.isclose(p_high[2], height):
-                    supports.append(index)
+        indices, lows, highs = (self.prepare_scene(inventory, state) if scene_context is None
+                                else scene_context)
+        # Each footprint expands by padding, exactly as legacy initialize_height.
+        overlaps = (np.all(high[:2] + 2*self.xy_padding >= lows[:, :2], axis=1)
+                    & np.all(highs[:, :2] + 2*self.xy_padding >= low[:2], axis=1))
+        for row in np.flatnonzero(overlaps):
+            index, top = indices[row], highs[row, 2]
+            if top > height:
+                height, supports = float(top), [index]
+            elif np.isclose(top, height):
+                supports.append(index)
         pose[2] = height - low[2] + self.clearance
         return InitializedPlacement(pose, height, tuple(supports), diagnostics={
             "initial_height_clearance": self.clearance, "initial_height_xy_padding": self.xy_padding,
