@@ -370,26 +370,14 @@ def test_existing_pending_siblings_use_capacity_before_extra_generation():
     assert all(child.evaluated for branch in root.children for child in branch.children)
 
 
-def test_demand_retries_fill_new_slots_even_when_old_children_are_feasible():
+def test_demand_fills_new_slots_even_when_old_children_are_feasible():
     from stacking_common.search.mcts.search import _SearchCounters
 
     root = tree(pending=False)
     branch = root.children[0]
     old = branch.add_candidate(action(2))
     old.set_result(state((0, 2)), (0, 2), 2.0)
-    # Reject the first new proposal, despite the existing feasible child.
-    class RejectOnce(PoseBudgetGenerator):
-        def generate(self, previous, observation, request):
-            if not self.requests:
-                self.requests.append((tuple(previous.placed_object_indices),
-                                      request.max_candidates, request.attempt_offset))
-                return ActionGenerationResult(
-                    candidates=(), attempts=request.max_candidates,
-                    rejection_counts={'infeasible': request.max_candidates},
-                )
-            return super().generate(previous, observation, request)
-
-    generator = RejectOnce()
+    generator = PoseBudgetGenerator()
     engine = MonteCarloTreeSearch(
         config(max_children=16, generation_batch_size=16,
                expansion_retry_batches=3, expansion_attempt_multiplier=3),
@@ -398,31 +386,32 @@ def test_demand_retries_fill_new_slots_even_when_old_children_are_feasible():
     counters = _SearchCounters()
     engine._expand_many([branch], counters, None, MCTSSearchRequest(iterations=2),
                         new_candidate_targets={branch: 2})
-    assert [size for _, size, _ in generator.requests] == [2, 2]
-    assert [offset for _, _, offset in generator.requests] == [1, 3]
+    # One call carries the attempts of all three retry rounds.
+    assert generator.requests == [((0,), 6, 1)]
     assert len(branch.children) == 3
     assert counters.generated_candidates == 2
+    assert branch.rejected_expansions == {'feasible_surplus': 4}
 
 
-def test_partial_generation_retries_only_the_unfilled_demand():
+def test_targeted_generation_keeps_only_the_unfilled_demand():
     from stacking_common.search.mcts.search import _SearchCounters
 
     branch = tree(pending=False).children[0]
     generator = PoseBudgetGenerator(reject_first=True)
     engine = MonteCarloTreeSearch(
-        config(max_children=16, expansion_retry_batches=3),
+        config(max_children=16, generation_batch_size=16, expansion_retry_batches=3),
         generator, Scorer(), Evaluator(), ZeroEstimator(),
     )
     counters = _SearchCounters()
     engine._expand_many([branch], counters, None, MCTSSearchRequest(iterations=3),
                         new_candidate_targets={branch: 3})
-    assert [size for _, size, _ in generator.requests] == [3, 1]
+    assert [size for _, size, _ in generator.requests] == [9]
     assert len(branch.children) == counters.generated_candidates == 3
-    assert branch.rejected_expansions == {'infeasible': 1}
+    assert branch.rejected_expansions == {'infeasible': 1, 'feasible_surplus': 5}
 
 
-@pytest.mark.parametrize('stop', ['deadline', 'rounds', 'attempts', 'exhausted'])
-def test_demand_refill_obeys_all_generation_limits(monkeypatch, stop):
+@pytest.mark.parametrize('stop', ['deadline', 'batch', 'attempts', 'exhausted'])
+def test_targeted_generation_obeys_all_generation_limits(monkeypatch, stop):
     from stacking_common.search.mcts.search import _SearchCounters
 
     now = [0.0]
@@ -448,13 +437,13 @@ def test_demand_refill_obeys_all_generation_limits(monkeypatch, stop):
     counters = _SearchCounters(generation_deadline=1.0 if stop == 'deadline' else None)
     engine._expand_many([branch], counters, None, MCTSSearchRequest(iterations=3),
                         new_candidate_targets={branch: 3})
-    assert generator.requests == ([3, 3] if stop == 'rounds' else [1] if stop == 'attempts' else [3])
+    # Batch size caps the 3 x 2 round attempts; rejected attempts are not retried.
+    assert generator.requests == ([1] if stop == 'attempts' else [3])
     assert not branch.children
     assert counters.generated_candidates == 0
 
 
-@pytest.mark.parametrize('widening', [False, True])
-def test_exhausted_state_slots_refill_other_states_within_widening(widening):
+def test_exhausted_state_slots_are_not_refilled_after_the_targeted_call():
     from stacking_common.search.mcts.search import _SearchCounters
 
     class OneExhaustedBranch(PoseBudgetGenerator):
@@ -470,15 +459,12 @@ def test_exhausted_state_slots_refill_other_states_within_widening(widening):
     root = tree(pending=False)
     generator = OneExhaustedBranch()
     engine = MonteCarloTreeSearch(
-        config(max_children=16, expansion_retry_batches=3,
-               widening=ProgressiveWideningConfig(
-                   enabled=widening, coefficient=2, exponent=0)),
+        config(max_children=16, generation_batch_size=16, expansion_retry_batches=3),
         generator, Scorer(), Evaluator(), ZeroEstimator(),
     )
     counters = _SearchCounters()
     engine._expand_many(root.children, counters, None, MCTSSearchRequest(iterations=4),
                         new_candidate_targets={node: 2 for node in root.children})
+    assert [size for _, size, _ in generator.requests] == [6, 6]
     assert not root.children[0].children
-    assert len(root.children[1].children) == (2 if widening else 4)
-    assert [size for _, size, _ in generator.requests] == ([2, 2] if widening else [2, 2, 2])
-    assert counters.generated_candidates <= 4
+    assert len(root.children[1].children) == counters.generated_candidates == 2

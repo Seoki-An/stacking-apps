@@ -1116,9 +1116,10 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
     ) -> None:
         """Generate poses, optionally bounded by this batch's accepted demand.
 
-        Targets count new children, not existing selectable children. Rejections
-        may be retried within the existing round, attempt and deadline limits.
-        Root admission and serial expansion keep their usual widening policy.
+        Targets count new children, not existing selectable children. A
+        targeted batch solves the attempts of every retry round in one call
+        and keeps at most each node's target. Root admission and serial
+        expansion retry rejected rounds within the attempt and deadline limits.
         """
 
         nodes = list(nodes)
@@ -1203,10 +1204,17 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 )
                 for node in active
             ]
+            targets = None
             if remaining is not None:
+                # Request the attempts all retry rounds could use at once.
+                targets = [remaining[node] for node in active]
                 limits = [
-                    min(limit, remaining[node])
-                    for node, limit in zip(active, limits)
+                    min(
+                        attempt_limit(node, self.config) - node.expansion_attempts,
+                        self.config.generation_batch_size,
+                        target * self.config.expansion_retry_batches,
+                    )
+                    for node, target in zip(active, targets)
                 ]
             generation_requests = [
                 ActionGenerationRequest(
@@ -1258,6 +1266,11 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 counters.pose_generation_max_node_batch,
                 len(active),
             )
+            if targets is not None:
+                generated_results = tuple(
+                    _keep_candidates(generated, target)
+                    for generated, target in zip(generated_results, targets)
+                )
             for node, generated, limit in zip(
                 active, generated_results, limits
             ):
@@ -1270,6 +1283,8 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                 )
                 if generated.exhausted or generated.attempts == 0:
                     stopped.add(node)
+            if targets is not None:
+                break
 
     def _record_generation(
         self,
@@ -1672,3 +1687,16 @@ def _diagnostic_seconds(evaluations, key: str) -> float:
         if math.isfinite(value) and value >= 0.0:
             total += value
     return total
+
+
+def _keep_candidates(generated, count):
+    """Keep the first accepted candidates and count the rest as unused."""
+
+    surplus = len(generated.candidates) - count
+    if surplus <= 0:
+        return generated
+    return replace(
+        generated,
+        candidates=generated.candidates[:count],
+        rejection_counts={**generated.rejection_counts, "feasible_surplus": surplus},
+    )
