@@ -227,7 +227,10 @@ class StackingEnvironmentEvaluator(Generic[ObservationT]):
         """
         environment = self.environments[EvaluationFidelity(fidelity)]
         backend = environment.transition.backend
-        original = backend.config
+        original = getattr(backend, "config", None)
+        if original is None:
+            # Backends without a structural freeze always simulate the full scene.
+            return self.evaluate_batch(states, actions, fidelity)
         backend.config = replace(original, structural=replace(
             original.structural, freeze_radius=None))
         try:
@@ -278,8 +281,9 @@ class ParallelTransitionEvaluator(Generic[ObservationT]):
             buckets[index % len(buckets)].append((index, *pair))
 
         def evaluate_bucket(evaluator, jobs):
-            if full_scene:
-                results = evaluator.evaluate_full_scene_batch(
+            full_scene_batch = getattr(evaluator, "evaluate_full_scene_batch", None)
+            if full_scene and callable(full_scene_batch):
+                results = full_scene_batch(
                     [state for _, state, _ in jobs],
                     [action for _, _, action in jobs], fidelity)
                 return [(job[0], value) for job, value in zip(jobs, results)]

@@ -206,7 +206,6 @@ def search_statistics(
         },
         "revalidation": asdict(result.revalidation),
         "root_validation": asdict(result.root_validation),
-        "full_scene_validation": dict(result.root.info.get("full_scene_validation", {})),
         "root_lookahead": asdict(result.root_lookahead),
         "root_retry": asdict(result.root_retry),
         "floor_fill_fallback": asdict(result.floor_fill_fallback),
@@ -426,11 +425,6 @@ def print_search_step(step: int, result, elapsed: float, search) -> None:
             f"rejected={result.root_validation.rejected}, "
             f"timed_out={result.root_validation.timed_out}"
         )
-    full = result.root.info.get("full_scene_validation", {})
-    if full.get("attempted"):
-        print("[INFO] Unfrozen root validation: "
-              f"attempted={full['attempted']}, kept={full['attempted'] - full['failed']}, "
-              f"rejected={full['failed']}, wall={full['seconds']:.2f}s")
     if result.root_lookahead.eligible:
         print(
             "[INFO] Root lookahead coverage: "

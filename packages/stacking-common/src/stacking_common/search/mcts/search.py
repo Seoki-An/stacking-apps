@@ -296,7 +296,6 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         iteration_deadline = deadline
         counters = _SearchCounters(generation_deadline=iteration_deadline)
         root.detach()
-        root.info["full_scene_validation"] = dict(attempted=0, failed=0, seconds=0.)
         # Relaxed descendants must not bypass strict admission on the next
         # search (including after subtree promotion). Keep the committed state.
         pruned = False
@@ -718,7 +717,6 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             counters,
             deadline,
         )
-        self._validate_full_scene(root, request, counters, deadline)
         for child in root.evaluated_children():
             if reseed or child.visits == 0:
                 self._back_up(child)
@@ -1415,7 +1413,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             for child in node.children
         )
 
-    def _evaluate_many(self, nodes, fidelity, counters) -> None:
+    def _evaluate_many(self, nodes, fidelity, counters, *, full_scene=False) -> None:
         if any(
             node.parent is None
             or node.parent.state is None
@@ -1427,7 +1425,7 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         actions = [node.action for node in nodes]
         self._record_evaluation_batch(counters, fidelity, len(actions))
         evaluations = self._evaluate_transitions_timed(
-            states, actions, fidelity, counters
+            states, actions, fidelity, counters, full_scene=full_scene
         )
         for node, evaluation in zip(nodes, evaluations):
             if evaluation.fidelity is not fidelity:
@@ -1440,13 +1438,18 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
             counters.evaluated_candidates += 1
             counters.failed_evaluations += int(evaluation.failed)
 
-    def _evaluate_transitions(self, states, actions, fidelity):
+    def _evaluate_transitions(self, states, actions, fidelity, *, full_scene=False):
         if len(states) != len(actions):
             raise ValueError("transition batch states and actions must align")
         if not actions:
             return ()
         batch = getattr(self.transition_evaluator, "evaluate_batch", None)
-        if callable(batch) and len(actions) > 1:
+        full_scene_batch = getattr(
+            self.transition_evaluator, "evaluate_full_scene_batch", None
+        )
+        if full_scene and callable(full_scene_batch):
+            results = tuple(full_scene_batch(states, actions, fidelity))
+        elif callable(batch) and len(actions) > 1:
             results = tuple(batch(states, actions, fidelity))
         else:
             results = tuple(
@@ -1458,10 +1461,12 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         return results
 
     def _evaluate_transitions_timed(
-        self, states, actions, fidelity, counters
+        self, states, actions, fidelity, counters, *, full_scene=False
     ):
         started = time.perf_counter()
-        evaluations = self._evaluate_transitions(states, actions, fidelity)
+        evaluations = self._evaluate_transitions(
+            states, actions, fidelity, full_scene=full_scene
+        )
         elapsed = time.perf_counter() - started
         if fidelity is EvaluationFidelity.SHORT:
             counters.short_simulation_seconds += elapsed
@@ -1499,6 +1504,11 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
         counters,
         deadline,
     ) -> None:
+        """Simulate roots without the local distance freeze.
+
+        Roots are committed placements, so a frozen screening result would
+        have to be simulated again in the full scene before admission.
+        """
         fidelity = request.evaluation_fidelity
         batch_size = self._root_batch_size()
         for start in range(0, len(nodes), batch_size):
@@ -1511,57 +1521,12 @@ class MonteCarloTreeSearch(Generic[ObservationT]):
                     )
                 break
             batch = nodes[start : start + batch_size]
-            self._evaluate_many(batch, fidelity, counters)
+            self._evaluate_many(batch, fidelity, counters, full_scene=True)
+            if any(child.info.get("simulation_frozen_object_count", 0)
+                   for child in batch):
+                raise ValueError("root candidates require full-scene evaluation")
             counters.root_validation_attempts += len(batch)
             counters.root_validation_failures += sum(child.failed for child in batch)
-
-    def _validate_full_scene(self, root, request, counters, deadline):
-        """Local freeze is screening only; admit roots with unfrozen physics."""
-        nodes = [child for child in root.evaluated_children()
-                 if child.info.get("simulation_frozen_object_count", 0) > 0]
-        if not nodes:
-            return
-        validate = getattr(self.transition_evaluator, "evaluate_full_scene_batch", None)
-        if not callable(validate):
-            raise ValueError("frozen root candidates require full-scene validation")
-        summary = root.info["full_scene_validation"]
-        for start in range(0, len(nodes), self._root_batch_size()):
-            batch = nodes[start:start + self._root_batch_size()]
-            if deadline is not None and time.monotonic() >= deadline:
-                counters.root_validation_timed_out = True
-                for child in nodes[start:]:
-                    child.reject("full_scene_validation_timeout", info=child.info)
-                break
-            fidelity = request.evaluation_fidelity
-            self._record_evaluation_batch(counters, fidelity, len(batch))
-            started = time.perf_counter()
-            evaluations = tuple(validate([root.state] * len(batch),
-                                         [child.action for child in batch], fidelity))
-            elapsed = time.perf_counter() - started
-            counters.long_simulation_seconds += elapsed
-            counters.long_settling_job_seconds += _diagnostic_seconds(
-                evaluations, "simulation_settling_wall_seconds")
-            counters.long_structural_job_seconds += _diagnostic_seconds(
-                evaluations, "simulation_structural_wall_seconds")
-            if len(evaluations) != len(batch):
-                raise ValueError("full-scene evaluator returned the wrong batch length")
-            summary["attempted"] += len(batch)
-            summary["seconds"] += elapsed
-            for child, evaluation in zip(batch, evaluations):
-                if (evaluation.fidelity is not fidelity
-                        or evaluation.state.object_ids != root.state.object_ids
-                        or evaluation.diagnostics.get("simulation_frozen_object_count", 0)):
-                    raise ValueError("full-scene evaluator did not return an unfrozen transition")
-                # Descendants of a provisional scene cannot be reused after its
-                # existing stones move. Commit the complete validated state.
-                child.clear_children()
-                child.reset_statistics(recursive=True)
-                self._apply_evaluation(child, evaluation, owned=True)
-                child.info["full_scene_validated"] = not evaluation.failed
-                counters.evaluated_candidates += 1
-                counters.failed_evaluations += int(evaluation.failed)
-                counters.root_validation_failures += int(evaluation.failed)
-                summary["failed"] += int(evaluation.failed)
 
     def _final_select(self, root):
         """Mix search means with observed returns on each root's deepest paths.

@@ -1,4 +1,4 @@
-"""A locally frozen scene must never be committed as a validated root."""
+"""A locally frozen scene must never be committed as a root."""
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -53,7 +53,7 @@ def setup(reject_all=False):
 
 
 @pytest.mark.parametrize('reject_all', [False, True])
-def test_unfrozen_rejection_tries_other_roots_and_commits_complete_state(reject_all):
+def test_roots_are_simulated_once_in_the_full_scene(reject_all):
     search, root, evaluator = setup(reject_all)
     result = search.search(root, MCTSSearchRequest(iterations=1))
     assert evaluator.calls == [1, 2]
@@ -61,30 +61,17 @@ def test_unfrozen_rejection_tries_other_roots_and_commits_complete_state(reject_
     assert (result.selected is None) == reject_all
     if not reject_all:
         assert result.selected.action.object_index == 2
-        assert result.selected.info['full_scene_validated']
         assert result.selected.info['simulation_frozen_object_count'] == 0
         assert result.selected.state.object_poses[10][0] == pytest.approx(.01)
         assert root.state.object_poses[10][0] == 0.
-    assert root.info['full_scene_validation']['failed'] == (2 if reject_all else 1)
+    assert result.root_validation.rejected == (2 if reject_all else 1)
 
 
-def test_expired_final_validation_cannot_select_frozen_candidates(monkeypatch):
-    import stacking_common.search.mcts.search as module
+def test_frozen_roots_without_full_scene_evaluation_are_refused():
     search, root, evaluator = setup()
-    clock = [0.]
-    monkeypatch.setattr(module.time, 'monotonic', lambda: clock[0])
-    original = evaluator.evaluate
-    def evaluate(*args):
-        out = original(*args)
-        clock[0] = 2.
-        return out
-    evaluator.evaluate = evaluate
-    result = search.search(root, MCTSSearchRequest(iterations=1, max_time_seconds=1.))
-    assert result.selected is None and result.timed_out
-    assert not evaluator.calls
-    assert all(n.rejection_reason in {'full_scene_validation_timeout', 'root_validation_timeout'}
-               for n in root.children)
-    assert any(n.rejection_reason == 'full_scene_validation_timeout' for n in root.children)
+    evaluator.evaluate_full_scene_batch = None
+    with pytest.raises(ValueError, match='require full-scene evaluation'):
+        search.search(root, MCTSSearchRequest(iterations=1))
 
 
 @pytest.mark.parametrize('crash', [False, True])
